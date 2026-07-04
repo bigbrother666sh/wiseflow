@@ -72,6 +72,92 @@
   - 启用：`awada-channel-setup` 技能（装依赖 → 写 openclaw.json → 重启 Gateway → 验证）
   - 排障：见 `crews/it-engineer/skills/awada-channel-setup/SKILL.md` 排障检查单
 
+### sales-cs 启用 SOP（Phase 7 续新增，2026-07-04）
+
+> **触发**：用户 / main agent 说"启用 sales-cs"或"让 sales-cs 能联系外部用户"。
+
+**前提检查**：
+
+1. `awada` 是否已就绪（无 awada → 先做 awada 启用）
+2. 是否已存在 `~/.openclaw/workspace-sales-cs/` 目录
+3. openclaw.json 当前 `agents.list` 是否已有 `sales-cs`（如有 → 跳过 step 1-2，只做 step 3 软链）
+
+**Step 1 · 装依赖**：
+
+```bash
+# sales-cs workspace 已经在 setup-crew 时创建
+ls ~/.openclaw/workspace-sales-cs/
+# 包含 ALLOWED_COMMANDS / DECLARED_SKILLS / BUILTIN_SKILLS / skills/ 等
+
+# 若 skills/ 缺失（罕见）→ 跑 setup-crew.sh --agent sales-cs 重装
+```
+
+**Step 2 · openclaw.json 注入 sales-cs**：
+
+```bash
+# 备份
+cp ~/.openclaw/openclaw.json{,.bak-$(date +%Y%m%d-%H%M%S)}
+
+# 把 workspace-sales-cs/openclaw_sample.json 的 agents.list[sales-cs] 段并入
+python3 -c "
+import json
+main = json.load(open('/home/wukong/.openclaw/openclaw.json'))
+sample = json.load(open('/home/wukong/.openclaw/workspace-sales-cs/openclaw_sample.json'))
+agents = main.get('agents', {}).get('list', [])
+ids = {a['id'] for a in agents}
+if 'sales-cs' not in ids:
+    agents.append(sample['agents']['list'][0])  # 合并
+    main['agents']['list'] = agents
+    with open('/home/wukong/.openclaw/openclaw.json', 'w') as f:
+        json.dump(main, f, ensure_ascii=False, indent=2)
+    print('sales-cs added')
+else:
+    print('sales-cs already present')
+"
+```
+
+**Step 3 · 软链 `business_knowledge/`**（HRBP 业务知识库）：
+
+```bash
+# 业务知识库路径约定（HRBP 维护）：
+SOURCE_DIR="<HRBP workspace path>/business_knowledge"
+TARGET_DIR="$HOME/.openclaw/workspace-sales-cs/business_knowledge"
+
+if [ -d "$SOURCE_DIR" ]; then
+    ln -sfn "$SOURCE_DIR" "$TARGET_DIR"
+    ls -la "$TARGET_DIR"
+else
+    echo "warn: $SOURCE_DIR 不存在，请先让 HRBP 创建业务知识库"
+fi
+```
+
+**Step 4 · 重启 Gateway**（必须，hot-reload 不够——sales-cs 涉及 channel 绑定）：
+
+```bash
+# 跟用户确认时机（生产 Gateway 重启会断所有 session）
+systemctl --user restart openclaw-gateway.service
+sleep 5
+journalctl --user -u openclaw-gateway --since "10s ago" | grep -iE "started|sales-cs"
+```
+
+**Step 5 · 验证**：
+
+```bash
+# 1) sales-cs agent 加载
+openclaw gateway status 2>/dev/null | grep -A 3 sales-cs
+# 2) awada 通道连通（sales-cs 的唯一 channel）
+redis-cli -u <REDIS_URL> ping  # 期望 PONG
+# 3) 用户微信扫码绑定（让 main 引导用户）
+# 4) 发一条测试消息 → sales-cs 应答
+```
+
+**常见错**：
+
+- `~/.openclaw/workspace-sales-cs/openclaw_sample.json` 不存在 → 跑 `setup-crew.sh --agent sales-cs` 重装
+- awada 没起来 → 销售收不到消息；先做 awada 启用
+- `business_knowledge` 软链打错路径 → sales-cs 业务知识空白；查 `ls -la ~/.openclaw/workspace-sales-cs/business_knowledge`
+- 重启 Gateway 失败 → 立刻回滚 openclaw.json（`mv .bak-* openclaw.json`）
+
 ### camoufox-cli 排故（Phase 4.5 已落地）
 
 - **指纹模板 bake**（Docker 镜像内）：`/root/.openclaw/logins/_template/camoufox-cli.json`，由 `Dockerfile wiseflow-layer` 阶段跑 `camoufox-cli --session _template --persistent --headless open about:blank` 生成。
@@ -116,16 +202,18 @@
 
 ## 关于 WiseFlow 项目(我正在维护的项目)
 
-## 关于 WiseFlow 项目(我正在维护的项目)
-
 项目背景、功能介绍和目录结构详见工作区中的**项目背景.md**(由部署脚本自动同步,每次升级均为最新版)。
 
 ### 项目基本信息
-- **项目名称**:WiseFlow
+- **项目名称**:WiseFlow（产品拆分后客户端名：小贝，main agent）
 - **仓库地址**:https://github.com/TeamWiseFlow/wiseflow
 - **上游 OpenClaw 仓库**:https://github.com/openclaw/openclaw
 - **OpenClaw 官方教程**:https://docs.openclaw.ai/
 - **历史曾用名**:openclaw_for_business、OFB(代码已合并,统一使用 WiseFlow)
+- **产品拆分后（2026-07）**：
+  - 客户端仓 = `~/wiseflow`（master 分支，D8 扁平化 + camoufox 集成 + img-gen 改火山 + 公众号 engagement 骨架）
+  - 中转服务仓 = `wiseflow-relay`（PM2 部署，独立仓 `git-server:repos/wiseflow-relay.git`）
+  - 详见 `~/.claude/projects/-home-wukong-wiseflow/memory/30-client-dev-session-2026-07-04.md`
 
 ---
 

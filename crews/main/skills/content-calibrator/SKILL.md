@@ -100,7 +100,7 @@ metadata:
 
 1. **一键获取**：`published-track/scripts/fetch-and-update-metrics.sh`（封装 login-manager 探活 → API 抓取 → DB 写入）
 2. **复盘时**：直接从 published-track DB 读取数据
-3. **深度数据**（完播率、转粉率、评论内容等）：仍需 browser tool + CDP 拦截，由 published-track 心跳任务负责
+3. **深度数据**（完播率、转粉率、评论内容等）：仍需 camoufox-cli 抓取（详见 browser-guide §0.2 抓取流程），由 published-track 心跳任务负责
 
 ### wx-mp-hunter 数据获取说明
 

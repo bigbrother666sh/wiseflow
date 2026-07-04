@@ -105,7 +105,9 @@ metadata:
 ### 前置条件
 
 1. 执行 `login-manager check xhs-browse` 确认登录态有效（exit 0）
-2. 若 exit 2，按 login-manager 流程完成浏览器扫码登录
+2. 若 exit 2，按 login-manager skill 的 **camoufox-cli 登录流程** 完成扫码（详见 browser-guide §0.1）：
+   - `login-manager.sh qr-headless xhs-browse` → 取 QR PNG 发用户
+   - 用户回复"已扫码" → `login-manager.sh qr-confirm xhs-browse --session <s> --timeout 180`
 
 ### 运行
 

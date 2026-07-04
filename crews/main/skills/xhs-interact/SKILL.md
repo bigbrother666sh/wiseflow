@@ -1,22 +1,48 @@
 ---
 name: xhs-interact
-description: 小红书社交互动技能。发表评论、回复评论、点赞。当用户要求评论、回复或点赞小红书帖子时触发。
+description: 小红书社交互动技能。发表评论、回复评论、点赞、关注。当用户要求评论、回复、点赞或关注小红书用户时触发。Phase 4.5+ 走 camoufox-cli 主推路径（反指纹 + 探活前置），browser-guide §0.1 + login-manager skill 配合使用。
 metadata:
   openclaw:
     emoji: 💬
+    requires:
+      bins:
+      - camoufox-cli
 ---
 
 # 小红书社交互动
 
-通过 **browser 工具** 代替用户在小红书（xhs）上完成社交互动。
+通过 **camoufox-cli** headless session（Phase 4.5+ 主推）代替用户在小红书（xhs）上完成社交互动。fallback 路径用 openclaw 内置 `browser` tool（仅在 camoufox-cli 在该平台持续触发风控时切换）。
 
-**前提条件**：需要先通过 browser 工具登录小红书（遵循 browser-guide 第 6 节 QR 登录流程）。
+**前提条件**：先通过 login-manager skill 拿到有效 cookie（详见 browser-guide §0.1）：
+1. `login-manager.sh check xhs-browse` → exit 0 有效
+2. exit 2 → `login-manager.sh qr-headless xhs-browse` → 发 QR → 用户扫码 → `login-manager.sh qr-confirm xhs-browse --session <s> --timeout 180`
+
+---
+
+## 启动一个 camoufox session
+
+每个互动任务 / 每个 agent 用独立 camoufox session（**D18 + 4.5.5 并发约束**）：
+
+```bash
+SESSION="xhs-browse-interact-$(date +%s)-$$"
+login-manager.sh cookie-import xhs-browse "$SESSION"
+camoufox-cli --session "$SESSION" --persistent --headless --json \
+    open "https://www.xiaohongshu.com/"
+```
+
+任务结束**必须 cleanup**：
+
+```bash
+login-manager.sh session-cleanup xhs-browse "$SESSION"
+```
+
+> ⚠️ **不要**重复使用同一 session 名；不同 agent 共享 session 会污染 cookie state + 触发风控。
 
 ---
 
 ## 获取 feed_id 和 xsec_token
 
-所有互动操作需要 `feed_id` 和 `xsec_token`，从浏览器地址栏获取：
+所有互动操作需要 `feed_id` 和 `xsec_token`，从浏览器地址栏获取（snapshot eval）：
 
 ```
 笔记 URL 格式：
@@ -28,12 +54,18 @@ https://www.xiaohongshu.com/explore/64abc123def456?xsec_token=ABxxxxxx&xsec_sour
 → xsec_token = ABxxxxxx
 ```
 
+camoufox 拿当前 URL：
+```bash
+camoufox-cli --session "$SESSION" --json eval "window.location.href"
+```
+
 ---
 
 ## 必做约束
 
 - 批量操作时每次之间保持 30-60 秒间隔，避免风控。
 - 每天评论不超过 20 条。
+- 互动前用 `camoufox-cli eval` 验 cookie 有效（页面 snapshot 不出 `.login-container` / 不 redirect 到 login）。
 
 ---
 
@@ -45,35 +77,42 @@ https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_sourc
 
 ---
 
-## 工作流程
+## 工作流程（camoufox-cli 版本）
+
+> **模式说明**：以下每条操作都用 `camoufox-cli` 的 `snapshot` / `eval` / `click` / `type` 子命令实现。`$SESSION` 为上文启动的 session 名。
+>
+> 找不到元素时**不要**盲试：先 `snapshot` 看 DOM 真实结构，再决定 selector 改写。
 
 ### 发表评论
 
 ```
-1. 导航到 feed 详情页（使用上方 URL 格式）
-2. 等待页面加载，检查页面是否可访问
-   （出现 .access-wrapper / .error-wrapper 则笔记不可访问，停止并告知用户）
-3. 输入评论内容到 .content-input 元素
-4. 触发 input 事件
-5. 点击发送按钮
-6. 等待 1-2 秒，确认评论出现在评论区
+1. 导航到 feed 详情页：
+   camoufox-cli --session "$SESSION" --persistent --headless open <feed_url>
+2. 等待 2-3 秒加载（sleep 3），调 snapshot 看 .access-wrapper / .error-wrapper
+   是否出现 → 出现则笔记不可访问，停止并告知用户
+3. 找评论输入框 .content-input，触发 input 事件（用 type 子命令）：
+   camoufox-cli --session "$SESSION" --json type ".content-input" "评论内容"
+4. 触发 input 事件（camoufox type 已隐含触发，确认 snapshot 看到值变化）
+5. 找发送按钮并 click：
+   camoufox-cli --session "$SESSION" --json click "<send-btn-selector>"
+6. 等待 1-2 秒（sleep 2），调 snapshot 确认评论出现在评论区
 ```
 
 ### 回复评论
 
 ```
-1. 导航到 feed 详情页
-2. 等待页面加载（2-3 秒），确认页面可访问
+1. 导航到 feed 详情页（camoufox-cli open）
+2. 等待 2-3 秒加载，确认页面可访问
 3. 滚动到目标评论：
-   - 已知 comment_id：查找 #comment-{comment_id} 元素并滚动到可见
-   - 已知 user_id：查找含 data-user-id="{user_id}" 的评论元素并滚动到可见
-   - 若需滚动加载更多评论：逐段向下滚动（scroll 7 次后停止），
-     每次滚动后等待 0.5-1 秒观察评论加载，到达 .end-container 则说明已到底部
-4. 点击目标评论的回复按钮（selector: .interactions .reply）
-5. 输入回复内容到 .content-input 元素
-6. 触发 input 事件
-7. 点击发送按钮
-8. 等待 1-2 秒确认回复已发出
+   - 已知 comment_id：eval "document.querySelector('#comment-${comment_id}').scrollIntoView()"
+   - 已知 user_id：eval "document.querySelector('[data-user-id=\"${user_id}\"]').scrollIntoView()"
+   - 若需滚动加载更多评论：eval 多次 window.scrollBy(0, 800) + sleep 1
+     观察 .end-container 出现即到底（最多 7 次）
+4. 点击目标评论的回复按钮（.interactions .reply）：
+   camoufox-cli --session "$SESSION" --json click ".interactions .reply"
+5. 输入回复内容到 .content-input（camoufox type 子命令）
+6. 点击发送按钮（camoufox click）
+7. sleep 1-2s，snapshot 确认回复已发出
 ```
 
 ### 点赞 / 取消点赞
@@ -82,43 +121,41 @@ https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_sourc
 
 ```
 1. 导航到 feed 详情页
-2. 等待页面加载完成（2-3 秒）
-3. 通过页面 snapshot 或 JS 检查当前点赞状态
-   - 已点赞：.like-wrapper 元素包含 like-active 类
-4. 点击点赞按钮：
-   - 方式 A（CDP click）：browser act kind=click ref=xxx
-   - 方式 B（JS evaluate，推荐）：document.querySelector('.like-wrapper').click()
-5. 等待 1-2 秒，确认状态变化
-6. 若状态未变化，重试一次
+2. 等待 2-3 秒加载
+3. 检查当前点赞状态（eval）：
+   camoufox-cli --session "$SESSION" --json eval \
+     "document.querySelector('.like-wrapper').classList.contains('like-active')"
+4. 若需点赞，click 点赞按钮（推荐 JS 方式，最稳）：
+   camoufox-cli --session "$SESSION" --json eval \
+     "document.querySelector('.like-wrapper').click(); 'ok'"
+5. sleep 1-2s，eval 验状态：
+   camoufox-cli --session "$SESSION" --json eval \
+     "document.querySelector('.like-wrapper').classList.contains('like-active')"
+6. 若状态未变化，重试一次；仍失败则报告
 ```
 
-**CDP 模式提示**：若 CDP click 超时，改用 JavaScript evaluate 方法：
-```javascript
-// 点击点赞按钮
-document.querySelector('.like-wrapper').click();
+> **fallback**：若 camoufox click/eval 触发风控，切换到 browser-guide §1-B（内置 browser tool + patchright）。
 
-// 检查点赞状态
-document.querySelector('.like-wrapper').classList.contains('like-active') ? '已点赞' : '未点赞';
+### 关注 / 取关
+
+#### 关注用户
+
+```
+1. 导航到用户主页：camoufox-cli ... open "https://www.xiaohongshu.com/user/profile/${user_id}"
+2. sleep 3 加载
+3. 找关注按钮：snapshot 找文本为"关注"的按钮 / eval ".user-actions .follow-btn"
+4. click 关注按钮
+5. sleep 1-2s，snapshot 确认按钮变为"已关注"
 ```
 
----
+#### 取关用户
 
-## 关注 / 取关
-
-### 关注用户
-
-1. 导航到用户主页：`https://www.xiaohongshu.com/user/profile/{user_id}`
-2. 等待 3 秒加载
-3. 找到关注按钮（selector: `.user-actions .follow-btn` 或文本为"关注"的按钮）
-4. 点击关注按钮
-5. 等待 1-2 秒确认按钮变为"已关注"
-
-### 取关用户
-
+```
 1. 导航到用户主页
-2. 找到"已关注"按钮
-3. 点击后确认弹出确认框，点击"取消关注"
-4. 等待 1-2 秒确认按钮变为"关注"
+2. 找"已关注"按钮（同上 selector）
+3. click 后确认弹出确认框，click"取消关注"
+4. sleep 1-2s，确认按钮变为"关注"
+```
 
 ---
 
@@ -146,7 +183,7 @@ document.querySelector('.like-wrapper').classList.contains('like-active') ? '已
 
 - **触发**：需要找到较早的评论
 - **症状**：评论未出现在 DOM 中
-- **workaround**：逐段向下滚动加载，每次滚动后等待 0.5-1 秒；到达 `.end-container` 说明到底部；最多滚动 7 次
+- **workaround**：逐段向下滚动加载（eval window.scrollBy + sleep），每次滚动后等待 0.5-1 秒；到达 `.end-container` 说明到底部；最多滚动 7 次
 
 ### pitfall: creator_center_is_different_host
 
@@ -154,14 +191,28 @@ document.querySelector('.like-wrapper').classList.contains('like-active') ? '已
 - **症状**：主站无完整创作者功能
 - **workaround**：创作者相关操作（查看草稿、创作者数据）需访问 `creator.xiaohongshu.com`
 
+### pitfall: camoufox_session_leak
+
+- **触发**：任务结束未调 `session-cleanup`，daemon 残留
+- **症状**：下次启动同一 session 名冲突，cookie state 污染
+- **workaround**：每个互动任务**必须**三步走——`cookie-import` → 操作 → `session-cleanup`；不要跨任务复用 session 名
+
+### pitfall: cookie_expired_during_interaction
+
+- **触发**：互动过程中小红书 session 过期
+- **症状**：页面突然 redirect 到 login / 互动操作 401
+- **workaround**：立即 `session-cleanup` 当前 session → 重走 `qr-headless` + `qr-confirm` → 开新 session 重试；不要盲 retry 当前 session
+
 ---
 
 ## 错误处理
 
 | 情况 | 处理 |
 |------|------|
-| 页面出现登录墙 | 遵循 browser-guide 第 6 节 QR 登录流程，扫码后重试 |
+| cookie 失效（`login-manager check xhs-browse` exit 2） | 重走 §0.1 登录流：`qr-headless` → 用户扫码 → `qr-confirm` → 重启 session |
+| 页面出现登录墙 | 同样重走 §0.1 |
 | 点赞状态未变化 | 重试一次，仍未变化则报告错误 |
-| CDP click 超时 | 改用 JavaScript evaluate 方法：browser act kind=evaluate fn="document.querySelector('.like-wrapper').click()" |
+| camoufox click/eval 失败 / 超时 | 改用 `eval` 走 JS 方式（最稳）；再失败切换 browser-guide §1-B fallback |
 | xsec_token 缺失/无效 | 从搜索结果链接中重新获取 signed URL，不要手拼 |
 | 安全限制/访问异常 | 停止操作 60 秒后重试，或换笔记操作 |
+| camoufox daemon 残留 | `camoufox-cli close --all` 兜底清掉；下个任务开新 session |

@@ -53,7 +53,7 @@ Use the **login-manager** skill to check the session:
 
 - `platform`: `douyin` | `bilibili` | `xhs`
 - Call login-manager's **check** ability for the target platform (XHS uses `xhs-browse`)
-- If exit code 2 (session expired), execute the **browser-based re-login workflow** described in the login-manager skill's "Agent workflow on exit code 2" section, then retry `check`
+- If exit code 2 (session expired), execute the **camoufox-cli 登录流程** described in the login-manager skill (qr-headless + qr-confirm, see browser-guide §0.1), then retry `check`
 
 ### Step 3 — Run the analyzer
 

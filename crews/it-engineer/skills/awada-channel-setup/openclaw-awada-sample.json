@@ -1,0 +1,31 @@
+{
+  "channels": {
+    "awada": {
+      "enabled": true,
+      "redisUrl": "redis://:PASSWORD@HOST:PORT/DB",
+      "lane": "user",
+      "platform": "wecom",
+      "consumerGroup": "openclaw",
+      "consumerName": "openclaw-1",
+      "perMsgMaxLen": 1800
+    }
+  },
+  "plugins": {
+    "load": {
+      "paths": [
+        "{WISEFLOW_PROJECT_ROOT}/awada"
+      ]
+    },
+    "entries": {
+      "awada": {
+        "enabled": true,
+        "config": {
+          "customerdb": {
+            "agentId": "sales-cs",
+            "workspaceDir": "{HOME}/.openclaw/workspace-sales-cs"
+          }
+        }
+      }
+    }
+  }
+}

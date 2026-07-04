@@ -1,28 +1,19 @@
 #!/bin/bash
-# apply-addons.sh - wiseflow 基础能力安装 + addon 加载器
+# apply-addons.sh - wiseflow 基础能力安装 + 补丁应用 + 配置同步
 #
-# 技能两级体系：
-#   - 默认全局 skills: skills/ (项目根目录) → 安装到 ~/.openclaw/skills/ (managed dir)
-#   - Addon 额外全局 skills: addons/<name>/skills/ → 安装到 ~/.openclaw/skills/ (managed dir)
-#   - Agent 专属 skills: crews/<template>/skills/ → 已由 setup-crew.sh 安装到 workspace
-#
-# 每次运行时：
+# 产品拆分后（D8 扁平化）addons/ 结构已销毁，crew 全部在顶层 crews/，
+# 公共 skill 在顶层 skills/。本脚本现仅负责：
 #   1. 恢复 openclaw/ 到干净状态
 #   2. 应用基础补丁（patches/*.patch）+ 依赖覆盖（patches/overrides.sh）
-#   3. 安装默认全局 skills（项目根目录 skills/）
-#   4. 扫描 addons/*/ 目录，对每个 addon 依次执行：
-#      a. skills/*/SKILL.md — 额外全局 skill 安装
-#      b. crew/*/  — Crew 模板安装 + 可选自动实例化
+#   3. 安装默认全局 skills（项目根目录 skills/ → ~/.openclaw/skills/）
+#   4. 注入 awada 扩展路径 + 同步 openclaw.json skills 节点
+# Crew 模板安装由 setup-crew.sh 单独负责（扫顶层 crews/）。
 #
-# addon 目录结构：
-#   addons/<name>/
-#   ├── addon.json          # 元数据（名称、版本、描述）
-#   ├── skills/*/SKILL.md   # 可选：额外全局技能（所有 Agent 可见）
-#   └── crew/               # 可选：Crew 模板
-#       └── <template-id>/
-#           ├── SOUL.md ... HEARTBEAT.md  # 模板 workspace 文件
-#           ├── DENIED_SKILLS             # 可选：屏蔽特定内置 skill
-#           └── skills/*/SKILL.md         # 模板专属技能
+# TODO(Phase 6/7): addons 扫描循环（下方 ~260 行起）现为死代码，待整体精简删除。
+#
+# 技能两级体系：
+#   - 公共 skills: skills/ (项目根目录) → ~/.openclaw/skills/ (managed dir, 所有 Agent 可见)
+#   - Agent 专属 skills: crews/<template>/skills/ → 由 setup-crew.sh 安装到 workspace
 set -e
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -31,7 +22,6 @@ ADDONS_DIR="$PROJECT_ROOT/addons"
 OPENCLAW_DIR="$PROJECT_ROOT/openclaw"
 OPENCLAW_HOME="$HOME/.openclaw"
 CONFIG_PATH="$OPENCLAW_HOME/openclaw.json"
-HRBP_ADD_AGENT_SCRIPT="$PROJECT_ROOT/crews/hrbp/skills/hrbp-recruit/scripts/add-agent.sh"
 GLOBAL_SHARED_SKILLS_FILE="$OPENCLAW_HOME/GLOBAL_SHARED_SKILLS"
 FORCE=false
 SKIP_CREW=false
@@ -213,7 +203,7 @@ if [ -f "$CONFIG_PATH" ] && [ -f "$PROJECT_ROOT/config-templates/openclaw.json" 
 fi
 
 # ─── 注入 awada 扩展路径（绝对路径，避免 CWD 依赖）──────────────
-AWADA_EXT="$PROJECT_ROOT/awada/awada-extension"
+AWADA_EXT="$PROJECT_ROOT/awada"
 if [ -d "$AWADA_EXT" ] && [ -f "$AWADA_EXT/openclaw.plugin.json" ]; then
   if [ -f "$CONFIG_PATH" ]; then
     node -e "
@@ -225,7 +215,7 @@ if [ -d "$AWADA_EXT" ] && [ -f "$AWADA_EXT/openclaw.plugin.json" ]; then
       const awadaPath = '$AWADA_EXT';
       // 先移除所有结尾匹配 awada/awada-extension 的旧路径（跨机器迁移时清理残留）
       config.plugins.load.paths = config.plugins.load.paths.filter(
-        p => !p.endsWith('awada/awada-extension')
+        p => !p.endsWith('awada/awada-extension') && !p.endsWith('/awada')
       );
       config.plugins.load.paths.push(awadaPath);
       if (!config.plugins.entries) config.plugins.entries = {};

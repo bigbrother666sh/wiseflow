@@ -1,7 +1,31 @@
 {
-  "skills": [],
+  "skills": [
+    "twitter-post",
+    "tiktok-post",
+    "instagram-post",
+    "youtube-upload",
+    "xhs-content-ops",
+    "xhs-interact",
+    "xhs-publisher",
+    "juejin-publish",
+    "toutiao-publish",
+    "siliconflow-img-gen",
+    "pexels-footage",
+    "pixabay-footage",
+    "smart-search",
+    "browser-guide",
+    "wxwork-moments",
+    "wx-mp-hunter",
+    "wxwork-drive",
+    "login-manager",
+    "wx-mp-publisher",
+    "video-product",
+    "viral-chaser",
+    "complex-task"
+  ],
   "subagents": {
-    "allowAgents": ["it-engineer"]
+    "allowAgents": ["it-engineer", "content-producer"]
   },
+  "maxConcurrent": 2,
   "tools": {}
 }

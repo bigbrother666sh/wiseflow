@@ -1,40 +1,40 @@
 # Wiseflow
 
-🚀 **v5.5.2 更新**
+Wiseflow 是OPC/创业者/独立经营者的“AI搭子”，它基于 [openclaw](https://github.com/openclaw/openclaw) 打造，增加了诸多面向真实创业场景的实用技能（同时也删减了原版很多用不到的功能），目前它能帮你：
+
+- 微信公众号文章写作、排版与推送
+- 小红书图文创作与发布
+- 短视频生成与多平台分发
+- 爆款视频追爆分析、仿写与再创作
+- 数据自动采集与每日定时复盘
+- 每日热门选题
+- 指定信源监控与提取
+- 通过社交媒体寻找潜在客户或市场调研
+- 灵感记录与思路梳理
+- ”四声分析“法战略研判与讨论
+- 软件著作权、ICP备案等材料生成辅助
+- ……
+
+并且你只需通过手机上的微信与他沟通，即可实现全部功能！
+
+<img width="960" src="assets/crews.png" />
+
+（这里图要改，改为从视频里边截图，横向排列。）
+
+**除了微信外，我们也支持飞书和企业微信**
+
+---
+
+## 🚀 **v5.5.2 更新**
 
 - **Selfmedia Operator 新增视频制作与分发能力**：一站式短视频制作（`video-product`）支持根据一个主题或一篇文章的链接全流程端到端制作短视频：自动生成脚本 → 逐段生成视频素材（声画同出）→ 合成成片
 - Selfmedia Operator 打通微信视频号、小红书、抖音、Twitter/X 等平台分发，形成"制作 → 分发"闭环
 - 为Selfmedia Operator引入科学的评估方案和自动复盘方案（发布前预测打分 -> 每日数据复盘 -> 根据复盘调整打分量表 -> 不断优化预测准确性)。以上已内置到所有平台的发布流程中，让运营工作不再“凭感觉”。
 - **两个剪辑辅助技能**：`de-mouth`（口播视频去口误，自动识别并删除静音、语气词、卡顿词、重复句、残句）、`highlight-clipper`（ASR + 文本分析自动提取高光片段剪成多段短视频）
-- Smart Search技能重构，采用灵活路由机制。
 - **主力模型切换为 GLM-5.2，推荐火山方舟 Coding Plan**：通过 wiseflow 邀请链接订阅叠加 9.5 折，首月低至 9.4 元
 - 适配openclaw 2026-6-10 版本、openclaw-weixin 2.4.6版本
 
 详见 [CHANGELOG.md](CHANGELOG.md)
-
----
-
-## what's wiseflow
-
-Wiseflow 是基于 [openclaw](https://github.com/openclaw/openclaw) 的 Multi-Agent 系统，为 **所有被/或即将为 AI 时代冲击、需要独立拓展收入来源的个体** 打造——被裁员/降薪的职场人、副业探索者、自媒体个体户、小生意人、刚毕业的年轻人……
-
-**最小安装后全程仅需微信即可使用，无需额外配置其他软件**，零安装负担！
-
-> **对于 99% 的人来说，人工智能技术带来的其实是灾难**
->
-> 这不是危言耸听。历史上每一次技术变革——蒸汽机、电力、互联网——无一例外都让会用它的人赚得更多，不会用的人被甩得更远。因为技术本质上是杠杆：有资本、有资源的人能第一时间装备自己，效率翻倍；而普通人连反应的时间都没有，就已经被替代了。AI 时代只会把这个规律放大到极致——99% 的输家，1% 的赢家。这非常不公平、也不合理。然而遗憾的是，这场变革已经无法被停止，那么，我们能做点什么？
->
-> 本项目的立意是**为普通人提供一支AI搞钱团队**，以对抗AI技术发展带来的日益严峻的贫富差距。我们号召整个开源社区与我们一起为普通人而战，用技术对抗权贵！
-
-我们不贩卖焦虑，也不承诺捷径。挣钱的本质从来是提供价值——你干了那么多年的事、攒下的经验、对某个领域的判断，那才是真有价值的。问题是：一个人有经验、有方法，但时间和精力终究有限。
-
-wiseflow 目前能为你提供的是：
-- AI自动化获客：**商务拓展** 挖客户 → **自媒体运营** 铺声量 → **销售客服** 促转化 → **HRBP** 调策略 → **IT Engineer** 保运行
-- 业务支撑与保障：**设计师** 搭官网/落地页 → **IT Engineer** 搞 ICP 备案、服务器管理、SEO 优化
-
-<img width="960" src="assets/crews.png" />
-
-> 📌 **寻找 4.x 版本？** 原版 v4.32 及之前版本的代码在 [`4.x` 分支](https://github.com/TeamWiseFlow/wiseflow/tree/4.x)中。
 
 ---
 
@@ -231,7 +231,7 @@ Crew 遇到自己不能解决的问题：
 |------|------|----------|-----------|
 | T0 | read-only | `security: deny` — 默认禁止所有 shell 命令 | external crews（默认） |
 | T1 | basic-shell | `security: allowlist` — 仅允许只读命令 | low-risk internal crews |
-| T2 | dev-tools | `security: allowlist` — 开发工具链 + 只读命令 | main, hrbp，selfmedia-operator... |
+| T2 | dev-tools | `security: allowlist` — 开发工具链 + 只读命令 | main, content-producer... |
 | T3 | admin | `security: full` — 完整系统操作 | it-engineer |
 
 ##### 易用性脚本
@@ -260,7 +260,7 @@ wiseflow 将 openclaw 内置的 Playwright 替换为 [Patchright](https://github
 
 > 我们综合考察了目前市面上流行的各浏览器自动化框架，包括 nodriver、browser-use、vercel 的 agent-browser等，目前可以确认的是虽然基本原理都是通过走 cdp 并提供持久化 openclaw 专用的 profile，但是只有 patchright 提供了完全的针对 CDP 探针的移除，换言之，即便是用最纯粹的 cdp 直连方案，也是带有特征的，即也是可以被检测到的。其他框架的定位是自动化测试目的，而非获取目的，而 patchright 本身就定位于获取，并且它本质上是 playwright 的 patch，继承了几乎全部的 playwright 上层 api，这就天然与 openclaw 兼容，不必额外安装任何插件或者mcp
 
-我们认为反侦测能力是为了实现“在线搞钱“目的的一个基础能力，比如 `selfmedia-operator` 能够实现自动去各个平台发帖、回帖就完全基于此项改进。
+我们认为反侦测能力是为了实现“在线搞钱“目的的一个基础能力，比如 `main` 能够实现自动去各个平台发帖、回帖就完全基于此项改进。
 
 **🔍 Smart Search（智能搜索） Skill**
 
@@ -283,34 +283,24 @@ https://github.com/user-attachments/assets/8d097b3b-f9ab-42eb-98bb-88af5d28b089
 ```
 wiseflow/
 ├── openclaw/              # 上游仓库（git clone，禁止直接修改）
-├── crews/                 # 内置 Crew 模板（全局唯一，不可删除）
-│   ├── shared/            # 共享协议（RULES.md、TEMPLATES.md）
+├── crews/                 # Crew 模板（扁平，产品拆分后 D8）
 │   ├── _template/         # 空白脚手架（创建新模板的起点）
-│   ├── index.md           # 模板注册表（HRBP 维护）
-│   ├── main/              # [built-in] Main Agent（路由调度器）
-│   ├── hrbp/              # [built-in] HRBP（Crew 生命周期管理）
-│   │   └── skills/        # HRBP 专属技能（recruit/modify/remove/list/usage）
-│   └── it-engineer/       # [built-in] IT Engineer（系统运维 + SEO 技术优化）
-│       └── skills/        # IT Engineer 专属技能（seo、session-logs 等）
-├── skills/                # wiseflow 默认全局技能（smart-search / browser-guide / complex-task 等）
-├── patches/               # wiseflow 基础补丁（对所有 addon 生效）
+│   ├── shared/            # 共享协议（COMMAND_TIERS / CREW_TYPES）
+│   ├── index.md           # 模板注册表
+│   ├── it-engineer/       # [built-in] IT Engineer（sub-agent，系统运维 + 排障）
+│   ├── main/# [default] 新媒体运营（创业伴侣，绑 openclaw-weixin）
+│   ├── content-producer/    # 内容制作者
+│   └── sales-cs/          # 销售型客服（绑 awada，默认禁用）
+├── skills/                # 公共技能（≥2 crew 共用，smart-search / browser-guide / login-manager 等）
+├── patches/               # wiseflow 基础补丁
 │   ├── *.patch            # git 补丁（按序号顺序应用到 openclaw/）
 │   └── overrides.sh       # pnpm 依赖覆盖（如替换 playwright → patchright）
-├── addons/                # addon 安装目录
-│   ├── officials/         # [official] wiseflow 官方 addon
-│   │   ├── skills/        # 官方 addon 提供的额外全局技能（rss-reader / siliconflow-* 等）
-│   │   └── crew/          # 官方 Crew 模板
-│   │       ├── sales-cs/          # 销售型客服
-│   │       ├── selfmedia-operator/# 自媒体运营
-│   │       ├── designer/          # 设计师
-│   │       └── business-developer/# 商务拓展
-│   └── ...                # 用户可以自行安装的第三方 addon
 ├── config-templates/      # 配置模板（开箱即用的最佳实践）
 │   └── openclaw.json      # 默认配置模板
 ├── scripts/               # 工具脚本（详见 scripts/README.md）
 │   ├── lib/               # 脚本共享工具
 │   ├── install.sh         # 一键安装 / 升级（推荐入口）
-│   ├── apply-addons.sh    # 应用补丁 + 全局技能 + addon + build + restart
+│   ├── apply-addons.sh    # 应用补丁 + 全局技能 + awada 注入 + build + restart
 │   ├── dev.sh             # 开发模式启动（前台运行 gateway）
 │   ├── setup-crew.sh      # 多 crew 系统安装（仅同步 markdown，幂等）
 │   └── setup-wsl2.sh      # WSL2 环境配置

@@ -1,0 +1,63 @@
+# syntax=docker/dockerfile:1
+# wiseflow-client Dockerfile（多阶段，bake 出 ~/.openclaw 运行态）
+#
+# Phase 0 骨架：阶段 1-2 基本可构建；阶段 3-4 含 TODO，待 Phase 6-7
+# crew/skill 扁平化 + img-gen 改火山 + camoufox 指纹模板落地后填实。
+# 详见 docs/client-buildout.md 与 plan §六。
+
+# ── 阶段 1: workspace-deps ────────────────────────────────────────────────────
+# Node24 + pnpm + python3 + camoufox Firefox 二进制 + camoufox-cli(npm 全局)
+# 不 bake chromium（fallback attach 的是用户本机 Chrome；patchright-core 仅作
+# npm 依赖留给 connectOverCDP 驱动）。
+FROM node:24-bookworm AS workspace-deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-venv \
+    ca-certificates curl git bash \
+    && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@latest --activate
+# camoufox-cli 全局 + 下载 Camoufox Firefox 二进制
+RUN npm install -g camoufox-cli@0.6.2 && camoufox-cli install --with-deps
+# patchright-core 留作 fallback connectOverCDP 驱动（不 bake chromium）
+# 在阶段 2 的 pnpm install 里通过 patches/overrides.sh 注入
+
+# ── 阶段 2: build ─────────────────────────────────────────────────────────────
+# COPY openclaw + apply patches（patchright override + 005/006）+ pnpm install + build + ui:build
+FROM workspace-deps AS build
+WORKDIR /opt/openclaw
+# openclaw/ 是 clone 的引擎源码（.gitignore 排除，build 期由 build-image.sh 检出注入）
+COPY openclaw/ ./openclaw/
+COPY patches/ ./patches/
+COPY openclaw.version openclaw-weixin.version.json ./
+# TODO(Phase 6): apply patches/overrides.sh（patchright override）+ 005/006
+# RUN bash patches/overrides.sh apply
+WORKDIR /opt/openclaw/openclaw
+RUN pnpm install --frozen-lockfile
+RUN pnpm build
+# TODO(Phase 6): ui:build（若 openclaw 含 UI 子包）
+# RUN pnpm --filter ui build
+
+# ── 阶段 3: wiseflow-layer ────────────────────────────────────────────────────
+# COPY skills/crews/config → 组织成 /root/.openclaw/ 运行态；统一 npm/pip install；
+# 编译改火山的 img-gen gen.py；生成 camoufox 冻结指纹模板。
+FROM build AS wiseflow-layer
+RUN mkdir -p /root/.openclaw
+# TODO(Phase 7): crews 扁平化后 COPY crews/ → /root/.openclaw/workspace-*/
+# TODO(Phase 7): skills 公共/私有拆分后 COPY skills/ → /root/.openclaw/skills
+COPY config/openclaw.json /root/.openclaw/openclaw.json
+# TODO(Phase 6): 各 skill 的 npm/pip install 统一在此跑
+# TODO(Phase 5): img-gen gen.py 改火山生图编译
+# TODO(Phase 4.5): 生成 camoufox 冻结指纹模板
+#   RUN camoufox-cli --session _template --persistent open about:blank && \
+#       camoufox-cli --session _template close && \
+#       cp -r ~/.camoufox-cli/profiles/_template /root/.openclaw/logins/_template
+
+# ── 阶段 4: runtime ───────────────────────────────────────────────────────────
+# 复制产物 + 装 openclaw-weixin 插件(tgz) + ENTRYPOINT
+FROM wiseflow-layer AS runtime
+# TODO(Phase 6): 装 openclaw-weixin 插件 tgz（按 openclaw-weixin.version.json）
+# COPY openclaw-weixin-*.tgz /tmp/ && npm install -g /tmp/openclaw-weixin-*.tgz
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+VOLUME /root/.openclaw
+EXPOSE 18789
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

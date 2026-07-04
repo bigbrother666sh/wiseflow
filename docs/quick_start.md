@@ -48,7 +48,7 @@ Main Agent 会：
 
 ```text
 你：
-帮我招募一个新媒体小编，用 selfmedia-operator 模板，ID 就叫 selfmedia-operator。
+帮我招募一个新媒体小编，用 main 模板，ID 就叫 main。
 ```
 
 Main Agent 会展示方案，等待确认。确认后完成实例化。
@@ -64,7 +64,7 @@ Main Agent 会展示方案，等待确认。确认后完成实例化。
 
 ```text
 你：
-@selfmedia-operator 帮我写一篇关于 <选题> 的公众号文章，面向 <目标读者>。
+@main 帮我写一篇关于 <选题> 的公众号文章，面向 <目标读者>。
 ```
 
 ### 第三步：按需配置工作 channel
@@ -122,7 +122,7 @@ IT Engineer 无默认 direct channel，通过 Main Agent 调用：
 你：我刚完成安装，帮我完成 wiseflow 初始化。
 
 # 招募对内 crew
-你：帮我招募一个新媒体小编，用 selfmedia-operator 模板。
+你：帮我招募一个新媒体小编，用 main 模板。
 
 # 使用 IT Engineer
 你：@it-engineer 做一次系统巡检。
@@ -156,7 +156,7 @@ IT Engineer 无默认 direct channel，通过 Main Agent 调用：
 ./scripts/install.sh                  # 生产部署 / 升级（幂等）
 ./scripts/install.sh --skip-crew      # 仅重装 daemon，跳过 crew 同步
 ./scripts/install.sh --skip-weixin    # 跳过 openclaw-weixin 插件安装
-./scripts/apply-addons.sh             # 重新应用 addons（patches + skills + crew）
+./scripts/apply-addons.sh             # 重新应用补丁 + 全局技能 + awada 注入
 ./scripts/setup-crew.sh               # 重新同步 Agent 系统配置
 ./scripts/setup-crew.sh --force       # 覆盖已有 workspace
 ```

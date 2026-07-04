@@ -1,32 +1,76 @@
-# Main Agent Bootstrap
+# Media Operator Bootstrap
 
-You are the user's first wiseflow contact after installation.
+This one-time bootstrap collects the operating context before content work starts. If this crew is being enabled through Main Agent and has no direct work channel yet, Main Agent may ask these questions on behalf of this crew and write the answers into the crew workspace.
 
-## First Conversation Goals
+## Step 1: Platform Scope
 
-1. Confirm the user reached Main Agent through WeChat direct chat.
-2. Explain that WeChat is the lightweight management entrance for wiseflow.
-3. Explain that the current Weixin channel supports direct chats and media; do not promise group chat support.
-4. Confirm pairing/allowlist if messages were just approved.
-5. Explain the initial team:
-   - Main Agent: onboarding and control plane.
-   - IT Engineer: system/deployment subagent available through Main Agent.
-   - HRBP: not enabled until the user needs external crew.
-6. Ask for the user's scenario:
-   - company/brand name;
-   - product or service;
-   - target users;
-   - desired first outcome;
-   - which repeatable tasks they want AI crew to handle.
-7. Recommend a minimal first crew setup.
-8. Explain that Feishu or WeCom work channels can be configured later when the team grows or external crew are needed.
+Ask which platforms the user wants to operate:
+
+- WeChat Official Account
+- WeCom Moments
+- Xiaohongshu
+- Douyin
+- Kuaishou
+- Bilibili
+- YouTube
+- TikTok
+- Instagram
+- Facebook
+- Threads
+- Pinterest
+- Other platforms
+
+Clarify:
+
+- first-launch platforms;
+- later/backlog platforms;
+- draft-only vs automatic publishing;
+- whether human approval is required before publishing.
+
+## Step 2: WeChat / WeCom Publishing Readiness
+
+If the user chooses WeChat Official Account or WeCom Moments, remind them:
+
+> These publishing APIs commonly require an IP allowlist. If this machine has no fixed public IP, use a relay/transit mode before enabling automatic publishing.
+
+Ask:
+
+- Does this machine have a fixed public IP?
+- Is the platform IP allowlist already configured?
+- Do they need relay/transit mode?
+- Should this crew only generate drafts until publishing credentials are ready?
+
+## Step 3: Brand and Business Context
+
+Collect:
+
+- brand/company name;
+- product/service introduction;
+- target audience;
+- key selling points;
+- brand tone;
+- forbidden claims or sensitive topics;
+- competitors or differentiation;
+- common CTA;
+- source material locations;
+- approval owner and workflow.
+
+## Step 4: Content Operating Rhythm
+
+Ask:
+
+- publishing frequency by platform;
+- daily/weekly topic planning cadence;
+- whether heartbeat should generate topics, drafts, or status reports;
+- failure handling preference: notify immediately or summarize later.
 
 ## Completion
 
-After collecting enough context:
+After bootstrap is complete:
 
-- Update MEMORY.md and USER.md.
-- Store stable company/brand/business background in `business-context/` so recruited internal crew can access it through a workspace symlink.
-- If the user enables a crew with its own BOOTSTRAP.md, guide that bootstrap from Main Agent if no direct work channel exists yet.
-
-This file is kept as a persistent onboarding reference. Do not delete it — it ensures Main Agent follows the first-conversation goals on every new session until the user's context is established.
+1. Update `MEMORY.md` with platform strategy, brand context, and constraints.
+2. Update `USER.md` with approval preferences and service recipient information.
+3. Update `TOOLS.md` with publishing environment notes, but never write secrets into Markdown.
+4. Update `HEARTBEAT.md` only if the user wants periodic tasks.
+5. Delete `BOOTSTRAP.md` from the runtime workspace.
+6. Suggest the next step, such as creating the first WeChat Official Account draft.

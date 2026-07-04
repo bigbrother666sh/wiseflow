@@ -1,21 +1,3 @@
-# Main Agent — ALLOWED_COMMANDS
-# 基础层级：T2 (dev tools)
-# 在 T2 基础上放行 Crew 生命周期、work channel binding 和 reminder 脚本
-+./skills/crew-recruit/scripts/recruit-internal-crew.sh
-+./skills/crew-list/scripts/list-internal-crews.sh
-+./skills/crew-dismiss/scripts/dismiss-internal-crew.sh
-+./skills/work-channel-binding/scripts/install-wecom-channel.sh
-+./skills/work-channel-binding/scripts/restart-gateway-confirmed.sh
-# Crew 管理工具：探查模板/skill 结构、验证脚本存在性
-+test
-+find
-+nano-pdf
-+jq
-+rg
-+tmux
-+curl
-+summarize
-+gifgrep
-+./skills/crew-list/scripts/sync-team-directory.sh
-+node
-+python3
+# main ALLOWED_COMMANDS
+# D19：command-tier=T3（security: full），allowlist 不生效，本文件保留空标记。
+# 对内 crew 在 Docker 内全放开，不再维护命令白名单。

@@ -24,11 +24,18 @@ cd <WISEFLOW_PROJECT_ROOT> && ./scripts/setup-crew.sh
 cd <WISEFLOW_PROJECT_ROOT> && ./scripts/apply-addons.sh
 ```
 
-> ⚠️ **禁止直接运行 `openclaw` 命令**（`openclaw` 不在系统 PATH 中）。
-> 如需直接调用上游 CLI，必须在 `openclaw/` 子目录内通过 `pnpm openclaw` 执行：
-> ```bash
-> cd <WISEFLOW_PROJECT_ROOT>/openclaw && pnpm openclaw <subcommand>
-> ```
+> ⚠️ **生产 Gateway 运行中不得调用 `pnpm openclaw <subcommand>`**。`pnpm openclaw` 入口在 npm script 里绑了 “每次先 build”，这个 build 会占 CPU、写运行中 Gateway 共享的 `dist/`，多次连续调用可能令系统崩坏（2026-06-29 发生过两次，详见 MEMORY.md）。包括看起来“只读”的 `cron list / cron show / cron runs / config get` 都是高风险雷区。
+>
+> 所有 cron / config / sessions / status 类的查询与增删改，全部走 MCP 工具：
+>
+> | 需求 | 用什么 |
+> |------|--------|
+> | cron 查询 / 增删改 / 运行历史 | `cron` MCP 工具，`action` 支持 list/get/add/update/remove/run/runs |
+> | config 查询 / 修改 / 应用 / 重启 | `gateway` MCP 工具，`action` 支持 config.get/config.patch/config.apply/restart |
+> | 会话查询 / 历史 / 状态 | `sessions_list` / `sessions_history` / `session_status` |
+> | 节点 / 文件传输 / 接口调用 | `nodes` / `file_fetch` / `file_write` / `dir_list` / `dir_fetch` |
+>
+> 上游 OpenClaw CLI 仅在开发机、升级后首次迁移、或研发手动排查时使用；IT Engineer 在运行环境 **不主动** 调用。如果确实需要，须提前与用户确认 Gateway 可接受崩溃重启。
 
 ### GitHub / 代码相关（需已启用 github、gh-issues、coding-agent 技能）
 - `github`：读取 WiseFlow 和 OpenClaw 仓库的最新信息（commits、releases、README）
@@ -76,3 +83,82 @@ curl -o /dev/null -s -w "%{http_code}" https://yoursite.com/some-page
 |------|------|
 | `smart-search` | 搜索 SEO 最佳实践、查找竞品技术方案 |
 | `coding-agent` | 生成 sitemap.xml、JSON-LD Schema、robots.txt 内容 |
+
+## 本地文件操作规范
+
+1. **小改动优先**：read 最新文件内容后，复制原文精确片段再 edit
+2. **大改动直接**：整文件重写走 write（先基于最新内容生成）
+3. **避免一次改太大**：拆成多个小 patch，减少 mismatch
+4. **以 read 结果为准**：别依赖聊天里渲染后的文本（如超链接形式的文件名），要以 read 工具的返回结果为准
+
+## exec 命令规范
+
+exec allowlist 会解析管道、`&&`、`||`、`;` 和常见重定向，并逐段检查实际执行的命令是否都在白名单中。
+
+**允许的常见写法**：
+```bash
+ls -la /tmp/file.txt 2>/dev/null && echo "EXISTS" || echo "NOT"
+some-cmd > /tmp/out.txt
+echo a; echo b
+cat file.txt | grep keyword
+```
+
+注意：重定向只支持 POSIX 风格写法（如 `> file`、`2> err.log`、`2>&1`）。不要使用 bash/zsh 专属的 `&>` / `&>>`，这类写法在 `/bin/sh` 下可能被解释为后台执行。重定向只改变当前已批准命令的 stdin/stdout/stderr；命令本身仍必须在 allowlist 中。`echo ok; rm file` 只有在 `echo` 和 `rm` 都被允许时才会通过。
+
+**仍然禁止使用隐式执行子命令的 shell 扩展：**
+
+- ❌ `echo $(whoami)` — 命令替换会额外执行子命令
+- ❌ ``echo `id` `` — 反引号命令替换会额外执行子命令
+- ❌ `cat <(id)` / `tee >(cmd)` — process substitution 会额外执行子命令
+- ❌ `cmd & other-cmd` — 后台执行不受控
+
+**以下写法同样会导致 allowlist miss，禁止使用：**
+
+- ❌ `cd /abs/path && python3 ./skills/xxx/scripts/yyy.py` — `cd` 不在 allowlist 中；脚本必须用绝对路径直接调用，禁止 `cd` 前缀
+- ❌ `bash /abs/path/to/script.sh` — setup-crew 已为脚本赋权，直接用绝对路径调用即可。加 `bash` 前缀会触发 openclaw exec 审批的 `requiresBoundArgPattern`（shell wrapper 必须绑定脚本 argPattern），而白名单里没有裸 `bash` 条目，必然 miss。`sh`/`zsh` 同理
+- ❌ `./skills/xxx/scripts/yyy.sh` — 相对路径依赖 CWD 易误拼；一律用绝对路径
+- ❌ `for d in ...; do ls $d; done` — `for`/`while`/`if` 等 shell keyword 不在 allowlist 中；改用逐个调用或 python 脚本
+- ❌ `KEY=value python3 script.py` — 内联 env 赋值会改变命令前缀导致 allowlist miss；环境变量由系统注入
+- ❌ `env | grep -iE "API_KEY|MODEL"` / `printenv PEXELS_API_KEY` — `env`/`printenv` 不在 allowlist 中；检查环境变量写 python 脚本
+- ❌ `mkdir -p {notes,images}` — exec 不会展开花括号（brace expansion），会直接创建一个名为 `{notes,images}` 的单个文件夹，而非 `notes` 和 `images` 两个文件夹
+
+**正确写法：**
+
+- ✅ `/home/wukong/.openclaw/workspace-it-engineer/skills/xxx/scripts/yyy.sh`（绝对路径直接调用，setup-crew 已赋权）
+- ✅ `python3 /home/wukong/.openclaw/workspace-it-engineer/skills/xxx/scripts/yyy.py`（绝对路径，无 env 前缀）
+- ✅ `python3 /tmp/check_env.py`（探查环境变量：脚本内容 `import os; print(bool(os.environ.get("PEXELS_API_KEY")))`）
+- ✅ `mkdir -p notes images`（逐一直写目录名，不用花括号展开）
+- ✅ 逐个调用 `ls dir1/`、`ls dir2/` …（替代 `for` 循环），或写 python 脚本批量处理
+
+## Python 调用规范
+
+**严禁** `python3 -c "..."` inline eval 形式——此类命令无法通过 exec allowlist，会被系统拦截。
+
+必须先将 Python 逻辑写入脚本文件，再以 `python3 /path/to/script.py` 调用：
+
+```bash
+# ❌ 禁止
+python3 -c "from PIL import Image; img.save('out.jpg')"
+
+# ✅ 正确：先写脚本，再执行
+cat > /tmp/my_script.py << 'EOF'
+from PIL import Image
+# ...
+EOF
+python3 /tmp/my_script.py
+```
+
+临时脚本统一写到 `/tmp/` 下，执行后可删除。
+
+## 环境变量写入规范
+
+为技能配置环境变量时，必须写入 gateway 环境变量文件：
+
+- **文件路径**：/home/wukong/.openclaw/daemon.env
+
+**写入步骤**：
+1. 读取当前文件内容，确认该变量是否已存在
+2. 若不存在，按格式追加（ 一行一个）
+3. 写入后必须重启 gateway 使变量生效
+
+**严禁**在 exec 调用时内联设置环境变量（如 `KEY=value python3 script.py`），这会导致 allowlist miss。

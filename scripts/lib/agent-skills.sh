@@ -475,8 +475,20 @@ inject_exec_guide() {
   local tools_md="$1" workspace_dir="$2"
   [ -f "$tools_md" ] || return 0
   grep -q "## exec 命令规范" "$tools_md" && return 0
+
+  # D19：按 SOUL.md 的 command-tier 分发。
+  #   T3 (full)  → 无白名单，短提示即可
+  #   T1/T2      → allowlist 模式，注入完整白名单规范
+  #   T0 (deny)  → 无 shell 执行权限，不注入
+  local tier=""
+  local soul="${workspace_dir:-}/SOUL.md"
+  if [ -f "$soul" ]; then
+    tier=$(grep -E "^command-tier:" "$soul" | head -1 | sed -E "s/^command-tier:[[:space:]]*//; s/[[:space:]]*#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//")
+  fi
   local ws="${workspace_dir:-<workspace>}"
-  cat >> "$tools_md" << 'GUIDE'
+
+  if [ "$tier" = "T1" ] || [ "$tier" = "T2" ]; then
+    cat >> "$tools_md" << 'GUIDE'
 
 ## exec 命令规范
 
@@ -517,7 +529,19 @@ cat file.txt | grep keyword
 - ✅ `mkdir -p notes images`（逐一直写目录名，不用花括号展开）
 - ✅ 逐个调用 `ls dir1/`、`ls dir2/` …（替代 `for` 循环），或写 python 脚本批量处理
 GUIDE
-  sed -i "s|@@WS@@|$ws|g" "$tools_md"
+    sed -i "s|@@WS@@|$ws|g" "$tools_md"
+  elif [ "$tier" = "T3" ]; then
+    cat >> "$tools_md" << 'GUIDE'
+
+## exec 命令规范
+
+本 crew `command-tier=T3`（`security: full`），exec **无白名单限制**——管道、`&&`、`||`、`;`、`cd` 前缀、相对路径、`bash`/`sh` 前缀等均不触发 allowlist miss，可直接执行。
+
+脚本调用仍建议用绝对路径（如 `python3 @@WS@@/skills/xxx/scripts/yyy.py`），仅为跨环境/跨 workspace 稳定，非安全约束。
+GUIDE
+    sed -i "s|@@WS@@|$ws|g" "$tools_md"
+  fi
+  # T0（deny）或其他：不注入（无 shell 执行权限）
 }
 
 inject_python_exec_guide() {

@@ -5,21 +5,28 @@
 > 全局规划见 `docs/product-split-plan.md`；client buildout 状态见 `docs/client-buildout.md`；relay 侧剩余见 relay 仓 `DEVPLAN.md`。
 > 本文档只列**剩余开发内容**，按 Phase 排，每项含验收标准与依赖。
 
-最后更新：2026-07-03
+最后更新：2026-07-04
+
+## 本轮开发约束（2026-07-04 启，阶段内有效）
+
+- **本机部署实例不动**：`~/wiseflow-pro` 仓 + `~/.openclaw/` 是当前在线实例，本轮不触碰、不重部署、不读其 logs。
+- **OpenClaw 源码位置**：本仓不 clone openclaw（与 `.gitignore` 一致）；开发期读源码去 `~/wiseflow-pro/openclaw/`，版本对齐 `v2026.6.10 / aa69b12d`（与本仓 `openclaw.version` 一致）。
+- **bilibili-publish 路线**：与 video relay 撤回**独立判断**，待用户拍板（视频相关已撤回，见 Phase 3 顶部）。
+- **Phase 7 续·身份文件合写**：用户标记为"后续探索"，**本轮暂缓**，不在本阶段排期。
+- **统一部署**：本阶段开发完成后，再统一重新部署本机实例（届时再 copy openclaw 到本仓）。
 
 ---
 
 ## Phase 3 — publish/video skill 改调 relay（依赖 relay Phase 3）
 
+> **2026-07-04 撤回**：video relay 模式取消。`crews/main/skills/video-product/`、`crews/content-producer/skills/siliconflow-video-gen/`、`html-video/` 维持现状（视频生成走本地凭据，不入 relay）。本节剩余仅 bilibili-publish + douyin-publish 路线讨论。
+
 - [ ] **bilibili-publish 改调 relay**
-  - 依赖：relay `publish-relay/bilibili` 端点就绪。
+  - 依赖：relay `publish-relay/bilibili` 端点就绪；用户拍板走 relay vs 维持现状。
   - 做：`crews/content-producer/skills/bilibili-publish/` 去掉本地持 SESSDATA/APP_SECRET，改 `POST /api/v1/publish/bilibili/*` 带 OFB_KEY。
   - 验收：发一条真实动态成功；skill 内无 BILI 凭据。
 
-- [ ] **video-product / content-producer 改调 relay**
-  - 依赖：relay `video-relay` 端点就绪。
-  - 做：视频生成类 skill 改 `POST /api/v1/video/generate` → 轮询 `GET /api/v1/video/task/:id` → 拿 videoUrl；去掉本地上游 key。
-  - 验收：生成一条视频，curl videoUrl 200；skill 内无上游 key。
+- [ ] ~~**video-product / content-producer 改调 relay**~~ → **撤回**（2026-07-04，视频技能维持本地凭据）
 
 - [ ] **douyin-publish 路线对齐**
   - 依赖：relay 3.1 抖音路线定。
@@ -93,9 +100,12 @@
 
 ## Phase 7 续 — crew 内容合写
 
-> 结构搬运已完成（`97bad4d`）；以下为身份文件 / AGENTS / HEARTBEAT 内容合写。源 AGENTS 在 git 历史 `97bad4d^` 可恢复。
+> **2026-07-04 暂缓**：用户标记为"后续探索"，本轮不在排期。等下一阶段再启动。
+> 以下为暂缓期间保留的需求清单（仅作存档，不推进）。
+
+~~> 结构搬运已完成（`97bad4d`）；以下为身份文件 / AGENTS / HEARTBEAT 内容合写。源 AGENTS 在 git 历史 `97bad4d^` 可恢复。
 >
-> **D19 已落（2026-07-03）**：内 crew（main/content-producer/it-engineer）SOUL.md `command-tier=T3` + 清空 ALLOWED_COMMANDS；sales-cs 维持 `T0` 不动。Docker 内对内全放开（消除 allowlist miss 摩擦），对外保留 prompt injection 防线。
+> **D19 已落（2026-07-03）**：内 crew（main/content-producer/it-engineer）SOUL.md `command-tier=T3` + 清空 ALLOWED_COMMANDS；sales-cs 维持 `T0` 不动。Docker 内对内全放开（消除 allowlist miss 摩擦），对外保留 prompt injection 防线。~~
 
 - [ ] **main 身份合体**（AI 搞钱搭子「小贝」定位）
   - 做：写 SOUL.md / IDENTITY.md / MEMORY.md / HEARTBEAT.md，定位 = AI 搞钱搭子（中文名「小贝」，专为 OPC / 中小微企业老板）；**SOUL/风格**：理性、高效、尽责的天才少女，带一点点傲娇和毒舌调皮；**对用户自称「小贝」**；weixin binding 指向它；MEMORY 写 sales-cs 启用/软链/HRBP 优化知识。

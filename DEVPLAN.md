@@ -125,10 +125,15 @@
 
 ## Phase 5 — img-gen 改火山
 
-- [ ] **siliconflow-img-gen → 火山生图**
-  - 做：`skills/siliconflow-img-gen/` 改调火山引擎生图 API；用用户 `AWK_API_KEY`（纯客户端，不入 server，D13）。
-  - 验收：生成一张图成功；skill 内无 siliconflow key。
-  - 依赖：fetch 火山 volcengine 文档确认接口（plan §九 Phase 5）。
+- [x] **siliconflow-img-gen → 火山生图**（2026-07-04 完成）
+  - **做**：`skills/siliconflow-img-gen/scripts/gen.py` 改调火山方舟 `https://ark.cn-beijing.volces.com/api/v3/images/generations`；用用户 `AWK_API_KEY`（D13 客户端 key）
+  - **默认 model**：`doubao-seedream-4-0-250828`（平衡性能 / 稳定性；可选 5.0 lite / 3.0 t2i）
+  - **size 校验**：按火山文档（总像素 [2560×1440, 4096×4096]；宽高比 [1/16, 16]；2K/3K/4K 预设）
+  - **28 单元测试全过**：常量 / size 校验 / payload 构造 / API 请求 / env 校验 / CLI smoke
+  - **SKILL.md 全文重写**：火山方舟专属文档（移除 SiliconFlow 路径，保留对比表）
+  - **验收**：脚本接受 `AWK_API_KEY` 调火山，siliconflow key 全部清除
+  - **依赖**：[Seedream 5.0 lite API 参考](https://www.volcengine.com/docs/82379/1541523)
+  - **集成测试**：等统一部署后用真 AWK_API_KEY 跑（生图 → image 工具验证文字 / 排版）
 
 ## Phase 6 — Dockerfile 阶段 3-4 填实 + entrypoint
 

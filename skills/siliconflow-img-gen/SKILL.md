@@ -1,7 +1,9 @@
 ---
 name: siliconflow-img-gen
-description: Generate or edit images via SiliconFlow Images API. Text-to-image uses
-  Qwen/Qwen-Image; image-edit uses Qwen/Qwen-Image-Edit-2509.
+description: Generate or edit images via 火山方舟 (Volcengine Ark) Seedream API.
+  Text-to-image default model doubao-seedream-4-0-250828; image-edit supported
+  via 1-3 reference images. Uses user's AWK_API_KEY (Phase 5, D13: client-side
+  only, never sent to server).
 metadata:
   openclaw:
     emoji: 🖼️
@@ -9,108 +11,133 @@ metadata:
       bins:
       - python3
       env:
-      - SILICONFLOW_API_KEY
-    primaryEnv: SILICONFLOW_API_KEY
-    homepage: https://docs.siliconflow.cn/cn/api-reference/images/images-generations
+      - AWK_API_KEY
+    primaryEnv: AWK_API_KEY
+    homepage: https://www.volcengine.com/docs/82379/1541523
 ---
 
-# SiliconFlow Image Gen
+# 火山方舟 Seedream 图像生成（Phase 5）
 
-Generate or edit images using the SiliconFlow Images API.
+> **Phase 5 改版**：从 SiliconFlow (Qwen) 切到火山方舟 (Seedream)。原因：D13 决策 + 火山生图质量 + 多模型可选 + 国产化。
+> **凭据**：用户自带 `AWK_API_KEY`（纯客户端，不入 server）。
+
+Generate or edit images using 火山方舟 (Volcengine Ark) Seedream API.
+
+Endpoint: `POST https://ark.cn-beijing.volces.com/api/v3/images/generations`
 
 Two modes:
-- **Text-to-image** — default model `Qwen/Qwen-Image`; on HTTP 403/404/429/500/503/504, automatically retries with `baidu/ERNIE-Image-Turbo`
-- **Image-edit** — default model `Qwen/Qwen-Image-Edit-2509`，由 `--image` 参数触发
+- **Text-to-image** — default model `doubao-seedream-4-0-250828`
+- **Image-edit** — `--image` 触发；4.0+ 支持多图参考（1-3 张）
 
-> 📍 **全局技能路径提示**：文中所有 `./scripts/` 路径均相对于本技能所在目录（即 `<skill>` 标签 `location` 属性所指目录），**不是**工作区目录。执行时按本技能实际安装路径拼接。
+参考文档：<https://www.volcengine.com/docs/82379/1541523>
+
+> 📍 **全局技能路径提示**：文中所有 `./scripts/` 路径均相对于本技能所在目录。执行时按本技能实际安装路径拼接。
+>
+> **⚠️ exec 调用方式**：通过 exec 调用时**不要**用 `cd <dir> && ./scripts/xxx.sh` 复合形式（触发 allowlist miss），也**不要**用相对路径 `./scripts/...`（agent 容易误拼）。openclaw 加载本技能时已注入绝对路径，**直接用绝对路径调用**。
+
+---
 
 ## Run
 
 Note: Image generation can take 10–60 seconds. Set a higher timeout when invoking via exec (e.g., `exec timeout=120`).
 
-**Do NOT set env vars inline** (e.g., `SILICONFLOW_API_KEY=... python3 ...`). The env var is already in the system environment; inline assignments break the exec permission check.
+**Do NOT set env vars inline** (e.g., `AWK_API_KEY=... python3 ...`). The env var is already in the system environment; inline assignments break the exec permission check.
 
 ```bash
-# Text-to-image (default model: Qwen/Qwen-Image)
-python3 ./scripts/gen.py --prompt "your prompt here"
+# Text-to-image (default model: doubao-seedream-4-0-250828)
+python3 /abs/path/to/skills/siliconflow-img-gen/scripts/gen.py --prompt "your prompt here"
 
-# Manually specify ERNIE-Image-Turbo (also used as auto-fallback on 403/404/429/500/503/504)
-python3 ./scripts/gen.py --prompt "your prompt here" --model "baidu/ERNIE-Image-Turbo"
+# 指定其他 model（5.0 lite / 3.0 t2i）
+python3 .../gen.py --prompt "your prompt" --model "doubao-seedream-5-0-lite-250428"
+python3 .../gen.py --prompt "your prompt" --model "doubao-seedream-3-0-t2i-250415"
 
-# Image-edit (default model: Qwen/Qwen-Image-Edit-2509)
-python3 ./scripts/gen.py --prompt "add a lighthouse" --image "https://example.com/source.jpg"
+# Image-edit（1-3 张参考图）
+python3 .../gen.py --prompt "add a lighthouse" --image "https://example.com/source.jpg"
+python3 .../gen.py --prompt "blend" \
+  --image "https://example.com/a.jpg" \
+  --image2 "https://example.com/b.jpg" \
+  --image3 "https://example.com/c.jpg"
 ```
 
 ### Text-to-image examples
 
 ```bash
-# Square output (default)
-python3 ./scripts/gen.py --prompt "a futuristic city at dusk"
+# Square 2K (default)
+python3 .../gen.py --prompt "a futuristic city at dusk"
 
 # Landscape 16:9
-python3 ./scripts/gen.py --prompt "mountain lake" --image-size 1664x928
+python3 .../gen.py --prompt "mountain lake" --image-size 2848x1600
 
 # Portrait 9:16
-python3 ./scripts/gen.py --prompt "mountain lake" --image-size 928x1664
+python3 .../gen.py --prompt "mountain lake" --image-size 1600x2848
 
-# Enable CFG (useful when prompt contains text to render)
-python3 ./scripts/gen.py --prompt "a sign saying HELLO" --cfg 4.0 --steps 50
+# Quality preset (火山的 2K / 3K / 4K 方式 1)
+python3 .../gen.py --prompt "4K 超清" --image-size 4K
 
 # Save to specific directory
-python3 ./scripts/gen.py --prompt "sunset" --out-dir ./out/images
+python3 .../gen.py --prompt "sunset" --out-dir ./out/images
 ```
 
 ### Image-edit examples
 
 ```bash
-# Edit with a single source image
-python3 ./scripts/gen.py \
-  --prompt "make it night time" \
-  --image "https://example.com/photo.jpg"
+# 单图生图
+python3 .../gen.py --prompt "make it night time" --image "https://example.com/photo.jpg"
 
-# Edit with up to three source images
-python3 ./scripts/gen.py \
-  --prompt "blend these photos" \
+# 多图融合（3 张）
+python3 .../gen.py --prompt "blend these photos" \
   --image  "https://example.com/a.jpg" \
   --image2 "https://example.com/b.jpg" \
   --image3 "https://example.com/c.jpg"
 ```
 
+---
+
 ## Parameters
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--prompt` | required | Text description for the image |
-| `--model` | auto | Model ID; auto-selected by mode if omitted |
-| `--image-size` | `1328x1328` | Resolution (text-to-image only, **must be one of the valid values below** — invalid values will cause an error with the closest valid suggestion) |
-| `--steps` | `20` | Inference steps (1–100) |
-| `--cfg` | — | CFG scale (0.1–20). Qwen recommends 4.0 when generating text in image; must be >1 for text generation |
-| `--seed` | — | Random seed (0–9999999999) |
-| `--negative-prompt` | — | Concepts to exclude, not necessary|
-| `--image` | — | Source image URL — **enables image-edit mode** |
-| `--image2` | — | Second source image URL (edit mode only) |
-| `--image3` | — | Third source image URL (edit mode only) |
-| `--out-dir` | `./tmp/sf-img-<ts>` | Output directory |
+| `--prompt` | required | 图像描述（≤300 汉字 / 600 英文） |
+| `--model` | auto | Model ID；按模式自动选 4.0；可选 5.0 lite / 3.0 t2i |
+| `--image-size` | `2048x2048` | 文生图尺寸。方式 1: `2K`/`3K`/`4K`；方式 2: `WxH`（如 2048x2048） |
+| `--seed` | — | 随机种子 |
+| `--watermark` | `false` | 是否加水印（wiseflow 默认不加，避免后续 image 工具处理） |
+| `--response-format` | `url` | `url`（链接 24h 有效）/ `b64_json` |
+| `--image` | — | 源图 URL 或 Base64（启用 image-edit 模式） |
+| `--image2` | — | 第二张参考图（image-edit） |
+| `--image3` | — | 第三张参考图（image-edit） |
+| `--out-dir` | `./tmp/awk-img-<ts>` | 输出目录 |
 
-### Valid `--image-size` values (Qwen/Qwen-Image)
+### Valid `--image-size` values
 
-> **Invalid sizes are rejected** — the script exits with an error listing all valid options and suggesting the closest match by aspect ratio. Re-run with a valid `--image-size`.
+> **火山方舟图像生成 size 限制**（参考 [API 文档](https://www.volcengine.com/docs/82379/1541523)）：
+> - 方式 1（quality 预设）：`2K` / `3K` / `4K`
+> - 方式 2（WxH）：总像素 ∈ [2560×1440=3686400, 4096×4096=16777216]；宽高比 ∈ [1/16, 16]
+>
+> 无效值会被脚本拒绝并 exit 1，错误信息列出所有合法选项。
+
+**2K 推荐宽高像素值**（默认 quality 档）：
 
 | Value | Ratio |
 |-------|-------|
-| `1328x1328` | 1:1 (default) |
-| `1664x928` | 16:9 |
-| `928x1664` | 9:16 |
-| `1472x1140` | 4:3 |
-| `1140x1472` | 3:4 |
-| `1584x1056` | 3:2 |
-| `1056x1584` | 2:3 |
+| `2048x2048` | 1:1 (default) |
+| `2304x1728` | 4:3 |
+| `1728x2304` | 3:4 |
+| `2848x1600` | 16:9 |
+| `1600x2848` | 9:16 |
+| `2496x1664` | 3:2 |
+| `1664x2496` | 2:3 |
+| `3136x1344` | 21:9 |
+
+---
 
 ## Output
 
-- `*.png` images named by index
-- `prompts.json` mapping index → prompt + URL
-- `index.html` thumbnail gallery
+- `*.jpg` 图像（火山默认 jpeg 输出；URL 24h 有效，按脚本约定下载到本地）
+- `prompts.json` 索引 → prompt + URL + file
+- `index.html` 缩略图 gallery
+
+---
 
 ## 视频封面/海报最佳实践
 
@@ -120,10 +147,9 @@ python3 ./scripts/gen.py \
 
 | 参数 | 推荐值 | 原因 |
 |------|--------|------|
-| `--cfg` | **4.0** | Qwen 官方建议：只要 prompt 里有要渲染的文字，CFG 必须 ≥4，否则文字会糊、错位、出现乱码字符 |
-| `--steps` | **50** | 默认 20 文字边缘发虚；提高到 50 文字锐利可读 |
-| `--image-size` | 按平台选 | 9:16 竖屏 `928x1664`、16:9 横屏 `1664x928`、1:1 方图 `1328x1328`（必须在合法值列表内） |
-| `--negative-prompt` | 可选 | 大部分时候并不需要 |
+| `--model` | `doubao-seedream-4-0-250828` | 4.0 在文字渲染 / 中文支持上稳定 |
+| `--image-size` | `2K` 或 `4K` | 高分辨率给文字留细节空间 |
+| 比例 | 9:16 / 16:9 / 1:1 按平台选 | 火山 way 2 任意合法比例 |
 
 ### 2. Prompt 写法（关键）
 
@@ -135,43 +161,39 @@ python3 ./scripts/gen.py \
 
 要点：
 - **要写的字直接写完整句子**，不要"加个标题"这种空指令
-- **按布局分段**描述（top/middle/bottom 或左/中/右），让模型知道字放哪
+- **按布局分段**描述（top/middle/bottom 或 左/中/右），让模型知道字放哪
 - **指定字体特性**：颜色、渐变、阴影、发光、风格
 - **明确要求**："sharp text rendering"、"professional Chinese typography"
-- 末尾加 "no watermarks" 排除水印
+- 末尾加 "no watermarks" 排除水印（与脚本 `--watermark false` 双保险）
 
-### 3. 可选设置 `--negative-prompt`
+### 3. 可选设置
 
-> 并不是必须的，大部分时候现代模型并不需要特别指定负面提示。
+- `--watermark false`：必加（wiseflow 默认）
+- `--seed N`：需要可复现时设固定值
+- `--response-format b64_json`：避免依赖 URL 24h 失效（脚本默认 url）
 
 ### 4. 生成后必须验证
 
 1. 用 `image` 工具分析图片，**逐项确认**：
    - ✅ 文字内容是否完全正确（不能错字、漏字、出现乱码字符）
    - ✅ 文字位置/对齐/排版是否符合预期
-   - ✅ **没有意外的 logo/水印/UI 元素**（如有，重新生成，并使用 `--negative-prompt` 防止）
+   - ✅ **没有意外的 logo/水印/UI 元素**（如有，加 `--negative-prompt`-like 描述重生成）
    - ✅ 主体内容符合 prompt
 2. 异常则重新生成（最多 3 次），仍异常则标记失败继续
 
 ### 5. 输出格式
 
-- 脚本默认输出 **PNG**（无损）
-- 如果目标平台只支持 **JPG**（如企业微信朋友圈），用 PIL 二次转码：
-  ```python
-  from PIL import Image
-  img = Image.open("00.png").convert("RGB")
-  img.save("cover.jpg", "JPEG", quality=92)
-  ```
-  **不做任何像素修改**，只是格式转换。
+- 脚本默认 **JPG**（火山 4.0 默认 jpeg；5.0 lite 可选 png）
+- 如果目标平台需要 **PNG**（如透明背景场景），调 `--response-format b64_json` + 后续转码
+- 任何格式转换都用 PIL，**不做任何像素修改**
 
 ### 6. 完整示例
 
 ```bash
-python3 ./scripts/gen.py \
+python3 /abs/path/to/skills/siliconflow-img-gen/scripts/gen.py \
   --prompt "A dramatic vertical 9:16 short-video cover with bold red and black gradient background, glowing AI chip icons floating in the upper area, and large bold Chinese text '前几周 DeepSeek 还是神一般的存在' in the middle in white and gold gradient with sharp shadows. At the bottom, dramatic glowing red Chinese text '为什么热度消散得这么快？' with lightning-like effects. Visual style: high contrast, modern tech poster, dramatic lighting, professional Chinese typography, sharp text rendering, cinematic, no watermarks" \
-  --image-size 928x1664 \
-  --cfg 4.0 \
-  --steps 50 \
+  --image-size 1600x2848 \
+  --watermark false \
   --out-dir /path/to/output
 ```
 
@@ -179,14 +201,57 @@ python3 ./scripts/gen.py \
 
 ## ⚠️ 生成后必须验证
 
-SiliconFlow 图片生成经常出现异常：返回一张**纯色背景图**（单色无内容），而非 prompt 要求的图像。
+每张图生成后**必须**用 `image` 工具检查（不得跳过）：
 
-**每张图生成后必须执行验证，不得跳过。**
+- ❌ **异常**：纯色背景 / 文字乱码 / 意外 logo → 重新生成
+- ✅ **正常**：符合 prompt 描述 → 继续下一步
 
-### 验证流程
+最多重试 3 次，仍异常则标记失败并继续后续任务。
 
-1. 图片生成后，立即用 `image` 工具查看刚生成的图片
-2. 判断图片是否正常：
-   - ❌ **异常**：整张图是纯色背景（全黑/全白/全灰/全蓝等），没有任何主体内容 → **重新生成**
-   - ✅ **正常**：图片有明确的主体内容，符合 prompt 描述 → 继续下一步
-3. 如果重新生成，最多重试 3 次，仍异常则标记失败并继续后续任务
+---
+
+## Model 选择速查
+
+| Model | 适用场景 | 备注 |
+|-------|---------|------|
+| `doubao-seedream-4-0-250828` | 默认 / 通用 | 文字渲染稳，多图融合支持 |
+| `doubao-seedream-5-0-lite-250428` | 最新，组图 / 工具调用 | 5.0 lite 起支持 tools/web_search |
+| `doubao-seedream-3-0-t2i-250415` | 纯文生图（无 image edit） | 3.0 旧版，仅 t2i |
+
+---
+
+## Pitfalls
+
+### pitfall: API key 错误（401）
+
+- **症状**：`HTTPError 401`
+- **workaround**：检查 `AWK_API_KEY` 环境变量是否设置；火山 Ark 控制台 (`console.volcengine.com/ark`) 验证 key 有效
+
+### pitfall: size 太小被拒
+
+- **症状**：`HTTPError 400` + 提示 size invalid
+- **workaround**：用 `2K` / `3K` / `4K` 预设，或按 [API 文档](https://www.volcengine.com/docs/82379/1541523) 调整 WxH（总像素 ≥ 2560x1440）
+
+### pitfall: URL 24h 失效
+
+- **症状**：生成成功后未及时下载图片，URL 过期
+- **workaround**：脚本默认 `response_format=url` 且立刻下载到 `--out-dir`；如需长期保留，用 `--response-format b64_json`
+
+### pitfall: watermark 默认 true（火山端）
+
+- **症状**：图右下角出现"AI 生成"水印
+- **workaround**：脚本默认 `--watermark false`；不要漏写
+
+---
+
+## 与 SiliconFlow 路径对比
+
+| 维度 | 旧（SiliconFlow Qwen） | 新（火山方舟 Seedream） |
+|------|---------------------|---------------------|
+| API URL | `/v1/images/generations` | `/v3/images/generations`（非 `/coding/v3`） |
+| Auth | Bearer + `SILICONFLOW_API_KEY` | Bearer + `AWK_API_KEY`（D13 客户端 key） |
+| 默认 model | Qwen/Qwen-Image | doubao-seedream-4-0-250828 |
+| 文生图 size | 1328x1328 等 7 个 | `2K/3K/4K` 或 `WxH`（总像素 ≥ 2560x1440） |
+| 图生图 | Qwen/Qwen-Image-Edit-2509 | 4.0+ 火山 image 字段（1-3 张 URL / Base64） |
+| 失败回退 | 自动切 ERNIE-Image-Turbo | 不内置回退（手动重试） |
+| 输出格式 | PNG | JPG（火山默认） |

@@ -5,15 +5,25 @@
 > 全局规划见 `docs/product-split-plan.md`；client buildout 状态见 `docs/client-buildout.md`；relay 侧剩余见 relay 仓 `DEVPLAN.md`。
 > 本文档只列**剩余开发内容**，按 Phase 排，每项含验收标准与依赖。
 
-最后更新：2026-07-04
+最后更新：2026-07-04（中段修订：实例会源码部署）
 
-## 本轮开发约束（2026-07-04 启，阶段内有效）
+## 本轮开发约束（2026-07-04 启 → 2026-07-04 中段修订）
 
-- **本机部署实例不动**：`~/wiseflow-pro` 仓 + `~/.openclaw/` 是当前在线实例，本轮不触碰、不重部署、不读其 logs。
-- **OpenClaw 源码位置**：本仓不 clone openclaw（与 `.gitignore` 一致）；开发期读源码去 `~/wiseflow-pro/openclaw/`，版本对齐 `v2026.6.10 / aa69b12d`（与本仓 `openclaw.version` 一致）。
+> **修订（2026-07-04 中段）**：用户确认"完成改版后的全部开发后，先基于源码在本地实现部署，验证一切没问题后再推进 Docker 那部分工作"。即本轮约束从"实例不动"调整为"完成开发后会源码部署"。
+
+- **本轮目标顺序**：
+  1. 完成 Phase 4.5（camoufox 集成）— ✅ 已完成
+  2. 完成 Phase 4.6（公众号 engagement 骨架）— ✅ 已完成
+  3. 完成 Phase 5（img-gen 改火山）— ⏳ 本轮继续
+  4. 完成其他非 Docker 的剩余工作（依赖 / entrypoint / 必要 skill 调整）— 待定
+  5. **源码部署到本机**（不走 Docker；先在 `~/wiseflow-pro` 工作区直接拉新仓代码 + 重启）— 待 #4 完成后
+  6. 部署验证通过后 → Phase 6 Dockerfile 工作
+
+- **OpenClaw 源码位置**：本仓不 clone openclaw（与 `.gitignore` 一致）；开发期读源码去 `~/wiseflow-pro/openclaw/`，版本对齐 `v2026.6.10 / aa69b12d`（与本仓 `openclaw.version` 一致）。**部署时再 copy 过来**。
+
 - **bilibili-publish 路线**：与 video relay 撤回**独立判断**，待用户拍板（视频相关已撤回，见 Phase 3 顶部）。
+
 - **Phase 7 续·身份文件合写**：用户标记为"后续探索"，**本轮暂缓**，不在本阶段排期。
-- **统一部署**：本阶段开发完成后，再统一重新部署本机实例（届时再 copy openclaw 到本仓）。
 
 ---
 

@@ -1,23 +1,24 @@
 ---
 name: login-manager
 description: Manage platform login state (cookies) for Douyin, Bilibili, Kuaishou,
-  XHS, and other platforms. Stores cookies locally and handles re-login via browser
-  tool when session expires.
+  XHS, and other platforms. Uses camoufox-cli (Phase 4.5+) to capture QR login
+  flows and export cookies to a central store.
 metadata:
   openclaw:
     emoji: 🔑
     requires:
       bins:
-      - node
+      - python3
+      - camoufox-cli
 ---
 
-# Login Manager（平台登录态管理）
+# Login Manager（平台登录态管理，camoufox-cli 路径）
 
-Use this skill **before** calling any skill that requires platform cookies (viral-chaser etc.). It ensures valid cookies are available, performing browser-based re-login automatically if needed.
+Use this skill **before** calling any skill that requires platform cookies (viral-chaser, xhs-content-ops, xhs-publish, etc.). It ensures valid cookies are available, performing QR-code-based re-login via `camoufox-cli` when session expires.
 
-> 📍 **全局技能路径提示**：文中所有 `./scripts/` 路径均相对于本技能所在目录（即 `<skill>` 标签 `location` 属性所指目录），**不是**工作区目录。执行时按本技能实际安装路径拼接。
+> **Phase 4.5+ change**：旧 CDP WebSocket 抽 cookie 流程已退役。统一走 `camoufox-cli` headless 截图 + `cookies export`。
 >
-> **⚠️ exec 调用方式**：通过 exec 工具调用时，**不要用 `cd <技能目录> && ./scripts/xxx.sh` 这种复合形式**（会触发 `exec denied: allowlist miss`）。openclaw 加载本技能时已在顶部注入技能的绝对路径，直接把它和 `scripts/xxx.sh` 拼成**完整绝对路径**作为 command 传给 exec 即可。
+> 📍 **exec 调用方式**：本 skill 的 wrapper 路径为 `~/.openclaw/workspace-main/skills/login-manager/scripts/login-manager.sh`（具体路径以部署时 setup-crew 注入为准；TOOLS.md 也会给出）。**不要**用 `cd <dir> && ./scripts/xxx.sh` 复合形式（触发 allowlist miss），也**不要**用相对路径 `./scripts/...`（agent 容易误拼 CWD/前缀）。
 
 ---
 
@@ -29,156 +30,176 @@ All platform sessions are stored at:
 ~/.openclaw/logins/{platform}.json
 ```
 
-File format:
+File format (camoufox-cli 原生 JSON 格式，= Playwright `add_cookies` 期望格式)：
 
 ```json
 {
-  "platform": "douyin",
-  "cookies": "sessionid=xxx; token=yyy; ...",
-  "user_agent": "Mozilla/5.0 ...",
-  "updated_at": "2026-04-11T10:30:00+08:00"
+  "platform": "xhs-browse",
+  "cookies": [
+    {
+      "name": "web_session",
+      "value": "xxx",
+      "domain": ".xiaohongshu.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "updated_at": "2026-07-04T12:00:00+00:00"
 }
 ```
 
 Supported platform values: `douyin` | `bilibili` | `kuaishou` | `xhs-publish` | `xhs-browse` | `weibo` | `zhihu` | `wechat-channels`
 
 > **小红书双平台说明**：小红书的浏览/互动和发布使用不同的 cookie 域，因此拆为两个独立平台：
-> - `xhs-publish`：创作者平台（`creator.xiaohongshu.com`），用于发布笔记/视频。探活 URL：`https://creator.xiaohongshu.com/publish/publish?source=official`
-> - `xhs-browse`：消费者端（`www.xiaohongshu.com`），用于搜索、浏览、互动。探活 URL：`https://www.xiaohongshu.com/`
+> - `xhs-publish`：创作者平台（`creator.xiaohongshu.com`），用于发布笔记/视频
+> - `xhs-browse`：消费者端（`www.xiaohongshu.com`），用于搜索、浏览、互动
 
 ---
 
-## CLI Script
+## CLI（统一入口）
 
-All probe and read/write operations go through the script:
+所有命令通过 `login-manager.sh`（绝对路径调用）：
 
 ```bash
-./scripts/login-manager.sh check  <platform>   # Probe: cookies still valid?
-./scripts/login-manager.sh read   <platform>   # Print stored session JSON
-./scripts/login-manager.sh write  <platform>   # Save session from stdin JSON
-./scripts/login-manager.sh status-all          # Check all stored sessions at once
+# 探活类
+login-manager.sh check <platform>        # 探活；exit 0=有效, 2=失效
+login-manager.sh read  <platform>        # 输出中央 JSON
+login-manager.sh write <platform>        # 从 stdin 写中央 JSON
+login-manager.sh status-all              # 批量探活
+
+# camoufox 会话管理（Phase 4.5+ 新增）
+login-manager.sh qr-headless <platform> [url]   # 启 headless 会话 + 截图 QR → stdout JSON
+login-manager.sh qr-confirm <platform> --session <session>   # 轮询扫码 → cookies export 落盘
+login-manager.sh cookie-export <platform> <session>   # 从已登录 camoufox session 落中央 JSON
+login-manager.sh cookie-import <platform> <session>   # 从中央 JSON 注 camoufox session
+login-manager.sh session-cleanup <platform> <session> # 关闭 camoufox session
 ```
 
-Exit codes:
-- `0` — success (cookies valid / operation complete)
-- `1` — general error
-- `2` — session expired or missing → trigger browser login flow
+退出码：
+- `0` — 成功
+- `1` — 通用错误
+- `2` — session 失效 / 扫码超时 → 触发重新登录流程
 
 ---
 
 ## Usage
 
-### Check session validity
+### 1. 检查 session 有效性
 
 ```bash
-./scripts/login-manager.sh check <platform>
+login-manager.sh check xhs-browse
 ```
 
-The script:
-1. Reads `~/.openclaw/logins/{platform}.json`
-2. If missing / empty → exit 2
-3. Sends a probe request to the platform API with stored cookies
-4. If probe succeeds → prints `{ "ok": true, "cookies": "...", "user_agent": "..." }` to stdout
-5. If probe fails → exit 2
+行为：
+1. 读 `~/.openclaw/logins/xhs-browse.json`
+2. 文件缺失 / 为空 → exit 2
+3. 用 stored cookies 探活平台 URL，HTTP 200/3xx → exit 0 + 输出 `{ok, platform, updated_at, cookie_count}`
+4. 探活失败 → exit 2
 
-**Agent workflow on exit code 2（需要重新登录）：**
+### 2. Session 失效后的 QR 重新登录流程（exit 2 后）
 
-1. 使用浏览器工具打开对应平台登录页（**新标签页**）：
-   | Platform | Login URL |
-   |----------|-----------|
-   | douyin   | `https://www.douyin.com/` |
-   | bilibili | `https://www.bilibili.com/` |
-   | kuaishou | `https://www.kuaishou.com/` |
-   | xhs-publish | `https://www.xiaohongshu.com/` → 登录后导航到 `https://creator.xiaohongshu.com/publish/publish?source=official` |
-   | xhs-browse | `https://www.xiaohongshu.com/` |
-   | weibo    | `https://weibo.com/` |
-   | zhihu    | `https://www.zhihu.com/` |
-   | wechat-channels | `https://channels.weixin.qq.com/` |
-2. 遵循 **browser-guide** skill 完成登录（优先 QR code，次选 SMS / 密码）
-3. 登录成功后，**通过 CDP 导出 cookies 并保存**（⚠️ 不可用 `document.cookie`，httpOnly cookie 如 `web_session` 无法通过 JS 访问）：
-   1. 执行 `browser action=tabs` 获取标签页列表
-   2. 找到已登录平台的标签页，复制其 `wsUrl` 字段
-   3. 一步完成 cookie 提取 + UA 获取 + 写入存储：
-      ```bash
-      ./scripts/export-cookies.sh <wsUrl> <domain> <platform>
-      ```
-      - `wsUrl`：上一步获取的 CDP WebSocket URL
-      - `domain`：平台域名过滤（如 `xiaohongshu.com`、`douyin.com`）
-      - `platform`：存储平台名（如 `xhs-publish`、`douyin`）
-   4. 脚本成功后输出 `{"ok": true, "platform": "...", "cookieCount": N}`，session 已自动写入 `~/.openclaw/logins/{platform}.json`
-4. 关闭登录标签页，重新执行 `check`
-5. 若仍失败，告知用户并停止 — **禁止重复登录超过 1 次**
+当 `check` 返回 exit 2 时，按以下两步走：
 
-### Check all sessions at once
+#### 步骤 A：启 headless + 截图 QR
 
 ```bash
-./scripts/login-manager.sh status-all
+login-manager.sh qr-headless xhs-browse
 ```
 
-Scans `~/.openclaw/logins/` for all stored sessions, probes each, and prints a summary:
-
+输出 JSON：
+```json
+{
+  "ok": true,
+  "session": "xhs-browse-login-abc12345",
+  "platform": "xhs-browse",
+  "qr_path": "/tmp/qr-xhs-browse-1783152197.png",
+  "login_url": "https://www.xiaohongshu.com/"
+}
 ```
-[login-manager] 登录态总览：3 有效 / 1 过期 / 4 总计
 
-  ✅ douyin (更新于 2026-06-15T10:30:00)
-  ✅ bilibili (更新于 2026-06-14T08:00:00)
-  ❌ weibo (更新于 2026-05-01T12:00:00)
-  ✅ xhs (更新于 2026-06-15T09:00:00)
-```
+**agent 流程**：
+1. 把 `qr_path` 指向的 PNG 用 image 工具加载（**不要发本地路径**）
+2. 发给用户：「**小红书** 登录已失效（或首次使用），请用 **小红书** APP 扫描以下二维码登录。扫码并在手机上点击确认后，回复"已扫码"。」
+3. **Stop and wait** 等用户回复"已扫码" / "好了" / "扫完了"
+4. 拿到 `session` 字段，给步骤 B 用
 
-Returns JSON with per-platform status.
-
-### Read session (for other skills)
+#### 步骤 B：轮询扫码成功 + 落盘
 
 ```bash
-./scripts/login-manager.sh read <platform>
+login-manager.sh qr-confirm xhs-browse --session xhs-browse-login-abc12345 --timeout 180
 ```
 
-Prints stored session JSON to stdout. Exit 2 if not found.
+行为：
+1. 轮询 camoufox session 内的 `window.location.href` + QR 元素存在性
+2. URL 离开 login 页 + QR 元素消失 → 判定登录成功
+3. 调 `camoufox-cli cookies export ~/.openclaw/logins/xhs-browse.json` → 写入中央存储
+4. 输出 `{ok, platform, session}` → exit 0
+5. 180s 内未成功 → exit 2
+
+### 3. 关闭用过的 camoufox session
+
+```bash
+login-manager.sh session-cleanup xhs-browse xhs-browse-login-abc12345
+```
+
+释放 daemon + Firefox 进程，profile dir 保留（cookies 已在中央存储）。
+
+### 4. 批量探活
+
+```bash
+login-manager.sh status-all
+```
+
+扫描 `~/.openclaw/logins/` 所有平台，输出 JSON 总览：
+
+```json
+{
+  "platforms": [
+    {"platform": "xhs-browse", "ok": true, "updated_at": "...", "cookie_count": 12},
+    {"platform": "douyin",     "ok": false, "updated_at": "...", "cookie_count": 5}
+  ],
+  "total": 2,
+  "valid": 1,
+  "expired": 1
+}
+```
+
+### 5. 其他 skill 取 cookie 模式
+
+下游 HTTP skill（viral-chaser / xhs-content-ops 等）从 `~/.openclaw/logins/{platform}.json` 加载 cookie，薄适配 3 行（camoufox-cli 原生格式 = Playwright 格式）：
+
+```python
+import json
+cookies = json.load(open(f"~/.openclaw/logins/{platform}.json"))["cookies"]
+# 给 raw HTTP：
+header = "; ".join(f"{c['name']}={c['value']}" for c in cookies if domain in c['domain'])
+# 给 Playwright/patchright Python：
+#   context.add_cookies(cookies)  # 零适配
+```
 
 ---
 
-## Integration with other skills
+## 并发约束（D18 + 4.5.5）
 
-When a skill requires platform cookies, the pattern is:
+- **每 agent 一 session**：禁止两个 agent 共享同一个 camoufox session（profile dir 冲突会污染 cookie state）
+- session 名规则：`{platform}-{purpose}-{nonce}`，如 `xhs-browse-agent-xyz78901`
+- 不同 agent / 不同登录流程 → 各自独立 session，独立 profile dir
 
-```
-1. Run: login-manager.sh check <platform>
-2. Parse stdout JSON → extract cookies and user_agent
-3. Use cookies in subsequent API calls
-4. If any API returns auth error (HTTP 401/403 or platform-specific failure):
-   - Execute the browser-based re-login workflow (see "Agent workflow on exit code 2" above)
-   - Retry the original operation once
-   - If still failing, report to the user and stop
-```
+## D18 约束
+
+- **不 fork camoufox-cli**：Phase 4.5 spike 已验证原生 CLI 够用
+- **不 bake chromium**：Dockerfile 阶段 1 只装 camoufox Firefox 二进制
+- **保留 patchright fallback**：本 skill 替换 CDP 路径后，openclaw 内置 browser tool + patchright 仍可作用户 Chrome attach fallback（见 browser-guide §fallback）
 
 ---
 
 ## Notes
 
 - **Do not retry login more than once automatically** — frequent retries risk account suspension (per browser-guide guidelines)
-- **QR code login is preferred** for Douyin and Kuaishou — ask user to scan with their mobile app
-- **Bilibili** public video access often works without cookies; only request login if the video is unavailable
+- **QR code login is preferred** for Douyin and Kuaishou — ask user to scan with mobile app
+- **Bilibili** public video access often works without cookies; only request login if video is unavailable
 - **Never store cookies in code or logs** — the session files are stored only in `~/.openclaw/logins/`
-
-## 浏览器操作最佳实践
-
-### 超时错误处理
-
-遇到 `browser failed: timed out` 或类似超时错误时：
-
-- **不需要重启浏览器**，也不执行 `browser stop/start`
-- 等待 **30 秒**后在原页面继续操作
-- 若仍无法操作，再等 30 秒
-- 只有关闭浏览器后重开仍报错才是真正出错，需停止并反馈用户
-
-### 表单输入规范
-
-填写用户名、密码或其他表单内容时：
-
-- 使用 `browser act` 的 `type` 动作，并设置 `slowly: true`
-- **不要使用 `fill()`**，可能导致编辑器无法识别内容
-- 示例：
-  ```
-  browser act kind=type ref=<input_ref> text="用户名" slowly=true
-  ```
+- **camoufox 探活失败时不要盲试**：用 `cookie-import` + `camoufox-cli eval` 现场检查 session 内 cookie 状态，再决定是否触发 QR 登录

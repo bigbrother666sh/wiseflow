@@ -1,30 +1,32 @@
 #!/usr/bin/env bash
-# login-manager.sh — Platform login state management wrapper
+# login-manager.sh — 平台登录态管理 wrapper
 #
-# Wraps the TypeScript implementation for simple one-line invocation.
-# Usage: login-manager.sh <command> [args...]
+# 委托给 login_manager.py（Python 3 stdlib + camoufox-cli）。
+# Phase 4.5.2 替换：原 CDP WebSocket 抽 cookie 路径 → camoufox-cli cookies export。
+# 用法：login-manager.sh <command> [args...]
 #
-# Commands:
-#   check  <platform>   Probe: cookies still valid?
-#   read   <platform>   Print stored session JSON
-#   write  <platform>   Save session from stdin JSON
-#   status-all          Check all stored sessions at once
+# 命令：
+#   check <platform>                     探活 (exit 0/2)
+#   read  <platform>                     读中央 JSON
+#   write <platform>                     从 stdin 写中央 JSON
+#   status-all                           批量探活
+#   qr-headless <platform> [url]         启 headless + 截图 QR
+#   qr-confirm <platform> --session <s>  轮询扫码 + cookies export
+#   cookie-export <platform> <session>   从 camoufox session 落中央 JSON
+#   cookie-import <platform> <session>   从中央 JSON 注 camoufox session
+#   session-cleanup <platform> <session> 关 camoufox session
 #
-# Cookie export (one-step):
-#   ./scripts/export-cookies.sh <wsUrl> <domain> <platform>
-#     Extract cookies from browser tab via CDP and save to login-manager storage.
+# 平台：douyin, bilibili, kuaishou, xhs-publish, xhs-browse,
+#       weibo, zhihu, wechat-channels
 #
-# Platforms: douyin, bilibili, kuaishou, xhs, xhs-publish, xhs-browse,
-#            weibo, zhihu, wechat-channels
-#
-# Exit codes:
-#   0  Success
-#   1  General error
-#   2  Session expired / not found → trigger browser login
+# 退出码：
+#   0  成功
+#   1  通用错误
+#   2  session 失效 / 扫码超时 → 触发重新登录流程
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TS_SCRIPT="${SCRIPT_DIR}/login_manager.ts"
+PY_SCRIPT="${SCRIPT_DIR}/login_manager.py"
 
-exec node --experimental-strip-types "$TS_SCRIPT" "$@"
+exec python3 "$PY_SCRIPT" "$@"

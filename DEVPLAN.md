@@ -5,7 +5,7 @@
 > 全局规划见 `docs/product-split-plan.md`；client buildout 状态见 `docs/client-buildout.md`；relay 侧剩余见 relay 仓 `DEVPLAN.md`。
 > 本文档只列**剩余开发内容**，按 Phase 排，每项含验收标准与依赖。
 
-最后更新：2026-07-04（中段修订：实例会源码部署）
+最后更新：2026-07-05（更新 checkbox 状态：本轮主体改版 + 4 步借鉴完成；剩 Phase 6 Dockerfile / Phase 8.3 端到端按部署节奏）
 
 ## 本轮开发约束（2026-07-04 启 → 2026-07-04 中段修订）
 
@@ -31,14 +31,14 @@
 
 > **2026-07-04 撤回**：video relay 模式取消。`crews/main/skills/video-product/`、`crews/content-producer/skills/siliconflow-video-gen/`、`html-video/` 维持现状（视频生成走本地凭据，不入 relay）。本节剩余仅 bilibili-publish + douyin-publish 路线讨论。
 
-- [ ] **bilibili-publish 改调 relay**
+- [x] **bilibili-publish 改调 relay**（2026-07-04 完成，commit 45bd970）
   - 依赖：relay `publish-relay/bilibili` 端点就绪；用户拍板走 relay vs 维持现状。
   - 做：`crews/content-producer/skills/bilibili-publish/` 去掉本地持 SESSDATA/APP_SECRET，改 `POST /api/v1/publish/bilibili/*` 带 OFB_KEY。
   - 验收：发一条真实动态成功；skill 内无 BILI 凭据。
 
 - [ ] ~~**video-product / content-producer 改调 relay**~~ → **撤回**（2026-07-04，视频技能维持本地凭据）
 
-- [ ] **douyin-publish 路线对齐**
+- [x] **douyin-publish 路线对齐**（2026-07-04 选浏览器模拟方案，commit 0fff2d8）
   - 依赖：relay 3.1 抖音路线定。
   - 做：若 API 逆向 → 改调 relay；若浏览器模拟 → 走 camoufox-cli（Phase 4.5）纯 client 操作。**定之前不动**。
 
@@ -160,24 +160,24 @@
 >
 > **D19 已落（2026-07-03）**：内 crew（main/content-producer/it-engineer）SOUL.md `command-tier=T3` + 清空 ALLOWED_COMMANDS；sales-cs 维持 `T0` 不动。Docker 内对内全放开（消除 allowlist miss 摩擦），对外保留 prompt injection 防线。~~
 
-- [ ] **main 身份合体**（AI 搞钱搭子「小贝」定位）
+- [x] **main 身份合体**（AI 搞钱搭子「小贝」定位）（2026-07-04 完成，commit 43762d0）
   - 做：写 SOUL.md / IDENTITY.md / MEMORY.md / HEARTBEAT.md，定位 = AI 搞钱搭子（中文名「小贝」，专为 OPC / 中小微企业老板）；**SOUL/风格**：理性、高效、尽责的天才少女，带一点点傲娇和毒舌调皮；**对用户自称「小贝」**；weixin binding 指向它；MEMORY 写 sales-cs 启用/软链/HRBP 优化知识。
   - 源：原 self-media-operator crew（已整合 IR + BD 能力，改名为 main）+ plan §七。
-- [ ] **IR 三模式抽三 skill**
+- [x] **IR 三模式抽三 skill**（2026-07-04 完成，commit 7d93b48 — business-model-polish / project-application / investor-pipeline + 7 天过期提醒）
   - 做：从旧 ir crew AGENTS（git 历史 `97bad4d^:addons/officials/crew/ir/AGENTS.md`）抽三模式，写成 `crews/main/skills/` 下 `business-model-polish`（模式1商业模式打磨）/ `project-application`（模式2项目申报）/ `investor-pipeline`（模式3投资人发掘与跟进）三个 skill。
   - `ir-record` 作公共数据层 skill（三 skill 委托，DB 统一，已搬入）；`swcr-register` / `investor-hunting` / `investor-outreach` / `market-research` 保留独立子 skill 供委托（已搬入）。
   - HEARTBEAT 留 crew 级含 7 天投资人过期提醒；模式3 状态机 new→contacted→bp_sent→meeting→dd→ts→invested/passed。
-- [ ] **business-developer 三能力合入**
+- [x] **business-developer 三能力合入**（2026-07-04 完成，commit 5e7be4a — lead-hunting / comment-engagement / intel-gathering 写入 main AGENTS + HEARTBEAT）
   - 做：`lead-hunting` / `comment-engagement` / `intel-gathering`（已搬入 main/skills）写入 main AGENTS + HEARTBEAT（保留 heartbeat 写入模式）；`bd-record` / `info-record` 作数据层。
-- [ ] **it-engineer 瘦身 + 强化运维**
+- [x] **it-engineer 瘦身 + 强化运维**（2026-07-04 完成，commit 78e0f09）
   - 做：删升级知识（MEMORY/AGENTS 中 install.sh 升级流程段落）；强化 env/relay/awada 启用/sales-cs 启用运维；定位为 main + sales-cs 的 sub-agent，无 channel。
-- [ ] **sales-cs sample + 软链**
+- [x] **sales-cs sample + 软链**（2026-07-04 完成，commit 308a00a — 验证状态 + 文档化；实际软链部署时执行）
   - 做：默认 seed 不在 openclaw.json；绑 awada；启用由 IT engineer 操作改 `enabled: true` + 软链 `business_knowledge/`；自有技能同现仓（已搬入）。
-- [ ] **shared/ 内化进 it-engineer**
+- [x] **shared/ 内化进 it-engineer**（2026-07-04 完成 — D8 拍平后 `crews/shared/` 已不存在；COMMAND_TIERS / CREW_TYPES 类内容已通过 D19 内化进内 crew T3 full 策略；**dev plan 此条无需实施**）
   - 做：`crews/shared/` 中 IT engineer 用得上的内容（COMMAND_TIERS / CREW_TYPES）内化进 it-engineer，其余删。
-- [ ] **apply-addons.sh 死代码精简**
+- [x] **apply-addons.sh 死代码精简**（2026-07-04 完成，commit e9f8ed5 — 删 addons 扫描循环 165 行，616 → 451 行）
   - 做：删 addons 扫描循环（~260 行起）；保留补丁 + 全局技能 + awada 注入 + 配置同步；crew 安装由 setup-crew.sh 单独负责。
-- [ ] **全局技能软链化 + wrapper 覆盖审计**（D21）
+- [x] **全局技能软链化 + wrapper 覆盖审计**（D21）（2026-07-04 完成**设计 + 审计**，commit 9328bc9 — `docs/d21-symlink-skill.md` 设计骨架 + 现状审计；**实际软链部署时执行**）
   - 背景：当前 `~/.openclaw/skills/` 是拷贝（改 repo 要 reinstall）；弱模型路径拼接错主要来自 baseDir 拼接 + allowlist miss。D19 已消掉 allowlist miss（内 crew T3 full），剩"拼错绝对路径"靠 wrapper 上 PATH 解。
   - 做（本地开发实例）：`~/.openclaw/skills/<name>` 由拷贝改软链 → `<repo>/skills/<name>`（指向本仓 repo，**不**软链到 `openclaw/skills` bundled 层——那会降优先级 + 耦合版本树 + 不治路径错）。
   - 做（Docker 镜像）：维持 COPY 拷贝到 `/root/.openclaw/skills/`（镜像重建即更新，软链无额外收益）。
@@ -188,24 +188,24 @@
 
 ## Phase 8 — IT engineer 记忆注入 + 端到端走查
 
-- [ ] **IT engineer 记忆注入**：把产品拆分后的运维知识（relay 端点 / awada 启用 / sales-cs 启用 / camoufox 排障）写入 it-engineer MEMORY。
-- [ ] **D20③ skill 依赖安装规范写入 it-engineer**：在 AGENTS.md/MEMORY.md 写明用户额外装 skill 时的依赖安装规则（pip `--target ~/.openclaw/skills/<skill>/vendor/` + PYTHONPATH 已由 entrypoint 注入；npm 局部 `node_modules`；何时装、依赖冲突处理）。
-- [ ] **端到端走查**：docker run → 扫码 → 用户在微信发消息 → main 响应 → 调 relay sign/publish/video → 回复。全链路绿。
+- [x] **IT engineer 记忆注入**（2026-07-04 完成，commit 672e9f0 — 116 行运维知识注入 MEMORY：login-manager 状态机 / camoufox 排故 / 4.6 engagement / 部署路径 / 升级策略 / sales-cs 启用 SOP）
+- [x] **D20③ skill 依赖安装规范写入 it-engineer**（2026-07-04 完成，同 commit 672e9f0 — pip `--target vendor/` / npm 局部 / 冲突处理 / 介入准则）
+- [ ] **端到端走查**：docker run → 扫码 → 用户在微信发消息 → main 响应 → 调 relay sign/publish/video → 回复。全链路绿。**⏸️ 依赖部署完成**（dev plan 明确"源码部署后做"）
 - 验收：一条用户消息走完全链路无人工干预。
 
 ## 文档收尾
 
-- [ ] `docs/workspace-bootstrap-files.md` skill 表更新为新 crew + 新 skill 归属。
-- [ ] `CHANGELOG.md` 补产品拆分条目。
-- [ ] `docs/product-split-plan.md` §十一状态段同步至 Phase 7 结构搬运完成。
+- [x] `docs/workspace-bootstrap-files.md` skill 表更新为新 crew + 新 skill 归属（2026-07-04 完成，commit 94c8334 — D8 扁平化后的 5 个 crew 表）
+- [x] `CHANGELOG.md` 补产品拆分条目（2026-07-04 完成，commit 94c8334 — v5.5.3 Unreleased 段）
+- [x] `docs/product-split-plan.md` §十一状态段同步至 Phase 7 结构搬运完成（2026-07-04 完成，commit 94c8334）
 
 ---
 
 ## 阻塞项（待外部输入）
 
-- **抖音发布路线**：见 Phase 3 douyin-publish，relay 3.1 定之前不动。
-- **relay Phase 3/4 端点**：client Phase 3/4 依赖 relay 侧先就绪。
-- **配额计数上报**：待 BD 计费模型（relay 侧）。
+- **抖音发布路线**：✅ **2026-07-04 已选浏览器模拟方案**（commit 0fff2d8），不依赖 relay 3.1。
+- **relay Phase 3/4 端点**：client Phase 3/4 依赖 relay 侧先就绪（外部依赖）。
+- **配额计数上报**：待 BD 计费模型（relay 侧，外部依赖）。
 
 ## 与 relay 仓的边界
 

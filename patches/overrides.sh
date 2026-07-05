@@ -4,7 +4,7 @@
 # 由 apply-addons.sh 调用，接收环境变量：ADDON_DIR, OPENCLAW_DIR
 set -e
 
-PATCHRIGHT_VERSION="${PATCHRIGHT_VERSION:-1.60.2}"
+PATCHRIGHT_VERSION="${PATCHRIGHT_VERSION:-1.61.1}"
 
 # ─── pnpm overrides（核心，不修改源码） ─────────────────────────
 # pnpm v11+ 不再从 package.json 的 pnpm.overrides 读取覆盖设置，

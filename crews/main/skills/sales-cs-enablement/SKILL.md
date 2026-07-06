@@ -1,12 +1,7 @@
 ---
 name: sales-cs-enablement
 description: >
-  当用户要求启用对外客服（sales-cs）时使用。完整启用流程：派 IT engineer 检查
-  awada-channel 是否已配置 → 未启用则向用户说明 sales-cs 需要可公开访问的 channel
-  （飞书/企微不适合，因要求客户先加入组织），给出 awada 租赁/自带线路/退而用企微飞书
-  三选项 → 拿到信息后再派 IT engineer 完成启用与配置 → 问用户 sales-cs 对外自我称呼
-  → 写入 sales-cs IDENTITY.md → 把 main workspace 的 business_knowledge/ 软链到
-  sales-cs workspace。
+  当用户要求启用对外客服（sales-cs）时使用
 metadata:
   openclaw:
     emoji: 🤝
@@ -14,8 +9,7 @@ metadata:
 
 # Sales-CS 启用流程
 
-> 对外 crew `sales-cs` 的完整启用 SOP。本 skill 是**编排**：main agent 自己跑检查
-> 脚本 + 问用户问题，机械的 channel/openclaw.json 配置委派 IT engineer。
+> 对外 crew `sales-cs` 的完整启用 SOP。本 skill 是**编排**：main agent 自己跑检查脚本 + 问用户问题，机械的 channel/openclaw.json 配置委派 IT engineer。
 
 ## 触发条件
 
@@ -44,12 +38,11 @@ python3 /<workspace 绝对路径>/crews/main/skills/sales-cs-enablement/scripts/
 
 向用户说明：
 
-> sales-cs 是对外 crew，需要一个**可公开访问**的 channel——客户不用先加入你的组织就能
-> 找到它。飞书 / 企业微信都不太合适，因为它们要求客户先加入你的飞书或企微组织。
+> sales-cs 是对外 crew，需要一个**可公开访问**的 channel——客户不用先加入你的组织就能找到它。飞书 / 企业微信都不太合适，因为它们要求客户先加入你的飞书或企微组织。
 >
 > 三个选项：
 > 1. **租赁 awada server 线路**：可以联系 openclaw-for-business 掌柜咨询（二维码见下）
-> 2. **自带线路 / channel**：你提供一个可对外接入的 awada 线路或自有 channel
+> 2. **使用openclaw支持的其他channel**：比如QQ、telegram等
 > 3. **退而用飞书 / 企业微信**：接受"客户需先加入组织"的限制
 
 发 `crews/main/ofb_contact.png` 给用户（选项 1 用）。
@@ -64,7 +57,7 @@ python3 /<workspace 绝对路径>/crews/main/skills/sales-cs-enablement/scripts/
 spawn IT engineer，交代任务：
 
 > 启用 sales-cs 对外 crew。请按以下顺序执行：
-> 1. 配置 awada channel（走 `awada-channel-setup` 技能；用户提供的线路信息：<...>）
+> 1. 配置 awada channel（走 `awada-channel-setup` 技能；用户期待配置的channel，需要启用openclaw内置plugin：<...>）
 >    — 若用户在 Step 2 选 3，则改为配飞书/企微 channel（走 `work-channel-binding`）
 > 2. 把 `crews/sales-cs/openclaw_setting_sample.json` 并入 `~/.openclaw/openclaw.json`：
 >    - 加入 `agents.list`（sales-cs）
@@ -75,18 +68,9 @@ spawn IT engineer，交代任务：
 
 等 IT engineer 报平安后进 Step 4。
 
-### Step 4 · 问 sales-cs 对外自我称呼
+### Step 4 · 更新sales-cs workspace下的AGENTS.md/IDENTITY.md/SOUL.md
 
-问用户：
-
-> sales-cs 对外怎么称呼自己？比如"小明助手""掌柜""小贝同学"等。客户问"你是谁"时
-> 它会用这个称呼自报。
-
-拿到称呼后写入 sales-cs IDENTITY.md：
-
-```bash
-python3 /<workspace 绝对路径>/crews/main/skills/sales-cs-enablement/scripts/write_identity.py --name "<称呼>"
-```
+你可以按照你对用户的理解，当然更重要的是结合`business_knowledge.md`，完善sales-cs workspace下的AGENTS.md/IDENTITY.md/SOUL.md中所有需要 `main agent` (也就是你) 初始化时补充的内容，拿捏不准的问用户。
 
 ### Step 5 · 软链 business_knowledge/
 
@@ -111,8 +95,7 @@ python3 /<workspace 绝对路径>/crews/main/skills/sales-cs-enablement/scripts/
 ## 启用后的调整职责
 
 **sales-cs 启用后，对它的任何调整是 main agent 的责任**，不是 sales-cs 自己的。
-sales-cs 被设定为不根据客户反馈自主调整升级。用户要调整它的记忆、说话口气、
-IDENTITY、客服手册等 → 通过 main agent 发起（见 `sales-cs-review` 技能）。
+sales-cs 被设定为不根据客户反馈自主调整升级。用户要调整它的记忆、说话口气、IDENTITY、客服手册等 → 通过 main agent 发起（见 `sales-cs-review` 技能）。
 
 ## Pitfalls
 

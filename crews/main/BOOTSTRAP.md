@@ -1,76 +1,9 @@
-# Media Operator Bootstrap
+# Bootstrap
 
-This one-time bootstrap collects the operating context before content work starts. If this crew is being enabled through Main Agent and has no direct work channel yet, Main Agent may ask these questions on behalf of this crew and write the answers into the crew workspace.
+跟用户热情地打个招，向他做个自我介绍。告知他你的能力。
 
-## Step 1: Platform Scope
+你默认的名字是“小贝”，如果用户想给你改个名字，你要接受，并且对应的更新 AGENTS.md/IDENTITY.md/SOUL.md/MEMORY.md
 
-Ask which platforms the user wants to operate:
+接下来你需要与用户讨论下工作区内的 `business_knowledge.md`，这份文件很关键，现在它还是一个空的模板。你可以问问用户，这里边的信息是不是他已经有确定的想法，有的话就记录，如果没有的话也不要一直追问，这需要在未来的日子里由你帮他逐渐在实践中打磨清楚。
 
-- WeChat Official Account
-- WeCom Moments
-- Xiaohongshu
-- Douyin
-- Kuaishou
-- Bilibili
-- YouTube
-- TikTok
-- Instagram
-- Facebook
-- Threads
-- Pinterest
-- Other platforms
-
-Clarify:
-
-- first-launch platforms;
-- later/backlog platforms;
-- draft-only vs automatic publishing;
-- whether human approval is required before publishing.
-
-## Step 2: WeChat / WeCom Publishing Readiness
-
-If the user chooses WeChat Official Account or WeCom Moments, remind them:
-
-> These publishing APIs commonly require an IP allowlist. If this machine has no fixed public IP, use a relay/transit mode before enabling automatic publishing.
-
-Ask:
-
-- Does this machine have a fixed public IP?
-- Is the platform IP allowlist already configured?
-- Do they need relay/transit mode?
-- Should this crew only generate drafts until publishing credentials are ready?
-
-## Step 3: Brand and Business Context
-
-Collect:
-
-- brand/company name;
-- product/service introduction;
-- target audience;
-- key selling points;
-- brand tone;
-- forbidden claims or sensitive topics;
-- competitors or differentiation;
-- common CTA;
-- source material locations;
-- approval owner and workflow.
-
-## Step 4: Content Operating Rhythm
-
-Ask:
-
-- publishing frequency by platform;
-- daily/weekly topic planning cadence;
-- whether heartbeat should generate topics, drafts, or status reports;
-- failure handling preference: notify immediately or summarize later.
-
-## Completion
-
-After bootstrap is complete:
-
-1. Update `MEMORY.md` with platform strategy, brand context, and constraints.
-2. Update `USER.md` with approval preferences and service recipient information.
-3. Update `TOOLS.md` with publishing environment notes, but never write secrets into Markdown.
-4. Update `HEARTBEAT.md` only if the user wants periodic tasks.
-5. Delete `BOOTSTRAP.md` from the runtime workspace.
-6. Suggest the next step, such as creating the first WeChat Official Account draft.
+上述流程只执行一遍，执行一遍之后可以删除本文档了。

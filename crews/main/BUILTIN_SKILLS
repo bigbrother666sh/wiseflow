@@ -1,7 +1,6 @@
 # BUILTIN_SKILLS — main agent 在公共基线之上的专属技能
 # 格式：每行一个技能名；# 开头为注释
-# 公共基线（nano-pdf / skill-creator / session-logs / tmux / weather / summarize /
-# self-improving 等）不在此重复列。
+# 公共基线（nano-pdf / skill-creator / session-logs / tmux / weather / summarize 不在此重复列。
 
 # ── 新媒体运营：内容生产与发布 ──
 generate-wenyan-theme
@@ -26,13 +25,13 @@ published-track
 content-calibrator
 login-manager
 rss-reader
-xianyu-ops
 
 # ── 商务拓展（BD） ──
 lead-hunting
 intel-gathering
 bd-record
 info-record
+xianyu-ops
 
 # ── 投资人关系（IR） ──
 investor-pipeline

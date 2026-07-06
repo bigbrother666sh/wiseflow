@@ -12,10 +12,6 @@ metadata:
 
 # Sales-CS 复盘与升级
 
-> 参考 `~/wiseflow-pro/crews/hrbp` 的 feedback-review / modify 模式，但**没有 hrbp
-> crew**——main agent 直接兼任 sales-cs 的治理者。本技能是编排 + 直接落地，不 spawn
-> 其他 crew。
-
 ## 触发条件
 
 - 用户说"复盘下 sales-cs"/"看看客服最近怎么样"/"调整下客服话术"等
@@ -24,8 +20,7 @@ metadata:
 
 ## 前置条件
 
-- sales-cs 已启用（`~/.openclaw/workspace-sales-cs/` 存在）。未启用 → 提示用户先走
-  `sales-cs-enablement`。
+- sales-cs 已启用（`~/.openclaw/workspace-sales-cs/` 存在）。未启用 → 先走 `sales-cs-enablement`。
 
 ## 流程
 

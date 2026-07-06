@@ -1,11 +1,11 @@
 {
   "skills": [
     "customer-db",
-    "demo_send",
-    "exp_invite",
+    "demo-send",
+    "exp-invite",
     "nano-pdf",
-    "payment_confirm",
-    "payment_send",
+    "payment-confirm",
+    "payment-send",
     "proactive-send",
     "session-logs"
   ],

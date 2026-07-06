@@ -1,7 +1,6 @@
 ---
 name: douyin-publish
-description: 通过浏览器自动化发布视频到抖音创作者中心（camoufox-cli 主推）。绕过
-  抖音开放平台资质限制。
+description: 通过浏览器自动化发布视频到抖音创作者中心（camoufox-cli 主推）。绕过抖音开放平台资质限制。
 metadata:
   openclaw:
     emoji: 🎤

@@ -240,17 +240,3 @@ python3 /abs/path/to/skills/siliconflow-img-gen/scripts/gen.py \
 
 - **症状**：图右下角出现"AI 生成"水印
 - **workaround**：脚本默认 `--watermark false`；不要漏写
-
----
-
-## 与 SiliconFlow 路径对比
-
-| 维度 | 旧（SiliconFlow Qwen） | 新（火山方舟 Seedream） |
-|------|---------------------|---------------------|
-| API URL | `/v1/images/generations` | `/v3/images/generations`（非 `/coding/v3`） |
-| Auth | Bearer + `SILICONFLOW_API_KEY` | Bearer + `AWK_API_KEY`（客户端 key） |
-| 默认 model | Qwen/Qwen-Image | doubao-seedream-4-0-250828 |
-| 文生图 size | 1328x1328 等 7 个 | `2K/3K/4K` 或 `WxH`（总像素 ≥ 2560x1440） |
-| 图生图 | Qwen/Qwen-Image-Edit-2509 | 4.0+ 火山 image 字段（1-3 张 URL / Base64） |
-| 失败回退 | 自动切 ERNIE-Image-Turbo | 不内置回退（手动重试） |
-| 输出格式 | PNG | JPG（火山默认） |

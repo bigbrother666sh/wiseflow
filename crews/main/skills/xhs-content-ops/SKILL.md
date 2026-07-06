@@ -1,10 +1,6 @@
 ---
 name: xhs-content-ops
-description: '小红书图文内容调研与对标分析。搜索小红书图文笔记，下载图片和正文进行深度分析。
-
-  当用户要求小红书竞品分析、对标分析、图文内容调研时触发。
-
-  视频内容请使用 viral-chaser 技能。'
+description: 小红书图文内容调研与对标分析。搜索小红书图文笔记，下载图片和正文进行深度分析。当用户要求小红书竞品分析、对标分析、图文内容调研时触发。视频内容请使用 viral-chaser 技能。
 metadata:
   openclaw:
     emoji: 📊

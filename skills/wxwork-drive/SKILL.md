@@ -2,8 +2,10 @@
 name: wxwork-drive
 description: Manage spaces, folders and files in WeChat Work WeDrive (企业微信微盘) via
   wiseflow-relay — create space, create folder, upload image/video, list, info, rename,
-  move, delete. Credentials (corp_id + corp_secret) read from daemon.env and passed
-  per-request; relay is stateless. Space/folder IDs cached locally in spaces.json.
+  move, delete, and share files via file-level share link. Standard flow
+  建空间 → 传文件 → file-share 发分享链接给同事. Credentials (corp_id + corp_secret)
+  read from daemon.env and passed per-request; relay is stateless. Space/folder IDs
+  cached locally in spaces.json.
 metadata:
   openclaw:
     emoji: 💾
@@ -15,7 +17,9 @@ metadata:
 
 # WeChat Work WeDrive（企业微信微盘空间 + 文件管理）
 
-经 relay 透传凭据，对微盘做完整管理：建空间 → 建文件夹 → 上传 → 列目录 / 取信息 / 重命名 / 移动 / 删除。
+经 relay 透传凭据，对微盘做完整管理：**建空间 → 建文件夹 → 上传 → 取文件分享链接（`file-share`）发给同事** 是主链路；另有列目录 / 取信息 / 重命名 / 移动 / 删除 / 空间安全设置 / 空间邀请链接等辅助接口。
+
+> ⚠️ **分享标准用法 = `file-share`（文件级），不是 `space-share`（空间级）**。应用建的空间默认「邀请链接功能关闭」且 API 打不开（只能管理后台手动开），`space-share` 在未开启时报 `640028`。`file-share` 只要微盘权限就能用，发给同事直接看文件、无需加入空间。**默认走 `file-share`**，别白白去试 `space-share`。详见下文「典型流程」与「特殊用途接口」。
 
 > 📍 **全局技能路径提示**：文中所有 `./scripts/` 路径均相对于本技能所在目录（即 `<skill>` 标签 `location` 属性所指目录），**不是**工作区目录。执行时按本技能实际安装路径拼接。
 
@@ -132,6 +136,8 @@ python3 {skillDir}/scripts/drive.py file-share <上一步 upload 返回的 filei
 - `space-create`：`spaceid`
 - `mkdir` / `upload` / `rename`：`fileid`
 - `upload`：`fast_forward: true` 表示命中秒传
+- `file-share`：`share_url`（文件级分享链接，发给同事直接看文件）
+- `space-share`：`space_share_url`（空间邀请链接，需管理后台开邀请链接功能）
 - `ls`：`detail.file_list.item[]`，每项含 `fileid / file_name / file_type(1文件夹/2文件/3文档/4表格/5收集表) / file_size / mtime`
 - `info`：`detail.file_info`
 - `move` / `delete`：`detail`（上游回包）

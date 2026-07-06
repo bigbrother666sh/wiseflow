@@ -86,5 +86,5 @@ spawn IT engineer 重启 Gateway（先告知用户并征得同意）。
   影响真实对话。
 - **改了 openclaw.json 没重启**：binding / agents.list 改动需重启 Gateway 才生效——
   但本技能一般不动 openclaw.json，动的话交给 IT engineer。
-- **业务知识双写**：business_knowledge 是软链到 main workspace 的，改业务知识在 main
-  workspace 改，不要在 sales-cs workspace 改软链目标。
+- **业务知识双写**：`business_knowledge.md` + `business_knowledge/` 是软链到 main workspace
+  的，改业务知识在 main workspace 改，不要在 sales-cs workspace 改软链目标。

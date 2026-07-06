@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """drive.py — 企业微信微盘文件管理（经 relay 透传凭据，relay 无状态）
 
+主链路：建空间 → 建文件夹 → 上传 → file-share 取文件分享链接发给同事。
+分享默认用 file-share（文件级），不要用 space-share（空间级邀请链接，
+需管理后台开，未开时报 640028）。
+
 子命令：
   空间管理（spaces.json，存于本技能目录，gitignore）：
     space-create <alias> <space_name> [--default]   经 relay 创建空间并登记
     space-add    <alias> <spaceid> [--default]       登记已有空间
     space-ls                                         列已登记空间
     space-default <alias>                            设默认空间
+    space-setting <space> [flags]                    空间安全设置（链接免审批/水印/保密/禁外分享等）
+    space-share <space>                              取空间邀请链接（需管理后台开邀请链接功能，否则 640028）
     folder-default <space_alias> <folderid>          设某空间的默认上传文件夹
+  分享（主链路终点）：
+    file-share <fileid>                              取文件级分享链接（不依赖空间邀请链接功能，优先用这个）
   文件管理（<space> 接受 alias 或裸 spaceid）：
     mkdir   <space> <file_name> [--fatherid F] [--default-folder]   建文件夹（--fatherid 缺省=根）
     upload  <file> <space> [--fatherid F] [--name NAME]             上传（--fatherid 缺省=该空间 default_folderid）
@@ -30,6 +38,9 @@ relay 端点（统一响应包络 { ok, ...业务字段, detail }）：
   POST /api/v1/wxwork/drive/rename         JSON
   POST /api/v1/wxwork/drive/move           JSON
   POST /api/v1/wxwork/drive/delete         JSON
+  POST /api/v1/wxwork/drive/space-setting  JSON
+  POST /api/v1/wxwork/drive/space-share    JSON
+  POST /api/v1/wxwork/drive/file-share     JSON
 
 详见 docs/WXWORK-DRIVE-API.md。
 """

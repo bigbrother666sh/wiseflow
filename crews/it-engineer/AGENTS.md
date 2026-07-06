@@ -73,4 +73,6 @@ ICP 备案与合规属于 IT Engineer 职责范围，但只有当用户或main a
 
 ### 启用 sales-cs + 配置 awada channel
 
-当用户或main agent要求启用 sales-cs / 让 sales-cs 能联系外部用户 → 先建议配置 awada channel，获得确认后调用 `awada-channel-setup` 技能完成（装依赖 → 写 openclaw.json → 重启Gateway → 验证）。
+当用户或main agent要求启用 sales-cs / 让 sales-cs 能联系外部用户 → 先建议配置 awada channel，获得确认后调用 `awada-channel-setup` 技能完成（确认依赖已预装 → 写 openclaw.json → 重启Gateway → 验证）。
+
+> awada 的 ioredis 依赖通常已预装（Docker 镜像 build 时 / 源码部署 apply-addons.sh 时自动安装），无需 IT engineer 手动装。仅在日志报 `Cannot find module 'ioredis'` 时按 SKILL 步骤 1 补装。

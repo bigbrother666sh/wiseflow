@@ -227,6 +227,25 @@ if [ -d "$AWADA_EXT" ] && [ -f "$AWADA_EXT/openclaw.plugin.json" ]; then
   fi
 fi
 
+# ─── 安装 awada 插件依赖（ioredis）──────────────────────────────
+# awada/src 仍走 ioredis 直连（Phase 4 改 HTTP/WS 后此步可移除）。
+# awada 自己的 node_modules 解析 ioredis，不走 ~/.openclaw/node_modules，
+# 故必须装在 awada/ 局部。内容哈希守卫避免重复 install。
+AWADA_PKG_HASH_FILE="$OPENCLAW_HOME/.awada-pkg-hash"
+if [ -d "$AWADA_EXT" ] && [ -f "$AWADA_EXT/package.json" ]; then
+  awada_hash="$(md5sum "$AWADA_EXT/package.json" | cut -d' ' -f1)"
+  awada_stored="$(cat "$AWADA_PKG_HASH_FILE" 2>/dev/null || echo '')"
+  if [ "$awada_hash" != "$awada_stored" ] || [ ! -d "$AWADA_EXT/node_modules" ]; then
+    echo "📦 Installing awada plugin dependencies (ioredis)..."
+    (cd "$AWADA_EXT" && npm install --omit=dev --no-audit --no-fund --loglevel=warn) \
+      && echo "$awada_hash" > "$AWADA_PKG_HASH_FILE" \
+      && echo "✅ awada dependencies installed" \
+      || echo "  ⚠️  awada npm install failed (可后续手动 cd $AWADA_EXT && pnpm install --prod)" >&2
+  else
+    echo "✅ awada dependencies up to date"
+  fi
+fi
+
 
 # ─── 安装全局共享技能（项目根目录 skills/） ──────────────────────
 GLOBAL_SKILL_COUNT=0

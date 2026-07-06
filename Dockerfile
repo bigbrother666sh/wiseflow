@@ -44,6 +44,22 @@ RUN mkdir -p /root/.openclaw
 # TODO(Phase 7): crews 扁平化后 COPY crews/ → /root/.openclaw/workspace-*/
 # TODO(Phase 7): skills 公共/私有拆分后 COPY skills/ → /root/.openclaw/skills
 COPY config/openclaw.json /root/.openclaw/openclaw.json
+# awada channel 插件：COPY 源码 + 预装 ioredis 依赖（awada/src 仍走 ioredis 直连，
+# Phase 4 改 HTTP/WS 后此步可移除）。awada 自己的 node_modules 解析 ioredis，
+# 不走 ~/.openclaw/node_modules，故必须装在 awada/ 局部。
+COPY awada/ /opt/openclaw/awada/
+RUN cd /opt/openclaw/awada && npm install --omit=dev --no-audit --no-fund --loglevel=warn
+# 把 awada 插件路径注入 openclaw.json（Docker 不跑 apply-addons.sh，需在此 bake）
+RUN node -e "\
+  const fs=require('fs');const p='/root/.openclaw/openclaw.json';\
+  const c=JSON.parse(fs.readFileSync(p,'utf8'));\
+  c.plugins=c.plugins||{};c.plugins.load=c.plugins.load||{};\
+  c.plugins.load.paths=Array.isArray(c.plugins.load.paths)?c.plugins.load.paths:[];\
+  c.plugins.load.paths=c.plugins.load.paths.filter(x=>!x.endsWith('/awada'));\
+  c.plugins.load.paths.push('/opt/openclaw/awada');\
+  c.plugins.entries=c.plugins.entries||{};\
+  if(!c.plugins.entries.awada)c.plugins.entries.awada={enabled:false};\
+  fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n');"
 # TODO(Phase 6): 各 skill 的 npm/pip install 统一在此跑
 # TODO(Phase 5): img-gen gen.py 改火山生图编译
 # Phase 4.5.5: 冻结 camoufox 指纹模板（spike 报告 §"Spike ② D18 落地方式"）

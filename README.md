@@ -264,7 +264,7 @@ Author：Wiseflow Team
 https://github.com/TeamWiseFlow/xiaobei
 ```
 
-![star](https://atomgit.com/wiseflow/wiseflow/star/badge.svg) 国内托管地址：[https://atomgit.com/wiseflow/wiseflow](https://atomgit.com/wiseflow/wiseflow)
+![star](https://atomgit.com/wiseflow/xiaobei/star/badge.svg) 国内托管地址：[https://atomgit.com/wiseflow/xiaobei](https://atomgit.com/wiseflow/xiaobei)
 
 ## 友情链接
 

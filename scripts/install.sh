@@ -27,7 +27,6 @@ OPENCLAW_HOME="$HOME/.openclaw"
 OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_HOME/openclaw.json}"
 SYSTEMD_ENV_FILE="$OPENCLAW_HOME/daemon.env"
 MACOS_GATEWAY_ENV="$OPENCLAW_HOME/service-env/ai.openclaw.gateway.env"
-BUILTIN_CREWS="main it-engineer"
 FORCE=false
 SKIP_CREW=false
 SKIP_WEIXIN=false
@@ -299,16 +298,10 @@ else
 fi
 echo ""
 
-# ─── 5. 初始化内置 Crew workspace + 配置文件 ───────────────────
-# shellcheck source=scripts/lib/crew-workspaces.sh
-source "$PROJECT_ROOT/scripts/lib/crew-workspaces.sh"
-
-if [ "$SKIP_CREW" = "true" ]; then
-  echo "⏭️  Skipping built-in crew workspace bootstrap (--skip-crew)"
-else
-  echo "📦 Bootstrapping built-in crew workspaces..."
-  seed_builtin_crew_workspaces "$PROJECT_ROOT/crews" "$OPENCLAW_HOME" "$BUILTIN_CREWS"
-fi
+# ─── 5. 初始化配置文件 ───────────────────────────────────────────
+# Crew workspace bootstrap 由步骤 6 apply-addons → setup-crew.sh 统一负责
+# （含模板拷贝 + skill npm 依赖 + guide 注入）。此处不预先建 workspace，
+# 否则 setup-crew.sh 会因目录已存在跳过 skill 依赖安装。
 ensure_openclaw_config
 echo ""
 

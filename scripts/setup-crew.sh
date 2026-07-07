@@ -14,7 +14,7 @@ FORCE=false
 
 # 内置 Crew 列表（全局唯一，不可删除，不可多实例）
 # 这些都是对内 Crew（crew-type: internal）
-BUILTIN_CREWS="main hrbp it-engineer"
+BUILTIN_CREWS="main it-engineer"
 
 source "$SCRIPT_DIR/lib/agent-skills.sh"
 source "$SCRIPT_DIR/lib/exec-tiers.sh"
@@ -32,8 +32,8 @@ usage() {
   echo "Examples:"
   echo "  $0"
   echo "  $0 --force"
-  echo "  $0 --denied-skills hrbp:apple-notes,slack"
-  echo "  $0 --denied-skills main:slack --denied-skills hrbp:github,coding-agent"
+  echo "  $0 --denied-skills main:apple-notes,slack"
+  echo "  $0 --denied-skills main:slack --denied-skills it-engineer:github,coding-agent"
   exit 1
 }
 
@@ -247,7 +247,7 @@ fi
 
 echo "📦 Setting up Agent System (crews)..."
 
-# ─── 1. 安装内置 Crew workspace（main / hrbp / it-engineer） ────
+# ─── 1. 安装内置 Crew workspace（main / it-engineer） ──────────
 for agent_id in $BUILTIN_CREWS; do
   agent_dir="$CREWS_DIR/$agent_id"
   [ -d "$agent_dir" ] || continue
@@ -282,67 +282,9 @@ for agent_id in $BUILTIN_CREWS; do
   inject_feishu_media_guide "$dest/USER.md"
 done
 
-# ─── 2. 复制共享协议到每个已安装的内置 workspace ─────────────────
-for agent_id in $BUILTIN_CREWS; do
-  dest="$OPENCLAW_HOME/workspace-$agent_id"
-  if [ -d "$dest" ] && [ -d "$CREWS_DIR/shared" ]; then
-    cp "$CREWS_DIR/shared/"*.md "$dest/"
-  fi
-done
-echo "  ✅ Shared protocols (CREW_TYPES.md) copied"
-
-# ─── 3a. 同步对内 crew 模板库到 crew_templates/（供 Main Agent 运行时参考） ──
-CREW_TEMPLATES_DEST="$OPENCLAW_HOME/crew_templates"
-mkdir -p "$CREW_TEMPLATES_DEST"
-# 清空旧模板目录，防止类型迁移时残留
-find "$CREW_TEMPLATES_DEST" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
-# 复制所有声明为 internal 的模板（含 addon 引入模板）
-for template_dir in "$CREWS_DIR"/*/; do
-  [ -d "$template_dir" ] || continue
-  template_id="$(basename "$template_dir")"
-  [ "$template_id" = "shared" ] && continue
-  crew_type="$(resolve_template_crew_type "$template_dir")"
-  [ "$crew_type" = "internal" ] || continue
-  cp -r "$template_dir" "$CREW_TEMPLATES_DEST/$template_id"
-done
-sync_addon_templates_to_runtime "internal" "$CREW_TEMPLATES_DEST"
-# 同步 shared/ 协议到 crew_templates/
-if [ -d "$CREWS_DIR/shared" ]; then
-  cp "$CREWS_DIR/shared/"*.md "$CREW_TEMPLATES_DEST/"
-fi
-# 同步对内专属索引（crew_index.md → index.md，由 Main Agent 维护）
-if [ -f "$CREWS_DIR/crew_index.md" ]; then
-  cp "$CREWS_DIR/crew_index.md" "$CREW_TEMPLATES_DEST/index.md"
-fi
-echo "  ✅ Internal crew templates synced to $CREW_TEMPLATES_DEST"
-
-# ─── 3b. 同步对外 crew 模板库到 hrbp_templates/（供 HRBP 运行时参考） ──
-HRBP_TEMPLATES_DEST="$OPENCLAW_HOME/hrbp_templates"
-mkdir -p "$HRBP_TEMPLATES_DEST"
-# 清空旧模板目录，防止类型迁移时残留
-find "$HRBP_TEMPLATES_DEST" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
-# 复制所有声明为 external 的模板（含脚手架与 addon 引入模板）
-for template_dir in "$CREWS_DIR"/*/; do
-  [ -d "$template_dir" ] || continue
-  template_id="$(basename "$template_dir")"
-  [ "$template_id" = "shared" ] && continue
-  crew_type="$(resolve_template_crew_type "$template_dir")"
-  [ "$crew_type" = "external" ] || continue
-  cp -r "$template_dir" "$HRBP_TEMPLATES_DEST/$template_id"
-done
-sync_addon_templates_to_runtime "external" "$HRBP_TEMPLATES_DEST"
-# 同步对外专属索引（hrbp_index.md → index.md，由 HRBP 维护）
-if [ -f "$CREWS_DIR/hrbp_index.md" ]; then
-  cp "$CREWS_DIR/hrbp_index.md" "$HRBP_TEMPLATES_DEST/index.md"
-fi
-echo "  ✅ External crew templates synced to $HRBP_TEMPLATES_DEST"
-
-# ─── 3c. 注入渠道回复规则到所有对外 crew 模板 ────────────────────
-for template_dir in "$HRBP_TEMPLATES_DEST"/*/; do
-  [ -d "$template_dir" ] || continue
-  inject_channel_reply_rules "$template_dir/AGENTS.md"
-done
-echo "  ✅ Channel reply rules injected into external crew templates"
+# 注：原 §2/§3（shared 协议 / crew_templates / hrbp_templates 模板库同步）已移除。
+# D8 扁平化 + 去 hrbp 化后 crews/shared/ 不存在、无 agent 消费 crew_templates/，
+# 对外 crew 的 channel reply rules 注入改在 §4 对 workspace 直接做（见 inject_channel_reply_rules 调用）。
 
 # ─── 4. 更新 openclaw.json（合并内置 Crew + skills 过滤） ────────
 if [ -f "$CONFIG_PATH" ]; then
@@ -435,7 +377,7 @@ if [ -f "$CONFIG_PATH" ]; then
     };
 
     const getCrewType = (id) => {
-      if (id === 'main' || id === 'hrbp' || id === 'it-engineer') return 'internal';
+      if (id === 'main' || id === 'it-engineer') return 'internal';
       const agent = c.agents.list.find((entry) => entry.id === id);
       if (!agent) return 'external';
       const wsRaw = typeof agent.workspace === 'string' && agent.workspace.trim()
@@ -454,7 +396,7 @@ if [ -f "$CONFIG_PATH" ]; then
 
     upsertAgent('main', (prev) => {
       // Main Agent 只能 spawn 它招募的非内置 internal agent + it-engineer（固定）
-      const BUILTIN_IDS = new Set(['main', 'hrbp', 'it-engineer']);
+      const BUILTIN_IDS = new Set(['main', 'it-engineer']);
       const prevAllowAgents = Array.isArray(prev?.subagents?.allowAgents) ? prev.subagents.allowAgents : [];
       const filteredAllowAgents = prevAllowAgents.filter(
         (id) => !BUILTIN_IDS.has(id) && getCrewType(id) === 'internal'
@@ -491,7 +433,7 @@ if [ -f "$CONFIG_PATH" ]; then
 
     // 为所有其他对内 Crew 实例也追加 it-engineer spawn 权限
     // （它们在 depth=1 时需要 maxSpawnDepth>=2，由 agents.defaults.subagents.maxSpawnDepth 保证）
-    const PROTECTED_IDS = new Set(['main', 'hrbp', 'it-engineer']);
+    const PROTECTED_IDS = new Set(['main', 'it-engineer']);
     for (const agent of c.agents.list) {
       if (PROTECTED_IDS.has(agent.id)) continue;
       const crewType = getCrewType(agent.id);
@@ -719,7 +661,7 @@ else
   echo "     Will be created on first start (dev.sh / reinstall-daemon.sh)"
 fi
 
-# ─── 5. 写入 OFB_ENV.md（同时为 it-engineer 和 hrbp 写入） ──────
+# ─── 5. 写入 OFB_ENV.md（为 main / it-engineer 写入） ──────────
 # 仅源码部署需要：路径随机器可变，故记录成文件供 AGENTS.md 读取。
 # Docker 部署不跑 setup-crew.sh，路径固定（/opt/openclaw + /root/.openclaw），
 # AGENTS.md 已环境自感知，无需 OFB_ENV.md。
@@ -745,10 +687,6 @@ generate_ofb_env_md() {
 - **wiseflow 项目路径**：$PROJECT_ROOT
 - **openclaw 子目录**：$PROJECT_ROOT/openclaw
 - **配置文件**：$OPENCLAW_HOME/openclaw.json
-- **对内 Crew 通讯录**：$OPENCLAW_HOME/crew_templates/TEAM_DIRECTORY.md
-- **对外 Crew 注册表**：$OPENCLAW_HOME/workspace-hrbp/EXTERNAL_CREW_REGISTRY.md
-- **对内 Crew 模板目录**：$OPENCLAW_HOME/crew_templates/
-- **对外 Crew 模板目录**：$OPENCLAW_HOME/hrbp_templates/
 
 ## 环境变量文件
 
@@ -807,7 +745,6 @@ ENVEOF
 
 generate_ofb_env_md "$OPENCLAW_HOME/workspace-main" "main"
 generate_ofb_env_md "$OPENCLAW_HOME/workspace-it-engineer" "it-engineer"
-generate_ofb_env_md "$OPENCLAW_HOME/workspace-hrbp" "hrbp"
 
 # --- 注入 env 文件路径指引到 TOOLS.md ---
 _OFB_ENV_FILE=""
@@ -818,30 +755,11 @@ else
 fi
 inject_env_file_guide "$OPENCLAW_HOME/workspace-main/TOOLS.md" "$_OFB_ENV_FILE"
 inject_env_file_guide "$OPENCLAW_HOME/workspace-it-engineer/TOOLS.md" "$_OFB_ENV_FILE"
-inject_env_file_guide "$OPENCLAW_HOME/workspace-hrbp/TOOLS.md" "$_OFB_ENV_FILE"
-
-# ─── 5b. 拷贝 README.md 为项目背景.md（每次运行都覆盖，保持最新） ──
-copy_project_readme() {
-  local workspace_dir="$1"
-  local agent_label="$2"
-  if [ -d "$workspace_dir" ]; then
-    cp "$PROJECT_ROOT/README.md" "$workspace_dir/项目背景.md"
-    echo "  ✅ 项目背景.md updated in $agent_label workspace"
-  fi
-}
-
-copy_project_readme "$OPENCLAW_HOME/workspace-main" "main"
-copy_project_readme "$OPENCLAW_HOME/workspace-it-engineer" "it-engineer"
-copy_project_readme "$OPENCLAW_HOME/workspace-hrbp" "hrbp"
 
 # ─── 6. 完成 ──────────────────────────────────────────────────────
 echo ""
 echo "✅ Agent System installed!"
 echo ""
 echo "Installed locations:"
-echo "  Workspaces:          $OPENCLAW_HOME/workspace-main/, workspace-hrbp/, workspace-it-engineer/"
-echo "  Internal templates:  $OPENCLAW_HOME/crew_templates/"
-echo "  External templates:  $OPENCLAW_HOME/hrbp_templates/"
+echo "  Workspaces:          $OPENCLAW_HOME/workspace-main/, workspace-it-engineer/"
 echo "  Config:              $CONFIG_PATH"
-
-# TEAM_DIRECTORY.md 由 main agent 自行管理，不再由 setup-crew.sh 生成

@@ -293,7 +293,6 @@ merged_deps_json="$(node -e "
     }
   }
   scan('$PROJECT_ROOT/skills');
-  scan('$ADDONS_DIR');
   const sorted = Object.fromEntries(Object.entries(deps).sort());
   console.log(JSON.stringify(sorted));
 " 2>/dev/null || echo '{}')"
@@ -347,7 +346,6 @@ merged_pip_deps="$(node -e "
     }
   }
   scan('$PROJECT_ROOT/skills');
-  scan('$ADDONS_DIR');
   scan('$CREWS_DIR');
   // 仓根 requirements.txt（全仓统一声明，CLAUDE.md 规范）
   const rootReq = path.join('$PROJECT_ROOT', 'requirements.txt');
@@ -429,12 +427,6 @@ if [ "$NEEDS_INSTALL" = "true" ]; then
   cd "$OPENCLAW_DIR"
   pnpm install --frozen-lockfile=false
   cd "$PROJECT_ROOT"
-fi
-
-if [ "$ADDON_COUNT" -gt 0 ]; then
-  echo "✅ All addons applied ($ADDON_COUNT loaded)"
-else
-  echo "📦 No addons found"
 fi
 
 # ─── 写入全局共享 skills 清单（供 skills allowlist 计算使用） ──────

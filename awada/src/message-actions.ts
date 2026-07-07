@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { jsonResult, readStringParam } from "openclaw/plugin-sdk/agent-runtime";
 import type { ChannelMessageActionAdapter } from "openclaw/plugin-sdk/channel-contract";
 import { resolveAwadaAccount } from "./accounts.js";
@@ -25,8 +24,8 @@ export const awadaMessageActions: ChannelMessageActionAdapter = {
     });
 
     const account = resolveAwadaAccount({ cfg: ctx.cfg, accountId: ctx.accountId });
-    if (!account.redisUrl) {
-      throw new Error("[awada] redisUrl not configured");
+    if (!account.relayBaseUrl || !account.ofbKey) {
+      throw new Error("[awada] relayBaseUrl/ofbKey not configured");
     }
 
     // Prefer the resolved target from params.to (set by core's target resolver),
@@ -42,12 +41,11 @@ export const awadaMessageActions: ChannelMessageActionAdapter = {
 
     const media = buildMediaContentFromName({ file_name: fileName });
     const streamId = await sendMediaToAwada({
-      redisUrl: account.redisUrl,
+      relayBaseUrl: account.relayBaseUrl,
+      ofbKey: account.ofbKey,
+      lane: account.lane,
       target,
       media,
-      replyToEventId: randomUUID(),
-      correlationId: randomUUID(),
-      traceId: randomUUID(),
     });
 
     return jsonResult({ ok: true, type: media.type, file_name: fileName, streamId });

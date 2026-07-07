@@ -1,11 +1,14 @@
 {
   "name": "@openclaw/awada",
-  "version": "2026.3.1",
-  "description": "OpenClaw Awada channel plugin — WeChat via Redis bridge with awada-server",
+  "version": "2026.4.0",
+  "description": "OpenClaw Awada channel plugin — WeChat via relay gateway (HTTP/WS transport)",
   "type": "module",
   "dependencies": {
-    "ioredis": "^5.3.2",
+    "ws": "^8.18.0",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.0"
   },
   "openclaw": {
     "extensions": [
@@ -14,8 +17,8 @@
     "channel": {
       "id": "awada",
       "label": "Awada",
-      "selectionLabel": "Awada (WeChat via Redis)",
-      "blurb": "WeChat (enterprise/personal) via awada-server Redis bridge.",
+      "selectionLabel": "Awada (WeChat via relay gateway)",
+      "blurb": "WeChat (enterprise/personal) via awada relay gateway (HTTP/WS transport).",
       "order": 80
     },
     "install": {

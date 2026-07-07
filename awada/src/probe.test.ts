@@ -1,25 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { validateAwadaRedisUrl } from "./probe.js";
+import { validateAwadaRelayBaseUrl } from "./probe.js";
 
-describe("validateAwadaRedisUrl", () => {
-  it("accepts standard redis urls", () => {
-    expect(validateAwadaRedisUrl("redis://:pass@127.0.0.1:6379/0")).toBeNull();
-    expect(validateAwadaRedisUrl("rediss://:pass@redis.example.com:6380/1")).toBeNull();
+describe("validateAwadaRelayBaseUrl", () => {
+  it("accepts http and https urls", () => {
+    expect(validateAwadaRelayBaseUrl("http://127.0.0.1:8080")).toBeNull();
+    expect(validateAwadaRelayBaseUrl("https://relay.example.com")).toBeNull();
+    expect(validateAwadaRelayBaseUrl("https://relay.example.com:8443/path")).toBeNull();
   });
 
   it("rejects urls with unsupported protocol", () => {
-    expect(validateAwadaRedisUrl("http://127.0.0.1:6379")).toBe(
-      "invalid redisUrl protocol (expected redis:// or rediss://)",
+    expect(validateAwadaRelayBaseUrl("redis://127.0.0.1:6379")).toBe(
+      "invalid relayBaseUrl protocol (expected http:// or https://)",
     );
   });
 
   it("rejects malformed urls", () => {
-    expect(validateAwadaRedisUrl("not-a-url")).toBe("invalid redisUrl format");
+    expect(validateAwadaRelayBaseUrl("not-a-url")).toBe("invalid relayBaseUrl format");
   });
 
-  it("rejects unescaped hash fragment in password", () => {
-    expect(validateAwadaRedisUrl("redis://:Aw4d@R3d1s#2025!Sec@121.4.44.143:7601/0")).toBe(
-      "invalid redisUrl: found unescaped # fragment; URL-encode password special characters (for example @, #, !, %)",
-    );
+  it("rejects empty input", () => {
+    expect(validateAwadaRelayBaseUrl("  ")).toBe("missing relayBaseUrl");
   });
 });

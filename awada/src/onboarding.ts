@@ -10,7 +10,8 @@ function getAwadaCfg(cfg: OpenClawConfig): AwadaConfig | undefined {
 }
 
 function isAwadaConfigured(cfg: OpenClawConfig): boolean {
-  return Boolean(getAwadaCfg(cfg)?.redisUrl?.trim());
+  const c = getAwadaCfg(cfg);
+  return Boolean(c?.relayBaseUrl?.trim() && c?.ofbKey?.trim());
 }
 
 function setAwadaAllowFrom(cfg: OpenClawConfig, allowFrom: string[]): OpenClawConfig {
@@ -56,57 +57,68 @@ export const awadaSetupWizard: ChannelSetupWizard = {
   resolveShouldPromptAccountIds: () => false,
   status: {
     configuredLabel: "configured",
-    unconfiguredLabel: "needs Redis URL",
+    unconfiguredLabel: "needs relay endpoint + OFB_KEY",
     configuredHint: "configured",
-    unconfiguredHint: "needs Redis URL",
+    unconfiguredHint: "needs relay endpoint + OFB_KEY",
     configuredScore: 2,
     unconfiguredScore: 0,
     resolveConfigured: ({ cfg }) => isAwadaConfigured(cfg),
     resolveStatusLines: async ({ cfg, configured }) => {
       const awadaCfg = getAwadaCfg(cfg);
-      const redisUrl = awadaCfg?.redisUrl?.trim();
+      const relayBaseUrl = awadaCfg?.relayBaseUrl?.trim();
       let probeResult = null;
-      if (configured && redisUrl) {
+      if (configured && relayBaseUrl) {
         try {
-          probeResult = await probeAwada({ redisUrl });
+          probeResult = await probeAwada({ relayBaseUrl });
         } catch {
           // ignore probe errors
         }
       }
       if (!configured) {
-        return ["Awada: needs Redis URL"];
+        return ["Awada: needs relayBaseUrl + ofbKey"];
       }
       if (probeResult?.ok) {
-        return ["Awada: connected to Redis"];
+        return ["Awada: relay reachable"];
       }
-      return ["Awada: configured (connection not verified)"];
+      return ["Awada: configured (relay not verified)"];
     },
     resolveSelectionHint: ({ cfg }) =>
-      isAwadaConfigured(cfg) ? "configured" : "needs Redis URL",
+      isAwadaConfigured(cfg) ? "configured" : "needs relay endpoint + OFB_KEY",
     resolveQuickstartScore: ({ cfg }) => (isAwadaConfigured(cfg) ? 2 : 0),
   },
   credentials: [],
   finalize: async ({ cfg, prompter }) => {
     const awadaCfg = getAwadaCfg(cfg);
-    const currentUrl = awadaCfg?.redisUrl?.trim() ?? "";
+    const currentUrl = awadaCfg?.relayBaseUrl?.trim() ?? "";
+    const currentKey = awadaCfg?.ofbKey?.trim() ?? "";
 
     await prompter.note(
       [
-        "Configure awada channel to receive WeChat messages via awada-server Redis bridge.",
+        "Configure awada channel to receive WeChat messages via the relay gateway.",
         "You need:",
-        "  1. A running awada-server that publishes events to Redis Streams",
-        "  2. Redis URL (e.g. redis://localhost:6379 or redis://:pass@host:6379)",
-        "  3. Lane to subscribe to (default: user)",
-        "  4. Platform identifier for proactive sends (e.g. worktool:mybot)",
+        "  1. A running relay with awada-server gateway (exposes /api/v1/awada)",
+        "  2. relayBaseUrl (e.g. https://relay.example.com)",
+        "  3. OFB_KEY issued by relay admin (carries awada:lane:<lane> scope)",
+        "  4. Lane to subscribe to (default: user)",
+        "  5. Platform identifier for proactive sends (e.g. worktool:mybot)",
       ].join("\n"),
       "Awada setup",
     );
 
-    const redisUrl = String(
+    const relayBaseUrl = String(
       await prompter.text({
-        message: "Redis URL",
-        placeholder: "redis://localhost:6379",
+        message: "Relay base URL",
+        placeholder: "https://relay.example.com",
         initialValue: currentUrl,
+        validate: (value) => (String(value ?? "").trim() ? undefined : "Required"),
+      }),
+    ).trim();
+
+    const ofbKey = String(
+      await prompter.text({
+        message: "OFB_KEY",
+        placeholder: "ofb_...",
+        initialValue: currentKey,
         validate: (value) => (String(value ?? "").trim() ? undefined : "Required"),
       }),
     ).trim();
@@ -118,16 +130,17 @@ export const awadaSetupWizard: ChannelSetupWizard = {
         awada: {
           ...awadaCfg,
           enabled: true,
-          redisUrl,
+          relayBaseUrl,
+          ofbKey,
         },
       },
     };
 
     // Test connection
     try {
-      const probe = await probeAwada({ redisUrl });
+      const probe = await probeAwada({ relayBaseUrl });
       if (probe.ok) {
-        await prompter.note("Redis connection successful!", "Awada connection test");
+        await prompter.note("Relay reachable!", "Awada connection test");
       } else {
         await prompter.note(
           `Connection failed: ${probe.error ?? "unknown error"}`,

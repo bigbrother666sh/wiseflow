@@ -1,5 +1,5 @@
-import { randomUUID } from "crypto";
 import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk/core";
+import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import { resolveAwadaAccount } from "./accounts.js";
 import { getAwadaRuntime } from "./runtime.js";
 import {
@@ -14,16 +14,39 @@ import type { AwadaConfig } from "./types.js";
 import { isNoReplyText } from "./silent-reply.js";
 
 /**
+ * Resolve the gateway send params (relayBaseUrl/ofbKey/lane) for an account.
+ * Throws if the account isn't configured for gateway transport.
+ */
+function resolveGatewaySend(params: {
+  cfg: ClawdbotConfig;
+  accountId?: string | null;
+}) {
+  const account = resolveAwadaAccount({ cfg: params.cfg, accountId: params.accountId ?? undefined });
+  if (!account.relayBaseUrl || !account.ofbKey) {
+    throw new Error("[awada] relayBaseUrl/ofbKey not configured");
+  }
+  return {
+    relayBaseUrl: account.relayBaseUrl,
+    ofbKey: account.ofbKey,
+    lane: account.lane,
+    account,
+  };
+}
+
+/**
  * Split text by perMsgMaxLen if configured, then send each chunk.
  * Returns the stream ID of the last sent chunk (for delivery tracking).
  */
 async function sendChunked(params: {
-  cfg: Parameters<ChannelOutboundAdapter["sendText"]>[0]["cfg"];
-  redisUrl: string;
+  cfg: ClawdbotConfig;
+  relayBaseUrl: string;
+  ofbKey: string;
+  lane: string;
   target: ReturnType<typeof decodeAwadaTo>;
   text: string;
+  sourceEventId?: string;
 }): Promise<string> {
-  const { cfg, redisUrl, target } = params;
+  const { cfg, relayBaseUrl, ofbKey, lane, target, sourceEventId } = params;
   const awadaCfg = cfg.channels?.awada as AwadaConfig | undefined;
   const perMsgMaxLen = awadaCfg?.perMsgMaxLen;
   const chunks =
@@ -34,12 +57,12 @@ async function sendChunked(params: {
   let lastId = "";
   for (const chunk of chunks) {
     lastId = await sendTextToAwada({
-      redisUrl,
+      relayBaseUrl,
+      ofbKey,
+      lane,
       target: target!,
       text: chunk,
-      replyToEventId: randomUUID(),
-      correlationId: randomUUID(),
-      traceId: randomUUID(),
+      sourceEventId,
     });
   }
   return lastId;
@@ -58,15 +81,14 @@ export const awadaOutbound: ChannelOutboundAdapter = {
     if (!target) {
       throw new Error(`[awada] Cannot decode target: ${to}`);
     }
-    const account = resolveAwadaAccount({ cfg, accountId });
-    if (!account.redisUrl) {
-      throw new Error("[awada] redisUrl not configured");
-    }
+    const gw = resolveGatewaySend({ cfg, accountId });
     const streamId = await sendChunked({
       cfg,
-      redisUrl: account.redisUrl,
+      relayBaseUrl: gw.relayBaseUrl,
+      ofbKey: gw.ofbKey,
+      lane: gw.lane,
       target,
-      text,
+      text: text ?? "",
     });
     return { channel: "awada", messageId: streamId };
   },
@@ -75,10 +97,7 @@ export const awadaOutbound: ChannelOutboundAdapter = {
     if (!target) {
       throw new Error(`[awada] Cannot decode target: ${to}`);
     }
-    const account = resolveAwadaAccount({ cfg, accountId });
-    if (!account.redisUrl) {
-      throw new Error("[awada] redisUrl not configured");
-    }
+    const gw = resolveGatewaySend({ cfg, accountId });
 
     // Route mediaUrl to sendMediaToAwada:
     // - http/https URL → file_url
@@ -89,24 +108,22 @@ export const awadaOutbound: ChannelOutboundAdapter = {
       if (/^https?:\/\//i.test(url)) {
         const media = buildMediaContentFromUrl(url);
         const streamId = await sendMediaToAwada({
-          redisUrl: account.redisUrl,
+          relayBaseUrl: gw.relayBaseUrl,
+          ofbKey: gw.ofbKey,
+          lane: gw.lane,
           target,
           media,
-          replyToEventId: randomUUID(),
-          correlationId: randomUUID(),
-          traceId: randomUUID(),
         });
         return { channel: "awada", messageId: streamId };
       }
       if (!url.includes("/") && !url.includes("\\")) {
         const media = buildMediaContentFromName({ file_name: url });
         const streamId = await sendMediaToAwada({
-          redisUrl: account.redisUrl,
+          relayBaseUrl: gw.relayBaseUrl,
+          ofbKey: gw.ofbKey,
+          lane: gw.lane,
           target,
           media,
-          replyToEventId: randomUUID(),
-          correlationId: randomUUID(),
-          traceId: randomUUID(),
         });
         return { channel: "awada", messageId: streamId };
       }
@@ -117,7 +134,9 @@ export const awadaOutbound: ChannelOutboundAdapter = {
     const body = text?.trim() ?? "[media]";
     const streamId = await sendChunked({
       cfg,
-      redisUrl: account.redisUrl,
+      relayBaseUrl: gw.relayBaseUrl,
+      ofbKey: gw.ofbKey,
+      lane: gw.lane,
       target,
       text: body,
     });

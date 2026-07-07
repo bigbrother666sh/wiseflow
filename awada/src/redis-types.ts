@@ -82,3 +82,22 @@ export interface OutboundEvent {
   target: OutboundTarget;
   payload: Payload;
 }
+
+/**
+ * Meta sent on POST /outbound (and WS reply frames) — see docs/AWADA-CLIENT-TRANSPORT.md §3.
+ * `platform` / `channel_id` / `user_id_external` are REQUIRED: relay routes the reply back to
+ * the platform solely from these fields (it does NOT reverse-lookup the inbound by source_event_id).
+ * The simplest correct construction is to passthrough the inbound `event.meta` and override
+ * `source_event_id` with the inbound `event_id`.
+ */
+export interface OutboundMeta {
+  platform: string;
+  channel_id: string;
+  user_id_external: string;
+  tenant_id?: string;
+  session_id?: string;
+  /** event_id of the inbound event that triggered this reply (reply correlation / tracing). */
+  source_event_id?: string;
+  /** Platform-native message id to reply to (e.g. 企微 reply_to). */
+  reply_to_message_id?: string;
+}

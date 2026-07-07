@@ -1,14 +1,13 @@
-import { randomUUID } from "crypto";
 import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import { resolveAwadaAccount } from "./accounts.js";
-import { buildOutboundTarget, publishOutboundEvent } from "./send.js";
-import type { OutboundEvent } from "./redis-types.js";
+import { buildOutboundTarget, postOutbound } from "./send.js";
 
 /**
  * Publish a proactive (non-reply) text message to an awada platform.
  *
  * Use this when the agent initiates a message rather than responding to an inbound event.
- * The caller must supply the target user details explicitly.
+ * The caller must supply the target user details explicitly. Routed via relay
+ * POST /outbound (docs/AWADA-CLIENT-TRANSPORT.md §3).
  */
 export async function publishTextToAwada(params: {
   cfg: ClawdbotConfig;
@@ -24,8 +23,8 @@ export async function publishTextToAwada(params: {
   const { cfg, accountId, userId, channelId, tenantId = "", text } = params;
 
   const account = resolveAwadaAccount({ cfg, accountId });
-  if (!account.redisUrl) {
-    throw new Error("[awada] redisUrl not configured");
+  if (!account.relayBaseUrl || !account.ofbKey) {
+    throw new Error("[awada] relayBaseUrl/ofbKey not configured");
   }
   if (!account.platform) {
     throw new Error("[awada] platform not configured — required for proactive sends");
@@ -39,17 +38,12 @@ export async function publishTextToAwada(params: {
     tenant_id: tenantId,
   });
 
-  const event: OutboundEvent = {
-    schema_version: 1,
-    event_id: randomUUID(),
-    reply_to_event_id: randomUUID(),
-    type: "REPLY_MESSAGE",
-    timestamp: Math.floor(Date.now() / 1000),
-    correlation_id: randomUUID(),
-    trace_id: randomUUID(),
+  const result = await postOutbound({
+    relayBaseUrl: account.relayBaseUrl,
+    ofbKey: account.ofbKey,
+    lane: account.lane,
     target,
     payload: [{ type: "text", text }],
-  };
-
-  return publishOutboundEvent(account.redisUrl, event);
+  });
+  return result.streamId;
 }

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildOutboundTarget, decodeAwadaTo, encodeAwadaTo } from "./send.js";
+import {
+  buildOutboundMeta,
+  buildOutboundTarget,
+  decodeAwadaTo,
+  encodeAwadaTo,
+} from "./send.js";
 import type { OutboundTarget } from "./redis-types.js";
 
 const makeTarget = (overrides: Partial<OutboundTarget> = {}): OutboundTarget => ({
@@ -95,5 +100,21 @@ describe("buildOutboundTarget", () => {
     });
 
     expect(Object.keys(target)).not.toContain("conversation_id");
+  });
+});
+
+describe("buildOutboundMeta", () => {
+  it("carries the routing fields required by POST /outbound", () => {
+    const meta = buildOutboundMeta(makeTarget(), "evt_inbound_1");
+    expect(meta.platform).toBe("wx");
+    expect(meta.channel_id).toBe("c1");
+    expect(meta.user_id_external).toBe("u1");
+    expect(meta.tenant_id).toBe("t1");
+    expect(meta.source_event_id).toBe("evt_inbound_1");
+  });
+
+  it("omits source_event_id when not provided", () => {
+    const meta = buildOutboundMeta(makeTarget());
+    expect(meta.source_event_id).toBeUndefined();
   });
 });

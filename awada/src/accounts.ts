@@ -3,8 +3,6 @@ import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import type { AwadaConfig, ResolvedAwadaAccount } from "./types.js";
 
 const DEFAULT_LANE = "user";
-const DEFAULT_CONSUMER_GROUP = "openclaw";
-const DEFAULT_CONSUMER_NAME = "openclaw_bot";
 
 function getAwadaCfg(cfg: ClawdbotConfig): AwadaConfig | undefined {
   return cfg.channels?.awada as AwadaConfig | undefined;
@@ -17,18 +15,19 @@ export function resolveAwadaAccount(params: {
   const awadaCfg = getAwadaCfg(params.cfg);
   const accountId = params.accountId?.trim() || DEFAULT_ACCOUNT_ID;
   const enabled = awadaCfg?.enabled !== false;
-  const redisUrl = awadaCfg?.redisUrl?.trim() || undefined;
-  const configured = Boolean(redisUrl);
+  const relayBaseUrl = awadaCfg?.relayBaseUrl?.trim() || undefined;
+  const ofbKey = awadaCfg?.ofbKey?.trim() || undefined;
+  // Configured only when both relay endpoint and key are present.
+  const configured = Boolean(relayBaseUrl && ofbKey);
 
   return {
     accountId,
     enabled,
     configured,
-    redisUrl,
+    relayBaseUrl,
+    ofbKey,
     lane: awadaCfg?.lane?.trim() || DEFAULT_LANE,
     platform: awadaCfg?.platform?.trim() || undefined,
-    consumerGroup: awadaCfg?.consumerGroup ?? DEFAULT_CONSUMER_GROUP,
-    consumerName: awadaCfg?.consumerName ?? DEFAULT_CONSUMER_NAME,
     config: awadaCfg ?? {},
   };
 }

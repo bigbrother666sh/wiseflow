@@ -7,16 +7,15 @@ export type ResolvedAwadaAccount = {
   accountId: string;
   enabled: boolean;
   configured: boolean;
-  redisUrl?: string;
+  relayBaseUrl?: string;
+  ofbKey?: string;
   lane: string;
   platform?: string;
-  consumerGroup: string;
-  consumerName: string;
   config: AwadaConfig;
 };
 
 export type AwadaProbeResult = BaseProbeResult<string> & {
-  redisUrl?: string;
+  relayBaseUrl?: string;
 };
 
 /** Parsed inbound message context extracted from an InboundEvent */

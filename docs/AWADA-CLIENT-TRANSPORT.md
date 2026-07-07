@@ -84,11 +84,33 @@ Base URL：`https://<relay-domain>/api/v1/awada`（incu 上经 nginx TLS）。
 }
 ```
 
-`source_event_id` 强烈建议填：关联到触发本次回复的 inbound 事件，用于链路追踪。响应 200：
+`meta` 字段：
+
+| 字段 | 必填？ | 说明 |
+|---|---|---|
+| `platform` | **必填** | server 据此找 bot 配置发回 platform。从 inbound `event.meta.platform` 原样回传 |
+| `channel_id` | **必填** | 群聊=群标识、私聊=`'0'`，server 据此判群/私聊定接收者。从 inbound `event.meta.channel_id` 原样回传 |
+| `user_id_external` | **必填** | 私聊接收者标识。从 inbound `event.meta.user_id_external` 原样回传 |
+| `tenant_id` | 建议 | 多租户路由用。从 inbound `event.meta.tenant_id` 回传 |
+| `session_id` | 可选 | 链路追踪 |
+| `source_event_id` | 建议 | 对应 inbound 的 `event_id`，回执关联 / 链路追踪 |
+| `reply_to_message_id` | 可选 | 平台原消息 id（如企微 reply_to） |
+
+> **关键**：`platform` / `channel_id` / `user_id_external` 缺省会被填成 `'unknown'`，多 bot 场景会路由失败或投错对象。最简做法：把 inbound `event.meta` 整个回传，再覆盖 `source_event_id`。
+
+响应 200：
 
 ```json
 { "success": true, "data": { "streamId": "1234-0", "eventId": "<uuid>" }, "error": null }
 ```
+
+错误响应（非 2xx）：
+
+```json
+{ "success": false, "data": null, "error": { "code": "FORBIDDEN_LANE", "message": "..." } }
+```
+
+`code` 见 §2（`AWADA_NOT_SUBSCRIBED` / `FORBIDDEN_LANE` / `BAD_REQUEST` / `REDIS_ERROR`）；鉴权失败 401/429 不走此信封。
 
 ### GET /health
 
@@ -112,9 +134,17 @@ Base URL：`https://<relay-domain>/api/v1/awada`（incu 上经 nginx TLS）。
 {
   "type": "reply",
   "payload": [ /* ContentObject[] */ ],
-  "meta": { "source_event_id": "...", "user_id_external": "...", ... }
+  "meta": {
+    "platform": "worktool",
+    "channel_id": "...",
+    "user_id_external": "...",
+    "tenant_id": "...",
+    "source_event_id": "<对应 inbound 的 event_id>"
+  }
 }
 ```
+
+`meta` 字段同 §3 POST /outbound：`platform` / `channel_id` / `user_id_external` **必填**（server 据此路由回 platform），从 inbound `event.meta` 原样回传；最简做法是整个 `event.meta` 回传再覆盖 `source_event_id`。
 
 server 回 `reply_ok`：
 
@@ -157,9 +187,10 @@ ws.on("message", async (raw) => {
     ws.send(JSON.stringify({
       type: "reply",
       payload: reply,
-      meta: { source_event_id: frame.event.event_id,
-              user_id_external: frame.event.meta.user_id_external },
+      // 路由字段必填：原样回传 inbound 的 meta，再覆盖 source_event_id
+      meta: { ...frame.event.meta, source_event_id: frame.event.event_id },
     }));
+    ws.send(JSON.stringify({ type: "ack", id: frame.id }));
   }
 });
 ```
@@ -168,3 +199,4 @@ ws.on("message", async (raw) => {
 
 - 2026-07-06：初版。方向修正为 bot 侧代理（GET /inbound 读、POST /outbound 写、WS /inbound）。此前若 client 实现过 POST /inbound / GET /outbound，需翻转。
 - 2026-07-06：D5b — WS 必须 ack。processed 改在 ack 时标记（unacked 重连可重投，不丢消息）。网关 XAUTOCLAIM 周期回收 stale PEL。至少一次语义，bot 侧按 event_id 幂等。
+- 2026-07-06：明确 reply（POST /outbound + WS reply 帧）的 `meta.platform` / `channel_id` / `user_id_external` **必填**——server 直接据此路由回 platform，不按 `source_event_id` 反查 inbound。client 须从 inbound `event.meta` 原样回传。补 HTTP 错误信封形状；§8 示例补 ack 帧。

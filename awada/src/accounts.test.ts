@@ -16,43 +16,50 @@ describe("resolveAwadaAccount", () => {
     expect(account.accountId).toBe("default");
     expect(account.enabled).toBe(true);
     expect(account.configured).toBe(false);
-    expect(account.redisUrl).toBeUndefined();
+    expect(account.relayBaseUrl).toBeUndefined();
+    expect(account.ofbKey).toBeUndefined();
     expect(account.lane).toBe("user");
-    expect(account.consumerGroup).toBe("openclaw");
-    expect(account.consumerName).toBe("openclaw_bot");
   });
 
-  it("resolves redisUrl and marks configured=true", () => {
+  it("resolves relayBaseUrl+ofbKey and marks configured=true", () => {
     const account = resolveAwadaAccount({
-      cfg: makeConfig({ redisUrl: "redis://localhost:6379" }),
+      cfg: makeConfig({ relayBaseUrl: "https://relay.example.com", ofbKey: "ofb_123" }),
     });
     expect(account.configured).toBe(true);
-    expect(account.redisUrl).toBe("redis://localhost:6379");
+    expect(account.relayBaseUrl).toBe("https://relay.example.com");
+    expect(account.ofbKey).toBe("ofb_123");
   });
 
-  it("trims whitespace from redisUrl", () => {
+  it("trims whitespace from relayBaseUrl/ofbKey", () => {
     const account = resolveAwadaAccount({
-      cfg: makeConfig({ redisUrl: "  redis://localhost:6379  " }),
+      cfg: makeConfig({ relayBaseUrl: "  https://relay.example.com  ", ofbKey: "  ofb_123  " }),
     });
-    expect(account.redisUrl).toBe("redis://localhost:6379");
+    expect(account.relayBaseUrl).toBe("https://relay.example.com");
+    expect(account.ofbKey).toBe("ofb_123");
   });
 
-  it("marks configured=false for empty redisUrl string", () => {
-    const account = resolveAwadaAccount({ cfg: makeConfig({ redisUrl: "  " }) });
+  it("marks configured=false when ofbKey missing", () => {
+    const account = resolveAwadaAccount({
+      cfg: makeConfig({ relayBaseUrl: "https://relay.example.com" }),
+    });
     expect(account.configured).toBe(false);
-    expect(account.redisUrl).toBeUndefined();
+  });
+
+  it("marks configured=false when relayBaseUrl missing", () => {
+    const account = resolveAwadaAccount({ cfg: makeConfig({ ofbKey: "ofb_123" }) });
+    expect(account.configured).toBe(false);
   });
 
   it("respects enabled=false", () => {
     const account = resolveAwadaAccount({
-      cfg: makeConfig({ enabled: false, redisUrl: "redis://localhost" }),
+      cfg: makeConfig({ enabled: false, relayBaseUrl: "https://relay.example.com", ofbKey: "k" }),
     });
     expect(account.enabled).toBe(false);
   });
 
   it("defaults enabled to true when not set", () => {
     const account = resolveAwadaAccount({
-      cfg: makeConfig({ redisUrl: "redis://localhost" }),
+      cfg: makeConfig({ relayBaseUrl: "https://relay.example.com", ofbKey: "k" }),
     });
     expect(account.enabled).toBe(true);
   });
@@ -62,14 +69,6 @@ describe("resolveAwadaAccount", () => {
       cfg: makeConfig({ lane: "cs" }),
     });
     expect(account.lane).toBe("cs");
-  });
-
-  it("uses custom consumerGroup and consumerName", () => {
-    const account = resolveAwadaAccount({
-      cfg: makeConfig({ consumerGroup: "my-group", consumerName: "worker-1" }),
-    });
-    expect(account.consumerGroup).toBe("my-group");
-    expect(account.consumerName).toBe("worker-1");
   });
 
   it("uses provided accountId", () => {

@@ -21,10 +21,10 @@ import type { ResolvedAwadaAccount, AwadaConfig } from "./types.js";
 const meta: ChannelMeta = {
   id: "awada",
   label: "Awada",
-  selectionLabel: "Awada (WeChat via Redis)",
+  selectionLabel: "Awada (WeChat via relay gateway)",
   docsPath: "/channels/awada",
   docsLabel: "awada",
-  blurb: "WeChat (enterprise/personal) via awada-server Redis bridge.",
+  blurb: "WeChat (enterprise/personal) via awada relay gateway (HTTP/WS transport).",
   aliases: [],
   order: 80,
 };
@@ -55,16 +55,12 @@ export const awadaPlugin: ChannelPlugin<ResolvedAwadaAccount> = {
       additionalProperties: false,
       properties: {
         enabled: { type: "boolean" },
-        redisUrl: { type: "string" },
+        relayBaseUrl: { type: "string" },
+        ofbKey: { type: "string" },
         lane: { type: "string" },
         platform: { type: "string" },
-        consumerGroup: { type: "string" },
-        consumerName: { type: "string" },
         dmPolicy: { type: "string", enum: ["open", "pairing", "allowlist"] },
         allowFrom: { type: "array", items: { type: "string" } },
-        maxRetries: { type: "integer", minimum: 1 },
-        blockTimeMs: { type: "integer", minimum: 1 },
-        batchSize: { type: "integer", minimum: 1 },
         perMsgMaxLen: { type: "integer", minimum: 1 },
       },
     },
@@ -99,7 +95,7 @@ export const awadaPlugin: ChannelPlugin<ResolvedAwadaAccount> = {
       accountId: account.accountId,
       enabled: account.enabled,
       configured: account.configured,
-      redisUrl: account.redisUrl,
+      relayBaseUrl: account.relayBaseUrl,
     }),
     resolveAllowFrom: ({ cfg, accountId }) => {
       const account = resolveAwadaAccount({ cfg, accountId });
@@ -141,12 +137,12 @@ export const awadaPlugin: ChannelPlugin<ResolvedAwadaAccount> = {
     buildChannelSummary: ({ snapshot }) =>
       buildProbeChannelStatusSummary(snapshot, { port: null }),
     probeAccount: async ({ account }) =>
-      probeAwada({ redisUrl: account.redisUrl, accountId: account.accountId }),
+      probeAwada({ relayBaseUrl: account.relayBaseUrl, accountId: account.accountId }),
     buildAccountSnapshot: ({ account, runtime, probe }) => ({
       accountId: account.accountId,
       enabled: account.enabled,
       configured: account.configured,
-      redisUrl: account.redisUrl,
+      relayBaseUrl: account.relayBaseUrl,
       ...buildRuntimeAccountStatusSnapshot({ runtime, probe }),
       port: null,
     }),

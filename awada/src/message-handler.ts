@@ -226,6 +226,10 @@ async function _dispatchAwadaEvent(entry: AwadaDebounceEntry): Promise<void> {
   const error = runtime?.error ?? console.error;
 
   const account = resolveAwadaAccount({ cfg, accountId });
+  if (!account.relayBaseUrl || !account.ofbKey) {
+    error(`awada[${accountId}]: relayBaseUrl/ofbKey not configured, skipping event ${event.event_id}`);
+    return;
+  }
   const { meta, payload, event_id, correlation_id, trace_id } = event;
 
   // ---- Classify payload items ----
@@ -257,24 +261,24 @@ async function _dispatchAwadaEvent(entry: AwadaDebounceEntry): Promise<void> {
       } else {
         error(`awada[${accountId}]: audio transcription failed: ${result.error}`);
         await sendTextToAwada({
-          redisUrl: account.redisUrl!,
+          relayBaseUrl: account.relayBaseUrl!,
+          ofbKey: account.ofbKey!,
+          lane: account.lane,
           target,
           text: AUDIO_FAIL_MESSAGE,
-          replyToEventId: event_id,
-          correlationId: correlation_id,
-          traceId: trace_id,
+          sourceEventId: event_id,
         });
         return;
       }
     } catch (err) {
       error(`awada[${accountId}]: audio fetch/transcribe error: ${String(err)}`);
       await sendTextToAwada({
-        redisUrl: account.redisUrl!,
+        relayBaseUrl: account.relayBaseUrl!,
+        ofbKey: account.ofbKey!,
+        lane: account.lane,
         target,
         text: AUDIO_FAIL_MESSAGE,
-        replyToEventId: event_id,
-        correlationId: correlation_id,
-        traceId: trace_id,
+        sourceEventId: event_id,
       });
       return;
     }
@@ -361,7 +365,9 @@ async function _dispatchAwadaEvent(entry: AwadaDebounceEntry): Promise<void> {
     cfg,
     agentId: route.agentId,
     runtime: runtime as RuntimeEnv,
-    redisUrl: account.redisUrl!,
+    relayBaseUrl: account.relayBaseUrl!,
+    ofbKey: account.ofbKey!,
+    lane: account.lane,
     target,
     inboundEventId: event_id,
     correlationId: correlation_id,

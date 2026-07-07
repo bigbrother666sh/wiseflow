@@ -16,7 +16,9 @@ export type CreateAwadaReplyDispatcherParams = {
   cfg: ClawdbotConfig;
   agentId: string;
   runtime: RuntimeEnv;
-  redisUrl: string;
+  relayBaseUrl: string;
+  ofbKey: string;
+  lane: string;
   target: OutboundTarget;
   inboundEventId: string;
   correlationId: string;
@@ -40,13 +42,15 @@ export function createAwadaReplyDispatcher(params: CreateAwadaReplyDispatcherPar
   const {
     cfg,
     runtime,
-    redisUrl,
+    relayBaseUrl,
+    ofbKey,
+    lane,
     target,
     inboundEventId,
-    correlationId,
-    traceId,
     accountId,
   } = params;
+  // correlationId / traceId are retained in the params type for caller compatibility but
+  // are not used at the transport layer — relay derives correlation/trace from source_event_id.
   const log = runtime?.log ?? console.log;
   const error = runtime?.error ?? console.error;
   const core = getAwadaRuntime();
@@ -74,12 +78,12 @@ export function createAwadaReplyDispatcher(params: CreateAwadaReplyDispatcherPar
         : [trimmed];
     for (const chunk of chunks) {
       const p = sendTextToAwada({
-        redisUrl,
+        relayBaseUrl,
+        ofbKey,
+        lane,
         target,
         text: chunk,
-        replyToEventId: inboundEventId,
-        correlationId,
-        traceId,
+        sourceEventId: inboundEventId,
       })
         .then(() => {
           log(
@@ -96,12 +100,12 @@ export function createAwadaReplyDispatcher(params: CreateAwadaReplyDispatcherPar
   const queueMediaSend = (url: string) => {
     const media = buildMediaContentFromUrl(url);
     const p = sendMediaToAwada({
-      redisUrl,
+      relayBaseUrl,
+      ofbKey,
+      lane,
       target,
       media,
-      replyToEventId: inboundEventId,
-      correlationId,
-      traceId,
+      sourceEventId: inboundEventId,
     })
       .then(() => {
         log(
@@ -117,12 +121,12 @@ export function createAwadaReplyDispatcher(params: CreateAwadaReplyDispatcherPar
   const queueFileSend = (fileId: string, fileName: string) => {
     const media: FileObject = { type: "file", file_id: fileId, file_name: fileName };
     const p = sendMediaToAwada({
-      redisUrl,
+      relayBaseUrl,
+      ofbKey,
+      lane,
       target,
       media,
-      replyToEventId: inboundEventId,
-      correlationId,
-      traceId,
+      sourceEventId: inboundEventId,
     })
       .then(() => {
         log(

@@ -64,3 +64,19 @@
 1. 在「版本管理与发布」页面创建版本
 2. 提交审核并发布
 3. 等待管理员审批（企业自建应用通常自动通过）
+
+## OpenClaw 侧配置（openclaw.json）
+
+飞书不需要额外安装 plugin 包，但启用需要在 `openclaw.json` 同时配置三处：
+
+1. `bindings[]` —— 把 `channel: "feishu"` 的消息按 `accountId` 路由到对应 agent。
+2. `channels.feishu.accounts{}` —— 每个账号的 `appId` / `appSecret` / `dmPolicy` / `groupPolicy` / `allowFrom`。
+3. `plugins.entries.feishu.enabled = true` —— 打开飞书 channel plugin。
+
+完整片段样例见 `samples/feishu-openclaw.json`（同目录上一级）。合并到正式 `openclaw.json` 时：
+
+- 删掉样例里的 `_comment` 字段；
+- 把 `appId` 占位符和 `appSecret` 环境变量替换为真实凭证——`appSecret` 不得提交到代码仓，优先用环境变量引用（如 `${FEISHU_MAIN_BOT_APP_SECRET}`）或写入 `~/.openclaw/credentials/`；
+- `groupPolicy: "mention"` 表示群聊仅响应 @机器人 的消息（即使 `dmPolicy: "open"`）。
+
+配置完成后需重启 Gateway 才能生效。

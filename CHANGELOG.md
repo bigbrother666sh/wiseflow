@@ -1,4 +1,4 @@
-# v5.5.3 (Unreleased)
+# v5.5.3 (2026-07-08)
 
 > **本版本聚焦产品拆分（client + relay 双仓）后的 client 侧改版**。所有变更与 `docs/product-split-plan.md` 对齐；openclaw 上游基线仍 v2026.6.10（与 v5.5.2 一致，本版本未做 openclaw 升级）。
 
@@ -55,6 +55,17 @@
 - **2026-07-04 用户确认撤回**：`crews/main/skills/video-product/` / `crews/content-producer/skills/siliconflow-video-gen/` / `html-video/` 维持本地凭据，**不入 relay**。
 - relay `video-relay` 端点对本仓不再有客户端调用方。
 - `bilibili-publish` 走 relay 路线与 video 撤回**独立判断**（待拍板）。
+
+### 默认配置精简（开箱即用）
+
+- **记忆默认 fts-only**：`config-templates/openclaw.json` 与 `openclaw-aihubmix.json` 均加 `agents.defaults.memorySearch.provider = "none"`，新用户**无需开向量/embedding 模型**即可用记忆（走 FTS 全文检索）。
+- **dream 默认关闭**：`plugins.entries.memory-core.config.dreaming.enabled` 改 `false`，避免 3am 烧 token 和噪声日志；进阶用户可自行开启（README 有指引）。
+- **主力模型统一走 AWK**：`install.sh` 不再收集 `SILICONFLOW_API_KEY`，`_USER_PROMPT_KEYS="AWK_API_KEY"`；视觉/替补也走火山方舟 Coding Plan，一个 key 即可。
+
+### 脚本注入精简
+
+- **Python 调用规范挪进 `inject_exec_guide` 的 external-allowlist 分支**：原独立 `inject_python_exec_guide()` 删除，`setup-crew.sh` 4 处调用移除。内 crew 无 allowlist，该规范对内不成立，不再注入。
+- **`inject_env_file_guide()` 删除**：与 main / it-engineer AGENTS.md 已建立的"main 不直接写 env，spawn IT engineer；IT engineer 按 OFB_ENV.md 规范写入"约定重复，`setup-crew.sh` 中调用与 `_OFB_ENV_FILE` 计算块一并移除。
 
 ---
 

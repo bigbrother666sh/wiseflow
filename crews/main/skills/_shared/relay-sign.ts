@@ -13,8 +13,10 @@
  * todo: 这里还缺一个bilibili签名接口，后续需要加上
  */
 
+// 默认指向官方中转 relay（VIP Club 会员默认走我们中转，零配置起手）。
+// 仅当用户自建 relay 时才需要在 daemon.env 覆盖 RELAY_BASE_URL。
 const RELAY_BASE_URL =
-  process.env.RELAY_BASE_URL ?? "http://localhost:3020";
+  process.env.RELAY_BASE_URL ?? "https://relay.openclaw-for-business.com";
 const OFB_KEY = process.env.OFB_KEY;
 
 function assertOfbKey(): string {

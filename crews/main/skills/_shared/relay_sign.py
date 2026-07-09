@@ -15,7 +15,9 @@ from typing import Any
 
 import requests
 
-RELAY_BASE_URL = os.environ.get("RELAY_BASE_URL", "http://localhost:3020")
+# 默认指向官方中转 relay（VIP Club 会员默认走我们中转，零配置起手）。
+# 仅当用户自建 relay 时才需要在 daemon.env 覆盖 RELAY_BASE_URL。
+RELAY_BASE_URL = os.environ.get("RELAY_BASE_URL", "https://relay.openclaw-for-business.com")
 _TIMEOUT = 30
 
 

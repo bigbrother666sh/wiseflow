@@ -1,4 +1,4 @@
-# v5.5.3 (2026-07-08)
+# v5.6.0 (2026-07-12)
 
 > **本版本聚焦产品拆分（client + relay 双仓）后的 client 侧改版**。所有变更与 `docs/product-split-plan.md` 对齐；openclaw 上游基线仍 v2026.6.10（与 v5.5.2 一致，本版本未做 openclaw 升级）。
 
@@ -49,12 +49,6 @@
 - **产品拆分后运维知识集中注入**：`crews/it-engineer/MEMORY.md` 顶部加 116 行新章节（D19 / D20 / login-manager / awada / camoufox 排故 / 4.6 engagement / 部署路径 / 升级策略）。
 - **D20③ 依赖安装规范**（pip `--target vendor` / npm 局部 / 冲突处理 / it-engineer 介入准则）。
 - **未动**：SOUL / IDENTITY / AGENTS（属 Phase 7 续暂缓部分，待下一阶段）。
-
-### video relay 模式撤回
-
-- **2026-07-04 用户确认撤回**：`crews/main/skills/video-product/` / `crews/content-producer/skills/siliconflow-video-gen/` / `html-video/` 维持本地凭据，**不入 relay**。
-- relay `video-relay` 端点对本仓不再有客户端调用方。
-- `bilibili-publish` 走 relay 路线与 video 撤回**独立判断**（待拍板）。
 
 ### 默认配置精简（开箱即用）
 

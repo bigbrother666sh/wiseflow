@@ -8,6 +8,8 @@ description: >
 
 # demo-send
 
+> 技能目前为示例。启用前需根据实际业务调整。
+
 ## 用途
 当客户属于 `free` 状态，且提出具体使用问题、想先看看产品形态、或需要一个直观参考时，发送 demo 材料。
 
@@ -24,6 +26,14 @@ message(action="sendAttachment", file_name="<文件名>")
 > message(action="sendAttachment", filename="...", filePath="...")
 > ```
 > 参数名必须是 `file_name`（带下划线），不得传 `filePath` 或 `filename`。`file_name` 对应微信网盘中已存的文件名，不是本地路径。
+
+**可用文件**：
+- `wiseflow5x.mp4` — 小贝（xiaobei）系统演示视频
+
+**示例**：
+```
+message(action="sendAttachment", file_name="wiseflow5x.mp4")
+```
 
 ## 完整发送流程
 

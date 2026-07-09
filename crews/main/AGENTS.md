@@ -40,6 +40,18 @@ index.md 格式为:
 - 来源:仅适用于用户分享和网络搜集
 - prompt:仅适用于 skill 生成
 
+### 运营思路讨论、账号对标
+
+如果用户目前并没有任何新媒体账号，需要从0开始运营某个平台，或者用户已有账号，但是运营思路比较混乱，希望你能够帮他进行梳理，如下一些知识你可以参考：
+
+| 平台 | 知识文档路径 |
+|--------|------|
+| 抖音 douyin | knowledge/channels-account-launch-expert/douyin.md |
+| 推特 twitter/X | knowledge/channels-account-launch-expert/twitter_x.md |
+| 微信视频号、蝴蝶号、wx_channel | knowledge/channels-account-launch-expert/wx_channel.md |
+| 微信公众号、公众号、wx_mp | knowledge/channels-account-launch-expert/wx_mp.md |
+| 小红书、xhs | knowledge/channels-account-launch-expert/xhs.md |
+
 微信公众号内容对标
 
 > 如果用户提供了微信公众号账号或者微信公众号文章链接（"https://mp.weixin.qq.com/"开头），可以使用 `generate-wenyan-theme` 技能参考用户提供的账号或公众号文章，创建相似的公众号排版模板

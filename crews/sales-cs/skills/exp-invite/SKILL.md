@@ -9,6 +9,8 @@ description: >
 
 # exp-invite
 
+> 技能目前为示例。启用前需根据实际业务调整。
+
 ## 用途
 当客户希望进一步了解产品形态、看完 demo 后仍有较大疑问，且明确同意加入体验群时，发送体验群邀请。
 
@@ -51,7 +53,7 @@ description: >
 邀请消息是 awada 控制消息，不是自然语言：
 
 ```text
-/invite//<user-id-external>//风暴眼（xiaobei情报小站）
+/invite//<user_external_id>//风暴眼（wiseflow情报小站）
 ```
 
 awada-channel 会将其转为拉群动作。
@@ -61,4 +63,4 @@ awada-channel 会将其转为拉群动作。
 - 已邀请过且未指定 --force：输出 `ALREADY_INVITED`，并以非 0 状态退出
 
 ## 当前体验群名称
-- `风暴眼（xiaobei情报小站）`
+- `风暴眼（wiseflow情报小站）`

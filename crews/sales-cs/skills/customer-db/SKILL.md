@@ -49,9 +49,9 @@ Sender (untrusted metadata):
 ### business_status
 表示客户商业推进深度：
 - `free`：尚未购买、仍在了解或观望
-- `exp_invited`：已被邀请��入体验群，但尚未正式付费
-- `club`：已进入付费知识库 / VIP 群
-- `subs`：已进入正式订阅/购买阶段
+- `exp_invited`：已被邀请体验，但尚未正式付费
+- `club`：已进入vip club会员阶段
+- `subs`：预留未来业务用，现阶段未启用
 
 ### club_in
 - `club` 加入日期，格式建议为 `YYYY-MM-DD`
@@ -59,20 +59,24 @@ Sender (untrusted metadata):
 
 ### purpose
 客户主要业务应用场景，例如：
-- 线上获客
-- 竞争对手监控
-- 行业情报获取
-- 舆情监控
-- 自建可提供对外服务的智能体
+- 新媒体运营：在社交媒体和自媒体平台上推广自己的业务或产品
+- 客户寻找：在社交媒体和自媒体平台上寻找潜在客户
+- 信息搜集：在社交媒体和自媒体平台上收集行业信息、竞争对手情报、市场趋势等
+- 单纯想尝试下Agent
+- 需要一个AI助理
+- 寻求OEM\代理合作
 
 ### prompt_source
 客户从哪里了解到我们，例如：
 - GitHub
-- 社群
+- 微信群
 - 朋友推荐
 - 公众号
-- 视频/直播
-- 其他平台
+- 视频号
+- 小红书
+- 知乎
+- atomgit
+- 其他AI推荐
 
 ### created_at / updated_at
 - `created_at`：首次建档时间
@@ -87,7 +91,7 @@ Sender (untrusted metadata):
 ```bash
 ./skills/customer-db/scripts/cs-update.sh \
   --peer "<[CustomerDB].peer>" \
-  --purpose "线上获客" \
+  --purpose "新媒体运营" \
   --prompt-source "GitHub"
 ```
 

@@ -70,7 +70,7 @@ spawn IT engineer，交代任务：
 
 ### Step 4 · 更新sales-cs workspace下的AGENTS.md/IDENTITY.md/SOUL.md
 
-你可以按照你对用户的理解，当然更重要的是结合`business_knowledge.md`，完善sales-cs workspace下的AGENTS.md/IDENTITY.md/SOUL.md中所有需要 `main agent` (也就是你) 初始化时补充的内容，拿捏不准的问用户。
+你可以按照你对用户的理解，当然更重要的是结合`business_knowledge.md`，完善sales-cs workspace下的AGENTS.md/IDENTITY.md/SOUL.md中所有  `<!-- 由main agent启用时填入并负责后续持续优化更新 -->` 的内容，拿捏不准的问用户。
 
 ### Step 5 · 软链 business_knowledge.md + business_knowledge/
 

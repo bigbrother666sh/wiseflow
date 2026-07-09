@@ -1,40 +1,41 @@
-# 小贝（wiseflow）
+# 小贝（xiaobei）
 
-小贝（wiseflow）是为 OPC/中小微企业老板们量身打造的"AI搞钱搭子"，它基于 [openclaw](https://github.com/openclaw/openclaw)，在原版基础上增加了诸多面向真实创业场景的实用技能（同时也做了很多精简和源码级增强），目前它能帮你：
+小贝（xiaobei）是wiseflow团队为OPC/中小微企业老板们量身打造的"AI搞钱搭子"，它基于 [openclaw](https://github.com/openclaw/openclaw)，在原版基础上增加了诸多面向真实创业场景的实用技能（同时也做了很多精简和源码级增强），目前它能帮你：
 
-- 微信公众号文章写作、排版与推送，并自动回采阅读/点赞/评论等 engagement 数据
-- 小红书图文创作与发布、互动
-- 视频号、抖音、Twitter/X、微博、知乎、YouTube 等多平台短视频生成与分发
-- 爆款视频追爆分析、仿写与再创作
-- **信息搜集与情报**：内置 Smart Search，覆盖小红书、抖音、微博、知乎、B站、Twitter、YouTube、视频号、LinkedIn、Reddit、新闻、政务、财经、学术、购物、GitHub 等 18 类信源——**无需配置任何 key、纯免费**，连自媒体平台上的公开内容都能批量采集；再叠加 RSS 订阅、指定信源监控与提取，做竞品调研、市场摸底、线索收集都够用
-- 通过社交媒体寻找潜在客户、做市场调研与投资/IR 材料准备
-- 数据自动采集与每日定时复盘、每日热门选题
+- 微信公众号文章写作、排版与推送
+- 小红书/小绿书图文创作与发布
+- 图文海报生成
+- 短视频生成与多平台分发（支持视频号、抖音、小红书）
+- Twitter/X、微博、知乎等平台运营
+- 爆款视频追爆分析、仿写与再创作（支持抖音、B站和小红书视频链接）
+- 已发布作品数据监控与每日定时复盘
+- 信息搜集与情报：内置 Smart Search，覆盖小红书、抖音、微博、知乎、B站、Twitter、YouTube、视频号、LinkedIn、Reddit、新闻、政务、财经、学术、购物、GitHub 等 18 类信源——无需配置任何 key、纯免费
+- 指定信源监控与提取
+- 通过社交媒体寻找潜在客户或市场调研
 - 灵感记录与思路梳理
-- ”四声分析“法战略研判与讨论
-- 软件著作权、ICP 备案等材料生成辅助
+- "四声分析"法战略研判与讨论
+- 产品deck、ppt制作，投资/IR 材料准备
+- 软件著作权、ICP 备案等材料辅助生成
 - 闲鱼运营、企业微信朋友圈触达
 - ……
 
 并且你只需通过手机上的微信与他沟通，即可实现全部功能！
 
-<img width="960" src="assets/crews.png" />
+<img width="960" src="assets/feature1.jpg" />
 
-（这里图要改，改为从视频里边截图，横向排列。）
+<img width="960" src="assets/feature2.jpg" />
 
 **除了微信外，我们也支持飞书和企业微信**
 
 ---
 
-## 🚀 **v5.5.3 更新**
+## 🚀 **v5.6.0 更新**
 
+- 产品重大重构,更简洁、更易上手、更精炼！
+- 重新认识你的main agent——小贝：
+- 全面集成 camoufox-cli：无头胜有头，资源占用更少，速度更快，反侦测能力依然在线。
+- 适配 openclaw 2026-6-11 版本（近两个月最稳定版本）、openclaw-weixin 2.4.6 版本。
 - **主力 + 视觉 + 替补模型统一走火山方舟 Coding Plan**：一个套餐覆盖 GLM-5.2、Kimi-K2.7、MiniMax-M3、DeepSeek-V4、Doubao-Seed-2.0 等主流模型，**工具不限**。安装时只需一个 `AWK_API_KEY`，**不再需要 SiliconFlow**（视觉/替补也走 AWK）。
-- **开箱即用零额外配置**：记忆能力默认走 FTS 全文检索（`memorySearch.provider = "none"`），**无需再开向量/embedding 模型**；凌晨"做梦"机制默认关闭，避免 3am 烧 token 和噪声日志。想要语义召回或做梦的进阶用户可在部署后自行开启（见下文[进阶：记忆增强与 dream](#-进阶记忆增强与-dream可选)）。
-- **产品拆分（client + relay 双仓）**：本仓为 client 侧，不再持有任何平台凭据；auth / sign / publish-relay / video-relay / awada-server 等服务拆到独立 relay 仓，client 所有 relay 调用带 `X-OFB-Key` header。
-- **登录管理重写为 camoufox-cli**：更稳的指纹复用与 cookie 导出，扫码登录不再容易掉状态；新增微信公众号 `wx-mp` 平台登录。
-- **公众号 engagement 接入**：`wx-mp-engagement` 自动回采公众号阅读/点赞/评论/分享/收藏，并入 `published-track` 每日复盘。
-- **图片生成改火山方舟 Seedream 4.0**：`siliconflow-img-gen` 改调火山方舟 images 接口，key 走 `AWK_API_KEY`，纯客户端不入 server。
-- **权限模型简化**：删 `command-tier`（T0~T3 四档抽象），权限改由 `crew-type` + `ALLOWED_COMMANDS` 决定，内 crew 全放开消除 allowlist miss 摩擦，对外 crew 保留 prompt injection 防线。
-- 适配 openclaw 2026-6-10 版本、openclaw-weixin 2.4.6 版本。
 
 详见 [CHANGELOG.md](CHANGELOG.md)
 
@@ -52,11 +53,17 @@
 
 > 🎬 **想用视频生成能力？** 需额外开通火山方舟 `doubao-seedance-2.0` 系列或阿里云百炼 `happyhorse-1.1` 系列模型，并把对应 key（`AWK_GEN_KEY` 或 `MODELSTUDIO_API_KEY`）配置到 `daemon.env`。详见下方[视频生成模型配置](#-视频生成模型配置)。
 
-### 1. 获取代码
+### 推荐 - 直接使用我们的Docker image
+
+### 手动安装
+
+#### 1. 获取代码
 
 至 [Releases](https://github.com/TeamWiseFlow/xiaobei/releases) 下载最新版压缩包并解压；
 
-### 2. 一键安装
+#### 2A. docker 模式运行
+
+#### 2B. 源码脚本一键安装（需提前部署环境）
 
 ```bash
 cd wiseflow
@@ -74,21 +81,6 @@ cd wiseflow
 
 > **系统要求**：推荐 Ubuntu 22.04；支持 WSL2 / macOS；不建议 Windows 原生
 
-### 3. 微信对话完成 Onboard
-
-安装完成后，打开微信搜索上一步绑定的机器人，直接发消息即可——它会主动引导你完成首次 onboard**：
-
-1. 告诉它你的公司/品牌、产品和目标用户
-2. 它会把这些业务背景存入 `business-context/`，后续招募的 crew 自动继承
-3. 按需招募第一个 crew（如商务拓展、自媒体运营）
-4. 团队扩大后，一条对话即可配置飞书或企业微信工作 channel
-
-**不需要编辑配置文件、不需要手动同步信息——从安装到出活，全程对话完成。**
-
-注：微信官方 openclaw 插件限定一个微信账号只能对应一个机器人，如果您之前已经绑定了其他 Agent（openclaw 或者 hermes 等），这会挤掉已经绑定的 agent。但是在完成 xiaobei 团队配置后，您可以将此 bot 替换回其他 agent，这不影响已经绑定工作渠道的 wiseflow crew team。
-
-> 💡 更详细的操作指引见 [quick start](docs/quick_start.md)
-
 ### 系统与环境要求
 
 | 项目 | 最低要求 | 推荐配置 |
@@ -99,12 +91,12 @@ cd wiseflow
 | 带宽 | 10 Mbps | — |
 
 - **网络**：需可访问外网；建议使用正常住宅 IP，数据中心 IP 部分平台可能识别限制
-- **部署环境**：支持无头云服务器（ECS）部署，但推荐在有桌面环境的电脑上部署（日常使用中可不插显示器），浏览器自动化类技能在桌面环境下更稳定
+- 但部分发布能力又需要固定IP（平台限制，非软件能力问题），针对这个矛盾 Wiseflow team 已推出中转服务，具体可以添加下方掌柜二维码详询👇
 - **操作系统**：推荐 Ubuntu 24.04；支持 Windows WSL2、macOS 15 / 26
 
 > **💡 模型费用说明**
 >
-> xiaobei 底层基于 openclaw，Agent 工作流对 token 消耗有一定要求，建议先准备好大模型 API：
+> xiaobei 底层基于 openclaw，建议先准备好大模型 API：
 >
 > - **主力模型（强烈推荐）**：[火山引擎方舟 Coding Plan](https://volcengine.com/L/dx-wt80li-I/) — 一个套餐覆盖 GLM-5.2、Kimi-K2.7、MiniMax-M3、DeepSeek-V4 系列、Doubao-Seed-2.0 系列等主流模型，**工具不限**，xiaobei 默认主力模型 GLM-5.2 即走此通道。需要注册并开通 Coding Plan 获得 `AWK_API_KEY`。
 >   > 🎁 **通过 xiaobei 邀请链接** [https://volcengine.com/L/dx-wt80li-I/](https://volcengine.com/L/dx-wt80li-I/) **订阅**（邀请码 `5Y5A6L86`），可叠加 **9.5 折**优惠，首月尝鲜低至 **9.4 元**，订得越多折扣越大。
@@ -129,17 +121,17 @@ cd wiseflow
 >
 > 默认配置下，小贝的记忆走 FTS 全文检索，已经够用且零额外配置。如果你记忆体量很大、想要更好的语义召回，可以接入一个 embedding 模型；也可以选择打开凌晨"做梦"机制让小贝在夜间整理记忆。
 >
-> 推荐用 [SiliconFlow](https://cloud.siliconflow.cn/i/WNLYbBpi)（🎁 xiaobei 邀请链接，注册认证后你和项目各得一张 16 元代金券），它提供 `BAAI/bge-m3` 与 `Qwen/Qwen3-VL-Embedding` 系列，均为 OpenAI 接口格式，可直接配置为 `memorySearch` 的 embedding provider。配置方法：把 `agents.defaults.memorySearch.provider` 从 `"none"` 改为 `"openai-compatible"`，并补上 `remote.baseUrl` / `remote.apiKey` / `model`；想开做梦就把 `plugins.entries.memory-core.config.dreaming.enabled` 改回 `true`。改完重启 gateway 生效。可以让 IT Engineer 帮你完成配置。
+> 推荐用 [SiliconFlow](https://cloud.siliconflow.cn/i/WNLYbBpi)（🎁 xiaobei 邀请链接，注册认证后你可获得一张 16 元代金券），它提供 `BAAI/bge-m3` 与 `Qwen/Qwen3-VL-Embedding` 系列，均为 OpenAI 接口格式，可直接配置为 `memorySearch` 的 embedding provider。配置方法：把 `agents.defaults.memorySearch.provider` 从 `"none"` 改为 `"openai-compatible"`，并补上 `remote.baseUrl` / `remote.apiKey` / `model`；想开做梦就把 `plugins.entries.memory-core.config.dreaming.enabled` 改回 `true`。改完重启 gateway 生效。可以让小贝帮你完成配置。
 
-🎉 xiaobei 目前提供 **VIP Club**（售价 **168 元/年**），权益包括：
+🎉 xiaobei 项目目前提供 **VIP Club**（售价 **168 元/年**），权益包括：
 
 - **付费知识库**：包含《手把手从零开始安装教程》、《安装之后三分钟上手指南》、《Openclaw 自定义配置全案教程》、《Windows 下安装 WSL2 无脑教程》以及各种最佳实践分享
 - **vip 微信交流群**，共同探讨交流各种玩法，创业路上不孤单
 - 免费加入 Wiseflow 知识星球
 - 每月一次的线上闭门分享（腾讯会议），陪伴你从"小白"到"大神"！
-- ****会员有效期内免费使用官方中转服务****——**这是最实在的一项**：小红书、抖音、微信公众号、微博、知乎等多个发布技能都依赖中转服务落地，会员期内畅用，不必再单独自建或购买中转。
+- **会员有效期内免费使用官方中转服务**：涉及小红书、抖音、微信公众号、企业微信朋友圈的技能都需要固定IP（平台要求），一般的家庭网络或办公网络环境并没有固定IP，Wiseflow团队已经搭建了官方的中转服务，vipclub会员期内畅用，不必再单独自建或购买。
 
-此外，我们也面向 VIP Club 会员提供增值服务：**远程安装部署、远程技术支持、awada lane 租赁**。这些需额外付费，**仅面向 VIP Club 会员**，可咨询掌柜。
+此外，我们也面向 VIP Club 会员提供如下增值服务：**远程安装部署、远程技术支持、awada lane 租赁** (需额外付费）
 
 欢迎添加"掌柜的"企业微信（这背后接的就是 xiaobei sales-cs）咨询了解：
 
@@ -156,9 +148,9 @@ cd wiseflow
 | Crew | 职责 | 关键技能 |
 |------|------|---------|
 | **小贝（main agent）** | AI 搞钱搭子，统筹全局、对接用户、内容选题与发布策略、按需招募/调度其他 crew | 多平台发布（公众号/小红书/视频号/抖音/微博/知乎/Twitter/YouTube）、`viral-chaser` 追爆、`content-calibrator` 打分、`published-track` 复盘、`smart-search` / `lead-hunting` / `intel-gathering` / `market-research` 信息搜集、`rss-reader` 信源监控、投融资与 IR 材料（`pitch-deck` / `investor-*` / `ir-record`）、`swcr-register` 软著、`xianyu-ops` 闲鱼 |
-| **IT 工程师（it-engineer）** | 幕后支撑，不对用户直接对话，被其他 crew spawn 协助 | 系统运维与排障、`openclaw.json` / `daemon.env` / cron 配置、`login-manager` 登录管理、平台绑定、ICP 备案、腾讯云/阿里云 CLI、GitHub/issue 追踪 |
-| **制作师（content-producer）** | 专业内容制作者，承担内容生产线重活 | 视频生产（脚本→素材→TTS→渲染→合成）、`de-mouth` 去口误、`highlight-clipper` 高光剪辑、`siliconflow-img-gen` 出图、网页/落地页/APP 视觉设计 |
-| **销售型客服（sales-cs）** | AI 客服，可绑企业微信对客 | 售前咨询、销售推进、客户画像维护、投诉/售后分流 |
+| **IT 工程师（it-engineer）** | 幕后支撑，被其他 crew spawn 协助 | 系统运维与排障、`openclaw.json` / `daemon.env` / cron 配置、`login-manager` 登录管理、平台绑定、ICP 备案、腾讯云/阿里云 CLI、GitHub/issue 追踪 |
+| **创作者（content-producer）**(预发布) | 专业内容制作者，承担内容生产线重活 | 视频生产（脚本→素材→TTS→渲染→合成）、网页/落地页/APP 视觉设计... |
+| **销售型客服（sales-cs）** | AI 客服，可绑企业微信，客户可以直接用个人微信添加 | 售前咨询、销售推进、客户画像维护、投诉/售后分流 |
 
 ### AI 团队的自主协作
 
@@ -190,25 +182,25 @@ Crew 遇到自己不能解决的问题：
 
 <img width="960" src="assets/crews_co_work.png" />
 
-## AI 客服，团队自带一位
+## 团队中已包含专业的AI客服
 
-小贝的团队中包含强大的 AI 客服（sales-cs），您无需再额外部署其他系统。只需要对小贝说："我需要招募一名客服"即可。
+小贝团队中已包含强大的 AI 客服（sales-cs），您无需再额外购买或部署其他系统。只需要对小贝说："我需要招募一名客服"即可。
 
-小贝团队中的 sales-cs 不仅可以按照预设知识库进行精准回答，同时也具有极高的情商，懂得在售前咨询中推进销售。应对客户的诘难式提问，也能妥当应对。
+小贝团队中的 sales-cs 不仅可以按照预设知识库进行精准回答，同时也具有极高的情商，懂得在回答客户问题的过程中步步为营的推进成交。对客户的诘难式提问，也能妥当应对。
 
 <img width="960" src="assets/nb1.jpg" />
 
-*如需让客户可以通过微信与 AI 客服进行沟通，则需要注册企业微信并租赁 awada lane*
+*如需让客户直接用微信添加AI客服，需要注册企业微信并租赁 awada lane*
 
 *详询"掌柜的"👆*
 
-## 🔧 在 openclaw 之上的源码级增强（patches）
+## 🔧 比原版更强、更适合国内网络环境的浏览器方案
 
-xiaobei 不只是往 openclaw 上加技能，也通过 `patches/` 目录对 openclaw 源码打补丁，做了多处增强与修复，让原版更适配真实创业场景：
+基于之前**AI首席情报官**的技术积累，wiseflow团队对 openclaw 源码做了多处增强与修复，强化其浏览器自动化能力，并更加适合国内网络环境：
 
 | 补丁 | 说明 | 相关环境变量 |
 |------|------|-------------|
-| `002-disable-web-search-env-var` | 支持通过环境变量禁用 openclaw 内置 web search | `OPENCLAW_DISABLE_WEB_SEARCH=1` |
+| `002-disable-web-search-env-var` | openclaw 内置 web search 大部分需要申请api key,甚至需要海外网络环境，小贝系统自带完全免费、零部署的Smart Search解决方案| `OPENCLAW_DISABLE_WEB_SEARCH=1` |
 | `003-act-field-validation` | 修复浏览器 act 动作的字段验证逻辑 | 无 |
 | `005-browser-timeout-env-var` | 支持通过环境变量自定义浏览器操作默认超时（原默认仅 20 秒，网络慢时容易中断） | `OPENCLAW_BROWSER_TIMEOUT_MS=60000` （执行 install.sh 脚本会自动配置）|
 | `006-connectovercdp-no-defaults` | `connectOverCDP` 启用 `noDefaults: true`，避免 Patchright 修改用户浏览器状态 | 无 |
@@ -282,4 +274,4 @@ https://github.com/TeamWiseFlow/xiaobei
 
 ## 友情链接
 
-[<img src="https://github.com/TeamWiseFlow/xiaobei/raw/4.x/docs/logos/tianqibao.png" alt="tianqibao" height="60">](https://baotianqi.cn/)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[<img src="https://resource.aihubmix.com/logo.png" alt="aihubmix" height="60">](https://aihubmix.com/?aff=Gp54)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[<img src="https://github.com/TeamWiseFlow/xiaobei/raw/4.x/docs/logos/SiliconFlow.png" alt="siliconflow" height="40">](https://cloud.siliconflow.cn/i/WNLYbBpi)
+[<img src="assets/atomgit.png" alt="atomgit" height="60">](https://gitcode.com/atomgit_atomcode)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[<img src="https://resource.aihubmix.com/logo.png" alt="aihubmix" height="60">](https://aihubmix.com/?aff=Gp54)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[<img src="https://github.com/TeamWiseFlow/xiaobei/raw/4.x/docs/logos/SiliconFlow.png" alt="siliconflow" height="40">](https://cloud.siliconflow.cn/i/WNLYbBpi)

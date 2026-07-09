@@ -14,3 +14,8 @@
 +nano-pdf
 +jq
 +rg
++node
+# PDF image extraction utilities (added 2026-07-01 by IT Engineer, all 3 at /usr/bin/)
++pdfimages
++pdftoppm
++pdftocairo

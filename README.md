@@ -9,6 +9,7 @@
 - Twitter/X、微博、知乎等平台运营
 - 爆款视频追爆分析、仿写与再创作（支持抖音、B站和小红书视频链接）
 - 已发布作品数据监控与每日定时复盘
+- 内置小红书、抖音、twitter/x、公众号、视频号平台起号方法论
 - 信息搜集与情报：内置 Smart Search，覆盖小红书、抖音、微博、知乎、B站、Twitter、YouTube、视频号、LinkedIn、Reddit、新闻、政务、财经、学术、购物、GitHub 等 18 类信源——无需配置任何 key、纯免费
 - 指定信源监控与提取
 - 通过社交媒体寻找潜在客户或市场调研
@@ -262,13 +263,12 @@ wiseflow/
 - SearXNG（a free internet metasearch engine which aggregates results from various search services and databases） https://github.com/searxng/searxng
 - opencli（A CLI for social media & web platforms — smart-search skill 借鉴了其搜索 URL 模式与平台适配方案） https://github.com/jackwener/opencli
 - AiToEarn（多平台自媒体发布工具 — `published-track` 的 18 平台文本/媒体限制规则表与内容校验、twitter 互动操作模式借鉴自此） https://github.com/yikart/AiToEarn
-- wechat-article-exporter（微信公众号文章导出 — `wx-mp-hunter` 的公众号搜索/文章列表/正文抽取能力整合自此项目） https://github.com/wechat-article/wechat-article-exporter
-- Spider_XHS（小红书爬虫 — `xhs-content-ops` 的搜索/笔记详情/用户笔记列表/QR 登录/发布指南整合自此项目） https://github.com/cv-cat/Spider_XHS
 - 文颜(Markdown文章排版美化工具，支持微信公众号、今日头条、知乎等平台。) https://github.com/caol64/wenyan
 - Everything Claude Code（Claude Code 全局 skill / rule / agent 集合，wiseflow 的 complex-task 等编排 skill 借鉴了其 blueprint 和 gan-style-harness 的设计思路） https://github.com/affaan-m/everything-claude-code
 - awesome-design-md（A curated collection of design systems in markdown format — Designer 内置设计系统库参考了此项目的设计系统结构） https://github.com/VoltAgent/awesome-design-md
 - videocut-skills（视频去口误/精剪技能集 — `de-mouth` 技能原汁原味借鉴其口误检测与剪映草稿生成能力） https://github.com/Ceeon/videocut-skills
 - cheat-on-content（自媒体打分算法借鉴） https://github.com/XBuilderLAB/cheat-on-content
+- agent-skills-launch-pack_（起号方法论知识来源） https://github.com/chenjin-cmd/agent-skills-launch-pack_
 
 ## Citation
 

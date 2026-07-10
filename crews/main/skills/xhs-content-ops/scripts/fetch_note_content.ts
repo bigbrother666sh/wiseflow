@@ -131,6 +131,8 @@ if (!cookieDict.a1 || !cookieDict.web_session) {
 
 import { xhsFetch } from "../../_shared/relay-sign.ts"
 
+const XHS_BROWSE_BASE = "https://www.xiaohongshu.com"
+
 interface NoteCard {
   note_id?: string
   display_title?: string

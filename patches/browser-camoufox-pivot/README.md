@@ -24,7 +24,7 @@ openclaw/ 是上游工作树，**不是** wiseflow 代码仓的一部分。对 o
 
 ## 下一步（step 3）
 
-`001-browser-camoufox-pivot.patch`（待编写）改现有文件把 adapter 接进 browser tool：
+`001-browser-camoufox-pivot.patch`改现有文件把 adapter 接进 browser tool：
 
 - `browser-tool.schema.ts`：`BROWSER_TARGETS` 删 `sandbox`、加 `camoufox`
 - `browser-tool.ts`：删 sandbox 分支、加 `target === "camoufox"` 分支调 `executeCamoufoxCliAction`

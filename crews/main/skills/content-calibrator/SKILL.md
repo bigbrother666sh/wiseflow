@@ -102,10 +102,6 @@ metadata:
 2. **复盘时**：直接从 published-track DB 读取数据
 3. **深度数据**（完播率、转粉率、评论内容等）：仍需 camoufox-cli 抓取（详见 browser-guide §0.2 抓取流程），由 published-track 心跳任务负责
 
-### wx-mp-hunter 数据获取说明
-
-⚠️ **wx-mp-hunter 无法获取微信公众号文章的阅读数、点赞数等互动数据。** 微信公众号互动数据需登录公众号后台查看，wx-mp-hunter 只能获取标题、正文和链接。因此公众号复盘数据只能从 published-track DB 读取（心跳巡检手动更新），或由用户手动提供/后台截图。
-
 ---
 
 ## 路由表（触发词 → 操作）
@@ -288,22 +284,6 @@ sqlite3 db/published_track.db "SELECT * FROM pub_wx_mp WHERE source_folder='outp
 
 起步期阈值默认 0（不拦截），待累积足够复盘样本后再收紧。
 
-**各平台数据获取能力**（由 `published-track/scripts/fetch-and-update-metrics.sh` 统一调度）：
-
-| 平台 | 方案 | 心跳可自动更新 | 需手动补充 | 说明 |
-|------|------|--------------|-----------|------|
-| 小红书 | 脚本 | ✅ likes/favorites/comments/shares | 完播率/转粉率 | xhshow 签名 + cookie |
-| B站 | 脚本 | ✅ plays/likes/coins/favorites/danmaku/comments | 完播率 | 公开 API，无需 cookie |
-| 抖音 | 脚本 | ⚠️ plays/likes/comments/shares/favorites | 完播率 | a_bogus 签名 + cookie |
-| 快手 | 脚本 | ⚠️ plays/likes/comments | — | GraphQL + cookie |
-| 知乎 | 浏览器 | ⚠️ views/upvotes/comments/favorites | — | browser snapshot |
-| 今日头条 | 浏览器 | ⚠️ impressions/reads/comments/likes | — | browser snapshot |
-| 掘金 | 浏览器 | ✅ views/likes/comments/favorites | — | browser snapshot（无需 cookie） |
-| Twitter/X | 浏览器 | ⚠️ views/likes/retweets/replies/bookmarks | — | twitter-interact 技能 |
-| YouTube | 浏览器 | ✅ views/likes/comments/shares | — | browser snapshot（无需 cookie） |
-| 微信公众号 | 跳过 | ❌ 无法自动获取 | reads/likes/shares 等 | 需用户手动提供 |
-| 微信视频号 | 跳过 | ❌ 无法自动获取 | plays/likes/comments/shares/favorites | 需用户手动提供 |
-
 ---
 
 ## Bump — Rubric 升级（统一）
@@ -344,8 +324,6 @@ sqlite3 db/published_track.db "SELECT * FROM pub_wx_mp WHERE source_folder='outp
 1. **viral-chaser 追爆报告**：已下载的爆款视频分析 → 提取结构 pattern
 2. **用户提供的数据**：手动粘贴对标账号数据
 3. **published-track DB 中的历史数据**：该平台已发布内容的互动数据
-
-> ⚠️ wx-mp-hunter **无法获取**公众号互动数据，不能作为对标数据来源。
 
 ### 流程
 

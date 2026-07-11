@@ -39,15 +39,7 @@ metadata:
 | 抖音 | `pub_douyin` | video | plays, likes, comments, shares, favorites |
 | 快手 | `pub_kuaishou` | video | plays, likes, comments, shares |
 | 小红书 | `pub_xhs` | article/video/post | views, likes, favorites, comments, shares |
-| 今日头条 | `pub_toutiao` | article | impressions, reads, comments, likes |
-| 掘金 | `pub_juejin` | article | views, likes, comments, favorites |
 | Twitter/X | `pub_twitter` | post/video | views, likes, retweets, replies, bookmarks |
-| Facebook | `pub_facebook` | post/video | reach, likes, comments, shares |
-| Instagram | `pub_instagram` | post/video | reach, likes, comments, shares, saves |
-| TikTok | `pub_tiktok` | video | plays, likes, comments, shares, favorites |
-| YouTube | `pub_youtube` | video | views, likes, comments, shares |
-| Pinterest | `pub_pinterest` | post | impressions, saves, comments |
-| Threads | `pub_threads` | post | views, likes, reposts, replies |
 
 `--platform` 取「表名」去掉 `pub_` 前缀，如 `wx_mp`、`wx_channel`、`xhs`、`bilibili`。
 
@@ -147,9 +139,9 @@ metadata:
 
 Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSION_EXPIRED。
 
-- **脚本支持**：xhs、bilibili、douyin、kuaishou
-- **浏览器获取**：zhihu、toutiao、juejin、twitter、youtube、facebook、instagram、tiktok、pinterest、threads
-- **手动提供**：wx_mp、wx_channel
+- **脚本支持**：xhs、bilibili、douyin、kuaishou、wx_mp
+
+其他平台只能使用浏览器进行取数，或者由用户提供。
 
 ### 流程 2B·用户提供数据（Agent 补录）
 

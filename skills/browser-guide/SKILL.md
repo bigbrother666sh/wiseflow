@@ -1,124 +1,136 @@
 ---
 name: browser-guide
-description: 浏览器使用规则。涉及浏览器操作时**优先 camoufox-cli**，内置 browser
-  tool 仅在 camoufox 跑不通 / 用户明确要求 / 需要用户实时操作界面时使用。
-  **绝不**修改 openclaw.json 中 browser 配置。
+description: Best practices for using the managed browser — handling login walls,
+  CAPTCHAs, lazy-loaded content, paywalls, and tab cleanup.
 metadata:
   openclaw:
     emoji: 🌐
-    requires:
-      bins:
-      - camoufox-cli
 ---
 
-# Browser Guide
+# Browser Best Practices
 
-> **核心规则**：本 skill **不是**教你"如何使用浏览器"——camoufox-cli 与内置 `browser` tool 各自有 SKILL.md / docs。本 skill 是 **浏览器工具选择的硬规则**，所有 agent 必须遵守。
+Follow these rules whenever you use the `browser` tool to interact with web pages.
 
----
+## 1. Login Prompts
 
-## 1. 工具选择规则（**最重要**）
+When a page shows a login wall, first identify which login mechanism is offered, then follow the matching procedure below.
 
-| 场景 | 用什么 |
-|------|------|
-| 登录 / 扫码 / Cookie 导入 / 平台反爬敏感 | **camoufox-cli**（主推，反指纹 headless Firefox）|
-| 数据抓取 / 批量取数 / SPA hydration | **camoufox-cli** |
-| **用户需要在自己浏览器里实时操作** | 内置 `browser` tool（headless=false 有头模式） |
-| **camoufox-cli 在某平台持续触发风控** | 内置 `browser` tool（fallback）|
-| **用户明确要求** | 内置 `browser` tool（用户在某场景偏好）|
-| 单次调试 / 排错 | 内置 `browser` tool（更快上手）|
+**General constraint: retry at most 2 times per login attempt — frequent retries risk account suspension.**
 
-**默认规则**：**任何场景都先用 camoufox-cli**，只有上述 4 种"兜底场景"才用内置 `browser` tool。
+### 1-A. Browser saved credentials
 
----
+1. Check whether the login form has auto-filled credentials from saved passwords. If so, use them.
+2. On failure, continue to 1-B / 1-C / 1-D as appropriate.
 
-## 2. camoufox-cli 使用要点
+### 1-B. QR Code login
 
-### 2.1 登录流程
-- **两步式**：先 `login-manager qr-headless <platform>` 启 headless + 截 QR → 再 `qr-confirm <platform> --session <s> --timeout 180` 轮询 + 落 cookie
-- 完整流程在 `login-manager` skill，不在本 skill 重复
+When the login page shows a QR code (WeChat Official Account backend, Xiaohongshu creator centre, X/Twitter, etc.):
 
-### 2.2 取数流程
-- `cookie-import <platform> <session>` 注 cookie → `camoufox-cli --session <s> --persistent --headless open <url>` → snapshot / eval / click / type → `session-cleanup`
+1. Use `snapshot` to locate the QR code image element. Download / screenshot it and save it to `/tmp/` (e.g., `/tmp/xhs_qr.png`).
+2. Send the QR code image downloaded in the previous step to the user via message, making sure to send the image itself rather than the local file path.
+3. Notify the user:
+   > "**[平台名称]** 登录已失效（或首次使用），请用 **[平台]** APP 扫描以下二维码登录。扫码并在手机上点击确认后，回复"已扫码"。"
+4. **Stop and wait** for the user to reply "已扫码"、"好了"、"扫完了" or any equivalent confirmation before continuing.
+5. While waiting, poll the page every **3 seconds** using `snapshot` for signs of successful login (URL change, QR code disappears, dashboard/avatar appears). If auto-detected, resume immediately without waiting for the user reply.
+6. If no scan occurs within **3 minutes** and no reply arrives, send: _"扫码超时，将继续处理当前可访问的内容。"_ and proceed.
 
-### 2.3 调用约定
-- **绝对路径**调用 `camoufox-cli`（PATH 友好）
-- session 名格式：`<platform>-<purpose>-<nonce>`（`secrets.token_hex(4)` 唯一）
-- 每任务一 session，结束 `session-cleanup`
+### 1-C. SMS verification login
 
-### 2.4 详细流程
-- `login-manager` skill（cookie 中央存储 + 9 子命令）
-- `browser-guide` SKILL.md §2.2（之前详细取数流程保留——略，agent 自行查看）
+When the login page asks for a phone number and SMS verification code:
 
----
+1. Ask the user for the registered phone number for this platform:
+   > "**[平台名称]** 需要手机验证码登录，请告知您在该平台注册的手机号。"
+2. Once received, enter the phone number and trigger the SMS code request. Attempt at most **2 times** if the first trigger fails.
+3. Ask the user for the verification code:
+   > "短信验证码已发送，请将收到的验证码回复给我。"
+4. Enter the code and complete login. If login fails, inform the user and proceed with accessible content — **do not retry a third time**.
 
-## 3. 内置 `browser` tool 使用要点（**fallback 而已**）
+### 1-D. Username / password login
 
-> 浏览器转向后（spec `browser-stack-replacement-spec-2026-07.md`），内置 `browser` tool 的 target 取值收敛为：
-> - `target=camoufox`：**主力**，走 forked camoufox-cli（见 §2，本 skill 默认即此）
-> - `target=host`：fallback，走真机 Chrome（`existing-session` + chrome-mcp relay）；`local-managed` 分支已 patch 删掉（不再额外下 Chromium）
-> - `target=node`：fallback，走远端 Chrome（`remote-cdp`）
-> - `target=sandbox`：**已删**（sandbox 整条路移除，由 `target=camoufox` 替代）
+When only a username + password form is available:
 
-### 3.1 什么场景用 target=host / node
-- §1 列的 4 种"兜底场景"：**用户实时操作 / camoufox 风控 / 用户明确要求 / 调试**
-- 这些场景才显式传 `target=host`（或 `node` 走远端），其余一律 `target=camoufox`（或不传，默认 camoufox）
+1. Check for browser-saved credentials first (see 1-A).
+2. If none, ask the user for their preference:
+   > "**[平台名称]** 需要账号密码登录，浏览器中未找到预存密码。请选择：① 您自行在浏览器中登录后告知我，② 告知用户名和密码由我代为登录。"
+3. If the user chooses ②, receive the credentials and attempt login. Retry at most **2 times** on failure.
+4. If login fails after 2 attempts, inform the user and continue with accessible content.
 
-### 3.2 默认配置（用户已配）
-- `browser.headless: false`（有头模式，仅 host 路径生效）
-- `browser.attachOnly: false`
-- `browser.defaultProfile: openclaw`
+### 1-E. Fallback — login not possible
 
-### 3.3 注意事项
-- **不**主动改 `openclaw.json` 的 browser 配置（即使 camoufox 不灵）
-- cookie 不走中央存储（host/node 路径用真机/远端 Chrome 自带 profile）—— 跟 camoufox 路径隔离
-- 调试 / 排错可临时改 `headless: true`，但**必须告知用户**，并完成后恢复
+If login cannot be completed for any reason (timeout, user unavailable, repeated failures):
 
----
+- **Do NOT stop or abort the task.**
+- Continue with whatever content is accessible in the non-logged-in state.
+- At the end, include a note in the result: _"注：[平台名称] 未能完成登录，以下内容来自未登录状态，可能不完整。"_
 
-## 4. 硬规则（**违反即 agent 自查**）
+## 2. Simple Verification / CAPTCHA
 
-1. **默认走 camoufox-cli**（§1 表格清晰）
-2. **不**主动修改 `~/.openclaw/openclaw.json` 的 `browser.*` 配置
-3. **不**主动修改 `~/.openclaw/openclaw.json` 的 `agents.defaults` / `agents.list[].browser`
-4. 内置 `browser` tool 只在 §1 表格的 4 种兜底场景下使用
-5. **所有浏览器操作必须走 cookie 中央存储**（login-manager）+ camoufox session，或走内置 browser tool 的内置 profile——**不**自创 cookie 文件路径
-6. 浏览器操作结束**必须 cleanup**（`login-manager session-cleanup <platform> <session>` 或 browser tool 的 close tab）
+When a page shows a one-click verification challenge (e.g., a button labelled "去验证", "Verify", "I'm not a robot", or a simple checkbox):
 
----
+1. Try clicking the verification button/checkbox directly.
+2. Wait a few seconds for the page to refresh.
+3. Take a snapshot to check whether normal content has loaded.
+4. If the page now shows the expected content, continue your task.
 
-## 5. 频率限制（**默认遵守**）
+## 3. Complex Verification Fallback
 
-- 单日 camoufox session 创建 ≤ 50（每个 agent）
-- 同一平台 cookie 复用即可，**不**每次重新登录
-- 风控触发后 24h 静默 + 告知用户
-- 详见 `login-manager` skill + 各平台 skill 的 pitfall 章节
+If the simple click in Step 2 above **fails** — the page still shows a challenge, the challenge is a puzzle/slider/image-selection CAPTCHA, or an error occurs:
 
----
+1. **Do NOT retry blindly.** Stop attempting automated verification.
+2. Send a message to the user: _"xx 页面有验证码，我无法解决，请在浏览器中完成，完成后请通知我。"_（xx 为页面标题）.
+3. Wait for the user to confirm.
+4. If no response arrives within **5 minutes**, continue with whatever content is accessible.
 
-## 6. 反检测规则
+## 4. Lazy-Loaded Content
 
-- camoufox-cli 用 `~/.camoufox-cli/profiles/_template/camoufox-cli.json` 指纹模板（Docker bake 时生成）
-- 每个 agent session cp 模板 → 独立 profile dir（指纹一致但 cookie 隔离）
-- **不**尝试 disable / patch 指纹检测（违反平台 ToS）
+When a page uses lazy loading (infinite scroll, "load more" sections, content that appears only after scrolling):
 
----
+1. Before scrolling, assess whether the not-yet-loaded content is **relevant** to the current task.
+2. If relevant, simulate human-like scrolling: scroll down incrementally, pause briefly between scrolls to allow content to load, then take a snapshot to capture the new content.
+3. Repeat until the needed content is visible or no more new content loads.
+4. Do NOT scroll too fast, do it as a human would. After 7 times of scrolling, you should stop this turn.
+5. If not relevant, skip scrolling and work with what is already loaded.
 
-## 7. 错误处理
+## 5. Browser `evaluate` Action — Expression Only
 
-| 现象 | 排查路径 |
-|------|----------|
-| camoufox-cli 启 headless 失败 | 检查 `camoufox-cli install --with-deps`；CPU/RAM 是否够 |
-| cookie import 后访问仍 401 | 走 `login-manager qr-headless + qr-confirm` 重登 |
-| 反复触发风控 | **不再第 3 次**；告知用户考虑换账号 / 暂停 24h |
-| browser tool 找不到元素 | 截图后告知用户手动操作 |
+When using the browser tool's `evaluate` (or `act` with `kind: "evaluate"`) to run JavaScript in the page context, the `fn` parameter must be a **single expression**, not a statement block. Declarations (`const`, `let`, `var`), semicolons, `for`/`if` statements, and `function` declarations will all cause `Invalid evaluate function` errors.
 
----
+**Wrong** (statement block — will fail):
+```js
+const items = document.querySelectorAll('.msg');
+let found = false;
+for (const item of items) {
+  if (item.textContent.includes('target')) { found = true; break; }
+}
+found ? 'ok' : 'no';
+```
 
-## 8. 相关 skill
+**Correct** (wrap in IIFE):
+```js
+(function() {
+  var items = document.querySelectorAll('.msg');
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].textContent.indexOf('target') > -1) { return items[i].innerText; }
+  }
+  return 'not found';
+})()
+```
 
-- `login-manager`（9 子命令 + cookie 中央存储）
-- `twitter-post` / `twitter-interact`（camoufox-cli 主推使用范例）
-- `douyin-publish` / `wechat-channels-publish`（浏览器自动化发布范例）
-- `wx-mp-hunter`（公众号文章抓取）
-- `xhs-content-ops` / `xhs-publish`（小红书抓/发，**仅 client 端**）
+**Correct** (pure expression, for simple lookups):
+```js
+document.querySelector('.reply-btn') ? 'found' : 'not found'
+```
+
+Rules:
+- Always wrap multi-step logic in an IIFE: `(function(){ ... })()`
+- For DOM queries that only need to click, prefer `click` action on a selector over `evaluate`
+- For reading text, prefer `snapshot` over `evaluate` when possible
+- Never use `const`/`let`/`var` declarations or `;` at the top level of `fn`
+
+## 6. Paywall / Subscription Walls
+
+When a page indicates that content is behind a paywall or requires a specific subscription (e.g., "Subscribe to continue reading", "Continue reading with a WSJ subscription", premium-only banners):
+
+1. Send a message to the user describing the situation: _"xx 页面需要订阅，请在浏览器中登录有效账号或者完成付费，完成后请通知我。"_（xx 为页面标题）.
+2. Wait for the user to confirm.
+3. If no response arrives within **5 minutes**, continue with whatever content is accessible (summary, headline, or any visible excerpt).

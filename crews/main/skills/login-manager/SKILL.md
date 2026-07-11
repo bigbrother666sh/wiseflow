@@ -49,7 +49,7 @@ File format (camoufox-cli 原生 JSON 格式，= Playwright `add_cookies` 期望
 }
 ```
 
-Supported platform values: `douyin` | `bilibili` | `kuaishou` | `xhs-publish` | `xhs-browse` | `weibo` | `zhihu` | `wechat-channels`
+Supported platform values: `douyin` | `bilibili` | `kuaishou` | `xhs-publish` | `xhs-browse` | `wx-mp`
 
 > **小红书双平台说明**：小红书的浏览/互动和发布使用不同的 cookie 域，因此拆为两个独立平台：
 > - `xhs-publish`：创作者平台（`creator.xiaohongshu.com`），用于发布笔记/视频

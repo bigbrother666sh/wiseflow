@@ -49,7 +49,7 @@ Symmetric with `cookies export`. Writes the **effective** UA the browser reports
   "platform": "Win32",
   "language": "zh-CN",
   "languages": ["zh-CN", "zh", "en-US", "en"],
-  "viewport": { "width": 1280, "height": 720 },
+  "viewport": { "width": 1920, "height": 1080 },
   "persistent": "/home/u/.camoufox-cli/profiles/xhs",
   "identity": { "os": "windows", "locale": "zh-CN", "fingerprintHash": "a1b2…16hex" },
   "exportedAt": "2026-07-11T…"

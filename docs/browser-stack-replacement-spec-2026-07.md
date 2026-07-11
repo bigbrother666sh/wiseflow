@@ -105,6 +105,8 @@ spike 文档 L30-33 已设计：
 - ❌ 不动：本地 `Agents.md` / `Tools.md` / `Memory`（这些本地有自定义内容）
 - ❌ 不动：本地部署实例里的自定义 skill
 
+**落地（2026-07-12）**：`scripts/lib/crew-workspaces.sh` 加 `sync_crew_skills` 函数（按 skill 粒度 `rm -rf + cp -R` 覆盖，不删部署实例独有 skill，带 package.json 的 skill 跑 `npm install --production`）；`setup-crew.sh` §1 部署循环 fresh + exists 两个分支都调它，exists 分支不再只做 guide 注入。沙箱验证：自定义 skill 保留、同名 skill 被覆盖、npm 依赖装好。
+
 ---
 
 ## 3. skills下的browser-guide/smart-search/web-form-fill 三技能适配

@@ -93,13 +93,35 @@ if ls "$PATCHES_DIR"/*.patch 1>/dev/null 2>&1; then
   cd "$OPENCLAW_DIR"
   for patch in $(ls "$PATCHES_DIR"/*.patch | sort); do
     echo "  → $(basename "$patch")"
-    git apply --3way --ignore-whitespace --whitespace=fix "$patch" || {
-      echo "  ❌ Failed to apply $(basename "$patch")"
-      echo "     Hint: 上游代码可能已变更，需重新生成此补丁"
-      exit 1
-    }
+    # 先用纯 --3way 应用：对 freshly-generated 补丁最稳，且能正确处理
+    # deleted-file 条目（--ignore-whitespace --whitespace=fix 会静默跳过删除）。
+    # 仅当纯 --3way 失败（如上游 whitespace 漂移）才回退到容错 flags。
+    if git apply --3way "$patch" 2>/dev/null; then
+      :
+    else
+      git apply --3way --ignore-whitespace --whitespace=fix "$patch" || {
+        echo "  ❌ Failed to apply $(basename "$patch")"
+        echo "     Hint: 上游代码可能已变更，需重新生成此补丁"
+        exit 1
+      }
+    fi
   done
   cd "$PROJECT_ROOT"
+  NEEDS_INSTALL=true
+fi
+
+# ─── 拷入浏览器转向新文件（patches/browser-camoufox-pivot/files/）──
+# 001-browser-camoufox-pivot.patch 只改现有文件；新增的 adapter + 测试
+# 以整文件形式 ship 在 patches/ 下，这里 cp 进 openclaw（git clean 已先跑，
+# 所以目标一定是干净上游状态）。spec §12.3 线 1 后端。
+PIVOT_FILES_DIR="$PROJECT_ROOT/patches/browser-camoufox-pivot/files"
+if [ -d "$PIVOT_FILES_DIR" ]; then
+  echo "🌐 Copying browser-camoufox-pivot new files into openclaw..."
+  for f in "$PIVOT_FILES_DIR"/*.ts; do
+    [ -f "$f" ] || continue
+    cp "$f" "$OPENCLAW_DIR/extensions/browser/src/"
+    echo "  → extensions/browser/src/$(basename "$f")"
+  done
   NEEDS_INSTALL=true
 fi
 

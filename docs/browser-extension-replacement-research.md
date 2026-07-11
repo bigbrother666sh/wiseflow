@@ -435,18 +435,20 @@ browser tool execute(target)
 
 ### 12.6 修订后的落地顺序（替代 spec §11）
 
-1. **fork camoufox-cli**（spec §1）——独立分支，不碰 extension。
-2. **写 `camoufox-cli.adapter.ts`**：17 action → camoufox-cli 命令翻译 + JSON-over-unix-socket 通信。这是本路线唯一的新 extension 代码。
-3. **patch extension**（一次性）：
+> 进度：✅ 已完成 · ⏳ 待做 · ⚠️ 部分。详见 spec §11。
+
+1. ✅ **fork camoufox-cli**（spec §1）——独立分支，不碰 extension。
+2. ✅ **写 `camoufox-cli.adapter.ts`**：17 action → camoufox-cli 命令翻译 + JSON-over-unix-socket 通信。这是本路线唯一的新 extension 代码。
+3. ✅ **patch extension**（一次性）：
    - `browser-tool.schema.ts`：`BROWSER_TARGETS` 删 `sandbox`、加 `camoufox`；
    - `browser-tool.ts`：删 sandbox 分发分支，加 camoufox 分支调 adapter；
    - `profile-capabilities.ts` / `chrome.ts` / `ensureBrowserAvailable`：删 `local-managed` 分支及 Chromium 下载逻辑；
    - 删 `openclaw/src/agents/sandbox/browser*.ts` + `bridge-server.ts` 的 sandbox 桥；
    - 删 `plugin-sdk/browser-bridge.*` facade（sandbox 桥契约）。
-4. **`overrides.sh`**：去 patchright 注入；`docs/tools/browser.md` 文本更新成双线模型。
-5. **`browser-guide` SKILL.md §3**：更新 fallback 描述。
-6. **007 patch**：保留，视情强化措辞。
-7. 验证：线 1 camoufox-cli 端到端 + 线 2 existing-session/remote-cdp 回归。
+4. ✅ **`overrides.sh`**：去 patchright 注入；`docs/tools/browser.md` 文本更新成双线模型。
+5. ✅ **`browser-guide` SKILL.md §3**：更新 fallback 描述。
+6. ✅ **007 patch**：`patches/007-prefer-camoufox-cli.patch` 落盘（13 行，改 `src/agents/system-prompt.ts` 的 `browser` tool 描述为 "Prefer camoufox-cli ..."），干净上游 `git apply --3way` 验证通过。保留为独立 patch（不并入 001，便于单独 revert/调序）。
+7. ⏳ 验证：线 1 camoufox-cli 端到端 + 线 2 existing-session/remote-cdp 回归。
 
 ### 12.7 仍需用户确认的两点
 

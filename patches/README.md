@@ -8,10 +8,19 @@ wiseflow 针对原版 openclaw 提供的非侵入式补丁与依赖覆盖，由 
 
 | 补丁 | 功能 |
 |------|------|
-| `001-browser-camoufox-pivot.patch` | 浏览器栈转向：删 sandbox target + 删 host `local-managed` 分支 + 新增 `target=camoufox` 旁路（调 forked camoufox-cli adapter）+ system-prompt 的 browser 工具摘要注入"优先 camoufox-cli"引导。**待 fork camoufox-cli（§1）完成后编写**，含原 007 内容 |
+| `001-browser-camoufox-pivot.patch` | 浏览器栈转向 step 3（3a 增量 + 3b 减法 + doc）：3a 加 `camoufox` target + adapter 早返回；3b 删 sandbox target + 删 host `local-managed` 分支 + 删 `src/agents/sandbox/browser*.ts` + bridge-server sandbox 桥 + `plugin-sdk/browser-bridge.*` facade + `--browser` CLI flag + `/sandbox/novnc` route；`docs/tools/browser.md` 改双线模型。35 文件（24 改 + 10 删 + doc）。线 2（host/node + existing-session/remote-cdp）保留 |
 | `002-disable-web-search-env-var.patch` | 添加 `OPENCLAW_DISABLE_WEB_SEARCH` 环境变量，可按需禁用内置 web_search（由 smart-search skill 通过浏览器替代） |
+| `007-prefer-camoufox-cli.patch` | system-prompt 引导：`browser` tool 描述改成 "Prefer camoufox-cli for browser automation; use this tool only when camoufox-cli cannot handle the task or the user explicitly requests it"（§12.6 step 6，分流总开关） |
 
 > 浏览器转向详见 `docs/browser-stack-replacement-spec-2026-07.md` + `docs/browser-extension-replacement-research.md` §12。
+
+### 1a. forked camoufox-cli（`camoufox-cli/`）
+
+`camoufox-cli/` 是上游 [`Bin-Huang/camoufox-cli`](https://github.com/Bin-Huang/camoufox-cli) @ 0.6.2 的 vendored fork，浏览器栈转向的线 1 后端。在上游基础上加了三件事（spec §1.1）：`upload` 命令、daemon fail-first 队列、`identity export` 命令。构建+全局安装：`patches/camoufox-cli/build.sh`（替换 `$PATH` 上的上游 `camoufox-cli`）。详见 `camoufox-cli/README.md`。
+
+### 1b. browser-camoufox-pivot 新增文件（`browser-camoufox-pivot/files/`）
+
+`browser-camoufox-pivot/files/` 下是转向要**新增**进 openclaw extension 的整文件：`camoufox-cli.adapter.ts`（17 action → forked cli 翻译 + unix-socket 通信）+ `camoufox-cli.adapter.test.ts`（33 单测）。`apply-addons.sh` 在 patch 循环后 `cp` 进 `openclaw/extensions/browser/src/`（`git clean -fd` 会清 untracked，故新文件必须走 patches/ 而非直接写 openclaw）。`001-browser-camoufox-pivot.patch` 只改**现有**文件接 adapter。详见 `browser-camoufox-pivot/README.md`。
 
 ### 2. 依赖覆盖（overrides.sh）
 
@@ -30,4 +39,5 @@ wiseflow 针对原版 openclaw 提供的非侵入式补丁与依赖覆盖，由 
 | `003-act-field-validation.patch` | 2026-07-11（浏览器转向） | 默认走 camoufox-cli（不经 browser tool 的 act 路由），fallback 路径偶尔用，前置校验价值有限；先拿掉，后面有需求再加 |
 | `005-browser-timeout-env-var.patch` | 2026-07-11（浏览器转向） | 基于 patchright/browser tool 的超时调优，camoufox-cli 走旁路不受影响，fallback 路径偶尔用；先拿掉，后面有需求再加 |
 | `006-connectovercdp-no-defaults.patch` | 2026-07-11（浏览器转向） | `noDefaults` 是 patchright 1.60+ 专属选项，patchright 整体去掉后原版 playwright-core 的 `connectOverCDP` 不支持该参数；remote-cdp 保留但走原版 PW 即可 |
-| `007-browser-prefer-camoufox-cli.patch` | 2026-07-11（浏览器转向） | 并入新 `001-browser-camoufox-pivot.patch`（system-prompt 引导与架构改动合并为一条） |
+
+> 注：`007` 曾于 2026-07-11 计划"并入 001"并记入删除历史，后改为**保留为独立 patch**（system-prompt 引导与架构 patch 解耦，便于单独 revert/调序），见上 §1 active 表。

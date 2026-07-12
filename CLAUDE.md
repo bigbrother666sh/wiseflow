@@ -66,3 +66,22 @@ metadata:
 - **crew 专属 skill**：`crews/<crew-id>/skills/<name>/`
 
 涉及依赖包（python/node/go）的 skill，依赖统一在仓根 `requirements.txt` / `package.json` 声明，由 `scripts/install.sh` 一次性安装。不允许单独把某个 skill 配置成独立包。这样部署时自动完成初始化，降低部署工作和风险。务必遵守！
+
+### Python 依赖
+
+在仓根 `requirements.txt` 声明。`scripts/apply-addons.sh` 扫描 `skills/`、`crews/*/skills/`、仓根下所有 `requirements.txt`，合并去重后 `pip install --user`。内容哈希守卫，依赖集变化才重装。
+
+### Node 依赖
+
+每个用到外部 npm 包的 skill，**在自己目录下放一个 `package.json`** 声明 `dependencies`（`type: "module"` 若脚本用 ESM）。`scripts/apply-addons.sh` 扫描所有含 `SKILL.md + package.json` 的 skill 目录，per-skill `npm install --omit=dev`，`node_modules` 落在仓内 skill 目录（`.gitignore` 已覆盖）。内容哈希守卫，`package.json` 变了才重装。
+
+**不要**把 skill 的 Node 依赖写进仓根 `package.json`——`apply-addons.sh` 的 per-skill 扫描不读仓根 `package.json` 的 deps，写进去也不会被装。仓根 `package.json` 只管 `packageManager` 字段。
+
+**判断 skill 是否需要 `package.json`**：扫 skill 下所有 `.ts`/`.js`/`.mjs` 的 `import ... from "X"`，过滤掉 `node:` 内置和相对路径，若还有残留（如 `cheerio`、`rss-parser`），就需要。现状（2026-07-12 扫描）：
+
+| skill | 外部 npm 依赖 | 有 package.json |
+|-------|--------------|----------------|
+| `crews/main/skills/wx-mp-hunter` | `cheerio` | ✅ |
+| `crews/main/skills/rss-reader` | `rss-parser` | ✅ |
+
+其余 skill 的脚本只用 Node 内置模块或相对 import，不需要 `package.json`。

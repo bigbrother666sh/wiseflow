@@ -311,7 +311,7 @@ node ./skills/generate-wenyan-theme/scripts/collect-theme-sources.js --account <
 
 ## 生成主题注册规则
 
-`generate-wenyan-theme` 与 `wx-mp-publisher` 都是 Media Operator 的私有技能，目录相对位置固定。因此每次成功生成自定义 CSS 后，必须同步更新：
+`generate-wenyan-theme` 与 `wx-mp-publisher` 都是你的私有技能，目录相对位置固定。因此每次成功生成自定义 CSS 后，必须同步更新：
 
 ```text
 ./skills/wx-mp-publisher/SKILL.md
@@ -322,6 +322,8 @@ node ./skills/generate-wenyan-theme/scripts/collect-theme-sources.js --account <
 ```markdown
 | `<theme-id>` | 用户自定义：<风格摘要>（文件：`<css-file>`） | 用户明确指定参考该主题时优先采用；相似内容可优先建议 |
 ```
+
+**登记表是 client 侧 id → 本地 CSS 路径映射，relay 不存主题。** CSS 内容随发布请求上传（`custom_theme` 字段）。
 
 注册要求：
 
@@ -336,21 +338,21 @@ node ./skills/generate-wenyan-theme/scripts/collect-theme-sources.js --account <
 
 ```bash
 # 1) 直接传 CSS 文件路径
-./skills/wx-mp-publisher/scripts/publish-wx-mp.sh article.md custom-theme.css
+python3 ./skills/wx-mp-publisher/scripts/publish_wx_mp.py article.md custom-theme.css
 # 2) 传登记在主题表里的 theme-id（脚本自动解析出 CSS 路径）
-./skills/wx-mp-publisher/scripts/publish-wx-mp.sh article.md custom-theme
+python3 ./skills/wx-mp-publisher/scripts/publish_wx_mp.py article.md custom-theme
 ```
 
 ---
 
 ## 与 wx-mp-publisher 配合使用
 
-生成 CSS 文件后，在发布时通过自定义主题参数引用（CSS 路径或登记的 theme-id 均可）：
+生成 CSS 文件后，用 `wx-mp-publisher` 发布，第二个位置参数即主题（CSS 路径或登记的 theme-id 均可）：
 
 ```bash
-./skills/wx-mp-publisher/scripts/publish-wx-mp.sh article.md custom-theme.css
+python3 ./skills/wx-mp-publisher/scripts/publish_wx_mp.py article.md custom-theme.css
 # 或
-./skills/wx-mp-publisher/scripts/publish-wx-mp.sh article.md custom-theme
+python3 ./skills/wx-mp-publisher/scripts/publish_wx_mp.py article.md custom-theme
 ```
 
-> 注：当 theme 参数指向本地 `.css` 文件路径、或为主题表中登记的自定义 id 时，脚本会自动通过 wenyan-cli `--custom-theme` 加载该 CSS。
+> 注：发布统一走 `publish_wx_mp.py`，当 theme 参数指向本地 `.css` 文件路径、或为主题表中登记的自定义 id 时，脚本读出 CSS 内容作 `custom_theme` 字段随 multipart 上传 relay；relay 侧请求结束即清理，不持久化、不落盘、不按用户存主题。

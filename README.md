@@ -124,7 +124,7 @@ cd wiseflow
 > | 阿里云百炼（优先） | `MODELSTUDIO_API_KEY`（或 `DASHSCOPE_API_KEY`） | `happyhorse-1.1-i2v` / `happyhorse-1.1-t2v` / `happyhorse-1.1-r2v` |
 > | 火山引擎方舟 | `AWK_GEN_KEY` | `doubao-seedance-2-0-fast-260128` / `doubao-seedance-2-0-260128` / `doubao-seedance-2-0-mini-260615` |
 >
-> 两个 key 都配了走百炼，只配 `AWK_GEN_KEY` 走火山，都没配则 `video-product` 自动降级为 pexels/pixabay 免费素材模式。注意 `AWK_GEN_KEY` 与主力模型的 `AWK_API_KEY` 是一个 key，但必须在环境变量中以不同变量名称赋值，火山视频生成只认 `AWK_GEN_KEY`。申请成功后可以让系统自带的全局IT Engineer帮你完成配置。
+> 两个 key 都配了走百炼，只配 `AWK_GEN_KEY` 走火山，都没配则 `video-product` 自动降级为 pexels/pixabay 免费素材模式（也得注册才能获得key，只不过是免费）。注意 `AWK_GEN_KEY` 与主力模型的 `AWK_API_KEY` 是一个 key，但必须在环境变量中以不同变量名称赋值，火山视频生成只认 `AWK_GEN_KEY`。申请成功后可以让小贝喊系统内置的IT Engineer帮你完成配置。
 
 > **🧠 进阶：记忆增强与 dream（可选）**
 >
@@ -138,7 +138,7 @@ cd wiseflow
 - **vip 微信交流群**，共同探讨交流各种高性价比获客玩法，搞钱路上不孤单
 - 免费加入 Wiseflow 知识星球
 - 每月一次的线上闭门分享（腾讯会议），陪伴你从"小白"到"大神"！
-- **会员有效期内免费使用官方中转服务**：涉及小红书、抖音、微信公众号、企业微信朋友圈的技能都需要固定IP（平台要求），一般的家庭网络或办公网络环境并没有固定IP，Wiseflow团队已经搭建了官方的中转服务，vipclub会员期内畅用，不必再单独自建或购买。
+- **会员有效期内免费使用官方中转服务**：涉及小红书、抖音、bili、快手、微信公众号、企业微信朋友圈的技能都需要固定IP（平台要求），一般的家庭网络或办公网络环境并没有固定IP，Wiseflow团队已经搭建了官方的中转服务，vipclub会员期内畅用，不必再单独自建或购买。
 
 此外，我们也面向 VIP Club 会员提供如下增值服务：**远程安装部署、远程技术支持、awada lane 租赁** (需额外付费）
 
@@ -191,7 +191,7 @@ Crew 遇到自己不能解决的问题：
 
 <img width="960" src="assets/crews_co_work.png" />
 
-## 团队中已包含专业的AI客服
+## 专业的AI客服无需其他的系统
 
 小贝团队中已包含强大的 AI 客服（sales-cs），您无需再额外购买或部署其他系统。只需要对小贝说："我需要招募一名客服"即可。
 
@@ -203,7 +203,7 @@ Crew 遇到自己不能解决的问题：
 
 *详询"掌柜的"👆*
 
-## 🔧 v5.6.0 全新的浏览器栈
+## 🔧 全新的浏览器栈
 
 v5.6.0中，我们几乎重构了OpenClaw原版的浏览器自动化方案（详见 `docs/browser-stack-replacement-spec-2026-07.md`）：
 

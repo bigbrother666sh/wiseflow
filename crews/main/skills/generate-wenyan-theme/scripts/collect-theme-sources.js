@@ -64,10 +64,11 @@ function parseKeywords(raw) {
 
 function defaultWxHunterPath() {
   const currentFile = fileURLToPath(import.meta.url);
-  // Script lives at: ~/.openclaw/workspace-media-operator/skills/generate-wenyan-theme/scripts/
-  // Go up 4 levels to reach ~/.openclaw/, where the shared skills/ tree lives.
-  const openclawRoot = resolve(dirname(currentFile), "../../../..");
-  return join(openclawRoot, "skills", "wx-mp-hunter", "scripts", "wx-mp-hunter.sh");
+  // Script lives at: crews/main/skills/generate-wenyan-theme/scripts/
+  // wx-mp-hunter is a sibling skill under crews/main/skills/, so go up 2
+  // levels to reach crews/main/skills/, then into the wx-mp-hunter tree.
+  const skillsRoot = resolve(dirname(currentFile), "../..");
+  return join(skillsRoot, "wx-mp-hunter", "scripts", "wx-mp-hunter.sh");
 }
 
 function isWechatArticleUrl(value) {

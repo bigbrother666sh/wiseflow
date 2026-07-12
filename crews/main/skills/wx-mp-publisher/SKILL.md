@@ -40,8 +40,15 @@ metadata:
 python3 /<workspace>/crews/main/skills/wx-mp-publisher/scripts/publish_wx_mp.py <markdown_file> [theme] [--account ALIAS]
 ```
 
-- `theme`：渲染主题 id（如 `pie` / `lapis` / `default`），可选，缺省由 relay 默认渲染
+- `theme`：渲染主题，三种形态：
+  1. **内置 id**（`pie` / `lapis` / `default` / …）——原样作为 `theme` 传给 relay
+  2. **本地 `.css` 文件路径**——脚本读出文件内容，作为 `custom_theme` 字段随 multipart 上传 relay
+  3. **SKILL.md 主题表登记的自定义 id**——解析出对应 CSS 路径，同 (2)
+  
+  可选，缺省由 relay 默认渲染。
 - `--account ALIAS`：多账号时指定目标公众号；缺省用 `accounts.json` 的 `default`
+
+> **自定义主题不持久化**：relay 是无状态多租户中转，**不存任何用户主题**。CSS 随请求上传，relay 写到 per-request 临时目录、用后即清理，天然按用户隔离。下表的「主题 ID → CSS 文件」映射只存在 client 侧。
 
 脚本自动：
 - 从 `accounts.json` 取目标账号凭据

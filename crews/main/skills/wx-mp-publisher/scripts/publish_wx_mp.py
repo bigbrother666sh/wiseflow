@@ -25,6 +25,8 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ACCOUNTS_FILE = SCRIPT_DIR.parent / "accounts.json"
+SKILL_MD = SCRIPT_DIR.parent / "SKILL.md"
+CREW_WORKSPACE = SCRIPT_DIR.parent.parent.parent  # crews/main
 DEFAULT_RELAY_BASE_URL = "https://relay.openclaw-for-business.com"
 ENDPOINT = "/api/v1/wx-mp/publish"
 TIMEOUT_S = 180
@@ -92,6 +94,54 @@ def relay_env() -> tuple[str, str]:
     if not ofb_key:
         die("OFB_KEY 未配置。OFB_KEY 是 VIP Club 会员凭证，由 ofb 掌柜签发——请向 ofb 掌柜索取该 key，交由 IT engineer 写入 daemon.env 后重启实例。")
     return relay, ofb_key
+
+
+# ── 主题解析 ──────────────────────────────────────────────────────────────────
+
+def _resolve_registered_theme_path(theme_id: str) -> Path | None:
+    """从 SKILL.md 主题表查登记的自定义主题 id，返回 CSS 文件路径或 None。
+
+    主题表行形如：
+      | `myt` | 用户自定义：…（文件：`./myt.css`） | … |
+    文件路径若为相对路径，优先按 crew workspace 解析。
+    """
+    if not SKILL_MD.exists():
+        return None
+    pattern = re.compile(rf"^\| `{re.escape(theme_id)}` \|.*用户自定义")
+    for line in SKILL_MD.read_text(encoding="utf-8").splitlines():
+        if not pattern.match(line):
+            continue
+        m = re.search(r"文件：`([^`]+)`", line)
+        if not m:
+            return None
+        p = Path(m.group(1))
+        if p.is_file():
+            return p
+        alt = CREW_WORKSPACE / m.group(1)
+        if alt.is_file():
+            return alt
+        return None
+    return None
+
+
+def resolve_theme(theme_arg: str | None) -> tuple[str, str] | None:
+    """返回 ('theme', id) / ('custom_theme', css_text) / None。
+
+    解析顺序：
+      1. theme_arg 为空 → None
+      2. 以 .css 结尾且是本地文件 → custom_theme（CSS 文本）
+      3. SKILL.md 主题表登记的自定义 id → 解析 CSS 路径 → custom_theme
+      4. 其它 → 内置主题 id，原样作为 theme
+    """
+    if not theme_arg:
+        return None
+    p = Path(theme_arg)
+    if theme_arg.endswith(".css") and p.is_file():
+        return ("custom_theme", p.read_text(encoding="utf-8"))
+    css_path = _resolve_registered_theme_path(theme_arg)
+    if css_path is not None:
+        return ("custom_theme", css_path.read_text(encoding="utf-8"))
+    return ("theme", theme_arg)
 
 
 # ── multipart 构建 ───────────────────────────────────────────────────────────
@@ -199,7 +249,10 @@ def rewrite_image_refs(md_text: str, local_images: list[Path]) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="推送 Markdown 到微信公众号草稿箱（经 relay）")
     parser.add_argument("markdown_file", help="Markdown 文件路径")
-    parser.add_argument("theme", nargs="?", default=None, help="渲染主题 id（如 pie/lapis/default）")
+    parser.add_argument(
+        "theme", nargs="?", default=None,
+        help="主题：内置 id（pie/lapis/default/…）/ 本地 .css 路径 / SKILL.md 登记的自定义 id",
+    )
     parser.add_argument("--account", default=None, help="指定公众号 alias（缺省用 accounts.json 的 default）")
     args = parser.parse_args()
 
@@ -219,12 +272,19 @@ def main() -> None:
         "wechat_app_id": app_id,
         "wechat_app_secret": app_secret,
     }
-    if args.theme:
-        fields["theme"] = args.theme
+    theme_field = resolve_theme(args.theme)
+    if theme_field is not None:
+        fields[theme_field[0]] = theme_field[1]
     files = [("images", p) for p in images]
 
     log(f"账号: {alias}")
-    log(f"主题: {args.theme or '(relay 默认)'}")
+    if theme_field is None:
+        log("主题: (relay 默认)")
+    elif theme_field[0] == "custom_theme":
+        nbytes = len(theme_field[1].encode("utf-8"))
+        log(f"主题: 自定义 CSS（{nbytes} 字节，随请求上传 relay 不持久化）")
+    else:
+        log(f"主题: {theme_field[1]}")
     log(f"图片: {len(images)} 张")
     log("正在推送草稿到 relay...")
 

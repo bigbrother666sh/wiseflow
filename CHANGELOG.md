@@ -2,6 +2,59 @@
 
 > **本版本聚焦产品拆分（client + relay 双仓）后的 client 侧改版**。所有变更与 `docs/product-split-plan.md` 对齐；openclaw 上游基线仍 v2026.6.10（与 v5.5.2 一致，本版本未做 openclaw 升级）。
 
+### 浏览器栈整体替换（双线栈，spec `docs/browser-stack-replacement-spec-2026-07.md`）
+
+> 2026-07-11 ~ 07-12 落地。调研结论见 `docs/browser-extension-replacement-research.md` §12（架构转向，优先级最高）。
+
+**双线浏览器栈**（替代原"整体替换 extension"路线）：
+
+- **线 1（日常主力）**：新增 `target=camoufox`（默认）→ forked camoufox-cli 走旁路，绕开 routes/、pw-session、chrome-mcp。反指纹 Firefox + JSON-over-unix-socket。
+- **线 2（特殊情况 fallback）**：保留 `target=host`（existing-session 真机 Chrome + chrome-mcp relay）+ `target=node`（remote-cdp 远端 Chrome）。routes/ 层不动。
+- **删 sandbox 整条路**（容器 + bridge + facade + `agents.defaults.sandbox.browser` 配置）+ **删 host `local-managed` 分支**（不再额外下 Chromium）+ **patchright 整体去掉**（`overrides.sh` 不再注入 patchright-core，playwright-core 保留给 remote-cdp 用）。
+
+**§1 fork camoufox-cli**（commit `24c1bf1`）：
+
+- vendored 进 `patches/camoufox-cli/`（flat layout，基线上游 `Bin-Huang/camoufox-cli@0.6.2`），不另起 repo、不 npm 发布。`build.sh` 全局安装（`npm install -g .` link，bin → `dist/cli.js`），全局版本 `0.6.2-wiseflow.1`。
+- **三个新功能**（spec §1.1 必改）：
+  - `upload @ref|selector <file> [more files...]` — Playwright `setInputFiles`，variadic，缺文件 fail-fast。发布类技能依赖。
+  - daemon **fail-first 队列** — 同 session 并发命令直接 fail 返回 `session <name> 正忙，请等待当前操作完成后再试`，`close` bypass（recovery）。不排队不等待，agent 读到 fail 文本知道发生了什么。
+  - `identity [export <f>]` — 导出有效 UA + 指纹摘要（fingerprintHash），与 `cookies export` 对称（对应原则 4 cookie+UA 双导出）。
+- code-review 后两处修复：HIGH 测试隔离（`server-queue.test.ts` 的 `queueState.calls` + firstGate 在 `beforeEach` 重置）+ MEDIUM daemon 挂起（`activeConnections` Set + `forceExit` 构造选项，`wait 999999999` + `close` 不再 linger）。
+- 测试：`cli.test.ts` 加 upload/identity 解析 + `server-queue.test.ts` 新文件（fail-first + close bypass）。`npm test` 非 e2e 全过（173 passed）。`tests/e2e.test.ts` 1 失败（沙箱无 camoufox 浏览器二进制，557MB，`camoufox-cli install` 下，deferred 到 §11 step 7 真机验证）。
+
+**§2 extension 改造 + patches 重组**：
+
+- **001 monolith 拆成 35 个单文件 patch**（commit `c3fb7f9`）移至 `patches/browser-camoufox-pivot/patches/`，命名 `NN-{mod|del}-<path>.patch`，按文件名 sort 顺序应用。各 patch 改不同文件、彼此独立，上游漂一个文件只挂那一个 patch。干净上游逐个 `git apply --3way` + 全量端到端 dry-run 验证通过。
+- **adapter + 测试 ship 在 `patches/browser-camoufox-pivot/files/`**（`camoufox-cli.adapter.ts` 的 `executeCamoufoxCliAction` 翻译 17 action → forked cli daemon 命令，JSON-over-unix-socket 通信，daemon 生命周期 `ensureDaemon` 探活 + `spawn detached unref`，DI 注入便于测试，33 测试过）。
+- **default 改成 camoufox + upload 校验前置**（commit `b0fe815`）：`browser-tool.ts` 无 target 无 node 无 existing-session profile 时走 camoufox（description 同步 `Default: camoufox`）；`resolveExistingUploadPaths` 前置到 camoufox 早返回前，闭合 explicit target=camoufox+upload 绕过路径校验的 pre-existing 安全缺口。
+- **patch 处置**：002 留 / 003 删 / 005 删 / 006 删（`noDefaults` 是 patchright 1.60+ 专属，patchright 去掉后原版 playwright-core `connectOverCDP` 不支持）/ 007 留并改名 `007-prefer-camoufox-cli.patch`（system-prompt 引导与架构 patch 解耦，便于单独 revert/调序）。
+- **`overrides.sh`**：删 patchright-core 注入（pnpm override + doc sed 都删），保留 web_search disable。
+- **`docs/tools/browser.md`** 改成双线模型（`target` 枚举段：`camoufox|host|node`，sandbox/local-managed 标已删，camoufox 为默认日常主力）。
+
+**§2.3 setup-crew.sh 改造**（commit `ce28c38`）：
+
+- `scripts/lib/crew-workspaces.sh` 加 `sync_crew_skills` 函数（按 skill 粒度 `rm -rf + cp -R` 覆盖，不删部署实例独有 skill，带 package.json 的 skill 跑 `npm install --production`）。
+- `setup-crew.sh` §1 部署循环 fresh + exists 两个分支都调它，exists 分支不再只做 guide 注入。沙箱验证：自定义 skill 保留、同名 skill 被覆盖、npm 依赖装好。crew 专属 skill 更新现可传播到已部署 workspace。
+
+**§7 twitter-interact 恢复脚本模式**（commit `0c2e962`）：
+
+- AiToEarn clone 正好在 catchup commit `74e884f0`（v2.4.0），无 HEAD 差异要追。上游走 Twitter API v2 + OAuth，按「只吸收知识不搬架构」+ spec 要求 camoufox-cli，吸收操作语义（子命令结构 + 频率纪律），执行仍走 camoufox-cli。
+- `twitter_interact.py` 改造：单一持久化 session `twitter`（原则 1，去掉 per-task nonce）+ fail-first 队列检测（`SessionBusyError` → exit 3，busy 时不 close 避免 tear down 正在跑的操作）+ 登录错误消息改成有头（原则 3）。
+- 测试：`TestSessionNaming` 改断言常量 `twitter`，加 `TestFailFirstQueue` 验证 busy → exit 3 + 不 close。28/28 通过。
+
+**§8 profile 丢失处理**：
+
+- 新增 `docs/profile-loss-handling.md` canonical 程序：profile 丢失 / 损坏 / 指纹错配 → 重建 + 重登录，**绝对不允许导入 cookie 造会话**（补充 D，强化原则 5）。
+- 理由：xhs `a1`/`websectiga` 等设备指纹 cookie 导入到不同指纹会错配 → 被风控检测。2026-06-29 教训：凌晨心跳里 xhs-browse 无登录态，Agent 用 CDP `Network.setCookies` 注入 22 个 cookie 强造会话后批量抓取，当日触发小红书风控、账号被处罚。
+- camoufox-cli `cookies import` 合法用途仅限同指纹 profile 的 cookie 备份/恢复 + 跨设备迁移同一指纹（profile 整体搬，不是只搬 cookie）。
+- HEARTBEAT.md 约束 4 已落地「凌晨心跳跳过 + 等白天」策略，本文档补白天恢复流程。
+
+**§9 README.md / CHANGELOG.md 更新**：本条目 + README `**v5.6.0 更新**` 浏览器架构重新设计段 + `## 🔧 比原版更强、更适合国内网络环境的浏览器方案` patch 表更新 + `## 🤝 xiaobei 基于如下优秀的开源项目` 去掉 Patchright 加 camoufox（🦊 https://github.com/daijro/camoufox）。
+
+**§3-§6 并行中**（另一 agent）：browser-guide/smart-search/web-form-fill 三技能适配 + login-manager 纯指导化 + 9+ 平台 skill 改造 + wx-mp-hunter 收编。
+
+**核心原则**（用户拍板的 8 点 + 补充，详见 spec §0）：每平台一个且只一个持久化 session（原则 1）/ 需验证码必须 camoufox-cli 有头（原则 2）/ douyin·twitter·xhs·weibo·zhihu·xianyu·reddit·youtube 有头登录 + wechat-channel·wx-mp 无头截图 QR（原则 3）/ cookie+UA 双导出（原则 4）/ 严禁浏览器方案导入 cookie（原则 5）/ profile 丢失重建+重登录绝不导入（补充 D）/ 涉及登录持久化 + 不登录临时性 session（补充 A）。
+
 ### 产品拆分（client 仓）
 
 - **client 仓独立成仓**：从 Pro 仓 `product-split/client` 分支切出独立仓 `wiseflow`（远程 `git@github.com:bigbrother666sh/wiseflow.git`），发布仓 `TeamWiseFlow/xiaobei.git`。

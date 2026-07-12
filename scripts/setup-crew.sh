@@ -280,6 +280,9 @@ for agent_dir in "$CREWS_DIR"/*/; do
 
   if [ -d "$dest" ] && [ "$FORCE" != "true" ]; then
     echo "  ⚠️  workspace-$agent_id already exists, keeping user files (use --force to overwrite)"
+    # §2.3：已部署 workspace 仍同步 crew 专属 skill（覆盖），但不碰 AGENTS.md/TOOLS.md/Memory
+    # 及部署实例自定义 skill（sync_crew_skills 只覆盖仓库里同名的 skill）
+    sync_crew_skills "$agent_dir" "$dest"
     # 仅做幂等注入（有标记则跳过，不覆盖用户编辑的内容）
     inject_file_edit_guide "$dest/TOOLS.md"
     inject_exec_guide "$dest/TOOLS.md" "$dest"
@@ -289,15 +292,9 @@ for agent_dir in "$CREWS_DIR"/*/; do
   fi
 
   copy_crew_template_contents "$agent_dir" "$dest"
-  # 安装有 package.json 的 skill 的 npm 依赖
-  for skill_pkg in "$dest/skills"/*/package.json; do
-    [ -f "$skill_pkg" ] || continue
-    skill_dir="$(dirname "$skill_pkg")"
-    skill_name="$(basename "$skill_dir")"
-    echo "  📦 installing deps for skill: $skill_name"
-    (cd "$skill_dir" && npm install --production --silent 2>/dev/null) || \
-      echo "  ⚠️  npm install failed for skill: $skill_name" >&2
-  done
+  # §2.3：统一走 sync_crew_skills 装 skill + npm 依赖（fresh 分支 copy_crew_template_contents
+  # 已把 skills/ 拷过去，这里再刷一遍保证与仓库一致并装依赖）
+  sync_crew_skills "$agent_dir" "$dest"
   echo "  ✅ workspace-$agent_id installed"
   inject_file_edit_guide "$dest/TOOLS.md"
   inject_exec_guide "$dest/TOOLS.md" "$dest"

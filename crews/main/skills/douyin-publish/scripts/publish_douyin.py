@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""douyin-publish — 抖音内容发布（Phase 3.2 浏览器模拟方案）
+"""douyin-publish — 抖音内容发布（浏览器模拟方案，forked camoufox-cli）
 
-替代原 open platform H5 Schema 路径。改走浏览器模拟（camoufox-cli 主推）：
+改走浏览器模拟（forked camoufox-cli 持久化 session `douyin` + upload 命令）：
 - 不再依赖开放平台 H5 Schema / scope / 签名 / 中转页
 - 登录 https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web
 - 在创作者中心页面填表 + 上传视频 + 发布
-- 走 login-manager 中央 cookie（D18）
+- 走 login-manager 中央 cookie + UA（spec §4 原则 4，同时导入）
 
 子命令：
-  login                   login-manager 中央 cookie 探活
-  upload --video <path>   上传视频
+  login                   探活（开持久化 session `douyin` open 创作者中心首页 snapshot 看是否跳登录）
+  upload --video <path>   上传视频（forked cli upload 命令，底层 setInputFiles 穿透 shadow DOM）
   fill --title X --caption Y  填标题/描述/话题
   publish                 点"发布"按钮
   get-link                取已发布视频的公开链接
@@ -17,9 +17,8 @@
   cleanup <session>       关闭 camoufox session
 
 依赖：
-- camoufox-cli（npm 全局）
-- login-manager skill（同 crew 私有，cookie 中央存储）
-- login-manager 平台 key: `douyin`
+- camoufox-cli（forked，vendored 在 patches/camoufox-cli/，build 后全局可用）
+- login-manager skill（cookie + UA 中央存储，平台 key: `douyin`，有头手动登录）
 
 参考：
 - 形态仿 crews/main/skills/wechat-channels-publish（视频号浏览器模拟）
@@ -40,12 +39,14 @@ from typing import Optional
 # ── 常量 ─────────────────────────────────────────────────────────────────────
 
 UPLOAD_URL = "https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web"
-LOGIN_MANAGER_BIN = os.environ.get(
-    "LOGIN_MANAGER_BIN",
-    "~/.openclaw/workspace-main/skills/login-manager/scripts/login-manager.sh",
-)
+CREATOR_HOME = "https://creator.douyin.com/"
 CAMOUFOX_BIN = os.environ.get("CAMOUFOX_CLI", "camoufox-cli")
 LOGIN_MANAGER_PLATFORM = "douyin"
+# 持久化 session 名 = 平台 key（spec §4 原则 1，一个且只有一个持久化 session）
+PERSISTENT_SESSION = LOGIN_MANAGER_PLATFORM
+LOGINS_DIR = Path.home() / ".openclaw" / "logins"
+COOKIE_FILE = LOGINS_DIR / "douyin.json"
+UA_FILE = LOGINS_DIR / "douyin.ua.json"
 
 UPLOAD_TIMEOUT_S = 600        # 大视频上传可能慢
 TRANSCODE_POLL_S = 3
@@ -58,12 +59,23 @@ QR_SCAN_TIMEOUT_S = 180       # 扫码登录 3 分钟
 # ── 平台工具 ────────────────────────────────────────────────────────────────
 
 def login_manager_check() -> bool:
-    """探活 login-manager 中央 cookie。"""
-    result = subprocess.run(
-        [LOGIN_MANAGER_BIN, "check", LOGIN_MANAGER_PLATFORM],
-        capture_output=True, text=True, timeout=10, check=False,
-    )
-    return result.returncode == 0
+    """探活：开持久化 session `douyin` 打开创作者中心首页，snapshot 看是否跳登录页。
+
+    forked cli 路径下不再依赖 login-manager.sh（脚本已退役）。本函数直接用 camoufox-cli
+    open + snapshot 验活——cookie 失效页面会跳登录，snapshot 一眼能看。
+    """
+    # 临时探活用 headless；失效后走 cmd_login 的有头流程
+    cmd = [CAMOUFOX_BIN, "--session", PERSISTENT_SESSION, "--persistent", "--headless", "--json", "open", CREATOR_HOME]
+    subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
+    time.sleep(3)
+    # snapshot 看当前 URL 是否含 login
+    js = "(function(){ return window.location.href; })()"
+    out = camoufox_eval(PERSISTENT_SESSION, js)
+    # 探活完关 session（fail-first 队列约束，不持锁）
+    subprocess.run([CAMOUFOX_BIN, "--session", PERSISTENT_SESSION, "--json", "close"], capture_output=True, text=True, timeout=10, check=False)
+    if out and "login" not in out:
+        return True
+    return False
 
 
 def session_name(purpose: str = "publish") -> str:
@@ -123,27 +135,17 @@ def camoufox_type(session: str, selector: str, text: str) -> bool:
     return out == "true"
 
 
-def camoufox_set_file(session: str, selector: str, file_path: Path) -> bool:
-    """通过 DataTransfer 注入 file 到 input[type=file]（绕过 CDP setFileInput 限制）。"""
-    import base64
-    b64 = base64.b64encode(file_path.read_bytes()).decode("ascii")
-    js = f"""
-    (function() {{
-        var el = document.querySelector({json.dumps(selector)});
-        if (!el) return false;
-        var bin = atob({json.dumps(b64)});
-        var arr = new Uint8Array(bin.length);
-        for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-        var file = new File([arr], {json.dumps(file_path.name)}, {{ type: 'video/mp4' }});
-        var dt = new DataTransfer();
-        dt.items.add(file);
-        el.files = dt.files;
-        el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-        return true;
-    }})()
+def camoufox_upload(session: str, selector: str, file_path: Path) -> bool:
+    """用 forked cli 的 upload 命令注入文件到 input[type=file]。
+
+    fork 加的 upload 命令底层走 Playwright locator.setInputFiles，穿透 shadow DOM，
+    无需 DataTransfer base64 hack（绕过 CDP setFileInput 在某些 DOM 下的限制）。
     """
-    out = camoufox_eval(session, js, timeout=120)
-    return out == "true"
+    result = subprocess.run(
+        [CAMOUFOX_BIN, "--session", session, "--persistent", "--json", "upload", selector, str(file_path)],
+        capture_output=True, text=True, timeout=UPLOAD_TIMEOUT_S, check=False,
+    )
+    return result.returncode == 0
 
 
 def camoufox_wait_for_text(session: str, text: str, timeout: int = TRANSCODE_MAX_WAIT_S) -> bool:
@@ -159,9 +161,9 @@ def camoufox_wait_for_text(session: str, text: str, timeout: int = TRANSCODE_MAX
 
 
 def camoufox_close(session: str) -> None:
-    """关闭 camoufox session。"""
+    """关闭 camoufox session（forked cli 路径，直接调 camoufox-cli close，不再走 login-manager.sh）。"""
     subprocess.run(
-        [LOGIN_MANAGER_BIN, "session-cleanup", LOGIN_MANAGER_PLATFORM, session],
+        [CAMOUFOX_BIN, "--session", session, "--json", "close"],
         capture_output=True, text=True, timeout=10, check=False,
     )
 
@@ -169,22 +171,24 @@ def camoufox_close(session: str) -> None:
 # ── 子命令实现 ──────────────────────────────────────────────────────────────
 
 def cmd_login() -> None:
-    """login-manager 中央 cookie 探活。"""
+    """探活：cookie 失效时告知 agent 走 login-manager 有头手动登录流。"""
     if login_manager_check():
         sys.stdout.write(json.dumps({"ok": True, "platform": LOGIN_MANAGER_PLATFORM}, ensure_ascii=False))
         sys.stdout.write("\n")
         sys.exit(0)
     sys.stderr.write(
         f"error: {LOGIN_MANAGER_PLATFORM} cookie 失效；"
-        f"请先走 login-manager qr-headless + qr-confirm 流程\n"
+        f"请先走 login-manager 有头手动登录流（camoufox-cli --session {PERSISTENT_SESSION} --persistent --headed open "
+        f"{CREATOR_HOME} → 用户在浏览器手动登录 → cookies export + identity export 落中央存储）\n"
     )
     sys.exit(2)
 
 
 def cmd_upload(*, video: str, session: Optional[str] = None) -> None:
-    """上传视频到创作者中心。"""
+    """上传视频到创作者中心。session 默认走持久化 `douyin`（登录态在持久化 session 里，spec §5）。
+    同 session 已有命令在跑时，新命令 fail-first（见 patches/camoufox-cli/README.md）——agent 等当前操作完成再重试。"""
     if not session:
-        session = session_name("upload")
+        session = PERSISTENT_SESSION
     video_path = Path(video).resolve()
     if not video_path.is_file():
         sys.stderr.write(f"error: video not found: {video_path}\n")
@@ -194,8 +198,8 @@ def cmd_upload(*, video: str, session: Optional[str] = None) -> None:
     # 抖音创作者中心上传选择器（待真机 spike 验证；以下为公开推测）
     # 视频文件 input 通常在创作中心上传组件内：
     file_input_selector = 'input[type="file"][accept*="video"]'
-    if not camoufox_set_file(session, file_input_selector, video_path):
-        sys.stderr.write("error: 上传 input 未找到或注入失败（DOM 改版？）\n")
+    if not camoufox_upload(session, file_input_selector, video_path):
+        sys.stderr.write("error: 上传 input 未找到或 upload 注入失败（DOM 改版？）\n")
         sys.exit(1)
 
     sys.stderr.write("[douyin-publish] 视频已注入，等待上传/转码...\n")
@@ -271,18 +275,20 @@ def cmd_run(*, video: str, title: str, caption: str = "") -> None:
     if not login_manager_check():
         sys.stderr.write(
             f"error: {LOGIN_MANAGER_PLATFORM} cookie 失效；"
-            f"请先走 login-manager qr-headless + qr-confirm 流程\n"
+            f"请先走 login-manager 有头手动登录流（camoufox-cli --session {PERSISTENT_SESSION} --persistent --headed open "
+            f"{CREATOR_HOME} → 用户在浏览器手动登录 → cookies export + identity export 落中央存储）\n"
         )
         sys.exit(2)
 
-    session = session_name("run")
+    session = PERSISTENT_SESSION
     try:
         cmd_upload(video=video, session=session)
         cmd_fill(session=session, title=title, caption=caption)
         cmd_publish(session=session)
         cmd_get_link(session=session)
     finally:
-        camoufox_close(session)
+        # run 命令跑完后不 close 持久化 session（登录态要留着给下次用）
+        pass
 
 
 def cmd_cleanup(*, session: str) -> None:
@@ -296,11 +302,11 @@ def cmd_cleanup(*, session: str) -> None:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="publish_douyin",
-        description="抖音内容发布（Phase 3.2 浏览器模拟方案，camoufox-cli 主推）",
+        description="抖音内容发布（浏览器模拟方案，forked camoufox-cli 持久化 session douyin + upload）",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    p_login = sub.add_parser("login", help="login-manager 中央 cookie 探活")
+    p_login = sub.add_parser("login", help="探活（cookie 失效时提示走 login-manager 有头登录流）")
     p_login.set_defaults(func=lambda a: cmd_login())
 
     p_upload = sub.add_parser("upload", help="上传视频")

@@ -25,15 +25,15 @@ Use this skill when:
 
 ## 浏览器方案（重要）
 
-**优先 camoufox-cli**：headless persistent session（登录态存 session profile）+ DataTransfer/File 注入上传。camoufox-cli 无头即可完成 x.com 登录与发布，反侦测能力强、资源占用低。操作要点：`snapshot` 拿 ref → `fill`/`click` 按 ref 操作，别自己 hack selector。
+**优先 camoufox-cli**：headless persistent session（登录态存 session profile）+ forked cli `upload` 命令上传（底层 Playwright `setInputFiles`，穿透 shadow DOM）。camoufox-cli 无头即可完成 x.com 登录与发布，反侦测能力强、资源占用低。操作要点：`snapshot` 拿 ref → `type`/`click` 按 ref 操作，别自己 hack selector。
 
-**fallback**：仅当 camoufox-cli 在 X 上持续触发风控时，切换到 openclaw 内置 `browser` tool（见 `browser-guide` §1-B）。下面的 workflow 步骤（Navigate / Click / snapshot eval / upload）是通用浏览器自动化语义，**默认用 camoufox-cli 执行**，不要因为措辞里有"snapshot/eval"就改用内置 browser tool。
+> patchright 整体去掉（spec 补充 C）。下面 workflow 步骤（Navigate / Click / snapshot eval / upload）默认用 camoufox-cli 执行。若 camoufox-cli 在 X 上持续触发风控，等 60s 后开新 session 重试；仍触发则报告用户该平台当日风控未解，择日再试。
 
 ---
 
 ## 通用约束
 
-- 文件上传用 camoufox-cli 的 DataTransfer/File 注入（参考 `douyin-publish`）；若走 fallback 内置 browser tool，需先把文件复制到 `/tmp/openclaw/uploads/`（沙箱限制）
+- 文件上传用 forked camoufox-cli 的 `upload` 命令（`camoufox-cli --session <s> --persistent --json upload <ref> <file>`，底层 Playwright `setInputFiles`，无需 DataTransfer hack）
 - 上传可能返回「超时错误」，但这**不代表上传失败**！上传后检查页面状态（缩略图是否出现）
 - **不要通过检查 `input.files.length` 是否为 0 判定上传是否失败！** `input.files.length == 0` 不代表上传失败。
 - 遇到 `timed out. Restart the OpenClaw gateway ...` 错误时，**不需要重启、不需要报错**！等待 30 秒后在原页面继续操作即可。若仍无法操作，再等 30 秒；若还不行，尝试关闭浏览器后重开；只有关闭重开后仍报错才是真的出错，需停止并反馈用户。
@@ -111,13 +111,7 @@ Use this skill when:
 10. Update frequency tracker
 ```
 
-**Patchright 1.60+**：也可用 `locator.drop()` 直接拖拽图片到 compose 区域：
-```javascript
-const imgBuf = fs.readFileSync(imagePath);
-await page.locator('[data-testid="tweetTextarea_0"]').drop({
-  files: { name: 'image.png', mimeType: 'image/png', buffer: imgBuf }
-});
-```
+> forked cli 的 `upload` 命令底层走 Playwright `setInputFiles`，穿透 shadow DOM，无需 `locator.drop()` hack。
 
 ---
 

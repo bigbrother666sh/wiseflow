@@ -18,10 +18,18 @@ metadata:
 
 ## 前置条件
 
-1. login-manager 已有 `douyin` cookie（中央存储 `~/.openclaw/logins/douyin.json`）
-2. 首次使用需走 login-manager 扫码登录流程（`qr-headless` + `qr-confirm`）
+1. login-manager 已有 `douyin` cookie + UA（中央存储 `~/.openclaw/logins/douyin.json` + `~/.openclaw/logins/douyin.ua.json`）
+2. 首次使用 / cookie 失效需走 login-manager **有头手动**登录流（原则 3：douyin 有头登录）：
+   - `camoufox-cli --session douyin --persistent --headed --json open "https://creator.douyin.com/"`
+   - 告知用户「**抖音** 浏览器已打开，请在窗口里手动完成创作者中心登录（手机号+验证码 / 抖音 APP 扫码），完成后告诉我」
+   - 登录就位后**同时导出 cookie + UA**：
+     - `camoufox-cli --session douyin --persistent --json cookies export ~/.openclaw/logins/douyin.json`
+     - `camoufox-cli --session douyin --persistent --json identity export ~/.openclaw/logins/douyin.ua.json`
+   - 关 session：`camoufox-cli --session douyin --json close`
 3. 视频文件准备好（mp4）
 4. 抖音创作者中心已实名认证（必须，本人手机号 + 身份证）
+
+> **同时导入 cookie 和 UA**（原则 4，spec §4.2）：抖音设备指纹 cookie 必须配同一指纹的 UA，否则被风控错配。本 skill 脚本走持久化 session `douyin`（登录态 + 指纹冻结在 session profile 里），中央存储的 cookie/UA 仅用于探活与备份。
 
 ---
 
@@ -73,10 +81,12 @@ python3 ./skills/douyin-publish/scripts/publish_douyin.py cleanup --session <s>
 走 `login-manager` skill（同 crew 私有）：
 
 ```bash
-# 失效后扫码重登
-login-manager.sh qr-headless douyin
-# → 发 QR PNG 给用户
-login-manager.sh qr-confirm douyin --session <s> --timeout 180
+# 失效后有头重登（douyin 必须有头，原则 3）
+camoufox-cli --session douyin --persistent --headed --json open "https://creator.douyin.com/"
+# → 告知用户在浏览器手动登录 → 登录就位后同时导出 cookie + UA：
+camoufox-cli --session douyin --persistent --json cookies export ~/.openclaw/logins/douyin.json
+camoufox-cli --session douyin --persistent --json identity export ~/.openclaw/logins/douyin.ua.json
+camoufox-cli --session douyin --json close
 ```
 
 `login-manager` 平台 key：`douyin`。
@@ -100,8 +110,8 @@ login-manager.sh qr-confirm douyin --session <s> --timeout 180
 
 - 6 个子命令：login / upload / fill / publish / get-link / cleanup
 - run 命令一键跑全流程
-- camoufox 启 headless + persistent 会话（每任务一 session）
-- 上传走 `DataTransfer` + `File` 对象注入（绕过 CDP setFileInput 在某些 DOM 下的限制）
+- 走 forked cli 持久化 session `douyin`（登录态 + 指纹冻结在 session profile 里）
+- 上传走 forked cli `upload` 命令（底层 Playwright `setInputFiles`，穿透 shadow DOM）
 - 等待页面状态变化（轮询 `body.innerText`）
 - 失败模式：DOM 改版 / 按钮找不到 / 转码超时
 
@@ -113,7 +123,7 @@ login-manager.sh qr-confirm douyin --session <s> --timeout 180
 
 - **触发**：访问 `creator.douyin.com` 未登录态
 - **症状**：页面跳到 `creator.douyin.com/login` 或出现登录弹窗
-- **workaround**：走 login-manager `qr-headless + qr-confirm` 重新登录抖音
+- **workaround**：走 login-manager 有头手动登录流重新登录抖音
 
 ### pitfall: real_name_auth_required
 
@@ -143,7 +153,7 @@ login-manager.sh qr-confirm douyin --session <s> --timeout 180
 
 - **触发**：任务结束未 cleanup
 - **症状**：下次启动 session 冲突
-- **workaround**：每个发布任务**必须** cleanup（`session-cleanup` 或 `cmd cleanup`）
+- **workaround**：发布任务跑完**不主动 close** 持久化 session `douyin`（登录态留着下次用）；只在 session 卡死时 `camoufox-cli --session douyin --json close` teardown
 
 ---
 

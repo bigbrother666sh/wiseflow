@@ -39,11 +39,15 @@ const execFileAsync = promisify(execFile)
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
+interface CookieRecord { name: string; value: string; domain?: string }
+
 interface SessionData {
   platform: string
-  cookies: string
-  user_agent: string
-  updated_at: string
+  /** camoufox-cli 原生格式：cookies 是对象数组；向后兼容旧字符串格式 */
+  cookies?: CookieRecord[] | string
+  /** 旧字段保留兼容；新格式下 UA 走独立 .ua.json 文件 */
+  user_agent?: string
+  updated_at?: string
 }
 
 interface RetroResult {
@@ -59,6 +63,7 @@ interface RetroResult {
 // ─── Session ──────────────────────────────────────────────────────────────
 
 const SESSIONS_DIR = join(homedir(), ".openclaw", "logins")
+const DEFAULT_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
 function readSession(platform: string): SessionData | null {
   const path = join(SESSIONS_DIR, `${platform}.json`)
@@ -70,22 +75,42 @@ function readSession(platform: string): SessionData | null {
   }
 }
 
+function readUserAgent(platform: string): string {
+  const path = join(SESSIONS_DIR, `${platform}.ua.json`)
+  if (!existsSync(path)) return DEFAULT_UA
+  try {
+    const data = JSON.parse(readFileSync(path, "utf-8")) as { userAgent?: string }
+    return data.userAgent || DEFAULT_UA
+  } catch {
+    return DEFAULT_UA
+  }
+}
+
 function requireSession(platform: string): SessionData {
   const data = readSession(platform)
-  if (!data || !data.cookies) {
+  const empty = !data || !data.cookies || (Array.isArray(data.cookies) && data.cookies.length === 0)
+  if (empty) {
     process.stderr.write(JSON.stringify({ ok: false, error: "SESSION_EXPIRED", platform }) + "\n")
     process.exit(2)
   }
   return data
 }
 
-function parseCookies(cookieStr: string): Record<string, string> {
+function parseCookies(raw: CookieRecord[] | string | undefined): Record<string, string> {
   const dict: Record<string, string> = {}
-  for (const item of cookieStr.split(";")) {
-    const trimmed = item.trim()
-    if (!trimmed || !trimmed.includes("=")) continue
-    const [k, ...rest] = trimmed.split("=")
-    dict[k.trim()] = rest.join("=").trim()
+  if (Array.isArray(raw)) {
+    for (const c of raw) {
+      if (c && typeof c.name === "string" && typeof c.value === "string") {
+        dict[c.name] = c.value
+      }
+    }
+  } else if (typeof raw === "string" && raw) {
+    for (const item of raw.split(";")) {
+      const trimmed = item.trim()
+      if (!trimmed || !trimmed.includes("=")) continue
+      const [k, ...rest] = trimmed.split("=")
+      dict[k.trim()] = rest.join("=").trim()
+    }
   }
   return dict
 }
@@ -94,12 +119,17 @@ function cookieHeader(dict: Record<string, string>): string {
   return Object.entries(dict).map(([k, v]) => `${k}=${v}`).join("; ")
 }
 
+/** 从 session + 独立 UA 文件拿 UA（spec §4 原则 4，同时导入 cookie + UA） */
+function sessionUA(platform: string, session: SessionData): string {
+  return readUserAgent(platform) || session.user_agent || DEFAULT_UA
+}
+
 // ─── 抖音 ──────────────────────────────────────────────────────────────────
 
 async function fetchDouyin(awemeId: string): Promise<RetroResult> {
   const session = requireSession("douyin")
   const cookieDict = parseCookies(session.cookies)
-  const ua = session.user_agent || "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+  const ua = sessionUA("douyin", session)
 
   // a_bogus 签名走 relay（D1 签名收敛到 server，vendor/douyin.js 已移至 relay）
   const { douyinSign } = await import("../../_shared/relay-sign.ts")
@@ -355,7 +385,7 @@ const KUAISHOU_GQL = "https://www.kuaishou.com/graphql"
 async function fetchKuaishou(photoId: string): Promise<RetroResult> {
   const session = requireSession("kuaishou")
   const cookieDict = parseCookies(session.cookies)
-  const ua = session.user_agent || "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+  const ua = sessionUA("bilibili", session)
 
   const result: RetroResult = {
     ok: true,
@@ -449,6 +479,7 @@ async function fetchKuaishou(photoId: string): Promise<RetroResult> {
 async function fetchXhs(noteId: string, xsecToken: string = "", xsecSource: string = ""): Promise<RetroResult> {
   const session = requireSession("xhs-browse")
   const cookieDict = parseCookies(session.cookies)
+  const ua = sessionUA("xhs-browse", session)
 
   if (!cookieDict.a1 || !cookieDict.web_session) {
     process.stderr.write("[fetch-retro-data] 小红书 cookie 缺少 a1 或 web_session\n")

@@ -22,7 +22,7 @@ metadata:
 
 | 能力 | 本技能 | 其他技能 |
 |------|--------|---------|
-| 搜索/浏览小红书 | ✅ browser | — |
+| 搜索/浏览小红书 | ✅ camoufox-cli session | — |
 | 图文笔记下载与分析 | ✅ 脚本 | — |
 | 视频笔记下载与分析 | ❌ | → viral-chaser |
 | 发布笔记 | ❌ | → xhs-publish |
@@ -100,10 +100,16 @@ metadata:
 
 ### 前置条件
 
-1. 执行 `login-manager check xhs-browse` 确认登录态有效（exit 0）
-2. 若 exit 2，按 login-manager skill 的 **camoufox-cli 登录流程** 完成扫码（详见 browser-guide §0.1）：
-   - `login-manager.sh qr-headless xhs-browse` → 取 QR PNG 发用户
-   - 用户回复"已扫码" → `login-manager.sh qr-confirm xhs-browse --session <s> --timeout 180`
+1. 执行 `login-manager check xhs-browse` 确认登录态有效（exit 0）。探活方式见 login-manager SKILL.md 步骤 0——开持久化 session `xhs-browse` + `open` 平台首页 + `snapshot` 看是否跳登录页。
+2. 若 exit 2，按 login-manager skill 的流程完成**有头手动**登录（原则 3：xhs-browse 有头登录）：
+   - 启有头 session：`camoufox-cli --session xhs-browse --persistent --headed --json open "https://www.xiaohongshu.com/"`
+   - 告知用户「**小红书** 浏览器已打开，请在窗口里手动扫码登录，完成后告诉我」
+   - 登录就位后**同时导出 cookie + UA**：
+     - `camoufox-cli --session xhs-browse --persistent --json cookies export ~/.openclaw/logins/xhs-browse.json`
+     - `camoufox-cli --session xhs-browse --persistent --json identity export ~/.openclaw/logins/xhs-browse.ua.json`
+   - 关 session：`camoufox-cli --session xhs-browse --json close`
+
+> **同时导入 cookie 和 UA**（原则 4，spec §4.2）：xhs 的 `a1`/`websectiga` 等设备指纹 cookie 必须配同一指纹的 UA，否则被风控错配（2026-06-29 CDP 注入教训）。本 skill 的 `fetch_note_content.ts` 已同时读 `xhs-browse.json` + `xhs-browse.ua.json`。
 
 ### 运行
 
@@ -210,7 +216,7 @@ metadata:
 
 | 情况 | 处理 |
 |------|------|
-| 搜索页面出现登录墙 | 遵循 browser-guide QR 登录流程，扫码后重试 |
+| 搜索页面出现登录墙 | 走 login-manager 有头手动登录流程，重试一次 |
 | 笔记无法访问 | 该笔记可能已删除或设为私密，跳过 |
 | Cookie 过期 (exit 2) | login-manager 重新登录后重试一次 |
 | 视频笔记 | 提示用户使用 viral-chaser 技能 |

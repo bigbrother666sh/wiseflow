@@ -11,32 +11,37 @@ metadata:
 
 # 小红书社交互动
 
-通过 **camoufox-cli** headless session 代替用户在小红书（xhs）上完成社交互动。fallback 路径用 openclaw 内置 `browser` tool（仅在 camoufox-cli 在该平台持续触发风控时切换）。
+通过 **camoufox-cli** 持久化 session（`xhs`，一个且只有一个持久化 session，fail-first 队列见 `patches/camoufox-cli/README.md`）代替用户在小红书（xhs）上完成社交互动。
 
-**前提条件**：先通过 login-manager skill 拿到有效 cookie（详见 browser-guide §0.1）：
-1. `login-manager.sh check xhs-browse` → exit 0 有效
-2. exit 2 → `login-manager.sh qr-headless xhs-browse` → 发 QR → 用户扫码 → `login-manager.sh qr-confirm xhs-browse --session <s> --timeout 180`
+**前提条件**：先通过 login-manager skill 拿到有效 cookie + UA（详见 login-manager SKILL.md）：
+1. 开持久化 session `xhs-browse` 探活：`camoufox-cli --session xhs-browse --persistent --headless --json open "https://www.xiaohongshu.com/"` + `snapshot` 看是否跳登录页
+2. 跳登录页 = 失效 → 启**有头** session：`camoufox-cli --session xhs-browse --persistent --headed --json open "https://www.xiaohongshu.com/"`，告知用户在窗口里手动扫码登录，完成后**同时导出 cookie + UA**：
+   - `camoufox-cli --session xhs-browse --persistent --json cookies export ~/.openclaw/logins/xhs-browse.json`
+   - `camoufox-cli --session xhs-browse --persistent --json identity export ~/.openclaw/logins/xhs-browse.ua.json`
+3. 关 session：`camoufox-cli --session xhs-browse --json close`
+
+> **同时导入 cookie 和 UA**（原则 4，spec §4.2）：xhs 的 `a1`/`websectiga` 等设备指纹 cookie 必须配同一指纹的 UA，否则被风控错配。
 
 ---
 
-## 启动一个 camoufox session
+## 启动一个互动用 camoufox session
 
-每个互动任务 / 每个 agent 用独立 camoufox session：
+每个互动任务用独立临时 session（不要复用 `xhs-browse` 持久化 session 名，fail-first 会冲突）：
 
 ```bash
-SESSION="xhs-browse-interact-$(date +%s)-$$"
-login-manager.sh cookie-import xhs-browse "$SESSION"
-camoufox-cli --session "$SESSION" --persistent --headless --json \
-    open "https://www.xiaohongshu.com/"
+SESSION="xhs-interact-$(date +%s)-$$"
+# 启 session 并导入中央 cookie（camoufox-cli cookies import 格式与 cookies export 对称，零转换）
+camoufox-cli --session "$SESSION" --persistent --headless --json open "https://www.xiaohongshu.com/"
+camoufox-cli --session "$SESSION" --persistent --json cookies import ~/.openclaw/logins/xhs-browse.json
 ```
 
 任务结束**必须 cleanup**：
 
 ```bash
-login-manager.sh session-cleanup xhs-browse "$SESSION"
+camoufox-cli --session "$SESSION" --json close
 ```
 
-> ⚠️ **不要**重复使用同一 session 名；不同 agent 共享 session 会污染 cookie state + 触发风控。
+> ⚠️ **不要**重复使用同一 session 名；不同 agent / 不同任务共享 session 会污染 cookie state + 触发风控。
 
 ---
 
@@ -134,7 +139,7 @@ https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_sourc
 6. 若状态未变化，重试一次；仍失败则报告
 ```
 
-> **fallback**：若 camoufox click/eval 触发风控，切换到 browser-guide §1-B（内置 browser tool + patchright）。
+> 若 `click` / `eval` 触发风控：先 teardown 当前 session（`camoufox-cli --session "$SESSION" --json close`），等 60s 后开新 session 重试；仍触发则报告用户该平台当日风控未解，转其他笔记或择日再试。
 
 ### 关注 / 取关
 
@@ -201,7 +206,7 @@ https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_sourc
 
 - **触发**：互动过程中小红书 session 过期
 - **症状**：页面突然 redirect 到 login / 互动操作 401
-- **workaround**：立即 `session-cleanup` 当前 session → 重走 `qr-headless` + `qr-confirm` → 开新 session 重试；不要盲 retry 当前 session
+- **workaround**：立即 `close` 当前 session（`camoufox-cli --session "$SESSION" --json close`）→ 重走 login-manager 有头登录流（导出 cookie+UA）→ 开新 session 重试；不要盲 retry 当前 session
 
 ---
 
@@ -209,10 +214,10 @@ https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_sourc
 
 | 情况 | 处理 |
 |------|------|
-| cookie 失效（`login-manager check xhs-browse` exit 2） | 重走 §0.1 登录流：`qr-headless` → 用户扫码 → `qr-confirm` → 重启 session |
-| 页面出现登录墙 | 同样重走 §0.1 |
+| cookie 失效（`login-manager check xhs-browse` exit 2） | 重走 login-manager 有头登录流（导出 cookie+UA）→ 重启 session |
+| 页面出现登录墙 | 同上重走 login-manager 登录流 |
 | 点赞状态未变化 | 重试一次，仍未变化则报告错误 |
-| camoufox click/eval 失败 / 超时 | 改用 `eval` 走 JS 方式（最稳）；再失败切换 browser-guide §1-B fallback |
+| camoufox click/eval 失败 / 超时 | 改用 `eval` 走 JS 方式（最稳）；再失败 → teardown session 等 60s 开新 session 重试 |
 | xsec_token 缺失/无效 | 从搜索结果链接中重新获取 signed URL，不要手拼 |
 | 安全限制/访问异常 | 停止操作 60 秒后重试，或换笔记操作 |
 | camoufox daemon 残留 | `camoufox-cli close --all` 兜底清掉；下个任务开新 session |

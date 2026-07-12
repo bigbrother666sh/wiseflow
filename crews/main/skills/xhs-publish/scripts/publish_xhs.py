@@ -49,6 +49,13 @@ def err_exit(msg: str, code: int = 1) -> None:
 
 
 def load_cookies(cookie_file: Path | None = None) -> tuple[dict, str]:
+    """Load cookies + UA from central store.
+
+    中央存储格式（forked camoufox-cli 原生输出，= Playwright add_cookies 期望格式）：
+      ~/.openclaw/logins/xhs-publish.json     → { platform, cookies: [{name, value, domain, ...}], updated_at }
+      ~/.openclaw/logins/xhs-publish.ua.json  → { userAgent, platform, language, ... }
+    同时导入 cookie 和 UA（spec §4 原则 4）。
+    """
     p = cookie_file or (LOGINS_DIR / "xhs-publish.json")
     if not p.exists():
         err_exit("AUTH_EXPIRED", 2)
@@ -58,16 +65,36 @@ def load_cookies(cookie_file: Path | None = None) -> tuple[dict, str]:
         err_exit("AUTH_EXPIRED", 2)
 
     raw = data.get("cookies", "")
-    ua = data.get("user_agent", DEFAULT_UA)
-    if not raw:
+    # camoufox-cli 原生格式：cookies 是对象数组 [{name, value, domain, ...}]
+    cookie_dict: dict[str, str] = {}
+    if isinstance(raw, list):
+        for c in raw:
+            if not isinstance(c, dict):
+                continue
+            name = c.get("name")
+            value = c.get("value")
+            if name and isinstance(value, str):
+                cookie_dict[name.strip()] = value.strip()
+    elif isinstance(raw, str) and raw:
+        # 向后兼容：旧格式字符串 "k1=v1; k2=v2"
+        for item in raw.split(";"):
+            item = item.strip()
+            if "=" in item:
+                k, v = item.split("=", 1)
+                cookie_dict[k.strip()] = v.strip()
+
+    if not cookie_dict:
         err_exit("AUTH_EXPIRED", 2)
 
-    cookie_dict = {}
-    for item in raw.split(";"):
-        item = item.strip()
-        if "=" in item:
-            k, v = item.split("=", 1)
-            cookie_dict[k.strip()] = v.strip()
+    # UA 走独立文件（forked cli identity export 输出，与 cookies export 对称）
+    ua_path = p.parent / (p.stem + ".ua.json")
+    ua = DEFAULT_UA
+    if ua_path.exists():
+        try:
+            ua_data = json.loads(ua_path.read_text())
+            ua = ua_data.get("userAgent") or DEFAULT_UA
+        except (json.JSONDecodeError, OSError):
+            pass  # UA 文件读失败不阻断，回退 DEFAULT_UA
 
     if "a1" not in cookie_dict or "web_session" not in cookie_dict:
         err_exit("AUTH_EXPIRED", 2)

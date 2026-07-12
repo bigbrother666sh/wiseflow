@@ -135,11 +135,11 @@ metadata:
 | 脚本获取成功 | `{"ok":true,"method":"script","platform":"bilibili","content_id":"BVxxx","metrics_params":"..."}` |
 | Cookie 失效 | `{"ok":false,"error":"SESSION_EXPIRED","platform":"xhs","method":"script","hint":"..."}` |
 | 需浏览器获取 | `{"ok":false,"method":"browser","platform":"twitter","hint":"使用 twitter-interact 技能..."}` |
-| 需手动提供 | `{"ok":false,"method":"manual","platform":"wx_mp","hint":"该平台互动数据无法自动获取..."}` |
+| 需手动提供 | `{"ok":false,"method":"manual","platform":"wx_channel","hint":"该平台互动数据无法自动获取..."}` |
 
 Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSION_EXPIRED。
 
-- **脚本支持**：xhs、bilibili、douyin、kuaishou、wx_mp
+- **脚本支持**：xhs、bilibili、douyin、kuaishou（走 `fetch-retro-data.ts` 纯 HTTP + cookie + UA）；wx_mp（走同目录下的 `wx-mp-engagement` skill——已实际验证可直接用，不再作为单独技能，由 `fetch-and-update-metrics.sh` 内部 exec）
 
 其他平台只能使用浏览器进行取数，或者由用户提供。
 

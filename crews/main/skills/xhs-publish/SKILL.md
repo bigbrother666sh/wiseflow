@@ -24,9 +24,17 @@ metadata:
 
 ## 前置条件
 
-1. 执行 `login-manager check xhs-publish` 确认登录态有效（exit 0）
-2. 若 exit 2，按 login-manager 流程完成浏览器扫码登录（登录后需导航到 `https://creator.xiaohongshu.com/publish/publish?source=official` 确保创作者域 cookie 生成）
+1. 执行 `login-manager check xhs-publish` 确认登录态有效（exit 0）。探活方式见 login-manager SKILL.md 步骤 0——开持久化 session `xhs-publish` + `open` `https://creator.xiaohongshu.com/` + `snapshot` 看是否跳登录页。
+2. 若 exit 2，按 login-manager skill 的流程完成**有头手动**登录（原则 3：xhs-publish 有头登录）：
+   - 启有头 session：`camoufox-cli --session xhs-publish --persistent --headed --json open "https://creator.xiaohongshu.com/publish/publish?source=official"`
+   - 告知用户「**小红书创作者** 浏览器已打开，请在窗口里手动扫码登录，完成后告诉我」
+   - 登录就位后**同时导出 cookie + UA**：
+     - `camoufox-cli --session xhs-publish --persistent --json cookies export ~/.openclaw/logins/xhs-publish.json`
+     - `camoufox-cli --session xhs-publish --persistent --json identity export ~/.openclaw/logins/xhs-publish.ua.json`
+   - 关 session：`camoufox-cli --session xhs-publish --json close`
 3. 确保 `Pillow` 已安装（用于读取图片尺寸）：`pip install Pillow`
+
+> **同时导入 cookie 和 UA**（原则 4，spec §4.2）：xhs 的 `a1`/`websectiga` 等设备指纹 cookie 必须配同一指纹的 UA，否则被风控错配。本 skill 的 `publish_xhs.py` 已同时读 `xhs-publish.json` + `xhs-publish.ua.json`。
 
 ---
 

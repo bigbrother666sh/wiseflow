@@ -86,41 +86,52 @@ if (!noteId || !outputDir) {
 }
 
 // ── Session ─────────────────────────────────────────────────────────────────
-
-interface SessionData {
-  platform: string
-  cookies: string
-  user_agent: string
-}
+//
+// 中央存储格式（forked camoufox-cli 原生输出，= Playwright add_cookies 期望格式）：
+//   ~/.openclaw/logins/xhs-browse.json     → { platform, cookies: [{name, value, domain, ...}], updated_at }
+//   ~/.openclaw/logins/xhs-browse.ua.json  → { userAgent, platform, language, ... }
+// 本脚本同时导入 cookie + UA（spec §4 原则 4）。
 
 const SESSIONS_DIR = join(homedir(), ".openclaw", "logins")
 const sessionPath = join(SESSIONS_DIR, "xhs-browse.json")
+const uaPath = join(SESSIONS_DIR, "xhs-browse.ua.json")
 
-let session: SessionData
+interface CookieRecord { name: string; value: string; domain?: string }
+interface SessionFile { platform?: string; cookies?: CookieRecord[]; updated_at?: string }
+interface UAFile { userAgent?: string; platform?: string }
+
+let sessionFile: SessionFile
 try {
-  session = JSON.parse(readFileSync(sessionPath, "utf-8")) as SessionData
+  sessionFile = JSON.parse(readFileSync(sessionPath, "utf-8")) as SessionFile
 } catch {
   process.stderr.write(JSON.stringify({ ok: false, error: "SESSION_EXPIRED", platform: "xhs-browse" }) + "\n")
   process.exit(2)
 }
 
-if (!session.cookies) {
+const rawCookies = sessionFile.cookies
+if (!Array.isArray(rawCookies) || rawCookies.length === 0) {
   process.stderr.write(JSON.stringify({ ok: false, error: "SESSION_EXPIRED", platform: "xhs-browse" }) + "\n")
   process.exit(2)
 }
 
-function parseCookies(cookieStr: string): Record<string, string> {
+let userAgent = ""
+try {
+  const uaFile = JSON.parse(readFileSync(uaPath, "utf-8")) as UAFile
+  userAgent = uaFile.userAgent || ""
+} catch {
+  // UA 文件缺失不阻断——回退到硬编码 UA，仅 cookie 走
+  userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+}
+
+function dictFromCookies(records: CookieRecord[]): Record<string, string> {
   const dict: Record<string, string> = {}
-  for (const item of cookieStr.split(";")) {
-    const trimmed = item.trim()
-    if (!trimmed || !trimmed.includes("=")) continue
-    const [k, ...rest] = trimmed.split("=")
-    dict[k.trim()] = rest.join("=").trim()
+  for (const c of records) {
+    if (c.name && typeof c.value === "string") dict[c.name] = c.value
   }
   return dict
 }
 
-const cookieDict = parseCookies(session.cookies)
+const cookieDict = dictFromCookies(rawCookies)
 if (!cookieDict.a1 || !cookieDict.web_session) {
   process.stderr.write("[fetch_note_content] xhs-browse cookie 缺少 a1 或 web_session\n")
   process.exit(2)
@@ -226,7 +237,7 @@ async function fetchNoteDetail(): Promise<{
 
 async function downloadImage(url: string, filePath: string): Promise<boolean> {
   const headers: Record<string, string> = {
-    "User-Agent": session.user_agent || "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    "User-Agent": userAgent || "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     "Referer": "https://www.xiaohongshu.com/",
     "Origin": "https://www.xiaohongshu.com",
   }

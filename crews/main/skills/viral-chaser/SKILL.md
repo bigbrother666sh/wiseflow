@@ -53,7 +53,8 @@ Use the **login-manager** skill to check the session:
 
 - `platform`: `douyin` | `bilibili` | `xhs`
 - Call login-manager's **check** ability for the target platform (XHS uses `xhs-browse`)
-- If exit code 2 (session expired), execute the **camoufox-cli 登录流程** described in the login-manager skill (qr-headless + qr-confirm, see browser-guide §0.1), then retry `check`
+- If exit code 2 (session expired), execute the login flow described in the login-manager skill (原则 3：douyin / xhs-browse 有头手动登录；bilibili 有头登录；spec §4 支持的 6 平台之一)，then retry `check`
+- 登录就位后**同时导出 cookie + UA**（原则 4）：`camoufox-cli cookies export ~/.openclaw/logins/<platform>.json` + `camoufox-cli identity export ~/.openclaw/logins/<platform>.ua.json`
 
 ### Step 3 — Run the analyzer
 
@@ -184,4 +185,4 @@ One sentence describing the primary audience persona.
 - **Bilibili DASH format**: if `mediaFormat` is `DASH`, the video and audio streams are separate. The downloaded `video.mp4` contains the video stream only; audio is in `audio.wav` after extraction. This is transparent to the analysis workflow.
 - **XHS video notes only**: 小红书图文笔记（image-only）不含视频，viral-chaser 会报错并提示。只有视频笔记（type=video）才能下载和分析。XHS 使用 `xhs-browse` cookie（消费者端域 www.xiaohongshu.com）；xhs 数据抓取委托 `xhs-content-ops`，签名走 relay（xys 格式）。
 - **ASR segments**: SiliconFlow ASR（SenseVoiceSmall / TeleSpeechASR）只返回全文 text、不返回分段时间戳。脚本在拿不到真实 segments 时，会按句切分全文并按字数比例在音频时长上**估算**分段（`transcript.estimated=true`）。若需要真实时间戳，可改用支持 verbose_json 的 whisper 类模型（设置 `ASR_MODEL` 环境变量），脚本会优先采用真实 segments。
-- **Exit code 2 — cookie expired:** Execute the browser-based re-login workflow described in the login-manager skill's "Agent workflow on exit code 2" section, then retry once. Do not retry more than once.
+- **Exit code 2 — cookie expired:** Execute the login flow described in the login-manager skill（原则 3：douyin / xhs-browse 有头手动登录；bilibili 有头登录），导出 cookie + UA 后重试一次。Do not retry more than once.

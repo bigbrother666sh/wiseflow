@@ -23,8 +23,24 @@ ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 DB="$ROOT/db/published_track.db"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# login-manager 脚本路径（同 crew 专属技能，login-manager.sh 委托 login_manager.py）
-LOGIN_MANAGER="$SCRIPT_DIR/../../login-manager/scripts/login-manager.sh"
+# camoufox-cli 路径（forked，vendored 在 patches/camoufox-cli/，build 后全局可用）
+CAMOUFOX_CLI="${CAMOUFOX_CLI:-camoufox-cli}"
+
+# published-track 平台名 → 持久化 session 名映射
+# 小红书按域拆为 xhs-publish / xhs-browse，取数走消费者端 xhs-browse
+LM_PLATFORM="$PLATFORM"
+if [ "$PLATFORM" = "xhs" ]; then
+  LM_PLATFORM="xhs-browse"
+fi
+
+# 平台首页 URL（探活时 open 用）
+case "$LM_PLATFORM" in
+  douyin)     PLATFORM_HOME="https://www.douyin.com/" ;;
+  bilibili)   PLATFORM_HOME="https://www.bilibili.com/" ;;
+  kuaishou)   PLATFORM_HOME="https://www.kuaishou.com/" ;;
+  xhs-browse) PLATFORM_HOME="https://www.xiaohongshu.com/" ;;
+  *)          PLATFORM_HOME="" ;;
+esac
 
 # ─── 辅助函数 ──────────────────────────────────────────────────────────────
 
@@ -159,31 +175,20 @@ for cp in $COOKIE_PLATFORMS; do
 done
 
 if [ "$NEEDS_COOKIE" = true ]; then
-  if [ ! -f "$LOGIN_MANAGER" ]; then
-    echo "{\"ok\":false,\"error\":\"LOGIN_MANAGER_NOT_FOUND\",\"platform\":\"$PLATFORM\",\"hint\":\"login-manager 脚本未找到，请确认同 crew 的 login-manager 技能已安装\"}"
+  if ! command -v "$CAMOUFOX_CLI" >/dev/null 2>&1; then
+    echo "{\"ok\":false,\"error\":\"CAMOUFOX_CLI_NOT_FOUND\",\"platform\":\"$PLATFORM\",\"hint\":\"camoufox-cli 未找到，请确认 patches/camoufox-cli/ 已 build 并全局可用\"}"
     exit 1
   fi
 
-  # published-track 平台名 → login-manager 平台名映射
-  # 小红书在 login-manager 中按域拆为 xhs-publish / xhs-browse，取数走消费者端
-  # (xhs-browse)，与 fetch-retro-data.ts requireSession("xhs-browse") 对齐。
-  # 其余平台同名。DB 表名 pub_xhs / 传给 fetch-retro-data.ts 的 --platform 仍用 $PLATFORM。
-  LM_PLATFORM="$PLATFORM"
-  if [ "$PLATFORM" = "xhs" ]; then
-    LM_PLATFORM="xhs-browse"
-  fi
+  # 探活：开持久化 session open 平台首页，eval window.location.href 看是否跳 login
+  "$CAMOUFOX_CLI" --session "$LM_PLATFORM" --persistent --headless --json open "$PLATFORM_HOME" >/dev/null 2>&1 || true
+  sleep 3
+  CHECK_URL=$("$CAMOUFOX_CLI" --session "$LM_PLATFORM" --json eval "window.location.href" 2>/dev/null || echo "")
+  "$CAMOUFOX_CLI" --session "$LM_PLATFORM" --json close >/dev/null 2>&1 || true
 
-  CHECK_RESULT=$("$LOGIN_MANAGER" check "$LM_PLATFORM" 2>/dev/null) || CHECK_EXIT=$?
-  CHECK_EXIT=${CHECK_EXIT:-0}
-
-  if [ "$CHECK_EXIT" -eq 2 ]; then
-    echo "{\"ok\":false,\"error\":\"SESSION_EXPIRED\",\"platform\":\"$PLATFORM\",\"login_platform\":\"$LM_PLATFORM\",\"method\":\"script\",\"hint\":\"Cookie 已失效，请使用 login-manager 技能引导用户重新登录 $LM_PLATFORM\"}"
+  if echo "$CHECK_URL" | grep -q "login"; then
+    echo "{\"ok\":false,\"error\":\"SESSION_EXPIRED\",\"platform\":\"$PLATFORM\",\"login_platform\":\"$LM_PLATFORM\",\"method\":\"script\",\"hint\":\"Cookie 已失效，请使用 login-manager 技能引导用户重新登录 $LM_PLATFORM（camoufox-cli --session $LM_PLATFORM --persistent --headed open $PLATFORM_HOME → 用户手动登录 → cookies export + identity export 落中央存储）\"}"
     exit 2
-  fi
-
-  if [ "$CHECK_EXIT" -ne 0 ]; then
-    echo "{\"ok\":false,\"error\":\"LOGIN_CHECK_FAILED\",\"platform\":\"$PLATFORM\",\"hint\":\"login-manager check 返回异常 (exit $CHECK_EXIT)，请检查 login-manager 状态\"}"
-    exit 1
   fi
 fi
 

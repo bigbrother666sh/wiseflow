@@ -40,7 +40,12 @@
   - **投资人关系面**：`business-model-polish` 商业模式打磨、`project-application` 项目申报（含软著 `swcr-register`）、`investor-pipeline` 投资人发掘与跟进，配 `ir-record` 数据层。
   - **本轮新增起号知识库**：内置 `channels-account-launch-expert`，覆盖抖音、Twitter/X、微信视频号、微信公众号、小红书 5 个平台从 0 起号的运营思路与账号对标——没账号、思路乱，先问小贝。
   - **自主协作**：遇到自己搞不定的技术问题（token 过期、登录失效、配置缺失）不喊用户、不停活，自主 spawn IT 工程师修完继续干；按需招募 content-producer / sales-cs 两个 crew。
-- 全面集成 camoufox-cli：无头胜有头，资源占用更少，速度更快，反侦测能力依然在线。
+- **浏览器架构重新设计（双线栈）**：
+  - **线 1（日常主力）**：forked [camoufox-cli](https://github.com/daijro/camoufox)（vendor 进 `patches/camoufox-cli/`，基于上游 `camoufox-cli@0.6.2` + 三个新功能：`upload` 命令 / fail-first 队列 / `identity export`）走旁路，反指纹 Firefox + JSON-over-unix-socket，绕开 routes/、pw-session、chrome-mcp。无头胜有头，资源占用更少，速度更快，反侦测能力依然在线。
+  - **线 2（特殊情况 fallback）**：保留 `target=host`（existing-session 真机 Chrome + chrome-mcp relay）+ `target=node`（remote-cdp 远端 Chrome）。
+  - **删 sandbox 整条路**（容器 + bridge + facade + `agents.defaults.sandbox.browser` 配置）+ **删 host `local-managed` 分支**（不再额外下 Chromium）+ **patchright 整体去掉**（`overrides.sh` 不再注入 patchright-core，playwright-core 保留给 remote-cdp 用）。
+  - **每平台一个且只一个持久化 session**（指纹冻结 + cookie 留 profile），并发由 fail-first 队列串行拒绝；不涉及登录的站点（新闻等）走临时性 session（每次随机指纹，关闭自清）。
+  - **profile 丢失 / 损坏 / 指纹错配 → 重建 + 重登录，绝对不允许导入 cookie 造会话**（详见 `docs/profile-loss-handling.md`）。
 - 适配 openclaw 2026-6-11 版本（近两个月最稳定版本）、openclaw-weixin 2.4.6 版本。
 - **主力 + 视觉 + 替补模型统一走火山方舟 Coding Plan**：一个套餐覆盖 GLM-5.2、Kimi-K2.7、MiniMax-M3、DeepSeek-V4、Doubao-Seed-2.0 等主流模型，**工具不限**。安装时只需一个 `AWK_API_KEY`，**不再需要 SiliconFlow**（视觉/替补也走 AWK）。
 
@@ -205,13 +210,16 @@ Crew 遇到自己不能解决的问题：
 
 基于之前**AI首席情报官**的技术积累，wiseflow团队对 openclaw 源码做了多处增强与修复，强化其浏览器自动化能力，并更加适合国内网络环境：
 
-| 补丁 | 说明 | 相关环境变量 |
-|------|------|-------------|
-| `002-disable-web-search-env-var` | openclaw 内置 web search 大部分需要申请api key,甚至需要海外网络环境，小贝系统自带完全免费、零部署的Smart Search解决方案| `OPENCLAW_DISABLE_WEB_SEARCH=1` |
-| `003-act-field-validation` | 修复浏览器 act 动作的字段验证逻辑 | 无 |
-| `005-browser-timeout-env-var` | 支持通过环境变量自定义浏览器操作默认超时（原默认仅 20 秒，网络慢时容易中断） | `OPENCLAW_BROWSER_TIMEOUT_MS=60000` （执行 install.sh 脚本会自动配置）|
-| `006-connectovercdp-no-defaults` | `connectOverCDP` 启用 `noDefaults: true`，避免 Patchright 修改用户浏览器状态 | 无 |
-| `007-browser-prefer-camoufox-cli` | 在 browser 工具描述中提示优先用 camoufox-cli 做浏览器自动化，原 browser 工具仅作兜底 | 无 |
+**v5.6.0 浏览器栈整体替换**（详见 `docs/browser-stack-replacement-spec-2026-07.md`）：
+
+| 项 | 说明 |
+|----|------|
+| `patches/camoufox-cli/` | **forked camoufox-cli**（vendor 自上游 `camoufox-cli@0.6.2`）+ 三个新功能：`upload` 命令（Playwright `setInputFiles`，发布类技能依赖）/ daemon fail-first 队列（同 session 并发直接 fail，不排队不等待）/ `identity export`（导出 UA + 指纹摘要，对应 `cookies export`）。`build.sh` 全局安装替换 `$PATH` 上的上游版 |
+| `patches/browser-camoufox-pivot/` | **001 monolith 拆成 35 个单文件 patch**（`patches/` 子目录，按文件名 sort 顺序应用，降低上游漂移失效面）+ adapter + 测试 ship 在 `files/`。删 sandbox 整条路 + 删 host `local-managed` 分支 + 新增 `target=camoufox` 旁路（默认） |
+| `patches/overrides.sh` | **去掉 patchright-core 注入**（playwright-core 保留给 remote-cdp 用）；保留 web_search disable |
+| `002-disable-web-search-env-var` | **留**：openclaw 内置 web search 大部分需要申请 api key 甚至海外网络，小贝自带完全免费、零部署的 Smart Search 解决方案 | `OPENCLAW_DISABLE_WEB_SEARCH=1` |
+| `007-prefer-camoufox-cli` | **留**（改名）：在 browser 工具描述中提示优先用 camoufox-cli 做浏览器自动化，原 browser 工具仅作兜底 | 无 |
+| ~~`003-act-field-validation`~~ / ~~`005-browser-timeout-env-var`~~ / ~~`006-connectovercdp-no-defaults`~~ | **删**：默认走 camoufox-cli 不经 browser tool 的 act 路由；camoufox-cli 走旁路不受 browser tool 超时影响；`noDefaults` 是 patchright 1.60+ 专属，patchright 整体去掉后原版 playwright-core 的 `connectOverCDP` 不支持该参数 |
 
 ## 目录结构
 
@@ -258,7 +266,7 @@ wiseflow/
 ## 🤝 xiaobei 基于如下优秀的开源项目：
 
 - openclaw(Your own personal AI assistant. Any OS. Any Platform. The lobster way. 🦞) https://github.com/openclaw/openclaw
-- Patchright(Undetected Python version of the Playwright testing and automation library) https://github.com/Kaliiiiiiiiii-Vinyzu/patchright-python
+- camoufox(🦊 Anti-detect browser, Firefox fork — forked camoufox-cli 作为线 1 浏览器主力，vendor 进 `patches/camoufox-cli/`) https://github.com/daijro/camoufox
 - Feedparser（Parse feeds in Python） https://github.com/kurtmckee/feedparser
 - SearXNG（a free internet metasearch engine which aggregates results from various search services and databases） https://github.com/searxng/searxng
 - opencli（A CLI for social media & web platforms — smart-search skill 借鉴了其搜索 URL 模式与平台适配方案） https://github.com/jackwener/opencli

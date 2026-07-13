@@ -106,7 +106,7 @@ function spawnDaemon(config: CamoufoxCliSessionConfig): void {
   spawn("node", [daemonJs, ...args], { detached: true, stdio: "ignore" }).unref();
 }
 
-async function waitForSocket(sock: string, timeoutMs = 5000): Promise<void> {
+async function waitForSocket(sock: string, timeoutMs = 15000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (fs.existsSync(sock) && await isSocketAlive(sock)) return;

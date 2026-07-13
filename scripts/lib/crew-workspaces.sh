@@ -24,7 +24,7 @@ copy_crew_template_contents() {
 #   src_crew：仓库 crews/<id>/
 #   dest_ws：~/.openclaw/workspace-<id>/
 # 语义：
-#   - 对仓库里每个合法 skill（含 SKILL.md），rm -rf + ln -s 软链到 dest_ws/skills/<name>/
+#   - 对仓库里每个合法 skill（含 SKILL.md）+ _ 前缀共享库（如 _shared），rm -rf + ln -s 软链到 dest_ws/skills/<name>/
 #   - 不删除 dest_ws/skills/ 里仓库没有的 skill（保留部署实例自定义 skill）
 #   - 不碰 dest_ws 下的 AGENTS.md / TOOLS.md / Memory 等（保留用户编辑）
 #   - node 依赖不在此装：由 apply-addons.sh per-skill npm install 写进仓内 skill 目录，
@@ -43,14 +43,24 @@ sync_crew_skills() {
 
   local skill_dir=""
   local skill_name=""
+  local is_shared=""
   local synced=0
   for skill_dir in "$src_skills"/*/; do
     [ -d "$skill_dir" ] || continue
-    [ -f "${skill_dir}SKILL.md" ] || continue
     skill_name="$(basename "$skill_dir")"
-    rm -rf "$dest_skills/$skill_name"
-    ln -s "${skill_dir%/}" "$dest_skills/$skill_name"
-    synced=$((synced + 1))
+    # 软链两类目录：
+    #   1. skill（含 SKILL.md）
+    #   2. 共享库（_ 前缀、无 SKILL.md，如 _shared）—— 被兄弟 skill 相对导入
+    #      （../../_shared/...）。软链安全：导入方自身也是软链→仓，Node/Python
+    #      先 follow 到仓 realpath 再算相对路径，解析到仓里的 _shared，workspace
+    #      的 _shared 不参与解析。软链保证共享库跟仓同步，不会变陈旧拷贝。
+    is_shared=false
+    case "$skill_name" in _*) is_shared=true;; esac
+    if [ -f "${skill_dir}SKILL.md" ] || [ "$is_shared" = true ]; then
+      rm -rf "$dest_skills/$skill_name"
+      ln -s "${skill_dir%/}" "$dest_skills/$skill_name"
+      synced=$((synced + 1))
+    fi
   done
 
   [ "$synced" -gt 0 ] && echo "  ✅ synced $synced crew skill(s) → $(basename "$dest_ws")"

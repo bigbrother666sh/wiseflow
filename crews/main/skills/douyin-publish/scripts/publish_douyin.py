@@ -7,7 +7,7 @@
 **与 login-manager 的边界**：
 - 探活 / 有头手动登录 / 导出 cookie+UA 落中央存储 → **全交 login-manager**（不在本 skill 内做）
 - 本 skill 只复用 login-manager 准备好的持久化 session `douyin` 做发布操作
-- 本 skill **不吃 cookie**，浏览器操作严禁 `cookies import`（spec §8）
+- 本 skill **不吃 cookie**，浏览器操作严禁 `cookies import`
 
 子命令：
   upload --video <path>   上传视频（forked cli upload 命令，底层 setInputFiles 穿透 shadow DOM）
@@ -15,7 +15,8 @@
   publish                 点"发布"按钮
   get-link                取已发布视频的公开链接
   run                     一键跑全流程（upload + fill + publish + get-link）
-  cleanup <session>       关闭 camoufox session
+
+发布任务跑完不主动 close 持久化 session `douyin`——登录态留着下次用；只在 session 卡死时由调用方手动 `camoufox-cli --session douyin --json close` teardown。本 skill 不提供 cleanup 子命令。
 
 依赖：
 - camoufox-cli（全局可用）
@@ -42,7 +43,7 @@ from typing import Optional
 
 UPLOAD_URL = "https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web"
 CAMOUFOX_BIN = os.environ.get("CAMOUFOX_CLI", "camoufox-cli")
-# 持久化 session 名 = 平台 key（spec §4 原则 1，一个且只有一个持久化 session）
+# 持久化 session 名 = 平台 key（一个且只有一个持久化 session）
 # 由 login-manager 负责探活/有头登录/导出 cookie+UA 落中央存储；本 skill 只复用此 session 做发布操作
 PERSISTENT_SESSION = "douyin"
 
@@ -137,19 +138,11 @@ def camoufox_wait_for_text(session: str, text: str, timeout: int = TRANSCODE_MAX
     return False
 
 
-def camoufox_close(session: str) -> None:
-    """关闭 camoufox session（forked cli 路径，直接调 camoufox-cli close，不再走 login-manager.sh）。"""
-    subprocess.run(
-        [CAMOUFOX_BIN, "--session", session, "--json", "close"],
-        capture_output=True, text=True, timeout=10, check=False,
-    )
-
-
 # ── 子命令实现 ──────────────────────────────────────────────────────────────
 
 
 def cmd_upload(*, video: str, session: Optional[str] = None) -> None:
-    """上传视频到创作者中心。session 默认走持久化 `douyin`（登录态在持久化 session 里，spec §5）。
+    """上传视频到创作者中心。session 默认走持久化 `douyin`（登录态在持久化 session 里）。
     同 session 已有命令在跑时，新命令 fail-first（同 session 已有命令在跑时新命令直接 fail）——agent 等当前操作完成再重试。"""
     if not session:
         session = PERSISTENT_SESSION
@@ -252,12 +245,6 @@ def cmd_run(*, video: str, title: str, caption: str = "") -> None:
         pass
 
 
-def cmd_cleanup(*, session: str) -> None:
-    camoufox_close(session)
-    sys.stdout.write(json.dumps({"ok": True, "session": session}, ensure_ascii=False))
-    sys.stdout.write("\n")
-
-
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def build_parser() -> argparse.ArgumentParser:
@@ -291,10 +278,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--title", required=True)
     p_run.add_argument("--caption", default="")
     p_run.set_defaults(func=lambda a: cmd_run(video=a.video, title=a.title, caption=a.caption))
-
-    p_clean = sub.add_parser("cleanup", help="关闭 camoufox session")
-    p_clean.add_argument("--session", required=True)
-    p_clean.set_defaults(func=lambda a: cmd_cleanup(session=a.session))
 
     return p
 

@@ -23,7 +23,7 @@ metadata:
    - `camoufox-cli --session wechat-channel --json screenshot /tmp/qr-wechat-channel.png` 截登录 QR
    - 把 PNG 用 image 工具加载发用户（**不要发本地路径**），告知「**微信视频号** 登录已失效，请用微信扫码确认，完成后回复"已扫码"」
    - 用户回复后 `snapshot` 验页面已跳走 / QR 消失
-   - 关 session：`camoufox-cli --session wechat-channel --json close`
+   - 登录后**不关 session**——持久化 session `wechat-channel` 登录态留着给本 skill 下次用，主动 close 会破坏复用。
 
 > **不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本 skill 不调用 `cookies export` / `identity export`。
 >

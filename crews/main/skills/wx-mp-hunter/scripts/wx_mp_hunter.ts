@@ -314,7 +314,8 @@ async function cmdCheck(): Promise<void> {
     await camoufox("open", `${MP_BASE}/`);
     await sleep(3000);
     const url = await camoufoxCurrentUrl();
-    await camoufox("close").catch(() => undefined);
+    // 不 close wx_mp 挧愿化 session——留着给 wx-mp-engagement / 下游 fetch 命令接力复用；
+    // 仅在 session 卡死时由调用方手动 logout 子命令 teardown。
     if (url.includes("login") || url.includes("scanloginqrcode")) {
       authExit("SESSION_EXPIRED");
     }
@@ -381,9 +382,10 @@ async function cmdLoginConfirm(): Promise<void> {
       updated_at: timestampLocal(),
     };
     await writeJsonFile(SESSION_FILE, sessionData);
-    await camoufox("close").catch(() => undefined);
+    // 不 close wx_mp 持久化 session——登录态留着给 wx-mp-engagement 复用（两 skill 共用同一 session）；
+    // 仅当 session 卡死时由调用方手动 logout 子命令 teardown。
 
-    printJson({ ok: true, message: "登录成功，cookie + UA + token 已落中央存储", token });
+    printJson({ ok: true, message: "登录成功，cookie + UA + token 已落中央存储（session 未关，留给下游复用）", token });
   } catch (e: any) {
     errExit(`camoufox-cli 登录确认失败: ${e?.message ?? String(e)}`);
   }

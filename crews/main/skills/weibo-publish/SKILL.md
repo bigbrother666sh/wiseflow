@@ -22,7 +22,7 @@ metadata:
    - `camoufox-cli --session weibo --persistent --headed --json open "https://weibo.com"`
    - 告知用户「**微博** 浏览器已打开，请在窗口里手动登录，完成后告诉我」
    - 等用户回复后 `snapshot` 验登录态就位
-   - 关 session：`camoufox-cli --session weibo --json close`
+   - 登录后**不关 session**——持久化 session `weibo` 登录态留着给本 skill 下次用，主动 close 会破坏复用。
 
 > **不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本 skill 不调用 `cookies export` / `identity export`。
 

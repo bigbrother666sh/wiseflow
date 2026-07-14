@@ -64,7 +64,7 @@ metadata:
 1. login-manager 探活（见上方「三个场景统一前置」）；未登录则走有头手动登录流，登录后同时导出 cookie + UA 落中央存储。
 2. 直接把 URL 传给脚本，脚本内部解析短链、提取 note_id 和 xsec_token：
    ./skills/xhs-content-ops/scripts/fetch_note_content.sh --url <url> --output-dir campaign_assets/<slug>/
-   ⚠️ 脚本内部同时导入 cookie 和 UA（已写死在 fetch_note_content.ts：同时读 ~/.openclaw/logins/xhs-browse.json + ~/.openclaw/logins/xhs-browse.ua.json，喂给 raw HTTP header，不经浏览器）——脚本侧务必同时带，同一指纹下的 cookie 才不会被风控错配（原则 4，2026-06-29 CDP 注入 22 cookie 触发风控的教训）。
+   ⚠️ 脚本内部同时导入 cookie 和 UA（已写死在 fetch_note_content.ts：同时读 ~/.openclaw/logins/xhs-browse.json + ~/.openclaw/logins/xhs-browse.ua.json，喂给 raw HTTP header，不经浏览器）——脚本侧务必同时带，同一指纹下的 cookie 才不会被风控错配。
 3. 读取下载的图片和正文，执行对标分析
 ```
 
@@ -111,15 +111,15 @@ metadata:
 ### 前置条件
 
 1. 探活按 login-manager SKILL.md 步骤 0：`camoufox-cli --session xhs-browse --persistent --headless --json open "https://www.xiaohongshu.com/"` + `snapshot` 看是否跳登录页（登录态有效 = 没跳登录页；跳登录页 = 失效）。
-2. 若 exit 2，按 login-manager skill 的流程完成**有头手动**登录（原则 3：xhs-browse 有头登录）：
+2. 若 exit 2，按 login-manager skill 的流程完成**有头手动**登录（xhs-browse 走有头登录）：
    - 启有头 session：`camoufox-cli --session xhs-browse --persistent --headed --json open "https://www.xiaohongshu.com/"`
    - 告知用户「**小红书** 浏览器已打开，请在窗口里手动扫码登录，完成后告诉我」
    - 登录就位后**同时导出 cookie + UA**：
      - `camoufox-cli --session xhs-browse --persistent --json cookies export ~/.openclaw/logins/xhs-browse.json`
      - `camoufox-cli --session xhs-browse --persistent --json identity export ~/.openclaw/logins/xhs-browse.ua.json`
-   - 关 session：`camoufox-cli --session xhs-browse --json close`
+   - 登录后**不关 session**——持久化 session `xhs-browse` 登录态留着给本 skill 及复用同 session 的其他技能（xhs-interact / viral-chaser / published-track）下次用，主动 close 会破坏多方复用。
 
-> **同时导入 cookie 和 UA**：xhs 的 `a1`/`websectiga` 等设备指纹 cookie 必须配同一指纹的 UA，否则被风控错配（2026-06-29 CDP 注入教训）。本 skill 的 `fetch_note_content.ts` 已同时读 `xhs-browse.json` + `xhs-browse.ua.json`。
+> **同时导入 cookie 和 UA**：xhs 的 `a1`/`websectiga` 等设备指纹 cookie 必须配同一指纹的 UA，否则被风控错配。本 skill 的 `fetch_note_content.ts` 已同时读 `xhs-browse.json` + `xhs-browse.ua.json`。
 
 ### 运行
 

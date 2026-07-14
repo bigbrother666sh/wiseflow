@@ -40,7 +40,7 @@ metadata:
      - 登录就位后**同时导出 cookie + UA**（由 login-manager 流程负责）：
        - `camoufox-cli --session douyin --persistent --json cookies export ~/.openclaw/logins/douyin.json`
        - `camoufox-cli --session douyin --persistent --json identity export ~/.openclaw/logins/douyin.ua.json`
-     - 关 session：`camoufox-cli --session douyin --json close`
+     - 登录后**不关 session**——持久化 session `douyin` 登录态留着给本 skill 做发布操作复用，主动 close 会破坏复用。
 2. 视频文件准备好（mp4 / mov）
 3. 抖音创作者中心已实名认证（必须，本人手机号 + 身份证）
 
@@ -75,13 +75,9 @@ python3 ./skills/douyin-publish/scripts/publish_douyin.py publish --session <s>
 
 # 4. 取视频链接
 python3 ./skills/douyin-publish/scripts/publish_douyin.py get-link --session <s>
-
-# 5. 清理（最后一步必调）
-python3 ./skills/douyin-publish/scripts/publish_douyin.py cleanup --session <s>
 ```
 
-> **注意**：本 skill **没有 `login` 子命令**——探活/登录/导出 cookie+UA 全交 login-manager。本 skill 只做发布操作。
-> 发布任务跑完**不主动 close** 持久化 session `douyin`（登录态留着下次用）；只在 session 卡死时 `camoufox-cli --session douyin --json close` teardown。
+> **注意**：本 skill **没有 `login` 子命令、也没有 `cleanup` 子命令**——探活/登录/导出 cookie+UA 全交 login-manager；持久化 session `douyin` 不主动 close（登录态留着下次用），只在 session 卡死时由调用方手动 `camoufox-cli --session douyin --json close` teardown。
 
 ---
 
@@ -97,7 +93,7 @@ python3 ./skills/douyin-publish/scripts/publish_douyin.py cleanup --session <s>
 
 - **不主动 close 持久化 session `douyin`**——登录态 + 指纹冻结留着下次用。只在 session 卡死时 `camoufox-cli --session douyin --json close` teardown。
 - 同 session 已有命令在跑时，新命令 fail-first（返回 `session douyin 正忙，请等待当前操作完成后再试`）——读到这条文本就等当前操作完成再重试，不要盲试。
-- **严禁 `cookies import`**：浏览器操作不开临时 session 再 import cookie 那一套（2026-06-29 CDP 注入 22 cookie 触发风控的教训）。
+- **严禁 `cookies import`**：浏览器操作不开临时 session 再 import cookie 那一套，会触发平台风控。
 - **不导出 cookie / UA**：导出是 login-manager 的事，本 skill 不调用 `cookies export` / `identity export`。
 
 ---
@@ -134,12 +130,6 @@ python3 ./skills/douyin-publish/scripts/publish_douyin.py cleanup --session <s>
 - **症状**：平台风控 / 上传被拒 / 提示"操作过于频繁"
 - **workaround**：每天 ≤ 5 条；触发后 30 分钟内不重试
 
-### pitfall: camoufox_session_leak
-
-- **触发**：任务结束未 cleanup
-- **症状**：下次启动 session 冲突
-- **workaround**：发布任务跑完**不主动 close** 持久化 session `douyin`（登录态留着下次用）；只在 session 卡死时 `camoufox-cli --session douyin --json close` teardown
-
 ---
 
 ## Notes
@@ -148,4 +138,4 @@ python3 ./skills/douyin-publish/scripts/publish_douyin.py cleanup --session <s>
 - 限频建议：单抖音号每 24h ≤ 5 条发布；触发风控立即降级
 - 失败回退：浏览器模拟失败 → 维持现状（让用户自己手动发）
 - 抖音创作者中心 DOM 改版频繁：selector 需部署后真机验证（见 `docs/post-deploy-verification.md`）
-- **形态仿 wechat-channels-publish**：6 个子命令（upload / fill / publish / get-link / cleanup / run），无 login 子命令。run 命令一键跑全流程。走持久化 session `douyin`（登录态 + 指纹冻结在 session profile 里）。上传走 `camoufox-cli upload` 命令（底层 Playwright `setInputFiles`）。等待页面状态变化（轮询 `body.innerText`）。失败模式：DOM 改版 / 按钮找不到 / 转码超时。
+- **形态仿 wechat-channels-publish**：5 个子命令（upload / fill / publish / get-link / run），无 login 子命令、无 cleanup 子命令。run 命令一键跑全流程。走持久化 session `douyin`（登录态 + 指纹冻结在 session profile 里），跑完不主动 close。上传走 `camoufox-cli upload` 命令（底层 Playwright `setInputFiles`）。等待页面状态变化（轮询 `body.innerText`）。失败模式：DOM 改版 / 按钮找不到 / 转码超时。

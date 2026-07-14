@@ -2,10 +2,10 @@
 """Unit tests for publish_douyin.py (纯浏览器模拟方案，形态仿 wechat-channels-publish).
 
  Covers:
-- 5 个子命令路由（upload / fill / publish / get-link / cleanup）+ run 一键全流程
+- 4 个子命令路由（upload / fill / publish / get-link）+ run 一键全流程
 - 纯浏览器操作：本 skill 不自管探活/登录，交 login-manager；脚本只复用持久化 session `douyin` 做发布
 - camoufox-cli 调用模式（open / eval / click / type / set_file / wait）
-- Session 命名（每任务一 session，D18 + 4.5.5）
+- 持久化 session 复用（不主动 close，登录态留着下次用）
 - file 不存在 / 按钮找不到等失败模式
 
 All camoufox-cli / subprocess calls are mocked.
@@ -63,11 +63,10 @@ class TestCmdUpload(unittest.TestCase):
             publish_douyin.cmd_upload(video="/nonexistent.mp4", session="s1")
         self.assertEqual(ctx.exception.code, 1)
 
-    @mock.patch("publish_douyin.camoufox_close")
     @mock.patch("publish_douyin.camoufox_wait_for_text")
     @mock.patch("publish_douyin.camoufox_upload")
     @mock.patch("publish_douyin.camoufox_open")
-    def test_successful_upload(self, mock_open, mock_upload, mock_wait, mock_close):
+    def test_successful_upload(self, mock_open, mock_upload, mock_wait):
         mock_upload.return_value = True
         mock_wait.return_value = True
 
@@ -171,17 +170,6 @@ class TestCmdRun(unittest.TestCase):
         mock_fill.assert_called_once()
         mock_publish.assert_called_once()
         mock_get_link.assert_called_once()
-
-
-class TestCleanup(unittest.TestCase):
-    @mock.patch("publish_douyin.camoufox_close")
-    def test_cleanup_invokes_close(self, mock_close):
-        out = StringIO()
-        with mock.patch("sys.stdout", out):
-            publish_douyin.cmd_cleanup(session="s1")
-        result = json.loads(out.getvalue())
-        self.assertTrue(result["ok"])
-        mock_close.assert_called_once_with("s1")
 
 
 class TestIntegrationDryRun(unittest.TestCase):

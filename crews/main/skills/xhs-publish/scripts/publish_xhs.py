@@ -54,7 +54,7 @@ def load_cookies(cookie_file: Path | None = None) -> tuple[dict, str]:
     中央存储格式（forked camoufox-cli 原生输出，= Playwright add_cookies 期望格式）：
       ~/.openclaw/logins/xhs-publish.json     → { platform, cookies: [{name, value, domain, ...}], updated_at }
       ~/.openclaw/logins/xhs-publish.ua.json  → { userAgent, platform, language, ... }
-    同时导入 cookie 和 UA（spec §4 原则 4）。
+    同时导入 cookie 和 UA——同一指纹下的 cookie 才不会被风控错配。
     """
     p = cookie_file or (LOGINS_DIR / "xhs-publish.json")
     if not p.exists():

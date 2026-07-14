@@ -87,7 +87,7 @@ ls ~/.openclaw/workspace-main/db/published_track.db
 
 2. **Token 来源**：wx-mp-hunter `login-confirm` 登录就位后已从 redirect URL 提 token 并合写进中央存储 `~/.openclaw/logins/wx_mp.json` 的 `token` 字段（见 wx-mp-hunter SKILL.md「第 4 步」）——本 skill fetch 流程里拼发表记录页 URL 用的 token 从该中央存储读，**不在现场重开首页重定向提**。token 与 cookie/UA 同源同时导出，失效则一并失效（`check` exit 2 → 走 wx-mp-hunter 重登流）。
 
-3. **Cookie 导入禁忌**：⚠️ **严禁** `camoufox-cli cookies import` 造会话（login-manager 原则 5：浏览器方案严禁 cookie 导入）。本 skill 与 wx-mp-hunter **共用 `wx_mp` 持久化 session**（靠 session 名约定共享同一 profile 目录与登录态），camoufox-cli 命令统一 `--session wx_mp --persistent`，登录态在 session profile 里已就位，**不开独立 session、不 import cookie**。撞 fail-first 队列（同 session 正被占用）就等占用方完成再串行接力，**不**自动 close 正在跑的 session。
+3. **Cookie 导入禁忌**：⚠️ **严禁** `camoufox-cli cookies import` 造会话（浏览器方案严禁 cookie 导入）。本 skill 与 wx-mp-hunter **共用 `wx_mp` 持久化 session**（靠 session 名约定共享同一 profile 目录与登录态），camoufox-cli 命令统一 `--session wx_mp --persistent`，登录态在 session profile 里已就位，**不开独立 session、不 import cookie**。撞 fail-first 队列（同 session 正被占用）就等占用方完成再串行接力，**不**自动 close 正在跑的 session。
 
 4. **数据提取方式**：不依赖 selector，直接用 `document.body.innerText` 解析。页面 innerText 结构清晰：
    ```
@@ -105,7 +105,7 @@ ls ~/.openclaw/workspace-main/db/published_track.db
    ├─ exit 2 -> 退出（调用方触发 wx-mp-hunter login + login-confirm）
    └─ exit 0 -> 继续
 2. lookup_published_row(row_id) -> 拿 title / publish_url
-3. 复用 wx_mp 持久化 session（不开独立 session、不 import cookie，原则 5）：
+3. 复用 wx_mp 持久化 session（不开独立 session、不 import cookie）：
    camoufox-cli --session wx_mp --persistent --headless --json open "https://mp.weixin.qq.com/"
 4. 读 redirect URL 拿 token（open 首页自动重定向到 /cgi-bin/home?...&token=xxx）：
    camoufox-cli --session wx_mp --json url

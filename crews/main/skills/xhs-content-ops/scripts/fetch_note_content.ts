@@ -90,7 +90,7 @@ if (!noteId || !outputDir) {
 // 中央存储格式（forked camoufox-cli 原生输出，= Playwright add_cookies 期望格式）：
 //   ~/.openclaw/logins/xhs-browse.json     → { platform, cookies: [{name, value, domain, ...}], updated_at }
 //   ~/.openclaw/logins/xhs-browse.ua.json  → { userAgent, platform, language, ... }
-// 本脚本同时导入 cookie + UA（spec §4 原则 4）。
+// 本脚本同时导入 cookie + UA——同一指纹下的 cookie 才不会被风控错配。
 
 const SESSIONS_DIR = join(homedir(), ".openclaw", "logins")
 const sessionPath = join(SESSIONS_DIR, "xhs-browse.json")

@@ -21,11 +21,13 @@ Use this skill when:
 
 **Prerequisites**: camoufox-cli session 已登录 x.com（登录态持久化在 session profile 里）。冷会话先访问一次首页预热。本 skill 与 login-manager **完全无关**——Twitter 发布是纯浏览器操作，走持久化 session `twitter`（与 `twitter-interact` 共用），登录态在 session profile 里闭环，不导出 cookie/UA 落中央存储。
 
+登录流程按 `browser-guide` skill 走有头手动登录（手机号+验证码 / Twitter APP 扫码），登录后**不关 session**——持久化 session `twitter` 登录态留着给本 skill 做发布操作复用，主动 close 会破坏复用。
+
 ---
 
 ## 浏览器方案（重要）
 
-**优先 camoufox-cli**：headless persistent session（登录态存 session profile）+ forked cli `upload` 命令上传（底层 Playwright `setInputFiles`，穿透 shadow DOM）。camoufox-cli 无头即可完成 x.com 登录与发布，反侦测能力强、资源占用低。操作要点：`snapshot` 拿 ref → `type`/`click` 按 ref 操作，别自己 hack selector。
+**优先 camoufox-cli**：headless persistent session（登录态存 session profile）+ forked cli `upload` 命令上传（底层 Playwright `setInputFiles`，穿透 shadow DOM）。camoufox-cli 无头即可完成 x.com 发布，反侦测能力强、资源占用低。操作要点：`snapshot` 拿 ref → `type`/`click` 按 ref 操作，别自己 hack selector。
 
 > 下面 workflow 步骤（Navigate / Click / snapshot eval / upload）默认用 camoufox-cli 执行。若 camoufox-cli 在 X 上持续触发风控，等 60s 后开新 session 重试；仍触发则报告用户该平台当日风控未解，择日再试。
 
@@ -35,6 +37,10 @@ Use this skill when:
 
 - 文件上传用 forked camoufox-cli 的 `upload` 命令（`camoufox-cli --session <s> --persistent --json upload <ref> <file>`，底层 Playwright `setInputFiles`，无需 DataTransfer hack）
 - 正文输入使用 `type` + `slowly: true`，不要用 `fill()`
+
+### 登录
+
+登录流程按 `browser-guide` skill 走有头手动登录（手机号+验证码 / Twitter APP 扫码），登录后**不关 session**——持久化 session `twitter` 登录态留着给本 skill 做发布操作复用，主动 close 会破坏复用。
 
 ### 字符计数规则（X 平台特殊）
 

@@ -21,8 +21,8 @@ metadata:
 2. 首次使用 / 登录态失效时，走自管**有头手动**登录流：
    - `camoufox-cli --session xianyu --persistent --headed --json open "https://www.goofish.com"`
    - 告知用户「**闲鱼** 浏览器已打开，请在窗口里手动扫码登录，完成后告诉我」
-   - 等用户回复后 `snapshot` 验登录态就位
-   - 关 session：`camoufox-cli --session xianyu --json close`
+   - 等用户回复后 `snapshot` 零登录态就位
+   - 登录后**不关 session**——持久化 session `xianyu` 登录态留着给本 skill 下次用，主动 close 会破坏复用。
 
 > **不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本 skill 不调用 `cookies export` / `identity export` / `cookies import`。
 

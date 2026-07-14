@@ -102,10 +102,10 @@ Wrapper 脚本路径：`./scripts/wx-mp-hunter.sh`
 /Users/wukong/projects/wiseflow/crews/main/skills/wx-mp-hunter/scripts/wx-mp-hunter.sh login-confirm
 ```
 
-脚本内部走 camoufox-cli：复用已开的 `wx_mp` session `open "https://mp.weixin.qq.com/"` → 读 redirect URL 验登录态就位（跳到 `/cgi-bin/home?...&token=xxx` = 就位）→ 从 URL 提 token → `cookies export ~/.openclaw/logins/wx_mp.json` + `identity export ~/.openclaw/logins/wx_mp.ua.json` → 把 token 合写进 `wx_mp.json`（cookie + token + ua + updated_at 同文件）→ `close` session。等待脚本返回：
+脚本内部走 camoufox-cli：复用已开的 `wx_mp` session `open "https://mp.weixin.qq.com/"` → 读 redirect URL 验登录态就位（跳到 `/cgi-bin/home?...&token=xxx` = 就位）→ 从 URL 提 token → `cookies export ~/.openclaw/logins/wx_mp.json` + `identity export ~/.openclaw/logins/wx_mp.ua.json` → 把 token 合写进 `wx_mp.json`（cookie + token + ua + updated_at 同文件）→ **不 close session**（wx_mp 持久化 session 留给 wx-mp-engagement 复用，两 skill 共用同一 session）。等待脚本返回：
 
 ```json
-{"ok": true, "message": "登录成功，cookie + UA + token 已落中央存储", "token": "..."}
+{"ok": true, "message": "登录成功，cookie + UA + token 已落中央存储（session 未关，留给下游复用）", "token": "..."}
 ```
 
 | 情况 | 处理 |

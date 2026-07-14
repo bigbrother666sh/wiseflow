@@ -1,6 +1,6 @@
 ---
 name: douyin-publish
-description: 通过浏览器自动化发布视频到抖音创作者中心。纯浏览器操作方案，形态仿 wechat-channels-publish。探活/有头登录/导出 cookie+UA 全交 login-manager（中央存储 `~/.openclaw/logins/douyin.json` + `~/.openclaw/logins/douyin.ua.json`）；本 skill 本身不吃 cookie，浏览器操作严禁导入 cookie。
+description: 通过浏览器自动化发布视频到抖音创作者中心。纯浏览器操作方案。
 metadata:
   openclaw:
     emoji: 🎤
@@ -14,9 +14,9 @@ metadata:
 
 通过 **camoufox-cli** 持久化 session `douyin`（一个且只有一个持久化 session，fail-first 队列：同 session 已有命令在跑时新命令直接 fail）在抖音创作者中心发布视频。
 
-> **形态与 wechat-channels-publish 同构**：纯浏览器操作方案。本 skill 自身不吃 cookie，**严禁**通过 `cookies import` 导入 cookie 造登录会话——浏览器操作一律走 login-manager 真实登录后的**持久化 session**（登录态 + 指纹冻结在 session profile 里）。
+> **纯浏览器操作方案**：本 skill 自身不吃 cookie，**严禁**通过 `cookies import` 导入 cookie 造登录会话——浏览器操作一律走 login-manager 真实登录后的**持久化 session**（登录态 + 指纹冻结在 session profile 里）。
 >
-> **与 wechat-channels-publish 的唯一差异**：douyin 登录**强制有头手动**（手机号+验证码 / 抖音 APP 扫码），且每次登录后**需要导出 cookie + UA 落中央存储**——供非浏览器类脚本（`viral-chaser`、`published-track` 等）消费。导出 + 有头登录由 login-manager 负责，本 skill 只消费 login-manager 留下的持久化 session。
+> **使用login-manager技能完成登录操作**：login-manager会引导用户完成手机号+验证码 / 抖音 APP 扫码登录，以及导出 cookie + UA 落中央存储，这是为了供非浏览器类脚本（`viral-chaser`、`published-track` 等）消费。导出 + 有头登录由 login-manager 负责，本 skill 只消费 login-manager 留下的持久化 session。
 
 ---
 
@@ -28,10 +28,6 @@ metadata:
 | 有头手动登录（手机号+验证码 / 抖音 APP 扫码） | login-manager |
 | 导出 cookie + UA 落中央存储 | login-manager |
 | 复用持久化 session 做浏览器发布操作 | **douyin-publish（本 skill）** |
-
-> 本 skill **不调用** `cookies export` / `identity export` / `cookies import`。它假设 login-manager 已经把持久化 session `douyin` 登录态准备好——发布脚本直接 `--session douyin --persistent` 操作即可。
->
-> 如果脚本探活发现 session 失效（跳登录页），**不要在本 skill 内自管重登**——返回 `exit 2`，由调用方去 login-manager 走有头重登流。
 
 ---
 
@@ -97,28 +93,11 @@ python3 ./skills/douyin-publish/scripts/publish_douyin.py cleanup --session <s>
 
 ---
 
-## 与 wechat-channels-publish 的对比
-
-| 维度 | 微信视频号 | 抖音 |
-|------|----------|------|
-| 形态 | 纯浏览器操作 | **纯浏览器操作（同）** |
-| URL | `channels.weixin.qq.com/platform/post/create` | `creator.douyin.com/creator-micro/content/upload` |
-| 微前端 | wujie + shadow DOM | 普通 React DOM（无 shadow） |
-| 登录模式 | 无头截 QR 发用户扫码 | **有头手动**（手机号+验证码 / APP 扫码） |
-| 探活 / 登录 / 导出 | 自管（不导出 cookie） | **交 login-manager**（有头登录 + 导出 cookie+UA 落中央存储） |
-| 自身吃 cookie | 否（走持久化 session） | **否（走持久化 session，严禁 import）** |
-| 中央 cookie 消费方 | — | viral-chaser / published-track（非浏览器脚本） |
-| 浏览器方案 | camoufox-cli 主推 | camoufox-cli 主推 |
-| 凭据 | login-manager `wechat-channels` | login-manager `douyin` |
-| 视频发布后 | 链接 `weixin.qq.com/sph/xxx` | 链接 `douyin.com/video/xxx` |
-
----
-
 ## 必做约束
 
 - **不主动 close 持久化 session `douyin`**——登录态 + 指纹冻结留着下次用。只在 session 卡死时 `camoufox-cli --session douyin --json close` teardown。
 - 同 session 已有命令在跑时，新命令 fail-first（返回 `session douyin 正忙，请等待当前操作完成后再试`）——读到这条文本就等当前操作完成再重试，不要盲试。
-- **严禁 `cookies import`**：浏览器操作不开临时 session 再 import cookie 那一套（spec §8，2026-06-29 CDP 注入 22 cookie 触发风控的教训）。
+- **严禁 `cookies import`**：浏览器操作不开临时 session 再 import cookie 那一套（2026-06-29 CDP 注入 22 cookie 触发风控的教训）。
 - **不导出 cookie / UA**：导出是 login-manager 的事，本 skill 不调用 `cookies export` / `identity export`。
 
 ---
@@ -160,14 +139,6 @@ python3 ./skills/douyin-publish/scripts/publish_douyin.py cleanup --session <s>
 - **触发**：任务结束未 cleanup
 - **症状**：下次启动 session 冲突
 - **workaround**：发布任务跑完**不主动 close** 持久化 session `douyin`（登录态留着下次用）；只在 session 卡死时 `camoufox-cli --session douyin --json close` teardown
-
----
-
-## 凭据
-
-- 本 skill 不持任何抖音官方 API 凭据
-- 抖音发布走浏览器模拟（client 端操作，不经 relay 代理）
-- cookie + UA 中央存储文件**不读本 skill**——它们供 viral-chaser / published-track 等下游脚本消费
 
 ---
 

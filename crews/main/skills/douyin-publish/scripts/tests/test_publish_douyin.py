@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Unit tests for publish_douyin.py (Phase 3.2 浏览器模拟方案).
+"""Unit tests for publish_douyin.py (纯浏览器模拟方案，形态仿 wechat-channels-publish).
 
-Covers:
-- 6 个子命令路由（login / upload / fill / publish / get-link / cleanup）
-- login_manager 集成（check + session-cleanup）
+ Covers:
+- 5 个子命令路由（upload / fill / publish / get-link / cleanup）+ run 一键全流程
+- 纯浏览器操作：本 skill 不自管探活/登录，交 login-manager；脚本只复用持久化 session `douyin` 做发布
 - camoufox-cli 调用模式（open / eval / click / type / set_file / wait）
 - Session 命名（每任务一 session，D18 + 4.5.5）
-- file 不存在 / cookie 失效 / 按钮找不到等失败模式
+- file 不存在 / 按钮找不到等失败模式
 
-All camoufox-cli / login-manager / subprocess calls are mocked.
+All camoufox-cli / subprocess calls are mocked.
 """
 import json
 import subprocess
@@ -32,8 +32,8 @@ class TestConstants(unittest.TestCase):
         self.assertIn("enter_from=dou_web", publish_douyin.UPLOAD_URL)
 
     def test_platform_key(self):
-        # login-manager 中央存储 key
-        self.assertEqual(publish_douyin.LOGIN_MANAGER_PLATFORM, "douyin")
+        # 持久化 session 名 = 平台 key（探活/登录/导出 cookie+UA 交 login-manager）
+        self.assertEqual(publish_douyin.PERSISTENT_SESSION, "douyin")
 
     def test_no_douyin_open_platform_credentials(self):
         # Phase 3.2 浏览器模拟方案：不依赖开放平台凭据
@@ -57,27 +57,6 @@ class TestSessionNaming(unittest.TestCase):
         self.assertGreater(len(suffix), 0)
 
 
-class TestCmdLogin(unittest.TestCase):
-    @mock.patch("publish_douyin.login_manager_check")
-    def test_login_active_exits_0(self, mock_check):
-        mock_check.return_value = True
-        out = StringIO()
-        with mock.patch("sys.stdout", out):
-            with self.assertRaises(SystemExit) as ctx:
-                publish_douyin.cmd_login()
-            self.assertEqual(ctx.exception.code, 0)
-        result = json.loads(out.getvalue())
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["platform"], "douyin")
-
-    @mock.patch("publish_douyin.login_manager_check")
-    def test_login_expired_exits_2(self, mock_check):
-        mock_check.return_value = False
-        with self.assertRaises(SystemExit) as ctx:
-            publish_douyin.cmd_login()
-        self.assertEqual(ctx.exception.code, 2)
-
-
 class TestCmdUpload(unittest.TestCase):
     def test_video_not_found_exits_1(self):
         with self.assertRaises(SystemExit) as ctx:
@@ -86,10 +65,10 @@ class TestCmdUpload(unittest.TestCase):
 
     @mock.patch("publish_douyin.camoufox_close")
     @mock.patch("publish_douyin.camoufox_wait_for_text")
-    @mock.patch("publish_douyin.camoufox_set_file")
+    @mock.patch("publish_douyin.camoufox_upload")
     @mock.patch("publish_douyin.camoufox_open")
-    def test_successful_upload(self, mock_open, mock_set_file, mock_wait, mock_close):
-        mock_set_file.return_value = True
+    def test_successful_upload(self, mock_open, mock_upload, mock_wait, mock_close):
+        mock_upload.return_value = True
         mock_wait.return_value = True
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -104,10 +83,10 @@ class TestCmdUpload(unittest.TestCase):
         mock_open.assert_called_once()
 
     @mock.patch("publish_douyin.camoufox_wait_for_text")
-    @mock.patch("publish_douyin.camoufox_set_file")
-    @mock.patch("publish_douxin.camoufox_open" if False else "publish_douyin.camoufox_open")
-    def test_upload_setfile_fail_exits_1(self, mock_open, mock_set_file, mock_wait):
-        mock_set_file.return_value = False
+    @mock.patch("publish_douyin.camoufox_upload")
+    @mock.patch("publish_douyin.camoufox_open")
+    def test_upload_setfile_fail_exits_1(self, mock_open, mock_upload, mock_wait):
+        mock_upload.return_value = False
         with tempfile.TemporaryDirectory() as tmp:
             video = Path(tmp) / "v.mp4"
             video.write_bytes(b"video")
@@ -177,15 +156,21 @@ class TestCmdGetLink(unittest.TestCase):
 
 
 class TestCmdRun(unittest.TestCase):
-    @mock.patch("publish_douyin.login_manager_check")
-    def test_run_cookie_expired_exits_2(self, mock_check):
-        mock_check.return_value = False
+    """run 命令不再自管探活——假设 login-manager 已就位，直接走 upload → fill → publish → get-link。"""
+
+    @mock.patch("publish_douyin.cmd_get_link")
+    @mock.patch("publish_douyin.cmd_publish")
+    @mock.patch("publish_douyin.cmd_fill")
+    @mock.patch("publish_douyin.cmd_upload")
+    def test_run_invokes_chain_in_order(self, mock_upload, mock_fill, mock_publish, mock_get_link):
         with tempfile.TemporaryDirectory() as tmp:
             video = Path(tmp) / "v.mp4"
             video.write_bytes(b"x")
-            with self.assertRaises(SystemExit) as ctx:
-                publish_douyin.cmd_run(video=str(video), title="t")
-        self.assertEqual(ctx.exception.code, 2)
+            publish_douyin.cmd_run(video=str(video), title="t", caption="c")
+        mock_upload.assert_called_once()
+        mock_fill.assert_called_once()
+        mock_publish.assert_called_once()
+        mock_get_link.assert_called_once()
 
 
 class TestCleanup(unittest.TestCase):

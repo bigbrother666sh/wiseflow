@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
-"""douyin-publish — 抖音内容发布（浏览器模拟方案，forked camoufox-cli）
+"""douyin-publish — 抖音内容发布（纯浏览器模拟方案，形态仿 wechat-channels-publish）
 
-改走浏览器模拟（forked camoufox-cli 持久化 session `douyin` + upload 命令）：
-- 登录 https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web
-- 在创作者中心页面填表 + 上传视频 + 发布
-- 走 login-manager 中央 cookie + UA（spec §4 原则 4，同时导入）
+形态与 wechat-channels-publish 同构：纯浏览器操作，走 forked camoufox-cli 持久化 session
+`douyin` + upload 命令，在创作者中心页面填表 + 上传视频 + 发布。
+
+**与 login-manager 的边界**：
+- 探活 / 有头手动登录 / 导出 cookie+UA 落中央存储 → **全交 login-manager**（不在本 skill 内做）
+- 本 skill 只复用 login-manager 准备好的持久化 session `douyin` 做发布操作
+- 本 skill **不吃 cookie**，浏览器操作严禁 `cookies import`（spec §8）
 
 子命令：
-  login                   探活（开持久化 session `douyin` open 创作者中心首页 snapshot 看是否跳登录）
   upload --video <path>   上传视频（forked cli upload 命令，底层 setInputFiles 穿透 shadow DOM）
   fill --title X --caption Y  填标题/描述/话题
   publish                 点"发布"按钮
   get-link                取已发布视频的公开链接
-  run                     一键跑全流程（login + upload + fill + publish + get-link）
+  run                     一键跑全流程（upload + fill + publish + get-link）
   cleanup <session>       关闭 camoufox session
 
 依赖：
 - camoufox-cli（全局可用）
-- login-manager skill（cookie + UA 中央存储，平台 key: `douyin`，有头手动登录）
+- login-manager skill（探活/有头登录/导出 cookie+UA 落中央存储供 viral-chaser/published-track 消费）
+  ——本 skill 不调用 login-manager，但前置假设它已把持久化 session `douyin` 登录态准备好
 
 参考：
-- 形态仿 crews/main/skills/wechat-channels-publish（视频号浏览器模拟）
+- 形态仿 crews/main/skills/wechat-channels-publish（视频号浏览器模拟，纯浏览器操作不导出 cookie）
 - 用户上下文：抖音开放平台发布能力被驳回（主体资质不满足）→ 走浏览器模拟绕过
 """
 from __future__ import annotations
@@ -38,43 +41,18 @@ from typing import Optional
 # ── 常量 ─────────────────────────────────────────────────────────────────────
 
 UPLOAD_URL = "https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web"
-CREATOR_HOME = "https://creator.douyin.com/"
 CAMOUFOX_BIN = os.environ.get("CAMOUFOX_CLI", "camoufox-cli")
-LOGIN_MANAGER_PLATFORM = "douyin"
 # 持久化 session 名 = 平台 key（spec §4 原则 1，一个且只有一个持久化 session）
-PERSISTENT_SESSION = LOGIN_MANAGER_PLATFORM
-LOGINS_DIR = Path.home() / ".openclaw" / "logins"
-COOKIE_FILE = LOGINS_DIR / "douyin.json"
-UA_FILE = LOGINS_DIR / "douyin.ua.json"
+# 由 login-manager 负责探活/有头登录/导出 cookie+UA 落中央存储；本 skill 只复用此 session 做发布操作
+PERSISTENT_SESSION = "douyin"
 
-UPLOAD_TIMEOUT_S = 600        # 大视频上传可能慢
 TRANSCODE_POLL_S = 3
 TRANSCODE_MAX_WAIT_S = 600    # 转码最多 10 分钟
 POST_PUBLISH_POLL_S = 5
 POST_PUBLISH_MAX_WAIT_S = 60  # 发布后跳转最多 1 分钟
-QR_SCAN_TIMEOUT_S = 180       # 扫码登录 3 分钟
 
 
 # ── 平台工具 ────────────────────────────────────────────────────────────────
-
-def login_manager_check() -> bool:
-    """探活：开持久化 session `douyin` 打开创作者中心首页，snapshot 看是否跳登录页。
-
-    forked cli 路径下不再依赖 login-manager.sh（脚本已退役）。本函数直接用 camoufox-cli
-    open + snapshot 验活——cookie 失效页面会跳登录，snapshot 一眼能看。
-    """
-    # 临时探活用 headless；失效后走 cmd_login 的有头流程
-    cmd = [CAMOUFOX_BIN, "--session", PERSISTENT_SESSION, "--persistent", "--headless", "--json", "open", CREATOR_HOME]
-    subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
-    time.sleep(3)
-    # snapshot 看当前 URL 是否含 login
-    js = "(function(){ return window.location.href; })()"
-    out = camoufox_eval(PERSISTENT_SESSION, js)
-    # 探活完关 session（fail-first 队列约束，不持锁）
-    subprocess.run([CAMOUFOX_BIN, "--session", PERSISTENT_SESSION, "--json", "close"], capture_output=True, text=True, timeout=10, check=False)
-    if out and "login" not in out:
-        return True
-    return False
 
 
 def session_name(purpose: str = "publish") -> str:
@@ -169,19 +147,6 @@ def camoufox_close(session: str) -> None:
 
 # ── 子命令实现 ──────────────────────────────────────────────────────────────
 
-def cmd_login() -> None:
-    """探活：cookie 失效时告知 agent 走 login-manager 有头手动登录流。"""
-    if login_manager_check():
-        sys.stdout.write(json.dumps({"ok": True, "platform": LOGIN_MANAGER_PLATFORM}, ensure_ascii=False))
-        sys.stdout.write("\n")
-        sys.exit(0)
-    sys.stderr.write(
-        f"error: {LOGIN_MANAGER_PLATFORM} cookie 失效；"
-        f"请先走 login-manager 有头手动登录流（camoufox-cli --session {PERSISTENT_SESSION} --persistent --headed open "
-        f"{CREATOR_HOME} → 用户在浏览器手动登录 → cookies export + identity export 落中央存储）\n"
-    )
-    sys.exit(2)
-
 
 def cmd_upload(*, video: str, session: Optional[str] = None) -> None:
     """上传视频到创作者中心。session 默认走持久化 `douyin`（登录态在持久化 session 里，spec §5）。
@@ -270,15 +235,12 @@ def cmd_get_link(*, session: str) -> None:
 
 
 def cmd_run(*, video: str, title: str, caption: str = "") -> None:
-    """一键跑全流程：login → upload → fill → publish → get-link。"""
-    if not login_manager_check():
-        sys.stderr.write(
-            f"error: {LOGIN_MANAGER_PLATFORM} cookie 失效；"
-            f"请先走 login-manager 有头手动登录流（camoufox-cli --session {PERSISTENT_SESSION} --persistent --headed open "
-            f"{CREATOR_HOME} → 用户在浏览器手动登录 → cookies export + identity export 落中央存储）\n"
-        )
-        sys.exit(2)
+    """一键跑全流程：upload → fill → publish → get-link。
 
+    探活/登录/导出 cookie+UA 交 login-manager（不在本 skill 内做）——本函数假设持久化 session
+    `douyin` 已由 login-manager 登录态准备好，直接复用做发布操作。若 session 失效，camoufox-cli
+    open 创作者中心页面会跳登录页，下游 snapshot/snapshot 失败会显式报错（由调用方转 login-manager 重登）。
+    """
     session = PERSISTENT_SESSION
     try:
         cmd_upload(video=video, session=session)
@@ -301,12 +263,9 @@ def cmd_cleanup(*, session: str) -> None:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="publish_douyin",
-        description="抖音内容发布（浏览器模拟方案，forked camoufox-cli 持久化 session douyin + upload）",
+        description="抖音内容发布（纯浏览器模拟方案，形态仿 wechat-channels-publish。探活/有头登录/导出 cookie+UA 交 login-manager）",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
-
-    p_login = sub.add_parser("login", help="探活（cookie 失效时提示走 login-manager 有头登录流）")
-    p_login.set_defaults(func=lambda a: cmd_login())
 
     p_upload = sub.add_parser("upload", help="上传视频")
     p_upload.add_argument("--video", required=True)

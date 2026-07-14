@@ -191,9 +191,39 @@
 
 ---
 
+---
+
+## 五、2026-07-14 续轮：twitter-interact 重写 + xianyu mtop 吸收
+
+> 本轮在 §三 建议基础上继续推进。twitter-interact 已落地并重写；OpenCLI 2026-07 catchup（b0f84c9）顺带扫到 xianyu mtop 搜索，一并吸收。
+
+### 5.1 twitter-interact 重写（借鉴 OpenCLI twitter 命令族）
+
+`crews/main/skills/twitter-interact/` 已建并完成一轮**模型重写**（commit `0b7270e`），核心借鉴 OpenCLI twitter 命令族的方法（**不搬代码**，只吸收模式）：
+
+- **article-scoped 探针**：like / retweet / follow 全部先在目标 article 子树内找按钮，避免抓到父推或同页其他推的按钮误操作。`_poll_probe` 轮询晚水合的 article（10s 内找不到 → exit 1）。
+- **testid 确认菜单**：retweet 不再靠 aria-label 猜，改用 `[data-testid="retweet"]` + 确认菜单 `[data-testid="retweetConfirm"]`，根除"误选 Quote"。
+- **按钮互换模型**：判定 like/retweet 状态不靠 `aria-pressed`（X 经常不更新），改看对立态按钮是否出现（已 like → unlike 按钮在）。`_click_confirm` / `_click_suffix` / `_poll_suffix` 封装。
+- **晚水合轮询**：X SPA 切路由后元素晚出，统一 `_poll_*` helper 轮询而非固定 sleep。
+
+SKILL.md workflow / pitfalls / error handling 三段全部重写对齐新模型。28 单测 rebase 后仍绿。
+
+### 5.2 OpenCLI xianyu mtop 吸收（详见 opencli-v1.8.6 doc §6）
+
+本轮 OpenCLI catchup 顺带吸收 df8ca8d（xianyu mtop 服务端筛选）→ `xianyu-ops/scripts/xianyu_search.py`，以及 229b3b0（大小写不敏感 HTML 登录墙）→ `_shared/relay-sign.ts` + login-manager。详见 `docs/ai-catchup-2026-07-opencli-v1.8.6.md` §6。
+
+### 5.3 本轮架构约束重申（用户 2026-07-14 定调）
+
+- **OpenCLI**：Chrome Extension 架构，wiseflow 主推 camoufox-cli，**操作指导不一定适用，只借鉴方法 + 平台风控经验，不搬代码**。
+- **AiToEarn**：全走官方接口或逆向接口方案，后续**只看这些接口有没有新增或变更**，不搬其 SaaS Relay 架构。
+
+---
+
 关联：
 - `docs/upstream-catchup-2026-07.md`（6 上游综合 catchup 报告）
+- `docs/ai-catchup-2026-07-opencli-v1.8.6.md`（OpenCLI 借鉴分析，§6 为本轮 catchup）
 - `skills/smart-search/SKILL.md`（本仓 smart-search）
 - `crews/main/skills/twitter-post/SKILL.md`（本仓 twitter-post）
+- `crews/main/skills/twitter-interact/SKILL.md`（本仓 twitter-interact，本轮重写）
 - `~/.claude/projects/-home-wukong-wiseflow/memory/02-upstream-sources.md`（上游来源表）
 - `~/.claude/projects/-home-wukong-wiseflow/memory/05-smart-search-engines.md`（smart-search 引擎策略）

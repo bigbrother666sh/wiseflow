@@ -58,7 +58,7 @@
 
 - `--persistent` 指纹冻结机制（`camoufox-cli.json` 首次生成后冻结，spike ② 已证）
 - `cookies export/import` JSON 格式（= Playwright `add_cookies` 格式，spike ① 已证零转换）
-- daemon 模型 / `--session` 隔离 / `--json` 信封 / `--headed`/`--headless`
+- daemon 模型 / `--session` 隔离 / `--json` 信封 / `--headed`（默认 headless，无需 `--headless`）
 
 ### 1.3 D18 共享模板模式（持久化 session 落地方式）
 

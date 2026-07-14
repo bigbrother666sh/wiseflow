@@ -32,7 +32,7 @@ metadata:
 
 ```
 1. 启持久化 session + 打开微博首页：
-   camoufox-cli --session weibo --persistent --headless --json open "https://weibo.com"
+   camoufox-cli --session weibo --persistent --json open "https://weibo.com"
 2. sleep 3 加载，snapshot 拿到输入框 ref
    - 输入框选择器：textarea.W_input 或 [node-type="textEl"] 或 textarea[placeholder*="有什么新鲜事"]
    - 如果找不到，open "https://weibo.com" 刷新后重试

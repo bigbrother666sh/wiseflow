@@ -181,7 +181,8 @@ class TestSessionLifecycle(unittest.TestCase):
         self.assertIn("--session", cmd)
         self.assertIn("wx-mp-engagement-abc12345", cmd)
         self.assertIn("--persistent", cmd)
-        self.assertIn("--headless", cmd)
+        # camoufox-cli 默认 headless，不再传 --headless（旧版 flag 已移除）
+        self.assertNotIn("--headless", cmd)
 
     @mock.patch("fetch_engagement.subprocess.run")
     def test_fetch_dom_runs_eval(self, mock_run):

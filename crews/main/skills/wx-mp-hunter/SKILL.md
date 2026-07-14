@@ -58,7 +58,7 @@ wx-mp-hunter check-session
 | `{"ok": true}` | session 有效，可直接使用 |
 | `{"ok": false, "error": "SESSION_EXPIRED"}` (exit 2) | 需要重新登录 |
 
-`check` 内部走 camoufox-cli：`--session wx_mp --persistent --headless open "https://mp.weixin.qq.com/"` + 读 redirect URL，跳到 `login` / `scanloginqrcode` = 失效，跳到 `/cgi-bin/home?...&token=xxx` = 有效。
+`check` 内部走 camoufox-cli：`--session wx_mp --persistent open "https://mp.weixin.qq.com/"`（默认 headless）+ 读 redirect URL，跳到 `login` / `scanloginqrcode` = 失效，跳到 `/cgi-bin/home?...&token=xxx` = 有效。
 
 ---
 
@@ -72,7 +72,7 @@ wx-mp-hunter check-session
 wx-mp-hunter login
 ```
 
-脚本内部走 camoufox-cli：`--session wx_mp --persistent --headless open "https://mp.weixin.qq.com/"` + `screenshot /tmp/qr-wx-mp.png`，**不 close session**（留着给 `login-confirm` 继续用）。等待脚本输出 JSON：
+脚本内部走 camoufox-cli：`--session wx_mp --persistent open "https://mp.weixin.qq.com/"`（默认 headless）+ `screenshot /tmp/qr-wx-mp.png`，**不 close session**（留着给 `login-confirm` 继续用）。等待脚本输出 JSON：
 
 ```json
 {

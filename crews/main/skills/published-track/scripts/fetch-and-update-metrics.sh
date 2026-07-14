@@ -173,7 +173,7 @@ if [ "$NEEDS_COOKIE" = true ]; then
   fi
 
   # 探活：开持久化 session open 平台首页 + snapshot 看是否跳登录页（spec §11-6，对齐 login-manager 步骤 0）
-  "$CAMOUFOX_CLI" --session "$LM_PLATFORM" --persistent --headless --json open "$PLATFORM_HOME" >/dev/null 2>&1 || true
+  "$CAMOUFOX_CLI" --session "$LM_PLATFORM" --persistent --json open "$PLATFORM_HOME" >/dev/null 2>&1 || true
   sleep 3
   SNAP=$("$CAMOUFOX_CLI" --session "$LM_PLATFORM" --json snapshot 2>/dev/null || echo "")
   "$CAMOUFOX_CLI" --session "$LM_PLATFORM" --json close >/dev/null 2>&1 || true

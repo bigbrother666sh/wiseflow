@@ -62,8 +62,8 @@ def session_name(purpose: str = "publish") -> str:
 
 
 def camoufox_open(session: str, url: str) -> None:
-    """启 headless + persistent 会话 + 打开 URL。"""
-    cmd = [CAMOUFOX_BIN, "--session", session, "--persistent", "--headless", "--json", "open", url]
+    """启 persistent 会话 + 打开 URL（camoufox-cli 默认 headless）。"""
+    cmd = [CAMOUFOX_BIN, "--session", session, "--persistent", "--json", "open", url]
     subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
 
 

@@ -106,11 +106,11 @@ wx-mp-engagement fetch-all --days 7
    └─ exit 0 -> 继续
 2. lookup_published_row(row_id) -> 拿 title / publish_url
 3. 复用 wx_mp 持久化 session（不开独立 session、不 import cookie）：
-   camoufox-cli --session wx_mp --persistent --headless --json open "https://mp.weixin.qq.com/"
+   camoufox-cli --session wx_mp --persistent --json open "https://mp.weixin.qq.com/"
 4. 读 redirect URL 拿 token（open 首页自动重定向到 /cgi-bin/home?...&token=xxx）：
    camoufox-cli --session wx_mp --json url
    （也可从中央存储 wx_mp.json 的 token 字段读；session 内实时拿更稳，token 与 session 同寿命）
-5. camoufox-cli --session wx_mp --persistent --headless --json open "https://mp.weixin.qq.com/cgi-bin/appmsgpublish?sub=list&begin=0&count=20&token=<TOKEN>&lang=zh_CN" -> 发表记录页
+5. camoufox-cli --session wx_mp --persistent --json open "https://mp.weixin.qq.com/cgi-bin/appmsgpublish?sub=list&begin=0&count=20&token=<TOKEN>&lang=zh_CN" -> 发表记录页
 6. camoufox-cli --session wx_mp --json eval <innerText 解析 JS> -> [{title, metrics}, ...]
 7. match_article(rows, row.title) -> 按标题归一化匹配
 8. update-metrics.sh --platform wx_mp --id <row_id> ... -> 写 pub_wx_mp

@@ -144,7 +144,7 @@ metadata:
 
 ```bash
 SESSION="search-$(date +%s)"
-camoufox-cli --session "$SESSION" --headless --json open "<url>"
+camoufox-cli --session "$SESSION" --json open "<url>"
 # …snapshot / eval / scroll 取数…
 camoufox-cli --session "$SESSION" --json close
 ```

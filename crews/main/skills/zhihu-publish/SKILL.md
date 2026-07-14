@@ -32,7 +32,7 @@ metadata:
 
 ```
 1. 启持久化 session + 打开创作页：
-   camoufox-cli --session zhihu --persistent --headless --json open "https://zhuanlan.zhihu.com/write"
+   camoufox-cli --session zhihu --persistent --json open "https://zhuanlan.zhihu.com/write"
 2. sleep 3-5 加载编辑器，snapshot 确认 .WriteIndex-page 或 .PostEditor 出现
 3. snapshot 拿到标题输入框 ref：input[placeholder*="标题"] 或 .WriteIndex-titleInput input
 4. camoufox-cli --session zhihu --persistent --json type <标题-ref> "文章标题"
@@ -57,7 +57,7 @@ metadata:
 
 ```
 1. 启持久化 session + 打开问题页：
-   camoufox-cli --session zhihu --persistent --headless --json open "https://www.zhihu.com/question/{question_id}"
+   camoufox-cli --session zhihu --persistent --json open "https://www.zhihu.com/question/{question_id}"
 2. sleep 3-5 加载
 3. snapshot 找"写回答"按钮 ref：button.Button--blue 或文本为"写回答"的按钮
 4. camoufox-cli --session zhihu --persistent --json click <写回答-ref>

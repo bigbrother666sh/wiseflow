@@ -21,7 +21,7 @@ metadata:
 
 走 login-manager skill 流程（详见 login-manager SKILL.md 步骤 0–3），开**同一个** `xhs-browse` 持久化 session：
 
-1. **探活**（无头 snapshot 看是否跳登录页）：`camoufox-cli --session xhs-browse --persistent --headless --json open "https://www.xiaohongshu.com/"` + `camoufox-cli --session xhs-browse --json snapshot` → 没跳登录页 = 登录态有效，跳登录页 = 失效走步骤 2。
+1. **探活**（无头 snapshot 看是否跳登录页）：`camoufox-cli --session xhs-browse --persistent --json open "https://www.xiaohongshu.com/"`（默认 headless）+ `camoufox-cli --session xhs-browse --json snapshot` → 没跳登录页 = 登录态有效，跳登录页 = 失效走步骤 2。
 2. **失效则启有头重登**：`camoufox-cli --session xhs-browse --persistent --headed --json open "https://www.xiaohongshu.com/"`，告知用户「**小红书** 浏览器已打开，请在窗口里手动扫码登录，完成后告诉我」。
 3. 登录就位后**同时导出 cookie + UA**落中央存储（供其他脚本类技能消费，非本技能自用）：
    - `camoufox-cli --session xhs-browse --persistent --json cookies export ~/.openclaw/logins/xhs-browse.json`
@@ -91,7 +91,7 @@ https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_sourc
 
 ```
 1. 导航到 feed 详情页：
-   camoufox-cli --session "$SESSION" --persistent --headless open <feed_url>
+   camoufox-cli --session "$SESSION" --persistent open <feed_url>
 2. 等待 2-3 秒加载（sleep 3），调 snapshot 看 .access-wrapper / .error-wrapper
    是否出现 → 出现则笔记不可访问，停止并告知用户
 3. 找评论输入框 .content-input，触发 input 事件（用 type 子命令）：

@@ -19,7 +19,7 @@ metadata:
 
 1. 持久化 session `wechat-channel` 已登录（登录态存 session profile 里）。本 skill 与 login-manager **完全无关**——自管探活 + 登录，**不导出 cookie/UA 落中央存储**。
 2. 首次使用 / 登录态失效时，走自管**无头截图 QR**登录流：
-   - `camoufox-cli --session wechat-channel --persistent --headless --json open "https://channels.weixin.qq.com/platform/home"`
+   - `camoufox-cli --session wechat-channel --persistent --json open "https://channels.weixin.qq.com/platform/home"`
    - `camoufox-cli --session wechat-channel --json screenshot /tmp/qr-wechat-channel.png` 截登录 QR
    - 把 PNG 用 image 工具加载发用户（**不要发本地路径**），告知「**微信视频号** 登录已失效，请用微信扫码确认，完成后回复"已扫码"」
    - 用户回复后 `snapshot` 验页面已跳走 / QR 消失
@@ -27,7 +27,7 @@ metadata:
 
 > **不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本 skill 不调用 `cookies export` / `identity export`。
 >
-> 显式无头模式：本 skill 登录走 `--headless` 截 QR 发用户扫码，是少数允许显式无头的场景之一。
+> 无头模式（camoufox-cli 默认即 headless，无需额外 flag）：本 skill 登录走默认 headless 截 QR 发用户扫码。
 
 ---
 
@@ -36,7 +36,7 @@ metadata:
 ### Step 1: 导航到发布页
 
 ```
-camoufox-cli --session wechat-channel --persistent --headless --json open "https://channels.weixin.qq.com/platform/post/create"
+camoufox-cli --session wechat-channel --persistent --json open "https://channels.weixin.qq.com/platform/post/create"
 ```
 
 等待 **5 秒**（wujie 需要额外时间初始化 shadow DOM）。

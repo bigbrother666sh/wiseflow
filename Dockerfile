@@ -78,7 +78,7 @@ RUN node -e "\
 # 一次性 bootstrap：清空 profile dir → 跑一次 about:blank 生成 camoufox-cli.json
 # → close。运行时各 agent session cp 此模板到独立 profile dir 用
 # （D18：不 fork camoufox-cli；不 bake chromium；每 agent 一 session）。
-# --headless 避免依赖 Xvfb 虚拟显示（容器内 build 更稳）。
+# camoufox-cli 默认 headless，无需额外 flag，避免依赖 Xvfb 虚拟显示（容器内 build 更稳）。
 # close --all 兜底清掉任何残留 daemon/进程，避免 build 上下文污染。
 #
 # 持久化模型（重要）：模板的指纹身份 camoufox-cli.json 落在
@@ -90,7 +90,7 @@ RUN node -e "\
 # 详见阶段 4 VOLUME 注释。
 RUN mkdir -p /root/.openclaw/logins/_template && \
     rm -rf /root/.camoufox-cli/profiles/_template && \
-    camoufox-cli --session _template --persistent --headless --json open about:blank && \
+    camoufox-cli --session _template --persistent --json open about:blank && \
     camoufox-cli --session _template close; \
     camoufox-cli close --all 2>/dev/null || true; \
     cp /root/.camoufox-cli/profiles/_template/camoufox-cli.json \

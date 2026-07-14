@@ -78,7 +78,7 @@ All downloaded files, analysis results, and generated reports will be saved unde
 Use the **login-manager** skill to check the session:
 
 - `platform`: `douyin` | `bilibili` | `xhs`
-- 探活按 login-manager SKILL.md 步骤 0：`camoufox-cli --session <platform> --persistent --headless --json open <首页>` + `snapshot` 看是否跳登录页（XHS 用 `xhs-browse`）
+- 探活按 login-manager SKILL.md 步骤 0：`camoufox-cli --session <platform> --persistent --json open <首页>`（默认 headless）+ `snapshot` 看是否跳登录页（XHS 用 `xhs-browse`）
 - If exit code 2 (session expired), execute the login flow described in the login-manager skill (原则 3：douyin / xhs-browse 有头手动登录；bilibili 有头登录；login-manager 管的 5 平台之一)，then retry 探活
 - 登录就位后**同时导出 cookie + UA**（原则 4）：`camoufox-cli cookies export ~/.openclaw/logins/<platform>.json` + `camoufox-cli identity export ~/.openclaw/logins/<platform>.ua.json`
 

@@ -52,7 +52,7 @@ metadata:
 
 ## 使用场景
 
-> **三个场景统一前置**（第一步都一样）：login-manager 探活——`camoufox-cli --session xhs-browse --persistent --headless --json open "https://www.xiaohongshu.com/"` + `snapshot` 看是否跳登录页。跳登录页 = 未登录 → 走 login-manager 有头手动登录流（在同一个 `xhs-browse` 持久化 session 上 `--headed open` + 告知用户手动扫码 + 登录就位后**同时导出 cookie + UA** 落 `~/.openclaw/logins/xhs-browse.json` + `~/.openclaw/logins/xhs-browse.ua.json`，给本技能脚本做 raw HTTP 抓取用；详见下方「前置条件」段）。
+> **三个场景统一前置**（第一步都一样）：login-manager 探活——`camoufox-cli --session xhs-browse --persistent --json open "https://www.xiaohongshu.com/"`（默认 headless）+ `snapshot` 看是否跳登录页。跳登录页 = 未登录 → 走 login-manager 有头手动登录流（在同一个 `xhs-browse` 持久化 session 上 `--headed open` + 告知用户手动扫码 + 登录就位后**同时导出 cookie + UA** 落 `~/.openclaw/logins/xhs-browse.json` + `~/.openclaw/logins/xhs-browse.ua.json`，给本技能脚本做 raw HTTP 抓取用；详见下方「前置条件」段）。
 >
 > **场景 B/C 的浏览器搜索部分**走 **camoufox-cli**（复用 `xhs-browse` 持久化 session，`--session xhs-browse --persistent`，不开独立 session、不 import cookie）——`open` 搜索页 + `snapshot` 读搜索结果列表 + `eval` 拿笔记 URL 提 note_id/xsec_token。拿到 note_id 后切脚本下载。
 
@@ -79,7 +79,7 @@ metadata:
 ```
 1. login-manager 探活（见上方「三个场景统一前置」）；未登录则走有头手动登录流，登录后同时导出 cookie + UA 落中央存储。
 2. 走 camoufox-cli 浏览器操作（复用 xhs-browse 持久化 session）导航到搜索页，按"最多点赞"排序：
-   camoufox-cli --session xhs-browse --persistent --headless --json open "https://www.xiaohongshu.com/search_result?keyword=目标关键词"
+   camoufox-cli --session xhs-browse --persistent --json open "https://www.xiaohongshu.com/search_result?keyword=目标关键词"
 3. camoufox-cli snapshot 获取搜索结果列表，选取前 3-5 篇高互动图文笔记；用 eval 从笔记链接里提取 note_id + xsec_token（URL 格式见「小红书 URL 格式参考」段，从 explore/{feed_id}?xsec_token={token} 解）。
 4. 对每篇笔记，运行图文下载脚本（脚本内部同时导入 cookie 和 UA，已写死，无需手动传）：
    xhs-content-ops --note-id <note_id> --xsec-token <token> --xsec-source pc_feed --output-dir campaign_assets/<slug>/
@@ -110,7 +110,7 @@ metadata:
 
 ### 前置条件
 
-1. 探活按 login-manager SKILL.md 步骤 0：`camoufox-cli --session xhs-browse --persistent --headless --json open "https://www.xiaohongshu.com/"` + `snapshot` 看是否跳登录页（登录态有效 = 没跳登录页；跳登录页 = 失效）。
+1. 探活按 login-manager SKILL.md 步骤 0：`camoufox-cli --session xhs-browse --persistent --json open "https://www.xiaohongshu.com/"`（默认 headless）+ `snapshot` 看是否跳登录页（登录态有效 = 没跳登录页；跳登录页 = 失效）。
 2. 若 exit 2，按 login-manager skill 的流程完成**有头手动**登录（xhs-browse 走有头登录）：
    - 启有头 session：`camoufox-cli --session xhs-browse --persistent --headed --json open "https://www.xiaohongshu.com/"`
    - 告知用户「**小红书** 浏览器已打开，请在窗口里手动扫码登录，完成后告诉我」

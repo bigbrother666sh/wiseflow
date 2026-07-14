@@ -140,7 +140,7 @@ async function main(): Promise<void> {
   }
 
   process.stderr.write(`[fetch-xhs] 探活 xhs-browse session...\n`)
-  camoufox(["--session", SESSION, "--persistent", "--headless", "--json", "open", PLATFORM_HOME])
+  camoufox(["--session", SESSION, "--persistent", "--json", "open", PLATFORM_HOME])
   await sleep(3)
   const snap = camoufox(["--session", SESSION, "--json", "snapshot"])
   camoufox(["--session", SESSION, "--json", "close"])
@@ -174,7 +174,7 @@ async function main(): Promise<void> {
 
   // 5. navigate profile 页 + eval flatten JS 拿映射（滚动 3 屏补齐）
   process.stderr.write(`[fetch-xhs] open profile 页取 note_id→xsec_token 映射...\n`)
-  camoufox(["--session", SESSION, "--persistent", "--headless", "--json", "open", `${PROFILE_BASE}${userId}`])
+  camoufox(["--session", SESSION, "--persistent", "--json", "open", `${PROFILE_BASE}${userId}`])
   await sleep(3)
 
   let mapping: Record<string, { xsec_token: string; xsec_source: string }> = {}

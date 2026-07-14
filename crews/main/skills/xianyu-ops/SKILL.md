@@ -91,7 +91,7 @@ python3 /<workspace 绝对路径>/crews/main/skills/xianyu-ops/scripts/xianyu_se
 ### 查看商品详情
 
 ```
-1. camoufox-cli --session xianyu --persistent --headless --json open "https://www.goofish.com/item?id={item_id}"
+1. camoufox-cli --session xianyu --persistent --json open "https://www.goofish.com/item?id={item_id}"
 2. sleep 2-3 加载，snapshot 检测登录状态
 3. 用 eval 调 mtop 接口获取详情：
    camoufox-cli --session xianyu --persistent --json eval "window.lib.mtop.request({api:'mtop.taobao.idle.pc.detail',data:{itemId:'{item_id}'},type:'POST',v:'1.0',dataType:'json',needLogin:false,needLoginPC:false,sessionOption:'AutoLoginOnly',ecode:0}).then(r=>JSON.stringify(r)).catch(e=>JSON.stringify({error:String(e)}))"
@@ -108,7 +108,7 @@ python3 /<workspace 绝对路径>/crews/main/skills/xianyu-ops/scripts/xianyu_se
 ### 查看私信列表
 
 ```
-1. camoufox-cli --session xianyu --persistent --headless --json open "https://www.goofish.com/im"
+1. camoufox-cli --session xianyu --persistent --json open "https://www.goofish.com/im"
 2. sleep 4-5 加载，snapshot 检测登录状态
 3. snapshot 提取会话列表 ref：每个会话包含
    - 对方昵称、商品标题、价格、最后一条消息

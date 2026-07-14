@@ -263,12 +263,11 @@ async function mergeAccountsToCache(
 // 业务命令（search/account-posts/fetch）仍走 mpFetch 纯 HTTP，cookie + token + UA
 // 从中央存储 SESSION_FILE / UA_FILE 读。
 
-/** camoufox-cli 调用封装：固定 --session wx_mp --persistent --json --headless */
+/** camoufox-cli 调用封装：固定 --session wx_mp --persistent --json（默认即 headless） */
 async function camoufox(...args: string[]): Promise<JsonMap> {
   const { stdout } = await execFileAsync(CAMOUFOX_CLI, [
     "--session", SESSION_NAME,
     "--persistent",
-    "--headless",
     "--json",
     ...args,
   ]);

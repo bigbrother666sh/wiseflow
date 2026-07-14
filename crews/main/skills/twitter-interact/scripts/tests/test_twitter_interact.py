@@ -7,7 +7,7 @@ Covers:
 - URL/id extraction (extract_tweet_id / extract_user_handle)
 - Frequency limit (check_freq_limit / record_action)
 - Session naming (单一持久化 session twitter）
-- run / cleanup subcommands
+- run subcommand（脚本内 _check_session_alive 探活 + 派发）
 - article-scoped 探针 / testid 确认菜单 / 晚水合轮询（mock 新 helper）
 
 All camoufox-cli / file IO are mocked at the helper layer (_poll_probe /
@@ -167,7 +167,8 @@ class TestCmdLike(unittest.TestCase):
         self.assertEqual(result["action"], "like")
         self.assertEqual(result["tweet_id"], "123")
         mock_record.assert_called_once()
-        mock_close.assert_called_once()
+        # 持久化 session 不 close（登录态留着下次复用）
+        mock_close.assert_not_called()
 
     @mock.patch("twitter_interact._poll_probe")
     @mock.patch("twitter_interact.camoufox_open")
@@ -280,23 +281,35 @@ class TestCmdUnfollow(unittest.TestCase):
 
 
 class TestCmdRun(unittest.TestCase):
-    """cmd_run 不再 gate login-manager（探活归前奏/agent），纯派发。"""
+    """cmd_run 脚本内 _check_session_alive 探活，通过后派发到 cmd_*。"""
 
+    @mock.patch("twitter_interact._check_session_alive", return_value=True)
     @mock.patch("twitter_interact.cmd_like")
-    def test_run_like_tweet(self, mock_like):
+    def test_run_like_tweet(self, mock_like, mock_alive):
         with mock.patch("sys.argv", ["twitter_interact", "run",
                                       "--tweet-url", "https://x.com/u/status/123",
                                       "--action", "like"]):
             twitter_interact.main()
+        mock_alive.assert_called_once()
         mock_like.assert_called_once_with("https://x.com/u/status/123")
 
+    @mock.patch("twitter_interact._check_session_alive", return_value=True)
     @mock.patch("twitter_interact.cmd_follow")
-    def test_run_follow_user(self, mock_follow):
+    def test_run_follow_user(self, mock_follow, mock_alive):
         with mock.patch("sys.argv", ["twitter_interact", "run",
                                       "--user", "openai",
                                       "--action", "follow"]):
             twitter_interact.main()
+        mock_alive.assert_called_once()
         mock_follow.assert_called_once_with("openai")
+
+    @mock.patch("twitter_interact._check_session_alive", return_value=False)
+    def test_run_session_dead_exits2(self, mock_alive):
+        with mock.patch("sys.argv", ["twitter_interact", "run",
+                                      "--tweet-url", "https://x.com/u/status/123",
+                                      "--action", "like"]):
+            rc = twitter_interact.main()
+        self.assertEqual(rc, 2)
 
 
 class TestIntegrationDryRun(unittest.TestCase):

@@ -155,7 +155,7 @@ camoufox-cli --session wx_mp --persistent --json identity export ~/.openclaw/log
 
 **browser-guide §1-B 那句「wechat-channel / wx-mp 可无头启动截图发 QR；douyin / twitter / xhs / weibo / zhihu / xianyu / reddit / youtube 登录必须有头模式」要改**：
 - wx-mp 那个无头特例只属于 wx-mp-hunter/engagement 的自有体系，不属于 login-manager 体系，不应在 browser-guide 里和 wechat-channel 并列提。
-- wechat-channel（视频号）按现行 wechat-channels-publish 技能自有 SKILL.md 走，不在 browser-guide 里集中下结论。
+- wechat-channel（视频号）扫码登录页**无法无头截 QR**，必须 `--headed --viewport 1920x1080` 弹窗手动扫码（同 weibo / xianyu），按现行 wechat-channels-publish 技能自有 SKILL.md 走。
 
 ## 8. published-track 流程 2A·自动更新（定时任务用）取数方案
 

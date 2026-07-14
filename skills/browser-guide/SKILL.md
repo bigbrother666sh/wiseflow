@@ -29,7 +29,8 @@ camoufox-cli --session <name> [--persistent] [--headed] [--json] <command> [args
 
 - **`--session <name>`**：会话隔离单元，同名 session 共享一个 profile 目录。**涉及登录的平台用一个且只用一个持久化 session 名**。
 - **`--persistent`**：冻结指纹到 `~/.camoufox-cli/profiles/<name>/camoufox-cli.json`（首次生成后冻结）。持久化平台 session 必带；临时性 session（新闻等不登录站点）**不带**——走默认临时 profile，每次随机指纹，关闭自清。
-- **`--headed`**：有头模式。**需要用户配合过验证码、扫码、收短信的，或者填表场景，必须 `--headed`**（微信公众号wx_mp和微信视频号weixin_channel可以使用无头模式截图含二维码区域发用户登录）。其他场景，包括探活，都可以使用默认的无头模式。
+- **`--headed`**：有头模式。**需要用户配合过验证码、扫码、收短信的，或者填表场景，必须 `--headed`**。例外：**微信公众号 wx_mp** 可无头截含二维码区域截图发用户登录；**微信视频号 wechat-channel / 微博 / 闲鱼等扫码登录页无法无头截 QR，必须 `--headed` 弹窗让用户在浏览器里手动扫码**。其他场景，包括探活，都可以使用默认的无头模式。
+- **`--viewport <WxH>`**：固定窗口尺寸，如 `1920x1080`。camoufox 默认按指纹给**移动端窗口比例**，导致有头登录时二维码看不全；有头扫码登录（微博 / 闲鱼 / 视频号等）一律加 `--viewport 1920x1080` 强制桌面比例。业务无头操作无需此 flag。
 - **`--json`**：命令输出走 JSON 信封（`{ok, ...}` / `{error, ...}`），agent 解析稳定，推荐常带。
 - 命令集（含 `upload` / `identity export`）：
   `open / back / forward / reload / url / title / close / snapshot / click / fill / type / select / check / hover / press / text / eval / screenshot / pdf / scroll / wait / tabs / switch / close-tab / sessions / cookies / install / upload / identity`
@@ -78,7 +79,7 @@ When the login page shows a QR code (WeChat Official Account backend, WeChat Cha
 >
 > 其他场景默认走 camoufox 持久化 session，**不显式指定有头/无头**——camoufox-cli 默认行为即可。
 >
-> **wx_mp（公众号）无头截图 QR** 是特例，适用于 `wx-mp-hunter` + `wx-mp-engagement` 两技能。
+> **wx_mp（公众号）无头截图 QR** 是特例，适用于 `wx-mp-hunter` + `wx-mp-engagement` 两技能。**视频号 / 微博 / 闲鱼等扫码登录页无法无头截 QR**，必须 `--headed --viewport 1920x1080` 弹窗手动扫码（见各 skill 前置条件）。
 
 ### 1-C. SMS verification login
 

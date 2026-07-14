@@ -8,7 +8,7 @@ import * as path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import * as crypto from "node:crypto";
-import { loadDefaults } from "./config.js";
+import { loadDefaults, parseViewport } from "./config.js";
 
 const SOCKET_PREFIX = "/tmp/camoufox-cli-";
 // Linux sockaddr_un path limit is 108 bytes. With prefix "/tmp/camoufox-cli-"
@@ -51,7 +51,7 @@ function sendCommand(sockPath: string, command: Record<string, unknown>): Promis
   });
 }
 
-function spawnDaemon(session: string, headed: boolean, timeout: number, persistent: string | null, proxy: string | null = null, geoip: boolean = true, locale: string | null = null): Promise<void> {
+function spawnDaemon(session: string, headed: boolean, timeout: number, persistent: string | null, proxy: string | null = null, geoip: boolean = true, locale: string | null = null, viewport: [number, number] | null = null): Promise<void> {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const daemonPath = path.join(__dirname, "daemon.js");
 
@@ -61,6 +61,7 @@ function spawnDaemon(session: string, headed: boolean, timeout: number, persiste
   if (proxy) args.push("--proxy", proxy);
   if (!geoip) args.push("--no-geoip");
   if (locale) args.push("--locale", locale);
+  if (viewport) args.push("--viewport", `${viewport[0]}x${viewport[1]}`);
 
   spawn("node", [daemonPath, ...args], {
     detached: true,
@@ -80,7 +81,7 @@ function spawnDaemon(session: string, headed: boolean, timeout: number, persiste
   });
 }
 
-async function ensureDaemon(session: string, headed: boolean, timeout: number, persistent: string | null, proxy: string | null = null, geoip: boolean = true, locale: string | null = null): Promise<void> {
+async function ensureDaemon(session: string, headed: boolean, timeout: number, persistent: string | null, proxy: string | null = null, geoip: boolean = true, locale: string | null = null, viewport: [number, number] | null = null): Promise<void> {
   const sockPath = getSocketPath(session);
   if (fs.existsSync(sockPath)) {
     // Verify daemon is alive
@@ -95,7 +96,7 @@ async function ensureDaemon(session: string, headed: boolean, timeout: number, p
       try { fs.unlinkSync(sockPath); } catch {}
     }
   }
-  await spawnDaemon(session, headed, timeout, persistent, proxy, geoip, locale);
+  await spawnDaemon(session, headed, timeout, persistent, proxy, geoip, locale, viewport);
 }
 
 export function listSessions(): string[] {
@@ -123,13 +124,14 @@ export interface Flags {
   proxy: string | null;
   geoip: boolean;
   locale: string | null;
+  viewport: [number, number] | null;
 }
 
 export function parseArgs(argv: string[]): { flags: Flags; command: Record<string, unknown> } {
   // Flag precedence: command line > config file (per-session block, then the
   // `default` block) > built-in defaults. Only flags explicitly passed on the
   // command line are collected here, so they always win over config.
-  const builtin: Flags = { session: "default", headed: false, timeout: 1800, json: false, persistent: null, proxy: null, geoip: true, locale: null };
+  const builtin: Flags = { session: "default", headed: false, timeout: 1800, json: false, persistent: null, proxy: null, geoip: true, locale: null, viewport: null };
   const cli: Partial<Flags> = {};
   const rest: string[] = [];
 
@@ -167,6 +169,12 @@ export function parseArgs(argv: string[]): { flags: Flags; command: Record<strin
       case "--locale":
         cli.locale = argv[++i] ?? (process.stderr.write("Error: --locale requires a value\n"), process.exit(1), "");
         break;
+      case "--viewport": {
+        const vp = parseViewport(argv[++i]);
+        if (!Array.isArray(vp)) { process.stderr.write("Error: --viewport requires a value like 1920x1080\n"); process.exit(1); }
+        cli.viewport = vp;
+        break;
+      }
       default:
         rest.push(argv[i]);
     }
@@ -453,7 +461,7 @@ async function main() {
   }
 
   // Ensure daemon is running
-  await ensureDaemon(flags.session, flags.headed, flags.timeout, flags.persistent, flags.proxy, flags.geoip, flags.locale);
+  await ensureDaemon(flags.session, flags.headed, flags.timeout, flags.persistent, flags.proxy, flags.geoip, flags.locale, flags.viewport);
 
   const sockPath = getSocketPath(flags.session);
 
@@ -530,6 +538,7 @@ Flags:
   --proxy <url>        Proxy server (e.g. http://host:port or https://host:443)
   --no-geoip           Disable automatic GeoIP spoofing (auto-enabled with --proxy)
   --locale <tag>       Force browser locale (e.g. "en-US" or "en-US,zh-CN")
+  --viewport <WxH>     Fixed window size, e.g. 1920x1080 (default: fingerprint-derived)
 
 Config file:
   ~/.camoufox-cli/config.json sets defaults for the flags above (override the

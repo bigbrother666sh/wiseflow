@@ -34,13 +34,13 @@ export class DaemonServer {
   // alive. In-process tests pass false and let the event loop drain naturally.
   private forceExit: boolean;
 
-  constructor(opts: { session?: string; headless?: boolean; timeout?: number; persistent?: string | null; proxy?: string | null; geoip?: boolean; locale?: string | null; forceExit?: boolean }) {
+  constructor(opts: { session?: string; headless?: boolean; timeout?: number; persistent?: string | null; proxy?: string | null; geoip?: boolean; locale?: string | null; viewport?: [number, number] | null; forceExit?: boolean }) {
     this.session = opts.session ?? "default";
     this.headless = opts.headless ?? true;
     this.timeout = opts.timeout ?? 1800;
     this.socketPath = getSocketPath(this.session);
     this.pidPath = getPidPath(this.session);
-    this.manager = new BrowserManager(opts.persistent ?? null, opts.proxy ?? null, opts.geoip ?? true, opts.locale ?? null);
+    this.manager = new BrowserManager(opts.persistent ?? null, opts.proxy ?? null, opts.geoip ?? true, opts.locale ?? null, opts.viewport ?? null);
     this.forceExit = opts.forceExit ?? false;
   }
 

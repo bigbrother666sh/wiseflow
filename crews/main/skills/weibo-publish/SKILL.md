@@ -19,7 +19,8 @@ metadata:
 
 1. 持久化 session `weibo` 已登录（登录态存 session profile 里）。本 skill 与 login-manager **完全无关**——自管探活 + 登录，**不导出 cookie/UA 落中央存储**。
 2. 首次使用 / 登录态失效时，走自管**有头手动**登录流：
-   - `camoufox-cli --session weibo --persistent --headed --json open "https://weibo.com"`
+   - `camoufox-cli --session weibo --persistent --headed --viewport 1920x1080 --json open "https://weibo.com"`
+   - `--viewport 1920x1080`：camoufox 默认按指纹给移动端窗口比例，二维码看不全；强制桌面 1920×1080
    - 告知用户「**微博** 浏览器已打开，请在窗口里手动登录，完成后告诉我」
    - 等用户回复后 `snapshot` 验登录态就位
    - 登录后**close session**——登录态落磁盘 profile，不留进程占内存；本 skill 下次 `--session weibo --persistent` 重起无头即恢复，用完再 close。

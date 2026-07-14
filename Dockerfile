@@ -80,6 +80,14 @@ RUN node -e "\
 # （D18：不 fork camoufox-cli；不 bake chromium；每 agent 一 session）。
 # --headless 避免依赖 Xvfb 虚拟显示（容器内 build 更稳）。
 # close --all 兜底清掉任何残留 daemon/进程，避免 build 上下文污染。
+#
+# 持久化模型（重要）：模板的指纹身份 camoufox-cli.json 落在
+# /root/.openclaw/logins/_template/ 下——这个路径在阶段 4 被 VOLUME 挂载。
+# Docker 首次启动一个空卷时会把镜像里该路径的内容拷进卷，所以模板在首次
+# 运行时可见；之后卷里的状态（含各 session cp 出来的指纹）跨容器重建保留。
+# 运行时各 session 的 profile dir 应指到 /root/.openclaw/logins/<session>/profile/
+# （已挂卷的子路径），别指到 /root/.camoufox-cli/profiles/ 那个默认位置——
+# 详见阶段 4 VOLUME 注释。
 RUN mkdir -p /root/.openclaw/logins/_template && \
     rm -rf /root/.camoufox-cli/profiles/_template && \
     camoufox-cli --session _template --persistent --headless --json open about:blank && \
@@ -96,6 +104,13 @@ FROM wiseflow-layer AS runtime
 # COPY openclaw-weixin-*.tgz /tmp/ && npm install -g /tmp/openclaw-weixin-*.tgz
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# 持久化卷声明（compose 里用 named volume 挂，好备份好迁移）：
+#   /root/.openclaw       登录态/cookie 中央仓 + 各 session 指纹 profile（首选位置）
+#   /root/.camoufox-cli   camoufox-cli 配置 + 默认 profile dir + geoip/db 运行时缓存
+# 两块都挂卷，避免容器重建丢登录态/指纹/缓存。运行时 profile dir 推荐指到
+# /root/.openclaw/logins/<session>/profile/（上一卷的子路径，单卷管登录+指纹）；
+# /root/.camoufox-cli 这块兜底：非持久 session 的默认 profile、geoip db 等也留得住。
 VOLUME /root/.openclaw
+VOLUME /root/.camoufox-cli
 EXPOSE 18789
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

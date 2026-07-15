@@ -3,7 +3,10 @@
 # 让 agent 用 `xhs-publish <cmd>` 走 PATH，零路径拼接。
 # 子命令 check / login-verify 路由到自管探活 / 导出+验证脚本；其余转发到 publish_xhs.py。
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SELF="${BASH_SOURCE[0]}"
+# Resolve symlink (wrapper is ln -sfn'd into ~/.openclaw/bin) so SCRIPT_DIR points at the real skill dir.
+while [ -L "$SELF" ]; do SELF="$(readlink -f "$SELF")"; done
+SCRIPT_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 
 case "${1:-}" in
   check)

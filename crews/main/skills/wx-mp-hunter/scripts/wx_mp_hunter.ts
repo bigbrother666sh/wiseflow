@@ -744,6 +744,30 @@ async function cmdFetch(url: string, includeHtml: boolean, outputDir = "", downl
     result.content_html = $.html(contentEl) || "";
   }
 
+  // 图片本地化：--download-images 时并发下载到 <outputDir>/images/<hash>.<ext>，
+  // content_markdown 里的图片 URL 替换为 images/<hash>.<ext> 本地相对路径。
+  // 早期版本只解析了 flag 却没调 downloadImages → 参数失效，此处补回。
+  if (downloadImgs && images.length) {
+    const baseDir = outputDir || process.cwd();
+    const imgDir = join(baseDir, "images");
+    const dl = await downloadImages(images, { destDir: imgDir });
+    const downloaded: string[] = [];
+    const failed: string[] = [];
+    for (const [u, r] of dl) {
+      if (r.relPath) downloaded.push(`images/${r.relPath}`);
+      else failed.push(u);
+    }
+    result.content_markdown = contentMarkdown.replace(
+      /!\[[^\]]*\]\(([^)]+)\)/g,
+      (full, u: string) => {
+        const r = dl.get(u);
+        return r && r.relPath ? full.replace(`(${u})`, `(images/${r.relPath})`) : full;
+      },
+    );
+    result.images_local = downloaded;
+    result.images_failed = failed;
+  }
+
   printJson(result);
 }
 

@@ -14,37 +14,21 @@ metadata:
 
 通过 **camoufox-cli** 持久化 session `douyin`（一个且只有一个持久化 session，fail-first 队列：同 session 已有命令在跑时新命令直接 fail）在抖音创作者中心发布视频。
 
-> **纯浏览器操作方案**：本 skill 自身不吃 cookie，**严禁**通过 `cookies import` 导入 cookie 造登录会话——浏览器操作一律走 login-manager 真实登录后的**持久化 session**（登录态 + 指纹冻结在 session profile 里）。
->
-> **使用login-manager技能完成登录操作**：login-manager会引导用户完成手机号+验证码 / 抖音 APP 扫码登录，以及导出 cookie + UA 落中央存储，这是为了供非浏览器类脚本（`viral-chaser`、`published-track` 等）消费。导出 + 有头登录由 login-manager 负责，本 skill 只消费 login-manager 留下的持久化 session。
-
----
-
-## 职责划分（与 login-manager 的边界）
-
-| 职责 | 归属 |
-|------|------|
-| 探活（验 session 是否仍登录态） | login-manager |
-| 有头手动登录（手机号+验证码 / 抖音 APP 扫码） | login-manager |
-| 导出 cookie + UA 落中央存储 | login-manager |
-| 复用持久化 session 做浏览器发布操作 | **douyin-publish（本 skill）** |
+> **纯浏览器操作方案**：本 skill 自身不吃 cookie，**严禁** `cookies import` 造登录会话——浏览器操作一律走 login-manager 真实登录后的**持久化 session `douyin`**（登录态 + 指纹冻结在 session profile 里）。探活 / 有头登录 / 导出 cookie+UA 全交 login-manager，本 skill 只复用持久化 session 做发布操作。
 
 ---
 
 ## 前置条件
 
-1. login-manager 已就位：持久化 session `douyin` 是登录态，且中央存储 `~/.openclaw/logins/douyin.json` + `~/.openclaw/logins/douyin.ua.json` 已导出（cookie + UA 同一指纹，供 viral-chaser / published-track 消费）。
-   - 首次使用 / 登录态失效时，调用方走 **login-manager 有头手动登录流**（不在本 skill 内做）：
-     - `camoufox-cli --session douyin --persistent --headed --json open "https://creator.douyin.com/"`
-     - 告知用户「**抖音** 浏览器已打开，请在窗口里手动完成创作者中心登录（手机号+验证码 / 抖音 APP 扫码），完成后告诉我」
-     - 登录就位后**同时导出 cookie + UA**（由 login-manager 流程负责）：
-       - `camoufox-cli --session douyin --persistent --json cookies export ~/.openclaw/logins/douyin.json`
-       - `camoufox-cli --session douyin --persistent --json identity export ~/.openclaw/logins/douyin.ua.json`
-     - 登录后**close session**——登录态落磁盘 profile + 中央 cookie/UA 文件，不留进程占内存。本 skill 发布时 `--session douyin --persistent` 重起无头即恢复，用完再 close。
+1. **login-manager 已登录 `douyin`**：持久化 session `douyin` 是登录态。首次使用 / 失效时走 login-manager 流程（不在本 skill 内做）：
+   ```bash
+   camoufox-cli --session douyin --persistent --headed --json open "https://creator.douyin.com/"
+   # 告知用户在窗口里手动完成创作者中心登录，确认后：
+   login-manager --platform douyin
+   ```
+   login-manager 一条命令闭环导出+验证+落中央存储（供 viral-chaser / published-track 消费）+ close session。本 skill 发布时 `--session douyin --persistent` 重起无头即恢复，用完再 close。
 2. 视频文件准备好（mp4 / mov）
 3. 抖音创作者中心已实名认证（必须，本人手机号 + 身份证）
-
-> **同时导出 cookie 和 UA**：抖音设备指纹 cookie 必须配同一指纹的 UA，否则被风控错配。本 skill 走持久化 session `douyin`（登录态 + 指纹冻结在 session profile 里），**自身运行不读中央 cookie 文件**——探活也是 `open + snapshot` 看跳登录页，不走中央存储。导出 cookie+UA 落中央存储仅为供 viral-chaser / published-track 等下游脚本消费（不是本 skill 用）+ 与 login-manager 5 平台统一步骤保持一致。
 
 ---
 

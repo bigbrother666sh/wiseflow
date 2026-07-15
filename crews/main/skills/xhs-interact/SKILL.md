@@ -19,15 +19,16 @@ metadata:
 
 ## 前置：login-manager 探活 / 登录（复用 xhs-browse 持久化 session）
 
-走 login-manager skill 流程（详见 login-manager SKILL.md 步骤 0–3），开**同一个** `xhs-browse` 持久化 session：
+走 login-manager skill 流程，复用 `xhs-browse` 持久化 session（消费者域 `www.xiaohongshu.com`）：
 
-1. **探活**（无头 snapshot 看是否跳登录页）：`camoufox-cli --session xhs-browse --persistent --json open "https://www.xiaohongshu.com/"`（默认 headless）+ `camoufox-cli --session xhs-browse --json snapshot` → 没跳登录页 = 登录态有效，跳登录页 = 失效走步骤 2。
-2. **失效则启有头重登**：`camoufox-cli --session xhs-browse --persistent --headed --json open "https://www.xiaohongshu.com/"`，告知用户「**小红书** 浏览器已打开，请在窗口里手动扫码登录，完成后告诉我」。
-3. 登录就位后**同时导出 cookie + UA**落中央存储（供其他脚本类技能消费，非本技能自用）：
-   - `camoufox-cli --session xhs-browse --persistent --json cookies export ~/.openclaw/logins/xhs-browse.json`
-   - `camoufox-cli --session xhs-browse --persistent --json identity export ~/.openclaw/logins/xhs-browse.ua.json`
-
-> **同时导出 cookie 和 UA**：xhs 的 `a1`/`websectiga` 等设备指纹 cookie 必须配同一指纹的 UA 导出，下游脚本消费时也必须同时导入，否则被风控错配。
+1. **探活**：`node <workspace>/crews/main/skills/published-track/scripts/check-login.ts --platform xhs-browse`（exit 0 = 有效；exit 2 = 失效）。
+2. **失效则重登**（login-manager 流程，不在本 skill 内做）：
+   ```bash
+   camoufox-cli --session xhs-browse --persistent --headed --json open "https://www.xiaohongshu.com/"
+   # 告知用户在窗口里手动扫码登录，确认后：
+   login-manager --platform xhs-browse
+   ```
+   login-manager 一条命令闭环导出+验证+落中央存储（供其他脚本类技能消费，非本技能自用）+ close session。
 
 ---
 

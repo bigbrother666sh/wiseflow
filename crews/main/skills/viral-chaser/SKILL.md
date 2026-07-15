@@ -73,29 +73,21 @@ mkdir -p "output_videos/${VIDEO_SLUG}/references"
 
 All downloaded files, analysis results, and generated reports will be saved under this directory. The `references/` subdirectory holds the raw assets (video, audio, key frames) downloaded by the analyzer script.
 
-### Step 2 — Check login (skip for public Bilibili videos)
+### Step 2 — Run the analyzer（内置探活 + 下载 + 转写 + 关键帧）
 
-- `platform`: `douyin` | `bilibili` | `xhs`（XHS 用 `xhs-browse`）
-- **抓取前探活一次**（批量分析多个视频时只探活一次，不每条机械探活）：跑共用探活 CLI
-  `node <workspace>/crews/main/skills/published-track/scripts/check-login.ts --platform <platform>`（workspace 绝对路径见 TOOLS.md）
-  - exit 0 = 有效 → 进 Step 3
-  - exit 2 = SESSION_EXPIRED → 走 login-manager 重登（有头打开登录页 + 通知用户 + 确认后 `login-manager --platform <p>` 导出+验证），再探活一次
-  - exit 1 = SIGN_UNAVAILABLE → 签名缺 OFB_KEY（重登救不了，交 IT engineer 配凭证）
-- 探活逻辑（`_shared/check-session.ts`）：Tier1 cookie 关键字段 + Tier2 平台 pong，pong 带 TTL 缓存。借鉴 MediaCrawlerPro 各平台 client.py pong + nodriver_helper_reference `_check_login_status`。
-
-### Step 3 — Run the analyzer
-
-Set the output directory to the `references/` subdirectory via the `OUTPUT_DIR` environment variable:
+一条命令闭环：先探活、再下载、再 ASR、再抽帧。**探活已合并进脚本**，无需单独跑 check-login。
 
 ```bash
-OUTPUT_DIR="output_videos/${VIDEO_SLUG}/references" viral-chaser <url> [--no-frames]
+viral-chaser <url> [--no-frames]
 ```
 
 - `<url>`: Full or short-link URL of the video（支持短链，如 `xhslink.com/o/xxx`、`v.douyin.com/xxx`、`b23.tv/xxx`，脚本内部跟随重定向解析）
 - `--no-frames`: Skip key frame extraction (faster, audio-only analysis)
-- `OUTPUT_DIR`: Must point to the `references/` subdirectory under the workspace created in Step 1
+- `OUTPUT_DIR`（环境变量）：落盘目录，必须指向 Step 1 建的 `references/` 子目录
 
-> **⚠️ exec allowlist 注意**：上面这行 `OUTPUT_DIR=... ./script` 是**标准 shell 写法**，但在 openclaw exec allowlist 下，**内联 env 前缀会触发 allowlist miss**。通过 exec 工具调用时，请把 `OUTPUT_DIR` 放到 exec 的 **`env` 字段**里传，而不是写成内联前缀；同理避免 `mkdir ... ; echo` 这类分号复合命令（分号会被当成路径的一部分）。脚本本身已正确读取 `OUTPUT_DIR` 落盘，问题只在调用规范。
+> **⚠️ exec allowlist 注意**：`OUTPUT_DIR=... viral-chaser ...` 内联 env 前缀会触发 allowlist miss。通过 exec 工具调用时，把 `OUTPUT_DIR` 放到 exec 的 **`env` 字段**里传，不要写成内联前缀；同理避免 `mkdir ... ; echo` 这类分号复合命令。脚本本身已正确读取 `OUTPUT_DIR` 落盘，问题只在调用规范。
+
+**内置探活**（`_shared/check-session.ts`）：douyin / xhs 抓取前先做两层探活（Tier1 cookie 关键字段 + Tier2 平台 pong，pong 带 TTL 缓存）；bilibili 公开视频免登录，跳过探活。单条下载无法批量，每条自带探活最稳，pong 缓存让重复调用成本很低。
 
 The script outputs a **JSON object to stdout**. Read it and proceed with analysis.
 
@@ -131,10 +123,10 @@ The script outputs a **JSON object to stdout**. Read it and proceed with analysi
 
 **Exit codes:**
 - `0` = Success
-- `1` = Error (URL invalid, download failed, etc.) — report to user
-- `2` = Cookie expired — execute the browser-based re-login workflow (see login-manager skill), then retry once
+- `1` = Error（URL invalid / download failed），或 `SIGN_UNAVAILABLE`（签名缺 OFB_KEY，重登救不了，交 IT engineer 配凭证）
+- `2` = `SESSION_EXPIRED`（cookie 失效）— 走 login-manager 重登（`login-manager --platform <p>` 导出+验证），重试一次
 
-### Step 4 — Read key frames (if available)
+### Step 3 — Read key frames (if available)
 
 For each path in `frames`, use the `Read` tool to load the image and analyze it visually.
 

@@ -374,11 +374,19 @@ async function cmdLoginConfirm(): Promise<void> {
     await camoufox("identity", "export", UA_FILE);
 
     // 读导出的 cookies 文件 + token，写回 SESSION_FILE（扩展加 token 字段）
-    const exported = await readJsonFile<{ cookies: SessionData["cookies"]; updated_at?: string }>(SESSION_FILE);
+    // camoufox-cli `cookies export` 写的是裸数组（见 patches/camoufox-cli/src/commands.ts），
+    // 这里要兼容裸数组与 {cookies:[...]} 两种形状，否则 exported.cookies 为 undefined →
+    // cookies 落空，search/account-posts 无 Cookie 必失败。
+    const exported = await readJsonFile<
+      SessionData["cookies"] | { cookies?: SessionData["cookies"]; updated_at?: string }
+    >(SESSION_FILE);
+    const exportedCookies: SessionData["cookies"] = Array.isArray(exported)
+      ? exported
+      : (exported?.cookies ?? []);
     const ua = await loadUa();
     const sessionData: SessionData = {
       platform: "wx_mp",
-      cookies: exported?.cookies ?? [],
+      cookies: exportedCookies,
       token,
       ua: ua || undefined,
       updated_at: timestampLocal(),

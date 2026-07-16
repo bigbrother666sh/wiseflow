@@ -47,6 +47,19 @@ session <name> 正忙，请等待当前操作完成后再试
 
 camoufox-cli 的 `snapshot` 返回带 ref 的语义快照（`@e1` `@e2` …），后续 `click` / `fill` / `type` / `upload` / `hover` / `press` 全部**优先传 ref**，不要自己 hack CSS selector。找不到元素时**先 snapshot 看真实 DOM 结构**再决定 selector 改写，不要盲试。
 
+### 0.3 用后即关（critical — 机器会被撑死）
+
+每个 `camoufox-cli --session <s> open` 都会拉起一个独立 daemon + 完整 Firefox 实例（每个 200-400MB + 若干 content 进程）。**不关就一直在**（idle 60s 才自退）。一次任务里开几十个 session 又不 close，13GB 机器几分钟就死机（真实事故：72 open / 1 close）。
+
+铁律：
+
+- **临时性 session（搜索 / 抓取 / 不登录站点）**：用完**立即** `camoufox-cli --session <s> --json close`。哪怕后面还要搜，也先 close 再开下一个，或干脆**复用同一个 session 名**（不要每次 `search-$(date +%s)` 起新名）——同名 session 复用同一个 daemon，不堆积。
+- **持久化 session（登录态平台）**：登录/取数结束后也 close。登录态存在 profile 目录里（`~/.camoufox-cli/profiles/<name>/`），**daemon 退出不丢登录**，下次 `open` 自动加载。持久化 ≠ 一直开着。
+- **批量收尾**：一个任务结束前，`camoufox-cli --json close --all` 兜底清掉所有自己开的 session。
+- **不要**每条搜索一个唯一 session 名还不 close。这是已确认的死机模式。
+
+> 源头已有兜底：daemon idle 60s 自退 + 全局并发 daemon 上限 8（超了驱逐最老的）。但 skill 侧仍必须自觉 close——兜底是最后防线，不是不关的理由。
+
 ---
 
 ## 1. Login Prompts

@@ -31,6 +31,17 @@ describe("DaemonServer", () => {
     expect(server).toBeDefined();
   });
 
+  it("clamps idle timeout to the 60s hard ceiling", () => {
+    // A caller asking for 1800s (old default) must be clamped to 60 — this is
+    // the backstop against browser accumulation. A caller asking for less is honored.
+    const greedy = new DaemonServer({ session: "greedy", timeout: 1800 });
+    expect((greedy as any).timeout).toBe(60);
+    const modest = new DaemonServer({ session: "modest", timeout: 30 });
+    expect((modest as any).timeout).toBe(30);
+    const def = new DaemonServer({ session: "def" });
+    expect((def as any).timeout).toBe(60);
+  });
+
   it("starts and accepts connections", async () => {
     const server = new DaemonServer({
       session: TEST_SESSION,

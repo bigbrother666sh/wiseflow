@@ -96,6 +96,8 @@ async function ensureDaemon(session: string, headed: boolean, timeout: number, p
       try { fs.unlinkSync(sockPath); } catch {}
     }
   }
+  // Backstop: don't let runaway callers accumulate live daemons past the cap.
+  await evictForCap(session);
   await spawnDaemon(session, headed, timeout, persistent, proxy, geoip, locale, viewport);
 }
 
@@ -109,6 +111,54 @@ export function listSessions(): string[] {
     }
   } catch {}
   return sessions.sort();
+}
+
+// Hard cap on concurrently live daemons. Each daemon holds a full Firefox
+// instance (~200-400MB + several content processes); on a 13GB machine a
+// runaway agent can freeze the box in minutes by opening dozens of uniquely-
+// named sessions and never closing them (see memory 23-smart-search-session-
+// leak-crash: 72 open / 1 close). When a new daemon would exceed this cap we
+// evict the oldest live daemon (its profile persists, so login state survives)
+// before spawning. 6 leaves headroom for system + node gateway on 13GB
+// (each Firefox ~200-400MB + several content processes; 6 × ~400MB ≈ 2.4GB).
+const MAX_CONCURRENT_DAEMONS = 6;
+
+/** Verify a session's daemon is actually alive by probing its socket. */
+function daemonAlive(sockPath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const s = net.createConnection(sockPath, () => { s.destroy(); resolve(true); });
+      s.on("error", () => resolve(false));
+      s.setTimeout(1000, () => { s.destroy(); resolve(false); });
+    } catch { resolve(false); }
+  });
+}
+
+/** Before spawning a new daemon, if we're at the concurrent cap, close the
+ * oldest live daemon (oldest socket mtime) to make room. Excludes the session
+ * we're about to spawn. Best-effort — never throws. */
+async function evictForCap(session: string): Promise<void> {
+  const excludeSock = getSocketPath(session);
+  const candidates: { session: string; mtime: number }[] = [];
+  for (const s of listSessions()) {
+    const sock = getSocketPath(s);
+    if (sock === excludeSock) continue;
+    if (!(await daemonAlive(sock))) continue;
+    try {
+      const st = fs.statSync(sock);
+      candidates.push({ session: s, mtime: st.mtimeMs });
+    } catch {}
+  }
+  if (candidates.length < MAX_CONCURRENT_DAEMONS) return;
+  candidates.sort((a, b) => a.mtime - b.mtime);
+  const oldest = candidates[0];
+  process.stderr.write(`[camoufox-cli] Concurrent daemon cap (${MAX_CONCURRENT_DAEMONS}) reached, evicting oldest session ${oldest.session}\n`);
+  try {
+    await sendCommand(getSocketPath(oldest.session), { id: "r1", action: "close", params: {} });
+  } catch (e: any) {
+    process.stderr.write(`[camoufox-cli] Eviction close failed: ${e.message}\n`);
+  }
+  await new Promise((r) => setTimeout(r, 300));
 }
 
 // ---------------------------------------------------------------------------
@@ -131,7 +181,7 @@ export function parseArgs(argv: string[]): { flags: Flags; command: Record<strin
   // Flag precedence: command line > config file (per-session block, then the
   // `default` block) > built-in defaults. Only flags explicitly passed on the
   // command line are collected here, so they always win over config.
-  const builtin: Flags = { session: "default", headed: false, timeout: 1800, json: false, persistent: null, proxy: null, geoip: true, locale: null, viewport: null };
+  const builtin: Flags = { session: "default", headed: false, timeout: 60, json: false, persistent: null, proxy: null, geoip: true, locale: null, viewport: null };
   const cli: Partial<Flags> = {};
   const rest: string[] = [];
 
@@ -145,7 +195,7 @@ export function parseArgs(argv: string[]): { flags: Flags; command: Record<strin
         cli.headed = true;
         break;
       case "--timeout":
-        cli.timeout = parseInt(argv[++i] ?? "1800", 10);
+        cli.timeout = parseInt(argv[++i] ?? "60", 10);
         break;
       case "--json":
         cli.json = true;
@@ -532,7 +582,9 @@ Setup:
 Flags:
   --session <name>     Session name (default: "default")
   --headed             Show browser window
-  --timeout <secs>     Daemon idle timeout (default: 1800)
+  --timeout <secs>     Daemon idle timeout (default: 60, hard max 60 — daemons
+                        self-exit when idle to avoid browser accumulation; login
+                        state lives in the profile dir and survives exit)
   --json               Output as JSON
   --persistent [path]  Persistent identity — freeze fingerprint/OS/locale + store cookies/state (default: ~/.camoufox-cli/profiles/<session>)
   --proxy <url>        Proxy server (e.g. http://host:port or https://host:443)

@@ -1,6 +1,6 @@
 ---
 name: login-manager
-description: 平台登录态管理。约定各平台登录流程（强制有头手动登录）、探活规则、中央 cookie+UA 存储路径约定。仅管 4 个平台（douyin/kuaishou/bilibili/xhs-browse），其他平台完全不涉及（xhs-publish 自管登录，见 xhs-publish SKILL.md）。
+description: 平台登录态管理。约定各平台登录流程（强制有头手动登录）、探活规则、中央 cookie+UA 存储路径约定。仅管 4 个平台（douyin/kuaishou/bilibili/xhs-browse）。
 metadata:
   openclaw:
     emoji: 🔑
@@ -20,9 +20,7 @@ metadata:
 | `douyin` | `https://www.douyin.com/` | `~/.openclaw/logins/douyin.json` + `douyin.ua.json` |
 | `bilibili` | `https://passport.bilibili.com/login` | `~/.openclaw/logins/bilibili.json` + `bilibili.ua.json` |
 | `kuaishou` | `https://www.kuaishou.com/` | `~/.openclaw/logins/kuaishou.json` + `kuaishou.ua.json` |
-| `xhs-browse` | `https://www.xiaohongshu.com/`（消费者域） | `~/.openclaw/logins/xhs-browse.json` + `xhs-browse.ua.json` |
-
-> **xhs 双平台**：浏览/互动用 `xhs-browse`（消费者域 `www.xiaohongshu.com`，本 skill 管）；发布用 `xhs-publish`（创作者域 `creator.xiaohongshu.com`，两套独立登录不能共用，由 xhs-publish 技能自管，本 skill 不沾）。
+| `xhs-browse` | `https://www.xiaohongshu.com/` | `~/.openclaw/logins/xhs-browse.json` + `xhs-browse.ua.json` |
 
 ---
 

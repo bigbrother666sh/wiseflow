@@ -18,17 +18,17 @@ metadata:
 
 ---
 
-## 前置条件
+## 如果登录失效：使用 login-manager 重新登录
 
-1. **login-manager 已登录 `douyin`**：持久化 session `douyin` 是登录态。首次使用 / 失效时走 login-manager 流程（不在本 skill 内做）：
-   ```bash
-   camoufox-cli --session douyin --persistent --headed --json open "https://creator.douyin.com/"
-   # 告知用户在窗口里手动完成创作者中心登录，确认后：
-   login-manager --platform douyin
-   ```
-   login-manager 一条命令闭环导出+验证+落中央存储（供 viral-chaser / published-track 消费）+ close session。本 skill 发布时 douyin-publish run 会使用 `--session douyin --persistent` 重起无头 session。
-2. 视频文件准备好（mp4 / mov）
-3. 抖音创作者中心已实名认证（必须，本人手机号 + 身份证）
+走 login-manager skill 流程，复用 `douyin` 持久化 session
+
+```bash
+camoufox-cli --session douyin --persistent --headed --json open "https://www.douyin.com"
+# 告知用户在窗口里手动完成创作者中心登录，确认后：
+login-manager --platform douyin
+```
+
+login-manager 一条命令闭环导出+验证+落中央存储（供 viral-chaser / published-track 消费）+ close session。本 skill 发布时 douyin-publish run 会使用 `--session douyin --persistent` 重起无头 session。
 
 ---
 
@@ -44,7 +44,6 @@ douyin-publish run \
 ```
 
 `run` 内部串：upload → fill → publish → get-link。
-`run` 之前确认 session 已登录。
 
 ### 分步调用（agent 按需）
 
@@ -55,14 +54,17 @@ douyin-publish upload --video video.mp4
 # 2. 填标题/描述
 douyin-publish fill --session <s> --title "标题" --caption "描述"
 
-# 3. 点发布
+# 3. 声明
+看页面中是否有自主声明选项，有的话必选："内容由AI生成"
+
+# 4. 点发布
 douyin-publish publish --session <s>
 
-# 4. 取视频链接
+# 5. 取视频链接
 douyin-publish get-link --session <s>
 ```
 
-> **注意**：本 skill **没有 `login` 子命令、也没有 `cleanup` 子命令**——探活/登录/导出 cookie+UA 全交 login-manager；持久化 session `douyin` 用完即 close（登录态在磁盘 profile，下次重起无头即恢复），只在 session 卡死时由调用方手动 `camoufox-cli --session douyin --json close` teardown。
+> **注意**：本 skill **没有 `login` 子命令、也没有 `cleanup` 子命令**——执行过程中任何时候发现登录态已失效，重走login-manager 登录流程。
 
 ---
 
@@ -79,6 +81,7 @@ douyin-publish get-link --session <s>
 - **用完即 close 持久化 session `douyin`**——登录态 + 指纹冻结在磁盘 profile，不留进程占内存；下次发布 `--session douyin --persistent` 重起无头即恢复。只在 session 卡死时 `camoufox-cli --session douyin --json close` teardown。
 - 同 session 已有命令在跑时，新命令 fail-first（返回 `session douyin 正忙，请等待当前操作完成后再试`）——读到这条文本就等当前操作完成再重试，不要盲试。
 - **严禁 `cookies import`**：浏览器操作不开临时 session 再 import cookie 那一套，会触发平台风控。
+- 执行过程中任何时候发现登录态已失效，则走 login-manager 有头重登流。
 - **不导出 cookie / UA**：导出是 login-manager 的事，本 skill 不调用 `cookies export` / `identity export`。
 
 ---

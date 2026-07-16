@@ -2,7 +2,7 @@
 name: xhs-publish
 description: Publish image-text notes and video notes to Xiaohongshu (小红书) via
   creator COS upload + web_api v2. Supports image posts (up to 18 images),
-  video posts, topics/hashtags. AiToEarn 两步登录(www→creator SSO)对齐 + 探活 (see 登录态管理).
+  video posts, topics/hashtags. 
 metadata:
   openclaw:
     emoji: 📕
@@ -13,7 +13,7 @@ metadata:
 
 # 小红书发布（xhs-publish）
 
-通过 creator 平台 COS 上传 + `/web_api/sns/v2/note` 创建笔记，支持图文和视频。登录与 xhs-browse **共享 camoufox profile**（session=xhs-browse），login-manager 管消费者域 www 登录，本技能在其上做创作者 SSO；两套 cookie 分别落 `xhs-browse.json` / `xhs-publish.json`，发布时合并。签名走 relay sign 服务。
+通过 creator 平台 COS 上传 + `/web_api/sns/v2/note` 创建笔记，支持图文和视频。**共享 camoufox profile**（session=xhs-browse），login-manager 管消费者域 www 登录，本技能在其上做创作者 SSO；两套 cookie 分别落 `xhs-browse.json` / `xhs-publish.json`，发布时合并。签名走 relay sign 服务。
 
 上传流程：① 取 COS 上传许可证 `creator.xiaohongshu.com/api/media/v1/upload/web/permit` → ② PUT 文件到 COS（大文件自动分片）→ ③ 创建笔记 `edith.xiaohongshu.com/web_api/sns/v2/note`。
 
@@ -21,7 +21,9 @@ metadata:
 
 ## 登录态管理（共享 xhs-browse profile，创作者 cookie 自管）
 
-**AiToEarn 两步登录对齐**：发布需同时带消费者域 `web_session` + 创作者域 `galaxy_creator_session_id`。两套由共享 camoufox profile（session=xhs-browse）产出——同一台机器只有一个 profile 涉及小红书消费域，避免两个 profile 互踢 web_session 导致频繁重登暴露。login-manager 管 www 登录（`xhs-browse.json`），本技能在其上做创作者 SSO 导出 `xhs-publish.json`，发布时 `publish_xhs.py` 合并两者。探活走创作者域 `personal_info` **裸 GET**，无需 xhs 签名 / OFB_KEY。
+**两步登录**：发布需同时带消费者域 `web_session` + 创作者域 `galaxy_creator_session_id`。两套由共享 camoufox profile（session=xhs-browse）产出——同一台机器只有一个 profile 涉及小红书平台，避免两个 profile 互踢 web_session 导致频繁重登暴露。
+
+login-manager 管 www 登录（`xhs-browse.json`），本技能在其上做创作者 SSO 导出 `xhs-publish.json`，发布时 `publish_xhs.py` 合并两者。探活走创作者域 `personal_info` **裸 GET**，无需 xhs 签名 / OFB_KEY。
 
 ### Step 1 — 发布前探活（批量发布只探活一次）
 

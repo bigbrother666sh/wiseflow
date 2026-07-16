@@ -1,9 +1,10 @@
 /**
  * creator-session.ts — xhs-publish 创作者域会话探活库（自包含）
  *
- * xhs-publish cookie 是创作者域（creator.xiaohongshu.com）会话，与 xhs-browse 的消费者域
- * （www.xiaohongshu.com，web_session）是两套独立登录，不能共用（见 memory 17 / check-session.ts）。
- * 故 xhs-publish 探活不进共享 _shared/check-session.ts，在本技能内自营。
+ * xhs-publish 与 xhs-browse 共享同一个 camoufox profile（session=xhs-browse）：login-manager 管
+ * 消费者域 www 登录（web_session），xhs-publish 在其上做创作者 SSO（creator/login?source=official）
+ * 拿 galaxy_creator。两套 cookie 分别落 xhs-browse.json / xhs-publish.json，发布时合并（见
+ * publish_xhs.py load_cookies）。探活只验创作者域 personal_info，不进共享 _shared/check-session.ts。
  *
  * 探活端点：GET https://creator.xiaohongshu.com/api/galaxy/creator/home/personal_info
  *   裸 GET + 创作者 cookie + Referer: creator.xiaohongshu.com/ → success===true && code===0 = online
@@ -16,7 +17,7 @@
  * 导出：
  *   buildCookieMap(raw) — camoufox-cli cookies export 输出（裸数组或 {cookies:[...]}）→ CookieMap
  *   loadCreatorSession() — 从中央存储读 xhs-publish.json + .ua.json
- *   presenceCheckCreator(map) — Tier1 创作者会话 cookie 字段存在性（cheap，无网络）
+ *   presenceCheckCreator(map) — Tier1 会话 cookie 字段存在性（a1 + web_session + 创作者 token，cheap，无网络）
  *   pingCreator(map, ua) — Tier2 裸 GET personal_info
  *   verifyCreator(map) — presence + ping（新鲜，导出前验证用）
  *   checkCreator() — load + presence + ping（抓取/发布前探活用）
@@ -76,14 +77,16 @@ export function loadCreatorSession(): { map: CookieMap; ua: string } | null {
   return { map, ua: loadUa() };
 }
 
-// ── Tier 1: 创作者会话字段存在性 ─────────────────────────────────────────────
+// ── Tier 1: 会话字段存在性（a1 + web_session + 创作者 token） ────────────────
 
 export function presenceCheckCreator(map: CookieMap): { ok: boolean; reason?: string; detail?: string } {
   const a1 = map["a1"];
   if (!a1?.value || expired(a1)) return { ok: false, reason: "missing/expired a1 (device fingerprint)" };
+  const ws = map["web_session"];
+  if (!ws?.value || expired(ws)) return { ok: false, reason: "missing/expired web_session (consumer session)" };
   const sessionKey = CREATOR_SESSION_KEYS.find((k) => map[k]?.value && !expired(map[k]));
   if (!sessionKey) return { ok: false, reason: `missing creator session cookie (none of ${CREATOR_SESSION_KEYS.join("|")})` };
-  return { ok: true, detail: `a1+${sessionKey}` };
+  return { ok: true, detail: `a1+web_session+${sessionKey}` };
 }
 
 // ── Tier 2: 裸 GET personal_info ─────────────────────────────────────────────

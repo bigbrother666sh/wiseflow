@@ -2,7 +2,7 @@
 name: xhs-publish
 description: Publish image-text notes and video notes to Xiaohongshu (小红书) via
   creator COS upload + web_api v2. Supports image posts (up to 18 images),
-  video posts, topics/hashtags. Self-managed creator-domain login + 探活 (see 登录态管理).
+  video posts, topics/hashtags. AiToEarn 两步登录(www→creator SSO)对齐 + 探活 (see 登录态管理).
 metadata:
   openclaw:
     emoji: 📕
@@ -13,15 +13,15 @@ metadata:
 
 # 小红书发布（xhs-publish）
 
-通过 creator 平台 COS 上传 + `/web_api/sns/v2/note` 创建笔记，支持图文和视频。cookie 认证由本技能**自管**（创作者域登录 + 探活，不进 login-manager）。签名走 relay sign 服务。
+通过 creator 平台 COS 上传 + `/web_api/sns/v2/note` 创建笔记，支持图文和视频。登录与 xhs-browse **共享 camoufox profile**（session=xhs-browse），login-manager 管消费者域 www 登录，本技能在其上做创作者 SSO；两套 cookie 分别落 `xhs-browse.json` / `xhs-publish.json`，发布时合并。签名走 relay sign 服务。
 
 上传流程：① 取 COS 上传许可证 `creator.xiaohongshu.com/api/media/v1/upload/web/permit` → ② PUT 文件到 COS（大文件自动分片）→ ③ 创建笔记 `edith.xiaohongshu.com/web_api/sns/v2/note`。
 
 ---
 
-## 登录态管理（本技能自管，不进 login-manager）
+## 登录态管理（共享 xhs-browse profile，创作者 cookie 自管）
 
-xhs-publish cookie 是创作者域 `creator.xiaohongshu.com` 会话，与 xhs-browse 消费者域是两套独立登录、不能共用，且仅供本技能使用，故登录 + 探活在本技能内闭环。探活走创作者域 `personal_info` **裸 GET**，无需 xhs 签名 / OFB_KEY。
+**AiToEarn 两步登录对齐**：发布需同时带消费者域 `web_session` + 创作者域 `galaxy_creator_session_id`。两套由共享 camoufox profile（session=xhs-browse）产出——同一台机器只有一个 profile 涉及小红书消费域，避免两个 profile 互踢 web_session 导致频繁重登暴露。login-manager 管 www 登录（`xhs-browse.json`），本技能在其上做创作者 SSO 导出 `xhs-publish.json`，发布时 `publish_xhs.py` 合并两者。探活走创作者域 `personal_info` **裸 GET**，无需 xhs 签名 / OFB_KEY。
 
 ### Step 1 — 发布前探活（批量发布只探活一次）
 
@@ -33,20 +33,23 @@ xhs-publish check
 - exit 2 = `SESSION_EXPIRED` → 走 Step 2 重登，再探活一次
 - exit 1 = crash → 人工排查
 
-### Step 2 — 有头手动重登（exit 2 时触发）
+### Step 2 — 重登（exit 2 时触发，两步：先 www 后 creator SSO）
 
-1. 启有头 session：
+1. **先保活消费者域**（共享 profile 内 web_session 必须存活）：
    ```bash
-   camoufox-cli --session xhs-publish --persistent --headed --json open "https://creator.xiaohongshu.com/publish/publish?source=official"
+   login-manager check xhs-browse
    ```
-2. 告知用户「**小红书创作者** 浏览器已打开，请在窗口里手动扫码登录，完成后告诉我」，**Stop and wait** 等用户确认。
-3. 用户确认后导出 + 验证：
+   - exit 0 = www 存活 → 直接进步骤 2
+   - exit 2 = www 失效 → `login-manager login xhs-browse` 走有头扫码登录 www（用户交互），完成后导出 `xhs-browse.json` + UA
+   - exit 1 = crash → 人工排查
+
+2. **创作者 SSO 导出 + 验证**（www 已登录 → 自动 SSO，无需扫码）：
    ```bash
    xhs-publish login-verify
    ```
-   脚本闭环：导出 cookie 到临时 → 创作者域 `personal_info` 裸 GET 验过才 commit → 写 `~/.openclaw/logins/xhs-publish.json` + `.ua.json` → close session。验证不过 exit 2、不重试。
+   脚本闭环（在共享 session=xhs-browse 上）：自检 web_session → open `creator.xiaohongshu.com/login?source=official` 自动 SSO 重定向 → 轮询创作者 cookie 落盘 → 创作者域 `personal_info` 裸 GET 验过才 commit → 写 `~/.openclaw/logins/xhs-publish.json` + `.ua.json` → close session。SSO 未完成 / 验证不过 exit 2、不重试。
 
-> **同时导入 cookie 和 UA**：xhs 的 `a1`/`websectiga` 等设备指纹 cookie 必须配同一指纹的 UA，否则被风控错配。`publish_xhs.py` 已同时读两文件。
+> **同时导入 cookie 和 UA**：xhs 的 `a1`/`websectiga` 等设备指纹 cookie 必须配同一指纹的 UA，否则被风控错配。`publish_xhs.py` 已合并读 `xhs-publish.json`（创作者）+ `xhs-browse.json`（消费者）两套 cookie + 对应 `.ua.json`。
 
 > 确保 `Pillow` 已安装（读图片尺寸）：`pip install Pillow`。
 

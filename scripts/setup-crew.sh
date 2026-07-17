@@ -702,16 +702,12 @@ generate_ofb_env_md() {
   local agent_label="$2"
 
   if [ -d "$workspace_dir" ]; then
+    # 技能密钥统一进 state-dir dotenv（~/.openclaw/.env），所有 openclaw 进程都加载；
+    # 服务 EnvironmentFile 仅放 gateway 运维变量（PATH 等），不放技能密钥。
     if [ "$(uname -s)" = "Darwin" ]; then
-      _ENV_FILE_PATH="$HOME/.openclaw/service-env/ai.openclaw.gateway.env"
-      _ENV_FILE_FORMAT="export KEY='value'"
-      _ENV_FILE_FORMAT_DESC="shell export 格式，一行一个"
-      _ENV_FILE_QUOTE_NOTE="4. **单引号转义**：值中含单引号时需转义为 \`'\\''\`"
+      _SVC_ENV_FILE="$HOME/.openclaw/service-env/ai.openclaw.gateway.env"
     else
-      _ENV_FILE_PATH="$HOME/.openclaw/daemon.env"
-      _ENV_FILE_FORMAT="KEY=value"
-      _ENV_FILE_FORMAT_DESC="systemd EnvironmentFile 格式，一行一个"
-      _ENV_FILE_QUOTE_NOTE=""
+      _SVC_ENV_FILE="$HOME/.openclaw/daemon.env"
     fi
     cat > "$workspace_dir/OFB_ENV.md" << ENVEOF
 # wiseflow 环境信息（由 setup-crew.sh 自动生成，勿手动编辑）
@@ -724,30 +720,32 @@ generate_ofb_env_md() {
 
 ### 是什么
 
-gateway 进程启动时从此文件读取环境变量，注入到所有 Agent 的运行时环境中。像 API Key、超时参数这类配置，不能硬编码在代码或 openclaw.json 里，必须放在这里。
+技能运行时需要的密钥 / 参数（API Key、超时配置等），不能硬编码在代码或 openclaw.json 里，必须放环境变量文件。openclaw 在启动时把该文件加载进 process.env，注入到所有 Agent 的运行时环境。
 
 ### 文件位置
 
-\`$_ENV_FILE_PATH\`
+\`$HOME/.openclaw/.env\`（state-dir dotenv，Linux / macOS 同路径）
+
+> ⚠️ **技能密钥一律写这个文件，不要写 daemon.env / service-env。** 此文件被**每个 openclaw 进程**加载（gateway、bare CLI、self-spawned subagent、cron isolated-agent），密钥能到达所有调用路径。daemon.env（Linux）/ service-env（macOS）是服务管理器的 EnvironmentFile，**只有托管 gateway 进程**继承；subagent / cron / 裸 CLI 子进程不继承，把只被 subagent 调用的技能密钥放那里会报"未配置"。
 
 ### 写入格式
 
-\`$_ENV_FILE_FORMAT\`（$_ENV_FILE_FORMAT_DESC）
+\`KEY=value\`，一行一个（dotenv 格式，Linux / macOS 通用）。值含空格 / 特殊字符时用双引号包裹：\`KEY="value with spaces"\`。
 
 ### 何时编辑
 
 当你需要为某个技能添加新的环境变量时（如新的 API Key、新的超时配置）。典型场景：
 
-- 用户要求启用某个需要 API Key 的技能（如 email-ops 需要 SMTP 变量、pexels-footage 需要 PEXELS_API_KEY）
-- IT Engineer 需要调整 gateway 运行时参数
+- 用户要求启用某个需要 API Key 的技能（如 email-ops 需要 SMTP 变量、pexels-footage 需要 PEXELS_API_KEY、viral-chaser 需要 VOLC_ASR_*）
 - 新增 Crew 模板依赖了新的外部服务
+
+> gateway 运维变量（PATH 注入、监听端口等必须在本进程启动前就位的值）仍写服务 EnvironmentFile（\`$_SVC_ENV_FILE\`），不放 \`.env\`。IT engineer 加技能密钥的常见场景只需动 \`.env\`。
 
 ### 注意事项
 
 1. **写入前先检查**：grep 确认该 key 是否已存在，避免重复写入
-2. **写入后必须重启**：编辑完成后必须重启 gateway 使新变量生效
+2. **写入后必须重启**：编辑完成后必须重启 gateway 使新变量生效（gateway 在启动时加载 .env，运行中改不会热生效）
 3. **禁止内联**：不要在 exec 调用中写 \`KEY=value python3 script.py\`，这会导致 allowlist miss
-$_ENV_FILE_QUOTE_NOTE
 
 ## 常用操作命令
 

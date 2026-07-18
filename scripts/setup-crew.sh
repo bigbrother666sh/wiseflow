@@ -694,7 +694,7 @@ fi
 
 # ─── 5. 写入 OFB_ENV.md（仅 it-engineer） ──────────────────────
 # 源码部署：路径随机器可变，记录成文件供 IT engineer AGENTS.md 读取。
-# Docker 部署：路径固定（/opt/openclaw + /root/.openclaw），但仍然生成
+# Docker 部署：路径固定（/opt/xiaobei + /root/.openclaw），但仍然生成
 #   OFB_ENV.md——降低 agent 判断出错概率，让 it-engineer 读文件而非推断。
 # main agent 不持有此文件：环境变量运维归 IT engineer，main 需加变量时 spawn it-engineer。
 generate_ofb_env_md() {
@@ -713,7 +713,7 @@ generate_ofb_env_md() {
 
     if [ "$_is_docker" = "true" ]; then
       # ── Docker 部署：固定路径 ──
-      _PROJECT_ROOT="/opt/openclaw"
+      _PROJECT_ROOT="/opt/xiaobei"
       _OPENCLAW_HOME="/root/.openclaw"
       _CONFIG_PATH="$_OPENCLAW_HOME/openclaw.json"
       _ENV_FILE_PATH="$_OPENCLAW_HOME/.env"

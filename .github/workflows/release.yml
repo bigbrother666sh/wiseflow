@@ -176,22 +176,12 @@ jobs:
         run: |
           docker login -u "$ALIYUN_REGISTRY_USER" -p "$ALIYUN_REGISTRY_PASSWORD" "$ALIYUN_REGISTRY"
 
-      - name: Build and push image
-        env:
-          VERSION: ${{ needs.release.outputs.new_version }}
-        run: |
-          # 镜像地址：registry.cn-hangzhou.aliyuncs.com/<namespace>/wiseflow-client
-          IMAGE_BASE="$ALIYUN_REGISTRY/$ALIYUN_NAME_SPACE/wiseflow-client"
-          echo "[docker] building $IMAGE_BASE:$VERSION"
-          docker build \
-            --build-arg OPENCLAW_VERSION="${{ steps.pin.outputs.version }}" \
-            --build-arg OPENCLAW_COMMIT="${{ steps.pin.outputs.commit }}" \
-            -t "$IMAGE_BASE:$VERSION" \
-            -t "$IMAGE_BASE:latest" \
-            .
-          echo "[docker] pushing $IMAGE_BASE:$VERSION"
-          docker push "$IMAGE_BASE:$VERSION"
-          echo "[docker] pushing $IMAGE_BASE:latest"
-          docker push "$IMAGE_BASE:latest"
-          echo "[docker] done. Pull with:"
-          echo "  docker pull $IMAGE_BASE:$VERSION"
+      - name: Build and push xiaobei image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.ALIYUN_REGISTRY }}/${{ env.ALIYUN_NAME_SPACE }}/xiaobei:${{ needs.release.outputs.new_version }}
+            ${{ env.ALIYUN_REGISTRY }}/${{ env.ALIYUN_NAME_SPACE }}/xiaobei:latest

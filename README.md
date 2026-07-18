@@ -65,7 +65,18 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 
 > 🎬 **想用视频生成能力？** 需额外开通火山方舟 `doubao-seedance-2.0` 系列或阿里云百炼 `happyhorse-1.1` 系列模型，并把对应 key（`AWK_GEN_KEY` 或 `MODELSTUDIO_API_KEY`）配置到 `daemon.env`。详见下方[视频生成模型配置](#-视频生成模型配置)。
 
-### 推荐 - 直接使用我们的Docker image
+### 推荐：Docker Compose 部署
+
+从 GitHub Action 构建并发布的镜像启动时，只需要火山方舟的 key：
+
+```bash
+curl -O https://raw.githubusercontent.com/bigbrother666sh/wiseflow/master/docker-compose.yml
+AWK_API_KEY=<你的火山方舟 Coding Plan key> docker compose up -d
+```
+
+首次启动会把默认运行态写入两个具名卷：`xiaobei-openclaw`（配置、workspace、渠道与任务状态）和 `xiaobei-camoufox`（浏览器 profile 与登录态）。之后由小贝按需把其他技能密钥写入持久化的 `.env`；不要删除这两个卷，除非确定要清空全部登录态。
+
+Gateway 和 noVNC 默认只绑定 Docker 主机的 `127.0.0.1`。远程服务器请通过 SSH 隧道访问，避免把无密码的浏览器桌面直接暴露到公网。
 
 ### 手动安装
 
@@ -73,9 +84,7 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 
 至 [Releases](https://github.com/TeamWiseFlow/xiaobei/releases) 下载最新版压缩包并解压；
 
-#### 2A. docker 模式运行
-
-#### 2B. 源码脚本一键安装（需提前部署环境）
+#### 源码脚本一键安装（需提前部署环境）
 
 ```bash
 cd wiseflow

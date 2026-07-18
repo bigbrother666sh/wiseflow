@@ -16,11 +16,30 @@ GATEWAY_PORT="${GATEWAY_PORT:-18789}"
 
 echo "[entrypoint] wiseflow-client starting, OPENCLAW_HOME=$OPENCLAW_HOME"
 
-# ── 1. 渲染 daemon.env ──────────────────────────────────────────────────────
-# TODO(Phase 6): 从 $OPENCLAW_HOME/daemon.env.template 渲染，把占位换成真实 env。
-#   必填：AWK_API_KEY、OFB_KEY；可选：SMTP_*、RELAY_BASE_URL（默认固定端点）。
+# ── 1. 加载 daemon.env ─────────────────────────────────────────────────────
+# 裸机部署走 systemd EnvironmentFile=-/root/.openclaw/daemon.env；
+# Docker 不跑 systemd，这里手动 source daemon.env 把 KEY=value 导入环境。
+# 优先级：docker run -e 传的环境变量 > daemon.env 里的值。
+#   实现：先 set -a（让 source 的变量自动 export），source 后 docker run -e
+#   传入的变量已经存在于环境，source 不会覆盖已存在的环境变量（bash source 语义）。
+# daemon.env 由 install.sh（裸机）或用户手动/it-engineer skill 写入，落 named volume 持久化。
 if [ ! -f "$DAEMON_ENV" ]; then
-  echo "[entrypoint] WARN: $DAEMON_ENV 不存在，Phase 6 渲染逻辑未就位，用环境变量直传"
+  # 首次启动：从 template 拷一份，用户编辑后 docker restart 生效
+  if [ -f "$OPENCLAW_HOME/daemon.env.template" ]; then
+    cp "$OPENCLAW_HOME/daemon.env.template" "$DAEMON_ENV"
+    chmod 600 "$DAEMON_ENV"
+    echo "[entrypoint] 首次启动：已从 daemon.env.template 拷贝到 $DAEMON_ENV"
+    echo "[entrypoint]   请编辑该文件填入 API keys，然后 docker restart 生效"
+  fi
+fi
+if [ -f "$DAEMON_ENV" ]; then
+  echo "[entrypoint] loading $DAEMON_ENV"
+  set -a
+  # shellcheck disable=SC1090
+  source "$DAEMON_ENV"
+  set +a
+else
+  echo "[entrypoint] WARN: $DAEMON_ENV 不存在，用环境变量直传"
 fi
 
 # ── 2. 注入 relay 端点 + OFB_KEY 到 skill 配置 ─────────────────────────────
@@ -36,17 +55,94 @@ if [ -z "${OFB_KEY:-}" ]; then
   exit 1
 fi
 
+# ── 2.5 虚拟显示 + VNC 远程查看栈 ──────────────────────────────────────────
+# camoufox 有头登录场景：用户需看到浏览器界面才能手动扫码/验证。
+# Docker 容器无物理显示器，用 Xvfb 虚拟帧缓冲 + fluxbox 窗口管理器 +
+# x11vnc 把 X 显示通过 VNC 暴露 + noVNC/websockify 让用户浏览器访问 :6080。
+#
+# 访问方式：浏览器打开 http://<容器IP>:6080/vnc.html
+#
+# DISPLAY 也可由 daemon.env 注入；这里统一设 :99（Xvfb 默认 display 号）。
+DISPLAY="${DISPLAY:-:99}"
+export DISPLAY
+
+# 启动 Xvfb（虚拟帧缓冲，模拟 X 显示）
+Xvfb "$DISPLAY" -screen 0 1280x800x24 -ac >/tmp/xvfb.log 2>&1 &
+XVFB_PID=$!
+sleep 1  # 等 X server 就绪
+
+# 启动 fluxbox（轻量窗口管理器，camoufox 有头需要 WM）
+fluxbox >/tmp/fluxbox.log 2>&1 &
+FLUXBOX_PID=$!
+
+# 启动 x11vnc（把 X 显示通过 VNC 暴露）
+# -forever: 保持运行，不退出
+# -shared: 允许多客户端连接
+# -rfbport: VNC 端口 5900
+x11vnc -display "$DISPLAY" -forever -shared -nopw -rfbport 5900 >/tmp/x11vnc.log 2>&1 &
+X11VNC_PID=$!
+
+# 启动 websockify（noVNC 前端，HTTP→VNC 桥）
+# 监听 6080，转发到 localhost:5900（x11vnc）
+websockify --web=/usr/share/novnc 6080 localhost:5900 >/tmp/websockify.log 2>&1 &
+WEBSOCKIFY_PID=$!
+
+echo "[entrypoint] 虚拟显示栈已启动:"
+echo "  Xvfb PID=$XVFB_PID (display=$DISPLAY, 1280x800x24)"
+echo "  fluxbox PID=$FLUXBOX_PID"
+echo "  x11vnc PID=$X11VNC_PID (VNC :5900)"
+echo "  websockify PID=$WEBSOCKIFY_PID (noVNC :6080)"
+echo "[entrypoint] 浏览器访问 http://<容器IP>:6080/vnc.html 看容器内界面"
+
+# ── 2.6 camoufox 指纹模板 lazy 生成 ────────────────────────────────────────
+# build 期不跑 camoufox-cli（Firefox sandbox 在 docker build cap 下 EPERM）。
+# 容器首次启动时现生成指纹模板，落 /root/.openclaw/logins/_template/。
+# 需 docker run --cap-add SYS_ADMIN（Firefox sandbox 需要 user namespace）。
+TEMPLATE_DIR="$OPENCLAW_HOME/logins/_template"
+if [ ! -f "$TEMPLATE_DIR/camoufox-cli.json" ]; then
+  echo "[entrypoint] baking camoufox fingerprint template..."
+  rm -rf /root/.camoufox-cli/profiles/_template
+  if camoufox-cli --session _template --persistent --json open about:blank >/dev/null 2>&1; then
+    camoufox-cli --session _template close >/dev/null 2>&1 || true
+    cp /root/.camoufox-cli/profiles/_template/camoufox-cli.json "$TEMPLATE_DIR/" 2>/dev/null || true
+    echo "[entrypoint] camoufox fingerprint template baked to $TEMPLATE_DIR"
+  else
+    echo "[entrypoint] WARN: camoufox fingerprint template bake failed." >&2
+    echo "[entrypoint]   确认 docker run 带 --cap-add SYS_ADMIN；或运行时首会话现生成。" >&2
+  fi
+  camoufox-cli close --all >/dev/null 2>&1 || true
+fi
+
 # ── 3. 起 gateway ───────────────────────────────────────────────────────────
 # TODO(Phase 6): 真正的入口是 node openclaw.mjs gateway。此处先 exec 占位。
 OPENCLAW_BIN="${OPENCLAW_BIN:-/opt/openclaw/openclaw/openclaw.mjs}"
 if [ -f "$OPENCLAW_BIN" ]; then
   echo "[entrypoint] launching gateway: node $OPENCLAW_BIN gateway"
+
+  # ── 4. weixin 二维码（后台 fork，gateway ready 后触发）──────────────────────
+  # gateway 是 exec 启动（PID 1），此段必须在 exec 之前 fork。
+  # 后台子进程等 gateway HTTP 就绪（轮询 /healthz）→ 检测 weixin 未绑 →
+  # 跑 `channels login --channel openclaw-weixin`，二维码输出 stdout（docker logs 可见）。
+  # 已绑（存在 channels/openclaw-weixin.json）则跳过，不重复出码。
+  (
+    for _ in $(seq 1 30); do
+      if curl -sf "http://127.0.0.1:${GATEWAY_PORT}/healthz" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 1
+    done
+    if [ -f "$OPENCLAW_HOME/channels/openclaw-weixin.json" ]; then
+      echo "[entrypoint] openclaw-weixin 已绑定，跳过二维码"
+    else
+      echo "[entrypoint] openclaw-weixin 未绑定，启动登录二维码流程..."
+      cd /opt/openclaw/openclaw && \
+        node scripts/run-node.mjs channels login --channel openclaw-weixin 2>&1 | \
+        tee -a /tmp/weixin-login.log
+    fi
+  ) &
+
   exec node "$OPENCLAW_BIN" gateway
 else
   echo "[entrypoint] WARN: $OPENCLAW_BIN 不存在（Phase 6 build 产物未 bake）。退出。" >&2
   exit 0
 fi
-
-# ── 4. weixin 二维码 ───────────────────────────────────────────────────────
-# TODO(Phase 6): gateway 起来后检测 weixin binding 未绑 → qrcode-terminal 输出
-#   stdout（docker logs 可见）+ UI(18789) 兜底。由 gateway 内置逻辑或此处轮询实现。

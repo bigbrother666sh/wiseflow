@@ -1,6 +1,19 @@
 # wiseflow-client 容器编排。
 # 镜像由仓根 Dockerfile 构建（多阶段，bake openclaw + camoufox + 指纹模板）。
 #
+# 三种使用方式：
+#
+# 1. 从阿里云拉取官方镜像（推荐，生产部署）
+#    docker pull registry.cn-hangzhou.aliyuncs.com/<namespace>/wiseflow-client:latest
+#    把下方 image: 注释打开，替换 <namespace> 为你的阿里云命名空间
+#
+# 2. 本地构建镜像（开发调试）
+#    docker build -t wiseflow-client:local .
+#    保持下方 build: 段，注释掉 image: 行
+#
+# 3. CI 自动构建 + 推送（见 .github/workflows/release.yml 的 docker job）
+#    PR merge 时自动构建并推送到阿里云，无需手动操作
+#
 # 持久化（关键）：两个 named volume 分别挂 /root/.openclaw 与 /root/.camoufox-cli，
 # 跨 docker compose down/up 保留登录态、指纹 profile、camoufox 运行时缓存。
 # 误删 volume = 丢全部登录态（重新登录触发平台风控），务必定期备份：
@@ -8,10 +21,18 @@
 #     tar czf /backup/wiseflow-logins-$(date +%F).tgz -C /data .
 services:
   wiseflow:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: wiseflow-client:local
+    # 镜像来源二选一（取消注释其一）：
+    #
+    # 方式 1：本地已 build 的镜像（开发调试，默认）
+    image: wiseflow-test:full
+    #
+    # 方式 2：从阿里云拉取官方镜像（生产部署）
+    # image: registry.cn-hangzhou.aliyuncs.com/<namespace>/wiseflow-client:latest
+    #
+    # 方式 3：让 compose 自动从 Dockerfile build（不推荐，每次 up 都重 build）
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       # 产品方发放的 key（必填）。从 .env 或命令行 -e OFB_KEY=... 注入。
@@ -25,6 +46,11 @@ services:
       TZ: ${TZ:-Asia/Shanghai}
     ports:
       - "${GATEWAY_PORT:-18789}:18789"
+      # noVNC web 端口：浏览器访问 http://<宿主机>:6080/vnc.html 看容器内 camoufox 界面（有头登录场景）
+      - "${NOVNC_PORT:-6080}:6080"
+    # camoufox Firefox sandbox 需 user namespace 权限
+    cap_add:
+      - SYS_ADMIN
     volumes:
       # 登录态/cookie 中央仓 + 各 session 指纹 profile（首选落点）。
       - wiseflow-logins:/root/.openclaw

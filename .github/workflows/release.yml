@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 # 防止多个 PR 同时 merge 时并发触发重复 release
 concurrency:
@@ -29,6 +30,8 @@ jobs:
     # CI 已在 PR 期间验证过，此处直接做版本 bump + 打包发布
     if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.version.outputs.new }}
 
     steps:
       - name: Checkout
@@ -130,3 +133,65 @@ jobs:
             "wiseflow-${{ steps.version.outputs.new }}.zip" \
             --title "${{ steps.version.outputs.new }}" \
             --generate-notes
+
+  docker:
+    # PR merge 后构建 Docker 镜像并推送到阿里云容器镜像服务
+    # 流程：checkout 最新（含 release job 提交的 version+tag）→ clone openclaw →
+    #       docker build 多阶段镜像 → tag 版本号 + latest → push 阿里云
+    needs: release
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      ALIYUN_REGISTRY: ${{ secrets.ALIYUN_REGISTRY }}
+      ALIYUN_NAME_SPACE: ${{ secrets.ALIYUN_NAME_SPACE }}
+      ALIYUN_REGISTRY_USER: ${{ secrets.ALIYUN_REGISTRY_USER }}
+      ALIYUN_REGISTRY_PASSWORD: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Read pinned openclaw version
+        id: pin
+        run: |
+          source openclaw.version
+          echo "commit=$OPENCLAW_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "version=$OPENCLAW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Clone openclaw at pinned commit
+        run: |
+          git init openclaw
+          git -C openclaw remote add origin https://github.com/openclaw/openclaw.git
+          git -C openclaw fetch --depth=1 origin ${{ steps.pin.outputs.commit }}
+          git -C openclaw checkout FETCH_HEAD
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Aliyun Container Registry
+        run: |
+          docker login -u "$ALIYUN_REGISTRY_USER" -p "$ALIYUN_REGISTRY_PASSWORD" "$ALIYUN_REGISTRY"
+
+      - name: Build and push image
+        env:
+          VERSION: ${{ needs.release.outputs.new_version }}
+        run: |
+          # 镜像地址：registry.cn-hangzhou.aliyuncs.com/<namespace>/wiseflow-client
+          IMAGE_BASE="$ALIYUN_REGISTRY/$ALIYUN_NAME_SPACE/wiseflow-client"
+          echo "[docker] building $IMAGE_BASE:$VERSION"
+          docker build \
+            --build-arg OPENCLAW_VERSION="${{ steps.pin.outputs.version }}" \
+            --build-arg OPENCLAW_COMMIT="${{ steps.pin.outputs.commit }}" \
+            -t "$IMAGE_BASE:$VERSION" \
+            -t "$IMAGE_BASE:latest" \
+            .
+          echo "[docker] pushing $IMAGE_BASE:$VERSION"
+          docker push "$IMAGE_BASE:$VERSION"
+          echo "[docker] pushing $IMAGE_BASE:latest"
+          docker push "$IMAGE_BASE:latest"
+          echo "[docker] done. Pull with:"
+          echo "  docker pull $IMAGE_BASE:$VERSION"

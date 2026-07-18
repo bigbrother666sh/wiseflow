@@ -693,9 +693,9 @@ else
 fi
 
 # ─── 5. 写入 OFB_ENV.md（仅 it-engineer） ──────────────────────
-# 仅源码部署需要：路径随机器可变，故记录成文件供 IT engineer AGENTS.md 读取。
-# Docker 部署不跑 setup-crew.sh，路径固定（/opt/openclaw + /root/.openclaw），
-# AGENTS.md 已环境自感知，无需 OFB_ENV.md。
+# 源码部署：路径随机器可变，记录成文件供 IT engineer AGENTS.md 读取。
+# Docker 部署：路径固定（/opt/openclaw + /root/.openclaw），但仍然生成
+#   OFB_ENV.md——降低 agent 判断出错概率，让 it-engineer 读文件而非推断。
 # main agent 不持有此文件：环境变量运维归 IT engineer，main 需加变量时 spawn it-engineer。
 generate_ofb_env_md() {
   local workspace_dir="$1"
@@ -704,17 +704,58 @@ generate_ofb_env_md() {
   if [ -d "$workspace_dir" ]; then
     # 技能密钥统一进 state-dir dotenv（~/.openclaw/.env），所有 openclaw 进程都加载；
     # 服务 EnvironmentFile 仅放 gateway 运维变量（PATH 等），不放技能密钥。
-    if [ "$(uname -s)" = "Darwin" ]; then
-      _SVC_ENV_FILE="$HOME/.openclaw/service-env/ai.openclaw.gateway.env"
-    else
-      _SVC_ENV_FILE="$HOME/.openclaw/daemon.env"
+    # ── 检测部署环境 ──
+    # /.dockerenv 存在 = Docker 容器内；路径固定，不依赖 PROJECT_ROOT/HOME
+    local _is_docker=false
+    if [ -f /.dockerenv ]; then
+      _is_docker=true
     fi
+
+    if [ "$_is_docker" = "true" ]; then
+      # ── Docker 部署：固定路径 ──
+      _PROJECT_ROOT="/opt/openclaw"
+      _OPENCLAW_HOME="/root/.openclaw"
+      _CONFIG_PATH="$_OPENCLAW_HOME/openclaw.json"
+      _ENV_FILE_PATH="$_OPENCLAW_HOME/.env"
+      _ENV_FILE_FORMAT="KEY=value"
+      _ENV_FILE_FORMAT_DESC="dotenv 格式，一行一个（Docker entrypoint source 加载）"
+      _ENV_FILE_QUOTE_NOTE=""
+      _SVC_ENV_FILE="$_OPENCLAW_HOME/daemon.env"
+      _RESTART_CMD="docker restart <容器名>"
+      _RESTART_NOTE="编辑 .env 后需 \`docker restart\` 生效（gateway 启动时加载 .env，运行中改不会热生效）"
+    elif [ "$(uname -s)" = "Darwin" ]; then
+      # ── macOS 源码部署 ──
+      _PROJECT_ROOT="$PROJECT_ROOT"
+      _OPENCLAW_HOME="$OPENCLAW_HOME"
+      _CONFIG_PATH="$_OPENCLAW_HOME/openclaw.json"
+      _ENV_FILE_PATH="$_OPENCLAW_HOME/.env"
+      _ENV_FILE_FORMAT="KEY=value"
+      _ENV_FILE_FORMAT_DESC="dotenv 格式，一行一个"
+      _ENV_FILE_QUOTE_NOTE=""
+      _SVC_ENV_FILE="$HOME/.openclaw/service-env/ai.openclaw.gateway.env"
+      _RESTART_CMD="launchctl kickstart -k gui/\$(id -u)/ai.openclaw.gateway"
+      _RESTART_NOTE="编辑 .env 后需重启 gateway 服务"
+    else
+      # ── Linux 源码部署 ──
+      _PROJECT_ROOT="$PROJECT_ROOT"
+      _OPENCLAW_HOME="$OPENCLAW_HOME"
+      _CONFIG_PATH="$_OPENCLAW_HOME/openclaw.json"
+      _ENV_FILE_PATH="$_OPENCLAW_HOME/.env"
+      _ENV_FILE_FORMAT="KEY=value"
+      _ENV_FILE_FORMAT_DESC="dotenv 格式，一行一个"
+      _ENV_FILE_QUOTE_NOTE=""
+      _SVC_ENV_FILE="$HOME/.openclaw/daemon.env"
+      _RESTART_CMD="systemctl --user restart openclaw"
+      _RESTART_NOTE="编辑 .env 后需 \`systemctl --user restart openclaw\` 生效"
+    fi
+
     cat > "$workspace_dir/OFB_ENV.md" << ENVEOF
 # wiseflow 环境信息（由 setup-crew.sh 自动生成，勿手动编辑）
 
-- **wiseflow 项目路径**：$PROJECT_ROOT
-- **openclaw 子目录**：$PROJECT_ROOT/openclaw
-- **配置文件**：$OPENCLAW_HOME/openclaw.json
+- **部署环境**：$([ "$_is_docker" = "true" ] && echo "Docker 容器" || echo "源码部署（$(uname -s)）")
+- **wiseflow 项目路径**：$_PROJECT_ROOT
+- **openclaw 子目录**：$_PROJECT_ROOT/openclaw
+- **配置文件**：$_CONFIG_PATH
 
 ## 环境变量文件
 
@@ -744,32 +785,35 @@ generate_ofb_env_md() {
 ### 注意事项
 
 1. **写入前先检查**：grep 确认该 key 是否已存在，避免重复写入
-2. **写入后必须重启**：编辑完成后必须重启 gateway 使新变量生效（gateway 在启动时加载 .env，运行中改不会热生效）
+2. **写入后必须重启**：$_RESTART_NOTE
 3. **禁止内联**：不要在 exec 调用中写 \`KEY=value python3 script.py\`，这会导致 allowlist miss
 
 ## 常用操作命令
 
 \`\`\`bash
-# 开发模式启动
-cd $PROJECT_ROOT && ./scripts/dev.sh gateway
+# 开发模式启动（源码部署）
+cd $_PROJECT_ROOT && ./scripts/dev.sh gateway
 
 # 重新同步 crew 配置（幂等）
-cd $PROJECT_ROOT && ./scripts/setup-crew.sh
+cd $_PROJECT_ROOT && ./scripts/setup-crew.sh
 
 # 重新应用 addons
-cd $PROJECT_ROOT && ./scripts/apply-addons.sh
+cd $_PROJECT_ROOT && ./scripts/apply-addons.sh
 
 # 升级 wiseflow 系统（须确认系统空闲）
-cd $PROJECT_ROOT && ./scripts/install.sh
+cd $_PROJECT_ROOT && ./scripts/install.sh
 
 # 仅重装后台服务（不更新代码）
-cd $PROJECT_ROOT && ./scripts/install.sh --skip-crew
+cd $_PROJECT_ROOT && ./scripts/install.sh --skip-crew
+
+# 重启 gateway（生效 daemon.env 改动）
+$_RESTART_CMD
 
 # 直接调用上游 CLI（如需）
-cd $PROJECT_ROOT/openclaw && pnpm openclaw <subcommand>
+cd $_PROJECT_ROOT/openclaw && pnpm openclaw <subcommand>
 \`\`\`
 ENVEOF
-    echo "  ✅ OFB_ENV.md updated in $agent_label workspace"
+    echo "  ✅ OFB_ENV.md updated in $agent_label workspace ($([ "$_is_docker" = "true" ] && echo "Docker" || echo "source"))"
   fi
 }
 

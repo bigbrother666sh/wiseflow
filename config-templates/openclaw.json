@@ -251,7 +251,7 @@
   },
   "channels": {
     "openclaw-weixin": {
-      "enabled": true
+      "enabled": false
     }
   },
   "gateway": {
@@ -373,7 +373,7 @@
         }
       },
       "openclaw-weixin": {
-        "enabled": true
+        "enabled": false
       }
     }
   },

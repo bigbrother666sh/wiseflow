@@ -1,46 +1,43 @@
 #!/bin/bash
-# install.sh - wiseflow 一键首装脚本（curl 路线）
+# install.sh - wiseflow 一键首装脚本（预构建 tarball 路线）
 #
 # 用法：
 #   curl -fsSL https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/install.sh | bash
 #
 # 与 update.sh 区别：
-#   - install.sh = 首装路线（从零开始，clone 仓 → build → onboard，全程无需用户预装任何依赖）
-#   - update.sh  = 已 git clone 用户的升级路线（fetch + reset → checkout openclaw → build → daemon reload）
+#   - install.sh = 首装路线（拉预构建 tarball → pnpm install --prod → onboard，全程无需用户预装 Node/git/pnpm）
+#   - update.sh  = 已装用户的升级路线（拉新 tarball → pnpm install --prod → daemon reload）
 #
 # 执行流程：
-#   1. 检测 OS（mac / Linux / WSL）+ downloader（curl/wget）
+#   1. 检测 OS + arch → 选 tarball asset（linux-x64 / mac-arm64 / mac-x64 / win-x64）
 #   2. bootstrap gum UI（TTY 才有，非 TTY 静默跳过）
-#   3. 装 Node ≥ 22.19（mac brew / Linux apt / Alpine apk / 各包管理器）
-#   4. 装 git（缺失则装）
-#   5. 装 pnpm（与 openclaw 仓 packageManager 对齐 v11.2.2）
-#   6. git clone wiseflow 仓 → ~/xiaobei/
-#   7. checkout openclaw 子目录到 openclaw.version 锁定的 commit
-#   8. apply-addons.sh --no-build --no-restart（patches + skills + crew 模板，setup-crew.sh 在内）
-#   9. pnpm install --frozen-lockfile + pnpm build + pnpm ui:build
-#   10. camoufox-cli install（npm install -g camoufox-cli + camoufox-cli install 下 Firefox）
-#   11. pip install --user（python deps，与现状一致；不切 uv）
-#   12. 预填 channel config + bindings → ~/.openclaw/openclaw.json（微信→main）
-#   13. openclaw onboard --skip-channels --skip-skills --skip-bootstrap --skip-health --skip-ui --install-daemon
+#   3. 解析最新 release tag（GitHub API，或 XIAOBEI_MIRROR env 指向自建镜像）
+#   4. 下载 xiaobei-{ver}-{plat}.tar.zst → 临时文件
+#   5. 解压到 WISEFLOW_ROOT（默认 ~/.openclaw）：openclaw/ + tools/node + tools/pnpm + bin/openclaw + crews/ + skills/ + scripts/ + camoufox-cli/
+#   6. pnpm install --prod --frozen-lockfile（用 ship 的 portable node + pnpm，在 openclaw/ 下；只拉依赖不编译，无 OOM，native 自动按平台）
+#   7. pip install --user（skills 的 python deps，扫 requirements.txt）
+#   8. 放置 config-templates/openclaw.json → ~/.openclaw/openclaw.json + 预填微信 channel binding
+#   9. setup-crew.sh（裸跑，无 --force；--force 只用户手动修复用）
+#   10. camoufox-cli：npm install -g 本地 fork（ship 的 portable node）+ camoufox-cli install 下 Firefox
+#   11. openclaw onboard --skip-channels --skip-skills --skip-bootstrap --skip-health --skip-ui --install-daemon
 #       此步交互问用户：模型供应商 + API key（唯一人工输入点）
-#   14. daemon restart + 验证 gateway + 打印访问指引
+#   12. 打印访问指引
 #
-# 本脚本 fork 自 openclaw/scripts/install.sh 的通用 provisioning 段（gum UI / downloader /
-# Node 检测安装 / git / pnpm / npm global bin），略过其 openclaw 引擎安装段（wiseflow 走
-# git clone + pnpm build 而非 npm install -g openclaw），新增 wiseflow 专属段。
+# tarball 由 .github/workflows/build-dist.yml 在 CI 预构建（方案 B）：CI 只 build 一次，
+# ship dist+lockfile（不 ship node_modules）+ pnpm + portable Node，用户侧 pnpm install --prod 重建 node_modules。
 set -euo pipefail
 
 # ═══════════════════════════════════════════════════════════════════
 # 常量
 # ═══════════════════════════════════════════════════════════════════
-WISEFLOW_REPO="https://github.com/TeamWiseFlow/xiaobei.git"
-WISEFLOW_ROOT_DEFAULT="$HOME/xiaobei"
-PNPM_VERSION="11.2.2"  # 与 openclaw 仓 packageManager 字段对齐
-
-NODE_DEFAULT_MAJOR=24
-NODE_MIN_MAJOR=22
-NODE_MIN_MINOR=19
-NODE_MIN_VERSION="${NODE_MIN_MAJOR}.${NODE_MIN_MINOR}"
+WISEFLOW_REPO="TeamWiseFlow/xiaobei"
+WISEFLOW_ROOT_DEFAULT="$HOME/.openclaw"
+# XIAOBEI_MIRROR 可指向自建镜像站根（国内加速），形如 https://mirror.example.com/xiaobei
+# 资产 URL 构造为 $XIAOBEI_MIRROR/releases/download/{tag}/xiaobei-{ver}-{plat}.tar.zst
+XIAOBEI_MIRROR="${XIAOBEI_MIRROR:-}"
+# tarball 内 ship 的 portable Node / pnpm 入口（相对 WISEFLOW_ROOT）
+PORTABLE_NODE="tools/node/bin/node"
+PORTABLE_PNPM="tools/pnpm/bin/pnpm.mjs"
 
 # ═══════════════════════════════════════════════════════════════════
 # 色彩 / UI（fork 自上游 install.sh）
@@ -310,6 +307,117 @@ download_file() {
         return
     fi
     wget -q --https-only --secure-protocol=TLSv1_2 --tries=3 --timeout=20 -O "$output" "$url"
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# 平台 → tarball asset 名
+# ═══════════════════════════════════════════════════════════════════
+detect_platform_asset() {
+    local arch=""
+    case "$(uname -m)" in
+        x86_64|amd64) arch="x64" ;;
+        arm64|aarch64) arch="arm64" ;;
+        *) ui_error "Unsupported arch: $(uname -m)"; exit 1 ;;
+    esac
+    if [[ "$OS" == "macos" ]]; then
+        PLAT="mac-$arch"
+    elif [[ "$OS" == "linux" ]]; then
+        [[ "$arch" == "arm64" ]] && { ui_error "linux-arm64 tarball 暂未构建，仅 linux-x64"; exit 1; }
+        PLAT="linux-$arch"
+    fi
+    ui_success "Platform asset: $PLAT"
+}
+
+# 解析最新 release tag + 版本号（GitHub API，失败回退 gh CLI）
+resolve_latest_version() {
+    if [[ -n "${XIAOBEI_TAG:-}" ]]; then
+        XIAOBEI_VER="${XIAOBEI_TAG#v}"
+        ui_success "Using pinned tag: $XIAOBEI_TAG"
+        return 0
+    fi
+    local api="https://api.github.com/repos/$WISEFLOW_REPO/releases/latest"
+    local resp
+    resp="$(curl -fsSL "$api" 2>/dev/null || true)"
+    XIAOBEI_TAG="$(printf '%s' "$resp" | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"v[^"]+"' | head -1 | sed -E 's/.*"v([^"]+)".*/v\1/')"
+    if [[ -z "$XIAOBEI_TAG" ]]; then
+        # 回退 gh CLI
+        XIAOBEI_TAG="$(gh release view -R "$WISEFLOW_REPO" --json tagName -q .tagName 2>/dev/null || true)"
+    fi
+    if [[ -z "$XIAOBEI_TAG" ]]; then
+        ui_error "无法解析最新 release tag（GitHub API + gh CLI 都失败）"
+        echo "指定版本：export XIAOBEI_TAG=v5.5.0 后重跑"
+        exit 1
+    fi
+    XIAOBEI_VER="${XIAOBEI_TAG#v}"
+    ui_success "Latest release: $XIAOBEI_TAG"
+}
+
+# 构造 tarball 下载 URL（XIAOBEI_MIRROR 优先）
+tarball_url() {
+    local asset="xiaobei-${XIAOBEI_TAG}-${PLAT}.tar.zst"
+    if [[ -n "$XIAOBEI_MIRROR" ]]; then
+        echo "$XIAOBEI_MIRROR/releases/download/$XIAOBEI_TAG/$asset"
+    else
+        echo "https://github.com/$WISEFLOW_REPO/releases/download/$XIAOBEI_TAG/$asset"
+    fi
+}
+
+download_and_extract_tarball() {
+    local url; url="$(tarball_url)"
+    local asset="xiaobei-${XIAOBEI_TAG}-${PLAT}.tar.zst"
+    ui_kv "Asset" "$asset"
+    ui_kv "URL" "$url"
+    local tmp; tmp="$(mktempfile)"
+    ui_info "Downloading $asset (~120MB)..."
+    download_file "$url" "$tmp"
+    ui_success "Downloaded"
+
+    mkdir -p "$WISEFLOW_ROOT"
+    ui_info "Extracting to $WISEFLOW_ROOT ..."
+    tar --zstd -xf "$tmp" -C "$WISEFLOW_ROOT"
+    ui_success "Extracted"
+
+    # 校验关键入口
+    [[ -x "$WISEFLOW_ROOT/$PORTABLE_NODE" ]] || { ui_error "portable node 缺失：$WISEFLOW_ROOT/$PORTABLE_NODE"; exit 1; }
+    [[ -f "$WISEFLOW_ROOT/$PORTABLE_PNPM" ]] || { ui_error "bundled pnpm 缺失：$WISEFLOW_ROOT/$PORTABLE_PNPM"; exit 1; }
+    [[ -f "$WISEFLOW_ROOT/openclaw/openclaw.mjs" ]] || { ui_error "openclaw.mjs 缺失"; exit 1; }
+}
+
+# 用户侧装依赖：pnpm install --prod --frozen-lockfile（只拉依赖不编译，无 OOM）
+pnpm_install_prod() {
+    local openclaw_dir="$WISEFLOW_ROOT/openclaw"
+    local node="$WISEFLOW_ROOT/$PORTABLE_NODE"
+    local pnpm="$WISEFLOW_ROOT/$PORTABLE_PNPM"
+    ui_info "pnpm install --prod --frozen-lockfile（拉依赖 + native prebuilt，~30s-2min）"
+    run_required_step "pnpm install --prod" \
+        env NODE_OPTIONS="--max-old-space-size=4096" \
+        "$node" "$pnpm" -C "$openclaw_dir" install --prod --frozen-lockfile \
+        --registry=https://registry.npmmirror.com --fetch-retries=5 --fetch-timeout=600000 --network-concurrency=8
+    ui_success "Dependencies installed"
+}
+
+# skills 的 python 依赖（扫仓内 requirements.txt，pip install --user）
+install_python_deps() {
+    local root="$WISEFLOW_ROOT"
+    local merged=""
+    local f
+    while IFS= read -r -d '' f; do
+        merged+="$(cat "$f" 2>/dev/null)"$'\n'
+    done < <(find "$root/skills" "$root/crews" "$root" -maxdepth 4 -name requirements.txt -print0 2>/dev/null)
+    [[ -z "$merged" ]] && { ui_info "No requirements.txt found; skip python deps"; return 0; }
+    local PIP_CMD=""
+    if command -v pip &>/dev/null; then PIP_CMD="pip"
+    elif command -v pip3 &>/dev/null; then PIP_CMD="pip3"
+    elif python3 -m pip --version &>/dev/null; then PIP_CMD="python3 -m pip"; fi
+    if [[ -z "$PIP_CMD" ]]; then
+        ui_warn "pip 未安装，跳过 python 依赖（skills 用到时再装）"
+        return 0
+    fi
+    ui_info "Installing python skill deps (--user)"
+    printf '%s' "$merged" | sort -u | grep -vE '^\s*#|^\s*$' | \
+        "$PIP_CMD" install --user -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com -r /dev/stdin || \
+        ui_warn "pip install 部分失败，可稍后手动补"
+    ui_success "Python deps done"
 }
 
 run_remote_bash() {
@@ -859,16 +967,37 @@ checkout_openclaw_at_pin() {
 # camoufox-cli（Firefox 反指纹浏览器）
 # ═══════════════════════════════════════════════════════════════════
 install_camoufox_cli() {
+    local node="$WISEFLOW_ROOT/$PORTABLE_NODE"
+    local npm_bin; npm_bin="$(dirname "$node")/npm"
+    local fork_dir="$WISEFLOW_ROOT/camoufox-cli"
+    # portable node 的 npm 全局前缀指向 ~/.openclaw，让 camoufox-cli 进 PATH
+    export PATH="$(dirname "$node"):$PATH"
+    export npm_config_prefix="$WISEFLOW_ROOT"
     if command -v camoufox-cli >/dev/null 2>&1; then
         ui_success "camoufox-cli already installed"
     else
-        run_required_step "Installing camoufox-cli globally" npm install -g camoufox-cli --registry=https://registry.npmmirror.com
+        [[ -d "$fork_dir" ]] || { ui_warn "camoufox-cli fork 不在 tarball 内：$fork_dir；跳过"; return 0; }
+        run_required_step "Installing camoufox-cli fork (local)" "$npm_bin" install -g "$fork_dir" --registry=https://registry.npmmirror.com
     fi
     ui_info "Ensuring camoufox Firefox binary (idempotent, ~557MB first run)"
     if ! camoufox-cli install; then
         ui_warn "camoufox-cli install failed; you can run it manually later: camoufox-cli install"
     fi
     ui_success "camoufox-cli ready"
+}
+
+# 放置 config template → ~/.openclaw/openclaw.json（onboard 会 merge provider 进来，不清 agents/list）
+place_config_template() {
+    local openclaw_home="${OPENCLAW_HOME:-$HOME/.openclaw}"
+    local config_path="${OPENCLAW_CONFIG_PATH:-$openclaw_home/openclaw.json}"
+    local tmpl="$WISEFLOW_ROOT/config-templates/openclaw.json"
+    mkdir -p "$openclaw_home"
+    if [[ ! -f "$config_path" ]]; then
+        [[ -f "$tmpl" ]] && cp "$tmpl" "$config_path"
+        ui_success "Placed openclaw.json template"
+    else
+        ui_info "openclaw.json 已存在，保留（onboard 会 merge）"
+    fi
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -907,18 +1036,21 @@ parse_args() {
                 ;;
             --help|-h)
                 cat <<EOF
-wiseflow installer (macOS + Linux)
+wiseflow installer (macOS + Linux) — 预构建 tarball 路线
 
 Usage:
   curl -fsSL https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/install.sh | bash
   curl -fsSL https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/install.sh | bash -s -- [options]
 
 Options:
-  --root <dir>       Install directory (default: ~/xiaobei)
-  --use-local        Use wiseflow checkout already at <dir>; skip clone/fetch (preserves local changes)
+  --root <dir>       Install directory (default: ~/.openclaw)
   --verbose          Print debug output
   --no-prompt        Disable prompts (CI/automation)
   --help, -h         Show this help
+
+Env:
+  XIAOBEI_MIRROR     自建镜像站根（国内加速），形如 https://mirror.example.com/xiaobei
+  XIAOBEI_TAG        指定版本 tag（默认拉最新 release）
 EOF
                 exit 0
                 ;;
@@ -955,74 +1087,46 @@ main() {
     ui_kv "OS" "$OS"
     ui_kv "Install root" "$WISEFLOW_ROOT"
     ui_kv "Repo" "$WISEFLOW_REPO"
+    [[ -n "$XIAOBEI_MIRROR" ]] && ui_kv "Mirror" "$XIAOBEI_MIRROR"
     echo ""
 
-    # ─── Step 1: Node.js ─────────────────────────────────────
-    ui_stage "Installing Node.js"
-    if ! check_node; then
-        install_homebrew
-        install_node
-    fi
+    # ─── Step 1: 平台 + 版本 ────────────────────────────────
+    ui_stage "Detecting platform"
+    detect_platform_asset
+    ui_stage "Resolving latest release"
+    resolve_latest_version
 
-    # ─── Step 2: Git ─────────────────────────────────────────
-    ui_stage "Ensuring Git"
-    if ! check_git; then
-        install_git
-    fi
+    # ─── Step 2: 下载 + 解压 tarball ─────────────────────────
+    ui_stage "Downloading pre-built tarball"
+    download_and_extract_tarball
 
-    # ─── Step 3: pnpm ────────────────────────────────────────
-    ui_stage "Ensuring pnpm"
-    install_pnpm
+    # ─── Step 3: pnpm install --prod（拉依赖，无 OOM）────────
+    ui_stage "Installing dependencies (pnpm install --prod)"
+    pnpm_install_prod
 
-    # ─── Step 4: Clone wiseflow ──────────────────────────────
-    ui_stage "Cloning wiseflow repo"
-    clone_wiseflow
+    # ─── Step 4: python skill deps ───────────────────────────
+    ui_stage "Installing python skill deps"
+    install_python_deps
 
-    # ─── Step 5: Checkout openclaw at pinned commit ──────────
-    ui_stage "Checking out openclaw at pinned version"
-    checkout_openclaw_at_pin
-
-    # ─── Step 6: apply-addons (patches + skills + crew) ─────
-    ui_stage "Applying patches + skills + crew templates"
-    # apply-addons.sh 自己用 cd dirname/.. 算 PROJECT_ROOT，clone 到 ~/xiaobei 后自动对
-    # 这步耗时最重（patches 应用 + npm/pip/pnpm install），前台透传 stdout 让用户看到
-    # apply-addons.sh 内部的 [n/N] 进度输出，避免长时间静默以为死机。失败时 set -e + 退出码守卫。
-    ui_info "Running apply-addons.sh (verbose progress below)"
-    bash "$WISEFLOW_ROOT/scripts/apply-addons.sh" --no-build --no-restart
-    ui_success "apply-addons.sh complete"
-
-    # ─── Step 7: Build openclaw engine ───────────────────────
-    ui_stage "Building openclaw engine"
-    local openclaw_dir="$WISEFLOW_ROOT/openclaw"
-    # pnpm 算包 hash digest 时（TypedArrayPrototypeJoin → OneShotDigest）对大包一次性 join 整文件 digest，单 isolate OOM。
-    # 真根治走 patches 008/009/010/013 把 copilot/codex/acpx/codex-supervisor 四个 extension 的 dependencies 段置空 +
-    # patches 011/012 删 pnpm-workspace.yaml 的 patchedDependencies + mra-exclude 段——pnpm 解析依赖树时这四个
-    # extension 还是 workspace package 但依赖空，transitive 大包一个都不拉，根本不触发 digest 段。
-    # 不能加 --no-optional：跟 pnpm-lock.yaml 的 optionalDependencies 平台包声明冲突炸
-    # ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY（@lydell/node-pty-darwin-arm64 那条）。平台包自己按 arch 选一个下，体积小不触发 OOM，留着不动。
-    # 必须先删 pnpm-lock.yaml：lockfile 里冻结着 patches 改前四个 extension 的完整 dependencies 段，
-    # pnpm 跑时会按 lockfile 下 copilot/codex/zed 大包到 store（即使 link 段被 patches 截了），仍触发 OOM。
-    # 删了让 pnpm 重新解析依赖树，按当前（已被 patches 改空的）dependencies 段生成新 lockfile。
-    # --strict-peer-dependencies=false 容忍 peer 漂移。阿里云镜像 + timeout 10min + 5 重试 + 并发 8 + NODE_OPTIONS 抬 heap 8GB（双保险）
-    if [ -f "$openclaw_dir/pnpm-lock.yaml" ]; then
-        ui_info "Removing stale pnpm-lock.yaml (forces re-resolve, skips frozen copilot/codex/zed entries)"
-        rm -f "$openclaw_dir/pnpm-lock.yaml"
-    fi
-    run_required_step "pnpm install (deps)" env NODE_OPTIONS="--max-old-space-size=8192" \
-        pnpm -C "$openclaw_dir" install --no-frozen-lockfile --strict-peer-dependencies=false \
-        --registry=https://registry.npmmirror.com --fetch-retries=5 --fetch-timeout=600000 --network-concurrency=8
-    run_required_step "pnpm build" pnpm -C "$openclaw_dir" build
-    run_quiet_step "pnpm ui:build" pnpm -C "$openclaw_dir" ui:build || true
-
-    # ─── Step 8: camoufox-cli + Firefox binary ───────────────
-    ui_stage "Installing camoufox-cli browser"
-    install_camoufox_cli
-
-    # ─── Step 9: Pre-fill channel config + bindings ──────────
+    # ─── Step 5: 放 config template + 预填微信 binding ───────
+    ui_stage "Placing config template"
+    place_config_template
     ui_stage "Pre-filling WeChat channel config"
     prefill_weixin_channel
 
-    # ─── Step 10: Onboard (interactive: model provider + key) ─
+    # ─── Step 6: setup-crew（裸跑，无 --force）──────────────
+    ui_stage "Setting up crew templates"
+    if [[ -f "$WISEFLOW_ROOT/scripts/setup-crew.sh" ]]; then
+        bash "$WISEFLOW_ROOT/scripts/setup-crew.sh" || ui_warn "setup-crew.sh 非零退出（可后续手动 --force 修复）"
+    else
+        ui_warn "setup-crew.sh 不在 tarball 内，跳过"
+    fi
+
+    # ─── Step 7: camoufox-cli + Firefox binary ───────────────
+    ui_stage "Installing camoufox-cli browser"
+    install_camoufox_cli
+
+    # ─── Step 8: Onboard (interactive: model provider + key) ─
     ui_stage "Running openclaw onboard"
     run_onboard
 
@@ -1031,6 +1135,9 @@ main() {
     ui_celebrate "🦞 wiseflow installed successfully!"
     echo ""
     ui_section "Next steps"
+    echo "  把 $WISEFLOW_ROOT/bin 加到 PATH 即可用 openclaw 命令："
+    echo "    export PATH=\"$WISEFLOW_ROOT/bin:\$PATH\""
+    echo ""
     echo "  1. Bind your WeChat channel:"
     echo "     openclaw channels login --channel openclaw-weixin"
     echo "     openclaw pairing list openclaw-weixin"
@@ -1054,7 +1161,7 @@ prefill_weixin_channel() {
         ui_warn "openclaw.json not present yet ($config_path); skip channel prefill"
         return 0
     fi
-    node -e '
+    "$WISEFLOW_ROOT/$PORTABLE_NODE" -e '
         const fs = require("fs");
         const p = process.argv[1];
         const c = JSON.parse(fs.readFileSync(p, "utf8"));
@@ -1077,13 +1184,12 @@ prefill_weixin_channel() {
 # 保留：search（让用户配供应商 + key）/ auth-choice（模型供应商）/ daemon install
 # ═══════════════════════════════════════════════════════════════════
 run_onboard() {
-    local openclaw_dir="$WISEFLOW_ROOT/openclaw"
-    # 走 pnpm openclaw（仓内 build 后 dist 已就位）
-    local claw_cmd="pnpm -C $openclaw_dir openclaw"
+    # 走 tarball 内 wrapper（portable node + openclaw.mjs）
+    local claw_cmd="$WISEFLOW_ROOT/bin/openclaw"
 
     if ! is_promptable; then
         ui_warn "No TTY; cannot run interactive onboard"
-        ui_info "After install, run: cd $openclaw_dir && pnpm openclaw onboard --skip-channels --skip-skills --skip-bootstrap --skip-health --skip-ui --install-daemon"
+        ui_info "After install, run: $claw_cmd onboard --skip-channels --skip-skills --skip-bootstrap --skip-health --skip-ui --install-daemon"
         return 0
     fi
 
@@ -1101,7 +1207,7 @@ run_onboard() {
         --skip-ui \
         --install-daemon || {
         ui_error "Onboarding failed"
-        echo "Re-run manually: cd $openclaw_dir && pnpm openclaw onboard --skip-channels --skip-skills --skip-bootstrap --skip-health --skip-ui --install-daemon"
+        echo "Re-run manually: $claw_cmd onboard --skip-channels --skip-skills --skip-bootstrap --skip-health --skip-ui --install-daemon"
         exit 1
     }
     ui_success "Onboarding complete"

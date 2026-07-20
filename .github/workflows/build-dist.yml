@@ -119,6 +119,9 @@ jobs:
           set -euo pipefail
           STAGE="${{ steps.stage.outputs.stage_dir }}"
           XIAOBEI_VER="$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/version")"
+          # asset 名优先用 git tag（release source of truth），非 tag 触发回退 version 文件
+          REF_NAME="${GITHUB_REF##*/}"
+          if [[ "$REF_NAME" == v* ]]; then ASSET_TAG="$REF_NAME"; else ASSET_TAG="$XIAOBEI_VER"; fi
           mkdir -p "$RUNNER_TEMP/out"
 
           # 平台 → (node_url, subdir)
@@ -135,6 +138,8 @@ jobs:
             PKG="$RUNNER_TEMP/pkg-$plat"
             rm -rf "$PKG"
             cp -a "$STAGE" "$PKG"
+            # asset 名用 git tag（release 的 source of truth），与 install.sh 按 tag 拉对齐
+            TAG="$ASSET_TAG"
 
             # portable Node
             if [[ "$plat" == win-x64 ]]; then
@@ -155,7 +160,7 @@ jobs:
           EOF
             chmod +x "$PKG/bin/openclaw"
 
-            ASSET="xiaobei-${XIAOBEI_VER}-${plat}.tar.zst"
+            ASSET="xiaobei-${TAG}-${plat}.tar.zst"
             tar --zstd -cf "$RUNNER_TEMP/out/$ASSET" -C "$PKG" .
             ls -lh "$RUNNER_TEMP/out/$ASSET"
           done

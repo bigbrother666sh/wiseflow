@@ -365,12 +365,19 @@ tarball_url() {
 download_and_extract_tarball() {
     local url; url="$(tarball_url)"
     local asset="xiaobei-${XIAOBEI_TAG}-${PLAT}.tar.zst"
-    ui_kv "Asset" "$asset"
-    ui_kv "URL" "$url"
-    local tmp; tmp="$(mktempfile)"
-    ui_info "Downloading $asset (~120MB)..."
-    download_file "$url" "$tmp"
-    ui_success "Downloaded"
+    local tmp
+    if [[ -n "${XIAOBEI_TARBALL:-}" && -f "${XIAOBEI_TARBALL:-}" ]]; then
+        ui_kv "Asset" "$asset (local)"
+        ui_kv "File" "$XIAOBEI_TARBALL"
+        tmp="$XIAOBEI_TARBALL"
+    else
+        ui_kv "Asset" "$asset"
+        ui_kv "URL" "$url"
+        tmp="$(mktempfile)"
+        ui_info "Downloading $asset (~120MB)..."
+        download_file "$url" "$tmp"
+        ui_success "Downloaded"
+    fi
 
     mkdir -p "$WISEFLOW_ROOT"
     ui_info "Extracting to $WISEFLOW_ROOT ..."
@@ -1052,6 +1059,7 @@ Env:
   XIAOBEI_REPO       GitHub 仓（owner/repo，默认 TeamWiseFlow/xiaobei；测试可指 bigbrother666sh/wiseflow）
   XIAOBEI_MIRROR     自建镜像站根（国内加速），形如 https://mirror.example.com/xiaobei
   XIAOBEI_TAG        指定版本 tag（默认拉最新 release）
+  XIAOBEI_TARBALL    本地已下好的 tarball 路径；设了就跳过下载直接用它（网络差时手工下好塞进来）
 EOF
                 exit 0
                 ;;

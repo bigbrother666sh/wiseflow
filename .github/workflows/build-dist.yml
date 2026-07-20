@@ -91,6 +91,13 @@ jobs:
         env:
           CI: 'true'
 
+      - name: Prune dev deps（dist 已 build，运行时只需 prod deps）
+        run: |
+          cd openclaw
+          pnpm install --prod --ignore-scripts --no-frozen-lockfile \
+            --registry=https://registry.npmmirror.com \
+            --fetch-retries=5 --fetch-timeout=600000
+
       - name: Build camoufox-cli fork (replaces upstream on PATH)
         run: bash patches/camoufox-cli/build.sh
 
@@ -103,11 +110,13 @@ jobs:
           rm -rf "$STAGE"
           mkdir -p "$STAGE/bin" "$STAGE/tools"
 
-          # 1. openclaw 引擎（dist 已 build，含 node_modules）
-          cp -a "$REPO/openclaw" "$STAGE/openclaw"
+          # 1. openclaw 引擎（dist 已 build，prod node_modules；排除 .git / 缓存）
+          rsync -a --exclude='.git' --exclude='node_modules/.cache' --exclude='*.tsbuildinfo' \
+            "$REPO/openclaw/" "$STAGE/openclaw/"
           # 探测 pnpm symlink 问题：node_modules 里软链指向全局 store 的话，tarball 到用户机会 dangling
           SYMLINK_COUNT=$(find "$STAGE/openclaw" -type l 2>/dev/null | wc -l)
-          echo "ℹ️ openclaw symlinks in staged copy: $SYMLINK_COUNT (若 >0 需改 hoisted linker 或 cp -rL)"
+          ABS_SYMLINKS=$(find "$STAGE/openclaw" -type l 2>/dev/null | while read l; do r=$(readlink "$l"); case "$r" in /*) echo x;; esac; done | wc -l)
+          echo "ℹ️ openclaw symlinks: $SYMLINK_COUNT (absolute→dangling: $ABS_SYMLINKS)"
 
           # 2. portable Node 24.15.0
           curl -fsSL -o "$RUNNER_TEMP/node.tar.xz" "${{ matrix.node_url }}"

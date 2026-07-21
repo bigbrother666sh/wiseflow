@@ -190,6 +190,33 @@ jobs:
           echo "out_dir=$RUNNER_TEMP/out" >> "$GITHUB_OUTPUT"
           ls -lh "$RUNNER_TEMP/out/"
 
+      - name: Smoke test linux tarball (extract + install --skip-browser + openclaw --version)
+        run: |
+          set -euo pipefail
+          REF_NAME="${GITHUB_REF##*/}"
+          if [[ "$REF_NAME" != v* ]]; then
+            echo "非 tag 触发（ref=$GITHUB_REF），跳过冒烟自检"
+            exit 0
+          fi
+          TB="$RUNNER_TEMP/out/xiaobei-$REF_NAME-linux-x64.tar.zst"
+          [[ -f "$TB" ]] || { echo "❌ tarball 不存在：$TB"; exit 1; }
+          SMOKE="$RUNNER_TEMP/smoke"
+          rm -rf "$SMOKE"
+          mkdir -p "$SMOKE/extract" "$SMOKE/program" "$SMOKE/runtime"
+          # 解压一份拿到 scripts/install.sh（install.sh 会再按 XIAOBEI_TARBALL 解压到 program）
+          tar --zstd -xf "$TB" -C "$SMOKE/extract"
+          [[ -f "$SMOKE/extract/scripts/install.sh" ]] || { echo "❌ tarball 缺 scripts/install.sh"; exit 1; }
+          export XIAOBEI_HOME="$SMOKE/program"
+          export OPENCLAW_HOME="$SMOKE/runtime"
+          export XIAOBEI_TARBALL="$TB"
+          export XIAOBEI_TAG="$REF_NAME"
+          export XIAOBEI_SOURCE=github
+          export AWK_API_KEY="smoke-test-key"
+          bash "$SMOKE/extract/scripts/install.sh" \
+            --no-prompt --skip-bind --skip-browser --root "$XIAOBEI_HOME"
+          "$XIAOBEI_HOME/bin/openclaw" --version
+          echo "✅ 冒烟自检通过：tarball 可解压 + 依赖可装 + 引擎可起"
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:

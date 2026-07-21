@@ -81,7 +81,7 @@ bash -c "$(curl -fsSL https://atomgit.com/wiseflow/xiaobei/raw/branch/master/scr
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/install.sh)" -s -- --github
 ```
 
-> 镜像站约定在 `$XIAOBEI_MIRROR/latest.txt` 放当前最新 tag（单行），install.sh 优先读它，全程不访问 `api.github.com`。若 atomgit 未提供 `latest.txt`，可手动 `export XIAOBEI_TAG=v5.6.0` 指定版本。自定义镜像：`--mirror <url>` 或 `XIAOBEI_MIRROR=<url>`。
+> install.sh 默认走 atomgit 的 Gitea API 取最新 tag（atomgit 每晚自动同步上游 tag + release），全程不访问 `api.github.com`。指定版本：`export XIAOBEI_TAG=v5.6.0`。自定义镜像：`--mirror <url>` 或 `XIAOBEI_MIRROR=<url>`（自定义镜像请配 `XIAOBEI_TAG` 指定版本）。
 
 **Windows（PowerShell）：**
 
@@ -103,11 +103,12 @@ irm https://atomgit.com/wiseflow/xiaobei/raw/branch/master/scripts/install.ps1 |
 8. 放 `config-templates/openclaw.json` → `~/.openclaw/openclaw.json` + 预填微信 channel binding
 9. `setup-crew.sh`（部署 crew workspace 到 `~/.openclaw/workspace-*`，注册 agents）
 10. 交互问 `AWK_API_KEY` → 写 `~/.openclaw/daemon.env` → `openclaw daemon install` + restart
+11. 自动出微信绑定二维码（已绑过的机器自动跳过），手机扫码、点确认即用
 
 装好后：
 
+- 脚本最后会自动出微信绑定二维码——用手机微信扫一下、点确认，小贝就能用了。已绑过的机器自动跳过这一步。
 - 访问 dashboard：http://127.0.0.1:18789
-- 绑微信 channel：`openclaw channels login --channel openclaw-weixin` → 扫码 → `openclaw pairing list openclaw-weixin` → `openclaw pairing approve openclaw-weixin <id>`
 
 > **目录职责**：`~/xiaobei/` = 程序（引擎 + 模板 + 脚本 + 工具 + wrapper）；`~/.openclaw/` = 运行数据（openclaw.json + daemon.env + workspaces + logs）。两者分开，升级只换 `~/xiaobei/`，用户数据不动。可用 `XIAOBEI_HOME` / `OPENCLAW_HOME` env 覆盖。
 

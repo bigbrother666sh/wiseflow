@@ -340,22 +340,33 @@ detect_platform_asset() {
     ui_success "Platform asset: $PLAT"
 }
 
-# 解析最新 release tag + 版本号（GitHub API，失败回退 gh CLI）
+# 解析最新 release tag + 版本号
+# atomgit（Gitea）每晚自动同步上游 tag + release，走其 /api/v1/repos/<o>/<r>/releases/latest
+# 全程不访问 api.github.com；--github 或自定义镜像回退 GitHub API
 resolve_latest_version() {
     if [[ -n "${XIAOBEI_TAG:-}" ]]; then
         XIAOBEI_VER="${XIAOBEI_TAG#v}"
         ui_success "Using pinned tag: $XIAOBEI_TAG"
         return 0
     fi
-    # 镜像站约定：$XIAOBEI_MIRROR/latest.txt 单行 tag（国内用户免访问 api.github.com）
+    # atomgit / 自建 Gitea 镜像：从 mirror URL 推导 Gitea API（host + owner/repo）
     if [[ -n "${XIAOBEI_MIRROR:-}" ]]; then
-        XIAOBEI_TAG="$(curl -fsSL "$XIAOBEI_MIRROR/latest.txt" 2>/dev/null | tr -d '[:space:]' || true)"
-        if [[ "$XIAOBEI_TAG" == v* ]]; then
-            XIAOBEI_VER="${XIAOBEI_TAG#v}"
-            ui_success "Latest release (via mirror latest.txt): $XIAOBEI_TAG"
-            return 0
+        local m="${XIAOBEI_MIRROR%/}"
+        m="${m#https://}"; m="${m#http://}"
+        local host="${m%%/*}"
+        local repo_path="${m#*/}"
+        if [[ -n "$host" && -n "$repo_path" ]]; then
+            local api="https://$host/api/v1/repos/$repo_path/releases/latest"
+            local resp
+            resp="$(curl -fsSL "$api" 2>/dev/null || true)"
+            XIAOBEI_TAG="$(printf '%s' "$resp" | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"v[^"]+"' | head -1 | sed -E 's/.*"v([^"]+)".*/v\1/')"
+            if [[ -n "$XIAOBEI_TAG" ]]; then
+                XIAOBEI_VER="${XIAOBEI_TAG#v}"
+                ui_success "Latest release (via $host): $XIAOBEI_TAG"
+                return 0
+            fi
+            ui_warn "镜像 Gitea API 未取到 tag，回退 GitHub API"
         fi
-        ui_warn "mirror latest.txt 未取到，回退 GitHub API"
     fi
     local api="https://api.github.com/repos/$WISEFLOW_REPO/releases/latest"
     local resp
@@ -1099,6 +1110,7 @@ VERBOSE=0
 NO_PROMPT=0
 USE_LOCAL=false
 FORCE_RUNTIME=false
+SKIP_WEIXIN_BIND=false
 TAGLINE="$DEFAULT_TAGLINE"
 
 parse_args() {
@@ -1138,6 +1150,11 @@ parse_args() {
                 USE_LOCAL=true
                 shift
                 ;;
+            --skip-bind)
+                # 跳过末尾微信扫码绑定（CI/自动化或想后续手动绑）
+                SKIP_WEIXIN_BIND=true
+                shift
+                ;;
             --root)
                 if [[ $# -lt 2 || "${2:-}" == --* ]]; then
                     ui_error "Missing value for $1"
@@ -1159,6 +1176,7 @@ Options:
   --github           Use GitHub releases instead of the default atomgit mirror
   --mirror <url>     Custom mirror root (overrides default atomgit)
   --force            Overwrite existing runtime data (~/.openclaw); default preserves it on re-install
+  --skip-bind        Skip the WeChat QR binding at the end (CI/automation)
   --verbose          Print debug output
   --no-prompt        Disable prompts (CI/automation)
   --help, -h         Show this help
@@ -1166,8 +1184,8 @@ Options:
 Env:
   XIAOBEI_REPO       GitHub 仓（owner/repo，默认 TeamWiseFlow/xiaobei；测试可指 bigbrother666sh/wiseflow）
   XIAOBEI_SOURCE     设为 github 切回 GitHub release（等价 --github）
-  XIAOBEI_MIRROR     镜像站根（默认 atomgit 国内镜像 https://atomgit.com/wiseflow/xiaobei）
-  XIAOBEI_TAG        指定版本 tag（默认拉最新 release）
+  XIAOBEI_MIRROR     镜像站根（默认 atomgit 国内镜像 https://atomgit.com/wiseflow/xiaobei，走其 Gitea API 取最新 tag）
+  XIAOBEI_TAG        指定版本 tag（默认拉最新 release；自定义镜像建议配此项）
   XIAOBEI_TARBALL    本地已下好的 tarball 路径；设了就跳过下载直接用它（网络差时手工下好塞进来）
   XIAOBEI_HOME       程序目录覆盖（默认 ~/xiaobei）
   OPENCLAW_HOME      运行数据目录覆盖（默认 ~/.openclaw）
@@ -1187,6 +1205,57 @@ configure_verbose() {
         return 0
     fi
     set -x
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# 首装末尾：自动出微信绑定二维码，手机扫码确认即用
+# 已绑（accounts.json 存在）→ 跳过；非 TTY / --no-prompt / --skip-bind → 跳过并提示
+# channels login 内部 waitForWeixinLogin 有 3 次刷新上限，外层循环重出直到绑成功
+# ═══════════════════════════════════════════════════════════════════
+weixin_account_bound() {
+    local acc
+    for acc in \
+        "$OPENCLAW_HOME/openclaw-weixin/accounts.json" \
+        "$OPENCLAW_HOME/.openclaw/openclaw-weixin/accounts.json"; do
+        [[ -f "$acc" ]] && return 0
+    done
+    return 1
+}
+
+bind_weixin_channel() {
+    if [[ "$SKIP_WEIXIN_BIND" == "true" || "$NO_PROMPT" == "1" ]]; then
+        ui_info "跳过微信扫码绑定（--skip-bind / --no-prompt）；后续手动跑：openclaw channels login --channel openclaw-weixin"
+        return 0
+    fi
+    if weixin_account_bound; then
+        ui_success "检测到微信账号已绑定，跳过扫码"
+        return 0
+    fi
+    if [[ ! -t 0 ]]; then
+        ui_warn "非交互终端（stdin 非 TTY），跳过微信扫码绑定；后续手动跑：openclaw channels login --channel openclaw-weixin"
+        return 0
+    fi
+    local claw="$WISEFLOW_ROOT/bin/openclaw"
+    if [[ ! -x "$claw" ]]; then
+        ui_warn "openclaw wrapper 未找到（$claw），跳过微信绑定"
+        return 0
+    fi
+    ui_stage "绑定微信 channel（用手机扫码）"
+    echo "  接下来会出二维码，用微信扫一下、点确认，小贝就能用了。"
+    echo "  扫码慢没关系，二维码会自动刷新；扫完即继续。"
+    echo ""
+    local attempt=0
+    while [[ $attempt -lt 5 ]]; do
+        attempt=$((attempt + 1))
+        # channels login 出码 + 等扫码确认；扫成功后写 accounts.json
+        "$claw" channels login --channel openclaw-weixin || true
+        if weixin_account_bound; then
+            ui_success "微信账号绑定成功"
+            return 0
+        fi
+        [[ $attempt -lt 5 ]] && ui_warn "本轮未检测到绑定，重出二维码（第 $((attempt + 1)) 次）..."
+    done
+    ui_warn "多次扫码未完成绑定。可后续手动跑：$claw channels login --channel openclaw-weixin"
 }
 
 main() {
@@ -1276,6 +1345,9 @@ main() {
         # 交互收 AWK_API_KEY + 装 gateway daemon（不走 onboard，小白友好）
         ui_stage "Configuring API key and gateway"
         install_gateway_and_env
+
+        # 首装末尾自动出微信二维码扫码绑定（已绑过则跳过）
+        bind_weixin_channel
     fi
 
     # ─── 完成 ────────────────────────────────────────────────
@@ -1290,15 +1362,7 @@ main() {
     echo "  把 $WISEFLOW_ROOT/bin 加到 PATH 即可用 openclaw 命令："
     echo "    export PATH=\"$WISEFLOW_ROOT/bin:\$PATH\""
     echo ""
-    if [[ "$is_update" != "true" ]]; then
-        echo "  1. Bind your WeChat channel:"
-        echo "     openclaw channels login --channel openclaw-weixin"
-        echo "     openclaw pairing list openclaw-weixin"
-        echo "     openclaw pairing approve openclaw-weixin <id>"
-        echo ""
-        echo "  2. Open the dashboard: http://127.0.0.1:18789"
-        echo ""
-    fi
+    echo "  Dashboard: http://127.0.0.1:18789"
     echo "  Update later: re-run this install script (preserves ~/.openclaw runtime data)."
     echo ""
 }

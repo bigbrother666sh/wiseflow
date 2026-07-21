@@ -8,7 +8,7 @@
 #
 # 与 install.sh 同构（方案 B 瘦 tarball）：
 #   1. 拉 xiaobei-{tag}-win-x64.tar.gz（Windows bsdtar 原生支持 gzip，免装 zstd）
-#   2. 解压到 $XIAOBEI_HOME（默认 $env:USERPROFILE\.xiaobei，程序目录）
+#   2. 解压到 $XIAOBEI_HOME（默认 $env:USERPROFILE\xiaobei，程序目录）
 #   3. portable node + pnpm install --prod --frozen-lockfile（在 openclaw\ 下）
 #   4. pip install --user（skills 的 python deps，有 python 才跑）
 #   5. 放 config-templates\openclaw.json → $OPENCLAW_HOME\openclaw.json + 预填微信 binding
@@ -17,7 +17,7 @@
 #   8. openclaw-weixin 插件：openclaw plugins install ... --pin（npmmirror）
 #   9. 交互问 AWK_API_KEY → 写 daemon.env + setx 用户环境变量 → 尝试 openclaw daemon install
 #
-# 目录职责：$XIAOBEI_HOME（~\.xiaobei）= 程序；$OPENCLAW_HOME（~\.openclaw）= 运行数据。
+# 目录职责：$XIAOBEI_HOME（~\xiaobei）= 程序；$OPENCLAW_HOME（~\.openclaw）= 运行数据。
 # Windows 原生 wrapper：$XIAOBEI_HOME\bin\openclaw.cmd（WSL/Git Bash 用户也可用 bin\openclaw）。
 
 [CmdletBinding()]
@@ -28,6 +28,7 @@ param(
     [string]$Mirror = "",               # 自定义镜像站根（覆盖默认 atomgit）
     [switch]$GitHub,                    # 切回 GitHub release（不走默认 atomgit）
     [switch]$Force,                     # 强覆盖已有运行数据（~\.openclaw）
+    [switch]$SkipBind,                  # 跳过末尾微信扫码绑定
     [switch]$NoPrompt
 )
 
@@ -68,11 +69,17 @@ function Write-Err([string]$msg)   { Write-Host "  [X]  $msg" -ForegroundColor R
 function Resolve-Tag {
     if ($env:XIAOBEI_TAG) { return $env:XIAOBEI_TAG }
     if ($env:XIAOBEI_MIRROR) {
-        # 镜像站约定：$mirror/latest.txt 单行 tag
+        # Gitea 镜像（atomgit 每晚同步上游 tag）：从 mirror URL 推导 /api/v1/repos/<o>/<r>/releases/latest
         try {
-            $t = (Invoke-RestMethod "$env:XIAOBEI_MIRROR/latest.txt" -Headers @{ "User-Agent" = "xiaobei-install" }).Trim()
-            if ($t) { return $t }
-        } catch { Write-Warn "mirror latest.txt 拉取失败，回退 GitHub API" }
+            $u = ($env:XIAOBEI_MIRROR.TrimEnd('/') -replace '^https?://', '')
+            $slash = $u.IndexOf('/')
+            if ($slash -gt 0) {
+                $gh = $u.Substring(0, $slash)
+                $rp = $u.Substring($slash + 1)
+                $rel = Invoke-RestMethod "https://$gh/api/v1/repos/$rp/releases/latest" -Headers @{ "User-Agent" = "xiaobei-install" }
+                if ($rel.tag_name) { return $rel.tag_name }
+            }
+        } catch { Write-Warn "镜像 Gitea API 拉取失败，回退 GitHub API" }
     }
     $api = "https://api.github.com/repos/$Repo/releases/latest"
     $rel = Invoke-RestMethod $api -Headers @{ "User-Agent" = "xiaobei-install" }
@@ -305,6 +312,35 @@ function Install-GatewayAndEnv {
     }
 }
 
+# ─── 12. 自动出微信绑定二维码（首装末尾）──────────────────────
+function Test-WeixinBound {
+    $paths = @(
+        (Join-Path $OpenclawHome "openclaw-weixin\accounts.json"),
+        (Join-Path $OpenclawHome ".openclaw\openclaw-weixin\accounts.json")
+    )
+    foreach ($p in $paths) { if (Test-Path $p) { return $true } }
+    return $false
+}
+
+function Bind-WeixinChannel {
+    if ($SkipBind -or $NoPrompt) {
+        Write-Host "  [i]  跳过微信扫码绑定（-SkipBind / -NoPrompt）；后续手动跑：openclaw channels login --channel openclaw-weixin" -ForegroundColor Yellow
+        return
+    }
+    if (Test-WeixinBound) { Write-Ok "检测到微信账号已绑定，跳过扫码"; return }
+    if (-not (Test-Path $ClawCmd)) { Write-Warn "openclaw wrapper 未找到（$ClawCmd），跳过微信绑定"; return }
+    Write-Stage "绑定微信 channel（用手机扫码）"
+    Write-Host "  接下来会出二维码，用微信扫一下、点确认，小贝就能用了。"
+    Write-Host "  扫码慢没关系，二维码会自动刷新；扫完即继续。"
+    Write-Host ""
+    for ($i = 1; $i -le 5; $i++) {
+        & $ClawCmd channels login --channel openclaw-weixin
+        if (Test-WeixinBound) { Write-Ok "微信账号绑定成功"; return }
+        if ($i -lt 5) { Write-Warn "本轮未检测到绑定，重出二维码（第 $($i + 1) 次）..." }
+    }
+    Write-Warn "多次扫码未完成绑定。可后续手动跑：$ClawCmd channels login --channel openclaw-weixin"
+}
+
 # ─── main ─────────────────────────────────────────────────────
 function Main {
     Write-Host "wiseflow installer (Windows) — 预构建 tarball 路线" -ForegroundColor Magenta
@@ -350,6 +386,7 @@ function Main {
         Place-Config
         Run-SetupCrew
         Install-GatewayAndEnv
+        Bind-WeixinChannel
     }
 
     Write-Host ""
@@ -364,15 +401,7 @@ function Main {
     Write-Host "  把 $binDir 加到用户 PATH（安全方式，勿用 setx %PATH% 会截断）："
     Write-Host "    [Environment]::SetEnvironmentVariable('PATH', `"$binDir;`" + [Environment]::GetEnvironmentVariable('PATH','User'), 'User')"
     Write-Host ""
-    if (-not $isUpdate) {
-        Write-Host "  1. Bind your WeChat channel:"
-        Write-Host "     openclaw channels login --channel openclaw-weixin"
-        Write-Host "     openclaw pairing list openclaw-weixin"
-        Write-Host "     openclaw pairing approve openclaw-weixin <id>"
-        Write-Host ""
-        Write-Host "  2. Open the dashboard: http://127.0.0.1:18789"
-        Write-Host ""
-    }
+    Write-Host "  Dashboard: http://127.0.0.1:18789"
     Write-Host "  Update later: re-run this install script (preserves $OpenclawHome runtime data)."
     Write-Host ""
 }

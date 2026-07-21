@@ -402,26 +402,51 @@ tarball_url() {
 download_and_extract_tarball() {
     local url; url="$(tarball_url)"
     local asset="xiaobei-${XIAOBEI_TAG}-${PLAT}.${TAR_EXT}"
+    # 缓存下过的 tarball，重跑（含失败重试）免重复下 120MB。XIAOBEI_TARBALL 优先（用户自带）。
+    local cache_dir="${XIAOBEI_CACHE_DIR:-$HOME/.xiaobei/cache}"
+    local cached="$cache_dir/$asset"
     local tmp
     if [[ -n "${XIAOBEI_TARBALL:-}" && -f "${XIAOBEI_TARBALL:-}" ]]; then
         ui_kv "Asset" "$asset (local)"
         ui_kv "File" "$XIAOBEI_TARBALL"
         tmp="$XIAOBEI_TARBALL"
+    elif [[ -f "$cached" && -s "$cached" ]]; then
+        ui_kv "Asset" "$asset (cached)"
+        ui_kv "File" "$cached"
+        tmp="$cached"
     else
         ui_kv "Asset" "$asset"
         ui_kv "URL" "$url"
-        tmp="$(mktempfile)"
-        ui_info "Downloading $asset (~120MB)..."
-        download_file "$url" "$tmp"
+        mkdir -p "$cache_dir"
+        ui_info "Downloading $asset (~120MB) → $cached ..."
+        download_file "$url" "$cached"
         ui_success "Downloaded"
+        tmp="$cached"
     fi
 
     mkdir -p "$WISEFLOW_ROOT"
     ui_info "Extracting to $WISEFLOW_ROOT ..."
+    local extract_ok=1
     if [[ "$TAR_EXT" == "tar.zst" ]]; then
-        tar --zstd -xf "$tmp" -C "$WISEFLOW_ROOT"
+        tar --zstd -xf "$tmp" -C "$WISEFLOW_ROOT" || extract_ok=0
     else
-        tar -xzf "$tmp" -C "$WISEFLOW_ROOT"
+        tar -xzf "$tmp" -C "$WISEFLOW_ROOT" || extract_ok=0
+    fi
+    if [[ "$extract_ok" -ne 1 ]]; then
+        # 解压失败：缓存可能损坏/半下，删了重下一次再试（用户自带的 XIAOBEI_TARBALL 不删）
+        if [[ -z "${XIAOBEI_TARBALL:-}" && -f "$cached" ]]; then
+            ui_warn "解压失败，删损坏缓存重下..."
+            rm -f "$cached"
+            download_file "$url" "$cached"
+            if [[ "$TAR_EXT" == "tar.zst" ]]; then
+                tar --zstd -xf "$cached" -C "$WISEFLOW_ROOT"
+            else
+                tar -xzf "$cached" -C "$WISEFLOW_ROOT"
+            fi
+        else
+            ui_error "解压失败：$tmp"
+            exit 1
+        fi
     fi
     ui_success "Extracted"
 

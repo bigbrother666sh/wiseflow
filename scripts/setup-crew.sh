@@ -287,7 +287,7 @@ for agent_dir in "$CREWS_DIR"/*/; do
     inject_file_edit_guide "$dest/TOOLS.md"
     inject_exec_guide "$dest/TOOLS.md" "$dest"
     inject_agents_md_sections "$dest/AGENTS.md"
-    inject_feishu_media_guide "$dest/USER.md"
+    inject_media_send_guide "$dest/USER.md"
     continue
   fi
 
@@ -299,7 +299,7 @@ for agent_dir in "$CREWS_DIR"/*/; do
   inject_file_edit_guide "$dest/TOOLS.md"
   inject_exec_guide "$dest/TOOLS.md" "$dest"
   inject_agents_md_sections "$dest/AGENTS.md"
-  inject_feishu_media_guide "$dest/USER.md"
+  inject_media_send_guide "$dest/USER.md"
 done
 
 # 注：原 §2/§3（shared 协议 / crew_templates / hrbp_templates 模板库同步）已移除。
@@ -627,7 +627,7 @@ if [ -f "$CONFIG_PATH" ]; then
     [ -n "$a_id" ] || continue
     [ -f "$a_ws/AGENTS.md" ] || continue
     inject_agents_md_sections "$a_ws/AGENTS.md"
-    inject_feishu_media_guide "$a_ws/USER.md"
+    inject_media_send_guide "$a_ws/USER.md"
     inject_file_edit_guide "$a_ws/TOOLS.md"
     inject_exec_guide "$a_ws/TOOLS.md" "$a_ws"
   done < <(list_agent_workspaces)

@@ -1,6 +1,6 @@
 ---
 name: viral-chaser
-description: 下载分析抖音/B站/小红书爆款视频，生成追爆报告。仅产出报告，脚本另外使用 video-product 技能根据 追爆报告.md 生成。
+description: 下载分析抖音/B站/小红书爆款视频，生成追爆报告。仅产出报告，视频生产需另外委托content-producer进行。
 metadata:
   openclaw:
     emoji: 🎯
@@ -47,7 +47,7 @@ Use this skill when:
 - 用户提供抖音 / B 站 / 小红书视频链接，希望分析并制作同类视频
 - 需要分析爆款视频的结构和公式
 
-**本技能仅产出追爆报告**，不生成脚本，不制作视频。报告产出后，直接进入 `video-product` 技能，按追爆报告生成脚本并完成后续生产。
+**本技能仅产出追爆报告**，不生成脚本，不制作视频。如需据此生成视频，需另行委托 `content-producer` （spawn subagent）执行。
 
 **Supported platforms:** 抖音（Douyin）、B 站（Bilibili）、小红书（XHS — 仅视频笔记）
 
@@ -192,12 +192,6 @@ If `--no-frames` was used or frames is empty, note: "（跳过视觉分析，请
 
 ### 7. 目标受众
 One sentence describing the primary audience persona.
-
----
-
-## 衔接 video-product
-
-追爆报告产出后，直接进入 `video-product` 技能流程，并应该明确提示后续工作流程：工作目录为 `output_videos/<slug>/`，直接按`raw_article.md`制作脚本.
 
 ---
 

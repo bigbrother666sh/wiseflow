@@ -1,0 +1,1 @@
+TODO: 这里的stages和scripts作为原子能力，供video producer其他技能调用过程和整合

@@ -36,3 +36,6 @@ skills/wxwork-drive/spaces.json
 
 # 运行时缓存
 crews/main/skills/published-track/xhs-user-id.cache
+
+# AtomCode 会话目录
+.atomcode/

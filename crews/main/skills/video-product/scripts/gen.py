@@ -99,6 +99,23 @@ def log(message: str) -> None:
     print(f"[info] {message}")
 
 
+def append_decision(entry: str) -> None:
+    """候选链 fallback 或全失败时往 decisions.log 追一行（借鉴 OpenMontage decision_log).
+
+    落点：workdir 下 decisions.log（gen.py 的 workdir 由 ensure_safe_output 约束在 workspace 根，
+    decisions.log 同落那）。append-only，不动旧内容。格式：ISO 时间 | 事件 | 详情。
+    落盘失败不阻塞主流程——decisions.log 是审计辅助，不是硬约束。
+    """
+    try:
+        from datetime import datetime
+        ts = datetime.now().astimezone().isoformat(timespec="seconds")
+        line = f"{ts} | {entry}\n"
+        with Path("decisions.log").resolve().open("a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception:
+        pass
+
+
 # ---- asset resolution ---------------------------------------------------------
 
 def is_url(value: str) -> bool:
@@ -559,7 +576,10 @@ def generate(platform: str, candidates: list[str], args: argparse.Namespace, api
         if pinned:
             break  # respect explicit user choice — no chain walk
         if idx < len(models) - 1:
-            log(f"falling back to next model: {models[idx + 1]}")
+            next_model = models[idx + 1]
+            log(f"falling back to next model: {next_model}")
+            append_decision(f"fallback | {model} → {next_model} | reason: {last_err}")
+    append_decision(f"all candidates exhausted | models: {','.join(models)} | last error: {last_err}")
     die(f"all model attempts failed; last error: {last_err}")
 
 

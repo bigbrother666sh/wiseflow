@@ -252,7 +252,122 @@ def _tail_file(path: str, max_chars: int) -> str:
         return ""
 
 
-def assemble_multiple_videos(video_files: list[str], audio_file: str | None, output_path: str) -> None:
+def _apply_crossfade(video_files: list[str], width: int, height: int,
+                     concat_path: str, tmp_dir: str, drop_audio: bool) -> str:
+    """用 ffmpeg xfade + acrossfade 鲡把已 normalize+concat 的多段拼成 crossfade 转场.
+
+    借鉴 OpenMontage Backlot 看板的 transition 能力，平替成 ffmpeg 鲡——
+    每相邻段间插 0.5s crossfade，video 走 xfade transition=fade，audio 走 acrossfade.
+
+    输入：concat_path 是 _normalize_and_concat_batch 出的硬切拼接产物。
+    输出：落到 tmp_dir/crossfade.mp4，返新路径。单段或 ffmpeg 不带 xfade 时退原 concat_path 不鲂。
+    """
+    if len(video_files) < 2:
+        return concat_path
+
+    # ffmpeg xfade 鲡要逐段输 + offset，段太多复杂度炸——鲂到 ≤3 段用 xfade 鲝接，
+    # >3 段退硬切不鲂（避鲡 ffmpeg 鲡超长鲡串炸）
+    if len(video_files) > 3:
+        print("[warn] crossfade >3 段不鲂（ffmpeg xfade 鲡串复杂度炸），退硬切")
+        return concat_path
+
+    # 探 ffmpeg 带 xfade
+    probe = subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True, timeout=30)
+    if probe.returncode != 0 or "xfade" not in probe.stdout:
+        print("[warn] ffmpeg 不带 xfade 滤镜，退硬切不鲂 crossfade")
+        return concat_path
+
+    # 每段 duration 取（ffprobe），xfade offset = 塚段时长 - transition_duration
+    import json
+    durations = []
+    for vf in video_files:
+        r = subprocess.run([
+            "ffprobe", "-v", "quiet", "-print_format", "json",
+            "-show_streams", "-select_streams", "v", vf,
+        ], capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            print(f"[warn] ffprobe 取 {vf} duration 失败，退硬切")
+            return concat_path
+        try:
+            data = json.loads(r.stdout)
+            s = data.get("streams", [{}])[0]
+            dur = float(s.get("duration", 0) or 0)
+            durations.append(dur if dur > 0 else 0)
+        except (json.JSONDecodeError, ValueError, IndexError):
+            print(f"[warn] ffprobe 解 {vf} duration 失败，退硬切")
+            return concat_path
+
+    transition_dur = 0.5  # 每相邻段间 0.5s crossfade
+    output = os.path.join(tmp_dir, "crossfade.mp4")
+
+    # 鲡逐段 normalize 后的产物（_normalize_and_concat_batch 落 tmp_dir 下 seg_*.mp4）
+    # xfade 鲡鲠逐段输，不走 concat 产物——重跑逐段 normalize 拿独立段
+    seg_files = []
+    for i, vf in enumerate(video_files):
+        seg = os.path.join(tmp_dir, f"seg_{i:02d}.mp4")
+        cmd = [
+            "ffmpeg", "-y", "-i", vf,
+            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            "-pix_fmt", "yuv420p",
+        ]
+        if drop_audio:
+            cmd += ["-an"]
+        else:
+            cmd += ["-c:a", "aac", "-b:a", "192k"]
+        cmd += ["-movflags", "+faststart", seg]
+        _run_ffmpeg(cmd, f"normalize seg {i}")
+        seg_files.append(seg)
+
+    if len(seg_files) == 2:
+        offset = max(0.0, durations[0] - transition_dur)
+        fc = f"[0:v][1:v]xfade=transition=fade:duration={transition_dur}:offset={offset}[v]"
+        if not drop_audio:
+            fc += f";[0:a][1:a]acrossfade=d={transition_dur}[a]"
+        cmd = [
+            "ffmpeg", "-y", "-i", seg_files[0], "-i", seg_files[1],
+            "-filter_complex", fc,
+        ]
+        cmd += ["-map", "[v]"]
+        if not drop_audio:
+            cmd += ["-map", "[a]", "-c:a", "aac", "-b:a", "192k"]
+        cmd += [
+            "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart", output,
+        ]
+        _run_ffmpeg(cmd, "crossfade 2 seg")
+    elif len(seg_files) == 3:
+        # 鲡两 xfade 串：先 seg0+seg1 → tmp，再 tmp+seg2
+        tmp1 = os.path.join(tmp_dir, "xfade_tmp1.mp4")
+        offset1 = max(0.0, durations[0] - transition_dur)
+        cmd1 = [
+            "ffmpeg", "-y", "-i", seg_files[0], "-i", seg_files[1],
+            "-filter_complex",
+            f"[0:v][1:v]xfade=transition=fade:duration={transition_dur}:offset={offset1}[v]",
+            "-map", "[v]", "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart", tmp1,
+        ]
+        _run_ffmpeg(cmd1, "crossfade seg0+seg1")
+        offset2 = max(0.0, (durations[0] + durations[1] - transition_dur) - transition_dur)
+        cmd2 = [
+            "ffmpeg", "-y", "-i", tmp1, "-i", seg_files[2],
+            "-filter_complex",
+            f"[0:v][1:v]xfade=transition=fade:duration={transition_dur}:offset={offset2}[v]",
+            "-map", "[v]", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart", output,
+        ]
+        _run_ffmpeg(cmd2, "crossfade tmp+seg2")
+    else:
+        return concat_path
+
+    if os.path.exists(output) and os.path.getsize(output) > 0:
+        return output
+    print("[warn] crossfade 出物空或失败，退硬切 concat 产物")
+    return concat_path
+
+
+def assemble_multiple_videos(video_files: list[str], audio_file: str | None,
+                              output_path: str, transition: str = "none") -> None:
     width, height = get_video_dimensions(video_files[0])
     width = even(width)
     height = even(height)
@@ -269,6 +384,11 @@ def assemble_multiple_videos(video_files: list[str], audio_file: str | None, out
             video_files, width, height, video_only, tmp_dir,
             drop_audio=bool(audio_file),
         )
+
+        # Step 1.5: transition between segments (crossfade via xfade+acrossfade 鲂)
+        if transition == "crossfade" and len(video_files) > 1:
+            video_only = _apply_crossfade(video_files, width, height, video_only, tmp_dir,
+                                           drop_audio=bool(audio_file))
 
         # Step 2: mux audio if present
         if audio_file:
@@ -287,7 +407,7 @@ def assemble_multiple_videos(video_files: list[str], audio_file: str | None, out
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def assemble(artifacts_dir: str, output_path: str) -> None:
+def assemble(artifacts_dir: str, output_path: str, transition: str = "none") -> None:
     excluded = {output_path}
     video_files = find_files(artifacts_dir, VIDEO_EXTS, exclude=excluded)
     if not video_files:
@@ -298,12 +418,14 @@ def assemble(artifacts_dir: str, output_path: str) -> None:
     print(f"[info] Assembling: videos={', '.join(os.path.basename(path) for path in video_files)}")
     if audio_file:
         print(f"       audio={os.path.basename(audio_file)}")
+    if transition != "none":
+        print(f"       transition={transition}")
 
     if len(video_files) == 1:
         cmd = assemble_single_video(video_files[0], audio_file, output_path)
         _run_ffmpeg(cmd, "assemble single")
     else:
-        assemble_multiple_videos(video_files, audio_file, output_path)
+        assemble_multiple_videos(video_files, audio_file, output_path, transition)
 
     if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
         die("Output file is missing or empty")
@@ -318,6 +440,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Assemble video fragment: video + audio → MP4")
     parser.add_argument("artifacts_dir", help="Directory containing video/audio artifacts")
     parser.add_argument("--output", default=None, help="Output MP4 path (default: <artifacts_dir>/assembled.mp4)")
+    parser.add_argument("--transition", default="none", choices=["none", "crossfade"],
+                        help="Transition between segments: none=hard cut (default) / crossfade=xfade+acrossfade 鲜")
     args = parser.parse_args()
 
     if not os.path.isdir(args.artifacts_dir):
@@ -326,7 +450,7 @@ def main() -> None:
     output_path = args.output or os.path.join(args.artifacts_dir, "assembled.mp4")
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
-    assemble(args.artifacts_dir, output_path)
+    assemble(args.artifacts_dir, output_path, args.transition)
 
 
 if __name__ == "__main__":

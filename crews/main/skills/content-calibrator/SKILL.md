@@ -265,9 +265,10 @@ sqlite3 db/published_track.db "SELECT * FROM pub_wx_mp WHERE source_folder='outp
 2. 读 `<work>/calibration/prediction.md`（盲预测）
 3. 从 published-track DB 读该 work 在各平台的互动数据
 4. 写 `<work>/calibration/retro.md`：写实绩段（多平台）+ top 评论关键词聚类（如有）+ 验证/推翻预测各假设
-5. 提炼新观察 → 写入统一 `calibration/rubric-memo.md`
+5. 提炼新观察 → 写入统一 `calibration/rubric-memo.md`（**绝不写进 `rubric_notes.md`**——那是 blind sub-agent 白名单唯一可读的规则文件，混入实绩会泄漏）
 6. 更新 `calibration/.cheat-state.json` 的 `calibration_samples`
 7. 检测是否触发 bump（≥3 次同向偏差）
+8. 可选：跑 `./skills/content-calibrator/scripts/leak-guard.sh` 对 `rubric_notes.md` 做一次自检，确认历史遗留无污染
 
 ### 阈值推荐（复盘副产物）
 
@@ -292,8 +293,10 @@ sqlite3 db/published_track.db "SELECT * FROM pub_wx_mp WHERE source_folder='outp
 3. 校准池全量重打分（blind sub-agent 隔离）
 4. 计算排序一致性（新公式排序 vs 实际排序，阈值 4/5）
 5. 落地 + cleanup pass（删被推翻/吸收的观察）
-6. 更新所有校准样本的 Re-scored 标记
-7. 更新 `calibration/rubric_notes.md` 版本速查 + `calibration/.cheat-state.json` 的 `rubric_version`/`last_bump_at`
+6. **leak-guard 自检（强制）**：落地后跑 `./skills/content-calibrator/scripts/leak-guard.sh`，扫 `calibration/rubric_notes.md` 是否混入实绩/作品名/派生证据。**返回非零（exit 2，强信号命中）→ abort + 回滚本次落地**，把命中行抽离到 `calibration/rubric-memo.md` 后重跑。纯弱信号（exit 0 带 warning）可继续，但需人工 review。
+   > 这步是**盲测通道**的回归防线。rubric_notes.md 是 blind sub-agent 白名单唯一可读的规则文件；一旦 bump 把升级 Memo（含真实作品名+实绩）误写进去，盲打分会退化成"看过实绩的事后合理化"，且静默泄漏——直到某天 confidence 全掉到 medium 才发现。guard 用机制层拦死，不靠散文约束。
+7. 更新所有校准样本的 Re-scored 标记
+8. 更新 `calibration/rubric_notes.md` 版本速查 + `calibration/.cheat-state.json` 的 `rubric_version`/`last_bump_at`
 
 ---
 
@@ -413,3 +416,13 @@ blind subagent 出分 + 预测草稿后，主 agent 调 `commit-prediction.sh` �
 ```bash
 ./skills/content-calibrator/scripts/import-viral-chaser.sh --platform <platform> <report-path>
 ```
+
+### 盲测通道泄漏自检
+
+```bash
+./skills/content-calibrator/scripts/leak-guard.sh                     # 人读报告
+./skills/content-calibrator/scripts/leak-guard.sh --json              # JSON 输出
+./skills/content-calibrator/scripts/leak-guard.sh --file <path>       # 扫指定文件
+```
+
+扫 `calibration/rubric_notes.md` 是否混入实绩/作品名/派生证据（强信号：数字+量级单位 / 中文实绩词）。bucket 边界（`baseline × N`）、公式（`×2.0`/`/8.5`）、权重倍数走白名单过滤。**Bump 流程第 6 步强制调用**：exit 2（强信号命中）→ abort + 回滚落地，把命中行抽离到 `rubric-memo.md` 后重跑；exit 0（干净或仅弱信号）可继续。

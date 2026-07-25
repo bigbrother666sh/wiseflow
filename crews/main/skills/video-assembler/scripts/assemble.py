@@ -256,7 +256,6 @@ def _apply_crossfade(video_files: list[str], width: int, height: int,
                      concat_path: str, tmp_dir: str, drop_audio: bool) -> str:
     """用 ffmpeg xfade + acrossfade 鲡把已 normalize+concat 的多段拼成 crossfade 转场.
 
-    借鉴 OpenMontage Backlot 看板的 transition 能力，平替成 ffmpeg 鲡——
     每相邻段间插 0.5s crossfade，video 走 xfade transition=fade，audio 走 acrossfade.
 
     输入：concat_path 是 _normalize_and_concat_batch 出的硬切拼接产物。

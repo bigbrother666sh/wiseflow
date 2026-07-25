@@ -5,8 +5,7 @@ Runs AFTER assemble.py produces video.mp4. Outputs verdict JSON. The skill's
 SKILL.md Step 5 mandates: review.py must pass before the video is handed back
 to the user. A "fail" verdict means the agent must fix and re-review, not deliver.
 
-What it checks (borrowed from OpenMontage post-render self-review + gbro Gate 3 QA,
-scoped to our ffmpeg-only no-Remotion/HyperFrames world):
+What it checks:
   1. ffprobe full validation — codec, resolution, fps, pixel format, audio config
   2. 4-position frame extraction (0% / 25% / 50% / 75% / 100%) → black-frame + overlay-break scan
   3. Audio level analysis — silence / clipping / absent track
@@ -20,9 +19,9 @@ NOT included (deliberately):
   - Decision audit trail — 那是 decisions.log 的事，归 state.json + decisions.log
 
 Usage:
-  python3 ./skills/video-product/scripts/review.py <project-dir>
-  python3 ./skills/video-product/scripts/review.py <project-dir> --target-duration 30 --target-resolution 720x1280
-  python3 ./skills/video-product/scripts/review.py <project-dir> --output review.json
+  python3 ./skills/video-assembler/scripts/review.py <project-dir>
+  python3 ./skills/video-assembler/scripts/review.py <project-dir> --target-duration 30 --target-resolution 720x1280
+  python3 ./skills/video-assembler/scripts/review.py <project-dir> --output review.json
 
 Exit codes:
   0  verdict = "pass"   → 可以交付
@@ -65,8 +64,7 @@ VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".avi"}
 REVIEW_DIR_NAME = "review"        # <project-dir>/review/ 抽帧 + verdict JSON 落这
 FRAMES_SUBDIR = "frames"
 
-# Frame extraction positions (% of duration). OpenMontage 抽 4 位，我们按其 + gbro
-# Gate 3 的逐秒抽帧折中——5 位（0/25/50/75/100%）足够拦黑帧/overlay 损，不堆 footage。
+# Frame extraction positions (% of duration). 5 位（0/25/50/75/100%）足够拦黑帧/overlay 损。
 FRAME_POSITIONS_PCT = [0.0, 25.0, 50.0, 75.0, 100.0]
 
 # Black frame threshold — luma mean below this → "black". 对齐 check.py 的 0.02，可调。
@@ -75,7 +73,7 @@ BLACK_LUMA_THRESHOLD = 0.02
 AUDIO_SILENT_THRESHOLD_DB = -60.0
 AUDIO_CLIPPING_THRESHOLD_DB = -1.0
 
-# Duration tolerance — 拼接允许 ±5% 偏差（OpenMontage 也用 5%）
+# Duration tolerance — 拼接允许 ±5% 偏差
 DURATION_TOLERANCE_PCT = 5.0
 
 # Resolution floor — 9:16 竖屏短视频最低 720x1280，横屏 1280x720

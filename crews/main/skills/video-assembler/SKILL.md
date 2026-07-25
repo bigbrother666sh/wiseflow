@@ -1,5 +1,5 @@
 ---
-name: TODO:rename
+name: video-assembler
 description: 将已有视频素材拼接成完整视频，支持通过AIGC或者`pexels-footage`、`pixabay-footage`进行素材补充以及按需补充配音配乐。
 metadata:
   openclaw:
@@ -11,7 +11,7 @@ metadata:
       - ffprobe
 ---
 
-# TODO:rename
+# Video Assembler
 
 ---
 
@@ -41,7 +41,7 @@ metadata:
 
 ## AIGC补充生成视频片段（按需）
 
-视频素材优先使用 `gen.py` 脚本生成。
+视频素材优先使用公共 skill `aigc-video-gen`（PATH 调用）生成。
 
 ### 平台与模型
 
@@ -51,11 +51,11 @@ metadata:
 | 火山引擎方舟 | `AWK_GEN_KEY` | `doubao-seedance-2-0-fast-260128`、`doubao-seedance-2-0-260128`、`doubao-seedance-2-0-mini-260615` |
 
 - 两个平台的上述模型**均支持声画同出**（t2v / i2v / r2v 三种模式）。
-- **平台自动判断写在 `gen.py` 里**：有 `MODELSTUDIO_API_KEY` 走百炼，否则有 `AWK_GEN_KEY` 走火山，两者皆无则输出提示让 Agent 改用 `pexels-footage`/`pixabay-footage`（退出码 2）。
+- **平台自动判断写在 `aigc-video-gen` 脚本里**：有 `MODELSTUDIO_API_KEY` 走百炼，否则有 `AWK_GEN_KEY` 走火山，两者皆无则输出提示让 Agent 改用 `pexels-footage`/`pixabay-footage`（退出码 2）。
 
 ### 百炼模型选择规则
 
-按模式选首选模型，`gen.py` 自动沿候选链 fallback（happyhorse-1.1 → 1.0 → wan2.7）。
+按模式选首选模型，`aigc-video-gen` 自动沿候选链 fallback（happyhorse-1.1 → 1.0 → wan2.7）。
 
 | 模式 | 首选模型 | 适用场景 |
 |------|---------|---------|
@@ -63,7 +63,7 @@ metadata:
 | **t2v**（A.2 氛围叙事） | `happyhorse-1.1-t2v` | 手机底面、数据动画、产品特写等无重要人物的场景 |
 | i2v | `happyhorse-1.1-i2v` | 如果需要指定首帧的话，使用`happyhorse-1.1-i2v`，传入图像会作为首帧图像。|
 
-- 候选链（每模式一条）：`happyhorse-1.1-{mode}` → `happyhorse-1.0-{mode}` → `wan2.7-{mode}`。首选模型不可用或任务失败时 `gen.py` 自动沿链降级，无需人工干预。
+- 候选链（每模式一条）：`happyhorse-1.1-{mode}` → `happyhorse-1.0-{mode}` → `wan2.7-{mode}`。首选模型不可用或任务失败时 `aigc-video-gen` 自动沿链降级，无需人工干预。
 - **`--model <id>` 可显式覆盖**（关闭候选链 fallback，只用该模型）；非必要不覆盖。
 
 ### WORKSPACE_ID 端点规则
@@ -107,12 +107,12 @@ metadata:
 1. **确定目标时长**：以素材视频的实际时长为准
 2. **生成配音**：
    - 优先使用 OpenClaw 内置 TTS 工具（`tts_generate`）
-   - 不可用时回退到 `tts.py`（需先创建 `tts_requirement.md`）
+   - 不可用时回退到公共 skill `siliconflow-tts`（需先创建 `tts_requirement.md`）
    - 生成的音频时长必须与视频时长匹配（TTS 语速可微调以适配）
 3. **合成片段**：将配音与视频合成为带音轨的片段
 
 ```bash
-python3 ./skills/video-product/scripts/assemble.py <project-dir>/artifacts/ --output <project-dir>/artifacts/<NN>_final.mp4
+python3 ./skills/video-assembler/scripts/assemble.py <project-dir>/artifacts/ --output <project-dir>/artifacts/<NN>_final.mp4
 ```
 
 #### TTS 配音（仅 Stock Footage 模式或 AI 生成无音频时）
@@ -123,10 +123,10 @@ python3 ./skills/video-product/scripts/assemble.py <project-dir>/artifacts/ --ou
 
 **优先使用 OpenClaw 内置 TTS 工具**（`tts_generate` 或 agent 内置语音合成能力）。
 
-OpenClaw 内置 TTS 不可用时，回退到本地脚本(要求环境变量已经配置SILICONFLOW_API_KEY）：
+OpenClaw 内置 TTS 不可用时，回退到公共 skill `siliconflow-tts`（要求环境变量已经配置 `SILICONFLOW_API_KEY`）：
 
 ```bash
-python3 ./skills/video-product/scripts/tts.py <project-dir>/ --overwrite
+siliconflow-tts <project-dir>/ --overwrite
 ```
 
 需先创建 `tts_requirement.md`：
@@ -155,6 +155,43 @@ python3 ./skills/video-product/scripts/tts.py <project-dir>/ --overwrite
 
 ---
 
+## 简单剪辑（基于用户已有素材）
+
+当用户提供的素材需要去头/去尾/抽中段时，调 `extract_and_concat.py`：
+
+```bash
+# 单段：去头 6 秒
+python3 ./skills/video-assembler/scripts/extract_and_concat.py \
+    --input <src>.mp4 --mode head --seconds 6 --output <out>.mp4
+
+# 单段：去尾 4 秒
+python3 ./skills/video-assembler/scripts/extract_and_concat.py \
+    --input <src>.mp4 --mode tail --seconds 4 --output <out>.mp4
+
+# 单段：抽中段 2–8 秒
+python3 ./skills/video-assembler/scripts/extract_and_concat.py \
+    --input <src>.mp4 --mode slice --start 2 --end 8 --output <out>.mp4
+
+# 多段拼接（"剪 A 前 6s + 剪 B 后 4s" 一条命令）
+python3 ./skills/video-assembler/scripts/extract_and_concat.py \
+    --segment input=A.mp4 mode=head seconds=6 \
+    --segment input=B.mp4 mode=tail seconds=4 \
+    --output final.mp4
+```
+
+模式说明：
+- `head`：保留开头部 N 秒（剪后面）—— 用 `-ss 0 -t N`
+- `tail`：保留末尾 N 秒（剪前面）—— 用 `-sseof -N` 按距离末尾精定位，无需先 ffprobe 时长
+- `slice`：保留 start–end 区间—— 用 `-ss <start> -t <dur>`
+- 默认产物：720x1280 / 30fps / yuv420p / aac 192k stereo @ 48kHz / +faststart；`--keep-resolution` 保留原分辨率，`--width/--height` 自定义
+
+音轨：
+- 默认保留每段原音轨，concat 时自然顺接
+- `--no-audio`：关音
+- `--audio speech.mp3`：外部音频替换（与 assemble.py 一致）
+
+---
+
 ## 合成成品
 
 调用 assemble.py 将所有片段按编号顺序拼接为最终成品。
@@ -171,7 +208,14 @@ mv <project-dir>/artifacts/*.v*_*.mp4 <project-dir>/artifacts/_deprecated/ 2>/de
 清理后确认 `artifacts/` 顶层只剩 `01_*.mp4 … NN_*.mp4` 每段一个正式片段，再合成：
 
 ```bash
-python3 ./skills/video-product/scripts/assemble.py <project-dir>/artifacts/ --output <project-dir>/video.mp4
+python3 ./skills/video-assembler/scripts/assemble.py <project-dir>/artifacts/ --output <project-dir>/video.mp4
+```
+
+可选段间过渡——`--transition crossfade` 走 ffmpeg xfade+acrossfade 段间 0.5s 溶解（段 ≥ 2 才生效，单段或 ffmpeg 不带 xfade 时退硬切不鲂）：
+
+```bash
+python3 ./skills/video-assembler/scripts/assemble.py <project-dir>/artifacts/ \
+    --output <project-dir>/video.mp4 --transition crossfade
 ```
 
 合成规则：
@@ -182,6 +226,53 @@ python3 ./skills/video-product/scripts/assemble.py <project-dir>/artifacts/ --ou
 assemble.py 按文件名数字前缀（`01_`、`02_`、`03_`…）顺序拼接，同一前缀内按文件名字典序。
 
 合成后确认 `video.mp4` 存在且非空。
+
+---
+
+## 成片自检（强制闸门）
+
+合成后**必须先跑 `review.py`**，verdict = pass 才能进制作封面环节；fail 必须修后重审，不准交；warn 向用户复述让其决定是否重修。
+
+```bash
+python3 ./skills/video-assembler/scripts/review.py <project-dir>
+# 或带目标时长/分辨率（与脚本规划表时长列累加对照）：
+python3 ./skills/video-assembler/scripts/review.py <project-dir> \
+    --target-duration 30 --target-resolution 720x1280
+# 或写产物到指定 JSON：
+python3 ./skills/video-assembler/scripts/review.py <project-dir> --output review.json
+```
+
+**verdict 与退出码**：
+- `0` **pass** → 可以交付
+- `1` **fail** → 必须修，不准交
+- `2` **warn** → 有 non-critical issues，向用户复述让其决定是否重修
+- `3` 脚本本身故障（ffprobe missing / 路径无效等），不算评审结论
+
+**检查项**：
+1. ffprobe 完整校验——codec / 分辨率 / fps / 像素格式 / 音频配置
+2. 4 位置抽帧（0% / 25% / 50% / 75% / 100%）→ 黑帧 + overlay-break 扫描
+3. 音频电平分析——静音 / 削顶 / 缺音轨
+4. 时长 vs 目标（`--target-duration` 或同级 `script.md` 片段规划表时长列累加）
+5. 分辨率一致性——成片 vs 段01（拼了不同分辨率段是硬伤）
+
+**verdict JSON schema**（同时 pretty-print 到 stdout）：
+```json
+{
+  "verdict": "pass|fail|warn",
+  "file": "<video.mp4 absolute>",
+  "ffprobe": { "codec": "...", "width": 720, "height": 1280, "fps": 30, "pix_fmt": "yuv420p", "duration": 30.2, "size_bytes": ..., "audio": { ... } },
+  "frames": [ { "position_pct": 0, "path": "...", "mean_luma": 0.0, "is_black": false }, ... ],
+  "audio_level": { "mean_db": -32.4, "max_db": -8.1, "silent": false, "clipping": false },
+  "checks": [ { "name": "duration_match", "status": "pass", "detail": "actual 30.2s vs target 30s, gap 0.2s" }, ... ],
+  "critical": [ ... ],
+  "warnings": [ ... ]
+}
+```
+
+**不在 review.py 范畴**：
+- 字幕存在检查——assemble.py 不烧字幕，无意义
+- 投递承诺/幻灯片风险——那是脚本阶段的事，归脚本阶段自检
+- 决策审计链——那是 `decisions.log` 的事
 
 ---
 
@@ -212,11 +303,13 @@ assemble.py 按文件名数字前缀（`01_`、`02_`、`03_`…）顺序拼接�
 
 | 脚本 | 文件名 | 用途 | 使用场景 |
 |------|--------|------|---------|
-| 视频片段生成 | `./skills/video-product/scripts/gen.py` | 直连火山/百炼端点生成视频片段（声画同出）；百炼按模式走候选链（happyhorse-1.1→1.0→wan2.7），火山走 Fast→Normal→Mini | AI 生成模式（默认） |
-| 预览压缩 | `./skills/video-product/scripts/compress_preview.py` | 把视频压到 ≤16MB 用于聊天确认（产物仅用于确认，不参与合成） | 人物故事模式逐段确认 |
-| 片段合成 | `./skills/video-product/scripts/assemble.py` | 视频+音频合成 MP4 | 所有模式 |
-| 素材自检 | `./skills/video-product/scripts/check.py` | 检查素材质量与时长缺口 | 仅 Stock Footage 模式 |
-| TTS 语音合成 | `./skills/video-product/scripts/tts.py` | 读取 tts_requirement.md 生成配音 | 仅 OpenClaw 内置 TTS 不可用时 |
+| 视频片段生成 | `aigc-video-gen`（公共 skill，PATH 调用） | 直连火山/百炼端点生成视频片段（声画同出）；百炼按模式走候选链（happyhorse-1.1→1.0→wan2.7），火山走 Fast→Normal→Mini | AI 生成模式（默认） |
+| 简单剪辑 | `./skills/video-assembler/scripts/extract_and_concat.py` | 抽头/尾/中段 + 多段拼接（人工指定剪哪） | 用户素材需去头尾/抽中段 |
+| 预览压缩 | `./skills/video-assembler/scripts/compress_preview.py` | 把视频压到 ≤16MB 用于聊天确认（产物仅用于确认，不参与合成） | 人物故事模式逐段确认 |
+| 片段合成 | `./skills/video-assembler/scripts/assemble.py` | 视频+音频合成 MP4，可选 `--transition crossfade` 段间溶接 | 所有模式 |
+| 成片自检 | `./skills/video-assembler/scripts/review.py` | ffprobe + 抽帧黑帧扫 + 音频电平 + 时长分辨率一致性，verdict pass/fail/warn | 合成后强制闸门（交付前必跑） |
+| 素材自检 | `./skills/video-assembler/scripts/check.py` | 检查素材质量与时长缺口 | 仅 Stock Footage 模式 |
+| TTS 语音合成 | `siliconflow-tts`（公共 skill，PATH 调用） | 读取 tts_requirement.md 生成配音 | 仅 OpenClaw 内置 TTS 不可用时 |
 
 ---
 
@@ -224,5 +317,5 @@ assemble.py 按文件名数字前缀（`01_`、`02_`、`03_`…）顺序拼接�
 
 违反以下任何一条都会导致系统死机或产出异常，**必须严格遵守**：
 
-- **禁止直接写 ffmpeg 命令**：不得在 exec 中直接调用 ffmpeg/ffprobe，也不得写 Python 脚本内嵌 ffmpeg 调用。所有视频处理一律通过 `./skills/video-product/scripts/` 下的标准化脚本完成
+- **禁止直接写 ffmpeg 命令**：不得在 exec 中直接调用 ffmpeg/ffprobe，也不得写 Python 脚本内嵌 ffmpeg 调用。所有视频处理一律通过 `./skills/video-assembler/scripts/` 下的标准化脚本完成
 - **禁止从静态图生成视频**：不得将 JPEG/PNG 等静态图片通过 ffmpeg 转为 MP4。用户提供的静态图片仅作为 AI 生成参考图或搜索风格参考

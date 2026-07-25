@@ -17,6 +17,14 @@ metadata:
 
 Generate narration audio from text using SiliconFlow Text-to-Speech API.
 
+## 优先级约定（强制）
+
+**优先使用 OpenClaw 内置 TTS 工具**（`tts_generate` 或 agent 内置语音合成能力）。
+
+OpenClaw 内置 TTS 不可用时，回退到本 skill 的本地脚本（要求环境变量已经配置 `SILICONFLOW_API_KEY`）。
+
+> 即：本 skill 的 `scripts/tts.py` 是 **fallback 路径**，不应首选。调用方在 SKILL.md 里描述 TTS 环节时，须照此优先级写明，不许把本脚本写成第一选择。
+
 Use this skill when:
 - You need voiceover or narration audio for a video
 - You need standalone TTS assets before composing with Remotion/MoviePy

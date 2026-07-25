@@ -4,7 +4,7 @@
 
 ## 模型选型与时长限制（脚本创作时必须遵守）
 
-视频素材优先使用 `gen.py` 脚本生成。
+视频素材优先使用 `aigc-video-gen` 脚本生成。
 
 ### 平台与模型
 
@@ -14,11 +14,11 @@
 | 火山引擎方舟 | `AWK_GEN_KEY` | `doubao-seedance-2-0-fast-260128`、`doubao-seedance-2-0-260128`、`doubao-seedance-2-0-mini-260615` |
 
 - 两个平台的上述模型**均支持声画同出**（t2v / i2v / r2v 三种模式）。
-- **平台自动判断写在 `gen.py` 里**：有 `MODELSTUDIO_API_KEY` 走百炼，否则有 `AWK_GEN_KEY` 走火山，两者皆无则输出提示让 Agent 改用 `pexels-footage`/`pixabay-footage`（退出码 2）。
+- **平台自动判断写在 `aigc-video-gen` 里**：有 `MODELSTUDIO_API_KEY` 走百炼，否则有 `AWK_GEN_KEY` 走火山，两者皆无则输出提示让 Agent 改用 `pexels-footage`/`pixabay-footage`（退出码 2）。
 
 ### 百炼模型选择规则
 
-按模式选首选模型，`gen.py` 自动沿候选链 fallback（happyhorse-1.1 → 1.0 → wan2.7）。
+按模式选首选模型，`aigc-video-gen` 自动沿候选链 fallback（happyhorse-1.1 → 1.0 → wan2.7）。
 
 | 模式 | 首选模型 | 适用场景 |
 |------|---------|---------|
@@ -26,7 +26,7 @@
 | **t2v**（A.2 氛围叙事） | `happyhorse-1.1-t2v` | 手机底面、数据动画、产品特写等无重要人物的场景 |
 | i2v | `happyhorse-1.1-i2v` | 如果需要指定首帧的话，使用`happyhorse-1.1-i2v`，传入图像会作为首帧图像。|
 
-- 候选链（每模式一条）：`happyhorse-1.1-{mode}` → `happyhorse-1.0-{mode}` → `wan2.7-{mode}`。首选模型不可用或任务失败时 `gen.py` 自动沿链降级，无需人工干预。
+- 候选链（每模式一条）：`happyhorse-1.1-{mode}` → `happyhorse-1.0-{mode}` → `wan2.7-{mode}`。首选模型不可用或任务失败时 `aigc-video-gen` 自动沿链降级，无需人工干预。
 - **`--model <id>` 可显式覆盖**（关闭候选链 fallback，只用该模型）；非必要不覆盖。
 
 ### WORKSPACE_ID 端点规则

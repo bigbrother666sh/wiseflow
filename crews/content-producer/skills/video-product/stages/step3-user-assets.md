@@ -30,7 +30,7 @@
 1. **确定目标时长**：以素材视频的实际时长为准
 2. **生成配音**：
    - 优先使用 OpenClaw 内置 TTS 工具（`tts_generate`）
-   - 不可用时回退到 `tts.py`（需先创建 `tts_requirement.md`）
+   - 不可用时回退到 `siliconflow-tts`（需先创建 `tts_requirement.md`）
    - 生成的音频时长必须与视频时长匹配（TTS 语速可微调以适配）
 3. **合成片段**：将配音与视频合成为带音轨的片段
 
@@ -43,5 +43,5 @@ python3 ./skills/video-product/scripts/assemble.py <project-dir>/artifacts/ --ou
 #### 3.4 处理图片素材
 
 用户提供的**静态图片**（.jpg/.png）**禁止直接转视频**。图片仅作为：
-- AI 生成时的**参考图**（`gen.py` 的 `--ref-image` 传入，本地路径或 URL 均可）
+- AI 生成时的**参考图**（`aigc-video-gen` 的 `--ref-image` 传入，本地路径或 URL 均可）
 - Stock Footage 搜索时的**风格参考**

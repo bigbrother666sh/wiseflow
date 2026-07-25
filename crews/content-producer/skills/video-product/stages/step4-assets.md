@@ -4,11 +4,11 @@
 
 > 前置条件：Step 3 已完成，用户素材已就位并编号放入 artifacts/。
 
-**只生产脚本中标注为「AI生成」的片段**，用户素材片段已在 Step 3 处理完毕。逐片段调用 `gen.py`，脚本按平台自动选模型（百炼按模式走候选链，火山走 Fast→Normal→Mini 候选链）。
+**只生产脚本中标注为「AI生成」的片段**，用户素材片段已在 Step 3 处理完毕。逐片段调用 `aigc-video-gen`，脚本按平台自动选模型（百炼按模式走候选链，火山走 Fast→Normal→Mini 候选链）。
 
-#### 模式 A：AI 生成模式（gen.py，默认）
+#### 模式 A：AI 生成模式（aigc-video-gen，默认）
 
-按脚本片段规划，**根据 Step 2.5 的人物一致性要求，逐个生成**。每片段一条 `gen.py` 调用，串行执行（下一段等上一段下载完成再发）。
+按脚本片段规划，**根据 Step 2.5 的人物一致性要求，逐个生成**。每片段一条 `aigc-video-gen` 调用，串行执行（下一段等上一段下载完成再发）。
 
 ##### 模式 A.1：人物故事模式（人物叙事类片段必用，参考图保持人物一致）
 
@@ -23,7 +23,7 @@
 **每段生成（统一 r2v + 参考图）**
 
 ```bash
-python3 ./skills/video-product/scripts/gen.py \
+aigc-video-gen \
   --prompt "画面描述：The same character from the reference image — keep face/hair/age/outfit EXACTLY identical to the reference. 本段场景与动作描述。音频描述" \
   --ref-image "<project-dir>/character_reference.jpg" \
   --ratio 9:16 --resolution 720P --duration 8 \
@@ -69,7 +69,7 @@ python3 ./skills/video-product/scripts/gen.py \
 不传 `--image`，只写 prompt。适合手机底面、数据动画、产品特写等不含重要人物的场景：
 
 ```bash
-python3 ./skills/video-product/scripts/gen.py \
+aigc-video-gen \
   --prompt "画面描述：产品特写镜头，科技感背景，光影流转。音频：转场音效+悬念BGM起" \
   --ratio 9:16 --resolution 720P --duration 12 \
   --output <project-dir>/artifacts/02_xxx.mp4
@@ -80,7 +80,7 @@ python3 ./skills/video-product/scripts/gen.py \
 **仅当某片段用户提供了参考图**（Step 3.4 静态图片作为参考）时才走 r2v，首选 `happyhorse-1.1-r2v`（沿链 fallback），传 `--ref-image`：
 
 ```bash
-python3 ./skills/video-product/scripts/gen.py \
+aigc-video-gen \
   --prompt "参考图片中的角色/风格在 <新场景> 做 <动作>，音频：…" \
   --ref-image "<用户提供的参考图路径或URL>" \
   --ratio 9:16 --resolution 720P --duration 8 \
@@ -100,26 +100,26 @@ python3 ./skills/video-product/scripts/gen.py \
 - `--poll-interval` / `--timeout`：默认 15s / 900s，1080P 或长片段可加大 `--timeout`。
 
 **生成后处理**：
-- `gen.py` 直接把 MP4 写到 `--output`（按片段编号命名，如 `01_hook_product.mp4`），并同目录写 `<name>.json` 元数据。
+- `aigc-video-gen` 直接把 MP4 写到 `--output`（按片段编号命名，如 `01_hook_product.mp4`），并同目录写 `<name>.json` 元数据。
 - 若生成失败无音轨，后续由 Step 4.5 补 TTS。
 
 ##### 生产中常见错误与重试策略
 
 | 错误 | 原因 | 处理 |
 |------|------|------|
-| `gen.py` 退出码 2 + pexels/pixabay 提示 | 两个平台 env key 都没配 | 按提示走模式 B，或 spawn IT Engineer 配置 `MODELSTUDIO_API_KEY`/`AWK_GEN_KEY` |
+| `aigc-video-gen` 退出码 2 + pexels/pixabay 提示 | 两个平台 env key 都没配 | 按提示走模式 B，或 spawn IT Engineer 配置 `MODELSTUDIO_API_KEY`/`AWK_GEN_KEY` |
 | HTTP 401 / API key doesn't exist | key 与平台/地域不匹配 | 检查 env 变量是否对应平台；百炼用 `MODELSTUDIO_API_KEY`，火山用 `AWK_GEN_KEY` |
 | HTTP 404 / Invalid model | model id 错误 | 检查 `--model` 是否在支持列表内；火山模型须含 `doubao-` 前缀 |
 | 任务 FAILED / 超时 | 渲染慢（1080P/长片段）或参数不兼容 | 百炼沿链自动 fallback（1.1→1.0→wan2.7）；仍失败则降低分辨率/缩短时长重试，或 `--model` 指定模型 |
 | r2v 报错退出（传了 `--image`/`--ref-video`） | r2v 仅 `--ref-image`（happyhorse-1.1-r2v 起沿链） | r2v 不收首帧；人物故事统一用 `--ref-image`，不要传 `--image`/`--prev-segment` |
-| `--output must be relative to the workspace` / `--output must be under one of: output_videos` | exec 直接调 gen.py，CWD 不在 workspace-media-operator，或 `--output` 用了绝对路径 | **exec 必须显式设 `workdir="/home/wukong/.openclaw/workspace-media-operator"`**，且 `--output` 必须是相对路径形如 `output_videos/<topic>/artifacts/NN_xxx.mp4`。gen.py 内部 `ensure_safe_output()` 强制只允许 `output_videos/` 下的相对路径，靠 `Path.cwd()` 解析根目录；同理 `compress_preview.py` 也要求相对 `--output` 在 `previews/`/`tmp/`/`output_videos/` 下，需要同样的 workdir 设置 |
+| `--output must be relative to the workspace` / `--output must be under one of: output_videos` | exec 直接调 aigc-video-gen，CWD 不在 workspace-media-operator，或 `--output` 用了绝对路径 | **exec 必须显式设 `workdir="/home/wukong/.openclaw/workspace-media-operator"`**，且 `--output` 必须是相对路径形如 `output_videos/<topic>/artifacts/NN_xxx.mp4`。aigc-video-gen 内部 `ensure_safe_output()` 强制只允许 `output_videos/` 下的相对路径，靠 `Path.cwd()` 解析根目录；同理 `compress_preview.py` 也要求相对 `--output` 在 `previews/`/`tmp/`/`output_videos/` 下，需要同样的 workdir 设置 |
 | `exec denied: allowlist miss` 调 `cd <dir> && python3 ...` | `cd` 不在 allowlist（TOOLS.md 明确禁止），导致整条命令被拒 | 不要用 `cd && cmd` 包装；改用 exec 的 `workdir` 参数显式指定 CWD，命令本身用绝对路径调脚本 + 相对 `--output` |
 
-**重试上限**：`gen.py` 内部做瞬时 HTTP 重试；百炼沿候选链自动 fallback（happyhorse-1.1 → 1.0 → wan2.7），整链都失败退出非 0 再人工重试 1 次，仍不通就告诉老板，不要 yield 死等。
+**重试上限**：`aigc-video-gen` 内部做瞬时 HTTP 重试；百炼沿候选链自动 fallback（happyhorse-1.1 → 1.0 → wan2.7），整链都失败退出非 0 再人工重试 1 次，仍不通就告诉老板，不要 yield 死等。
 
-#### 模式 B：Stock Footage 托底模式（gen.py 退出码 2 时）
+#### 模式 B：Stock Footage 托底模式（aigc-video-gen 退出码 2 时）
 
-当 `gen.py` 报"未检测到任何视频生成平台的环境变量"（退出码 2）时，回退到此模式。
+当 `aigc-video-gen` 报"未检测到任何视频生成平台的环境变量"（退出码 2）时，回退到此模式。
 
 **此模式下需要单独生成 TTS 配音**（见 Step 4.5），因为下载的素材无音频。
 
@@ -151,7 +151,7 @@ check.py 检测黑帧、分辨率、时长缺口。每下载一段素材后运�
 OpenClaw 内置 TTS 不可用时，回退到本地脚本(要求环境变量已经配置SILICONFLOW_API_KEY）：
 
 ```bash
-python3 ./skills/video-product/scripts/tts.py <project-dir>/ --overwrite
+siliconflow-tts <project-dir>/ --overwrite
 ```
 
 需先创建 `tts_requirement.md`：

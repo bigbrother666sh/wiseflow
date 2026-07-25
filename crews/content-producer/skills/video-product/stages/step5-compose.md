@@ -47,7 +47,7 @@ python3 ./skills/video-product/scripts/assemble.py <project-dir>/artifacts/ \
 
 合成后确认 `video.mp4` 存在且非空。
 
-### Step 5.5 — 成片自检（强制，借鉴 OpenMontage post-render self-review + gbro Gate 3 QA）
+### Step 5.5 — 成片自检（强制）
 
 **`video.mp4` 产出后、向用户交付前，必须强制跑 `review.py`**——不准跳过、不准肉眼看交。这是替代上一轮"裸 assemble.py 拼完就交"的脆弱闸门。
 
@@ -74,7 +74,7 @@ python3 ./skills/video-product/scripts/review.py <project-dir> \
 
 verdict JSON 默认落盘到 `<project-dir>/review/verdict.json`，抽帧落到 `<project-dir>/review/frames/`——**不进 artifacts/、不进 previews/**，自检产物跟合成产物隔离，避免混淆 assemble.py。
 
-⚠️ **声画同出模式（默认）下 `audio_absent` warning 要对照看**：gen.py 声画同出的片有声轨是常态；若 review.py 报 `audio_absent` 且你走的是 AI 生成模式，这是 critical（gen.py 该出声没出声），降级处理退回 gen.py 重生成或补 Step 4.5 TTS。Stock Footage + `--no-audio` 模式下 `audio_absent` 是预期，warn 可放行。
+⚠️ **声画同出模式（默认）下 `audio_absent` warning 要对照看**：aigc-video-gen 声画同出的片有声轨是常态；若 review.py 报 `audio_absent` 且你走的是 AI 生成模式，这是 critical（aigc-video-gen 该出声没出声），降级处理退回 aigc-video-gen 重生成或补 Step 4.5 TTS。Stock Footage + `--no-audio` 模式下 `audio_absent` 是预期，warn 可放行。
 
 ### Step 6 — 制作封面
 

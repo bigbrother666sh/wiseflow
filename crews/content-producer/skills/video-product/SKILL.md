@@ -169,7 +169,7 @@ assemble.py 按文件名数字前缀（`01_`、`02_`、`03_`…）顺序拼接�
 读 `stages/step5-compose.md`。`video.mp4` 产出后、向用户交付前，**必须强制跑 `review.py`**——不准跳过、不准肉眼看交。
 
 ```bash
-python3 ./skills/video-product/scripts/review.py <project-dir> \
+python3 ./skills/video-review/scripts/review.py <project-dir> \
   --target-duration <片段规划表「时长」列累加值> \
   --target-resolution <720x1280 | 1080x1920 | 按脚本画面比例>
 ```
@@ -217,7 +217,7 @@ verdict JSON 默认落盘 `<project-dir>/review/verdict.json`，抽帧落 `<proj
 | 视频片段生成 | `aigc-video-gen`（公共 skill，PATH 调用） | 直连火山/百炼端点生成视频片段（声画同出）；百炼按模式走候选链（happyhorse-1.1→1.0→wan2.7），火山走 Fast→Normal→Mini | AI 生成模式（默认） |
 | 预览压缩 | `./skills/video-product/scripts/compress_preview.py` | 把视频压到 ≤16MB 用于聊天确认（产物仅用于确认，不参与合成） | 逐段确认 |
 | 片段合成 | `./skills/video-product/scripts/assemble.py` | 视频+音频合成 MP4，可选 `--transition crossfade` 段间溶接 | 所有模式 |
-| 成片自检 | `./skills/video-product/scripts/review.py` | ffprobe + 抽帧黑帧扫 + 音频电平 + 时长分辨率一致性，verdict pass/fail/warn | 合成后强制闸门（交付前必跑） |
+| 成片自检 | `./skills/video-review/scripts/review.py` | ffprobe + 抽帧黑帧扫 + 音频电平 + 时长分辨率一致性，verdict pass/fail/warn | 合成后强制闸门（交付前必跑） |
 | 素材自检 | `./skills/video-product/scripts/check.py` | 检查素材质量与时长缺口 | 仅 Stock Footage 模式 |
 | TTS 语音合成 | `siliconflow-tts`（公共 skill，PATH 调用） | 读取 tts_requirement.md 生成配音 | 仅 OpenClaw 内置 TTS 不可用时 |
 

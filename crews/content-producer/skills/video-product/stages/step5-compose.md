@@ -52,7 +52,7 @@ python3 ./skills/video-product/scripts/assemble.py <project-dir>/artifacts/ \
 **`video.mp4` 产出后、向用户交付前，必须强制跑 `review.py`**——不准跳过、不准肉眼看交。这是替代上一轮"裸 assemble.py 拼完就交"的脆弱闸门。
 
 ```bash
-python3 ./skills/video-product/scripts/review.py <project-dir> \
+python3 ./skills/video-review/scripts/review.py <project-dir> \
   --target-duration <片段规划表「时长」列累加值> \
   --target-resolution <720x1280 | 1080x1920 | 按脚本画面比例>
 ```

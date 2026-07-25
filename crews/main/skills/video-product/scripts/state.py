@@ -23,7 +23,7 @@ Stages (in order):
   calibrate   — Step 2.4 脚本定稿打分+盲预测（content-calibrator）
   assets      — Step 3 + Step 4 用户素材预处理 + 视频素材生产
   assemble    — Step 5 合成视频
-  review      — Step 5.5 成片自检（review.py）
+  review      — Step 5.5 成片自检（./skills/video-review/scripts/review.py）
   cover       — Step 6 制作封面
   deliver     — Step 7 用户确认交付
 

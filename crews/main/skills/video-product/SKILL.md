@@ -215,6 +215,7 @@ assemble.py 按文件名数字前缀（`01_`、`02_`、`03_`…）顺序拼接�
 | 视频片段生成 | `./skills/video-product/scripts/gen.py` | 直连火山/百炼端点生成视频片段（声画同出）；百炼按模式走候选链（happyhorse-1.1→1.0→wan2.7），火山走 Fast→Normal→Mini | AI 生成模式（默认） |
 | 预览压缩 | `./skills/video-product/scripts/compress_preview.py` | 把视频压到 ≤16MB 用于聊天确认（产物仅用于确认，不参与合成） | 人物故事模式逐段确认 |
 | 片段合成 | `./skills/video-product/scripts/assemble.py` | 视频+音频合成 MP4 | 所有模式 |
+| 成片自检 | `./skills/video-review/scripts/review.py` | ffprobe + 抽帧黑帧扫 + 音频电平 + 时长分辨率一致性，verdict pass/fail/warn | 合成后强制闸门（交付前必跑） |
 | 素材自检 | `./skills/video-product/scripts/check.py` | 检查素材质量与时长缺口 | 仅 Stock Footage 模式 |
 | TTS 语音合成 | `./skills/video-product/scripts/tts.py` | 读取 tts_requirement.md 生成配音 | 仅 OpenClaw 内置 TTS 不可用时 |
 

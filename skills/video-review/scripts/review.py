@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
 """Final-video self-review — post-compose quality gate.
 
-Runs AFTER assemble.py produces video.mp4. Outputs verdict JSON. The skill's
-SKILL.md Step 5 mandates: review.py must pass before the video is handed back
-to the user. A "fail" verdict means the agent must fix and re-review, not deliver.
+Runs AFTER assemble.py / apply_cut.py produces video.mp4 (or highlight.mp4).
+Outputs verdict JSON. The calling skill's workflow mandates: review.py must
+pass before the video is handed back to the user. A "fail" verdict means the
+agent must fix and re-review, not deliver.
 
-What it checks (borrowed from OpenMontage post-render self-review + gbro Gate 3 QA,
-scoped to our ffmpeg-only no-Remotion/HyperFrames world):
+What it checks:
   1. ffprobe full validation — codec, resolution, fps, pixel format, audio config
-  2. 4-position frame extraction (0% / 25% / 50% / 75% / 100%) → black-frame + overlay-break scan
+  2. 5-position frame extraction (0% / 25% / 50% / 75% / 100%) → black-frame + overlay-break scan
   3. Audio level analysis — silence / clipping / absent track
   4. Duration vs target (from sibling script.md 片段规划表 时长列累加，or --target-duration)
   5. Resolution uniformity — checks the成片 matches the first segment's resolution
      (拼了不同分辨率段是硬伤)
 
 NOT included (deliberately):
-  - Subtitle presence check — 我们的 assemble.py 不烧字幕，无意义
+  - Subtitle presence check — assemble.py 不烧字幕，无意义
   - Delivery promise / slideshow risk — 那是脚本阶段的事，归 Step 2 slideshow-risk 自检清单
   - Decision audit trail — 那是 decisions.log 的事，归 state.json + decisions.log
 
 Usage:
-  python3 ./skills/video-product/scripts/review.py <project-dir>
-  python3 ./skills/video-product/scripts/review.py <project-dir> --target-duration 30 --target-resolution 720x1280
-  python3 ./skills/video-product/scripts/review.py <project-dir> --output review.json
+  python3 ./skills/video-review/scripts/review.py <project-dir>
+  python3 ./skills/video-review/scripts/review.py <project-dir> --target-duration 30 --target-resolution 720x1280
+  python3 ./skills/video-review/scripts/review.py <project-dir> --output review.json
 
 Exit codes:
   0  verdict = "pass"   → 可以交付
@@ -65,8 +65,7 @@ VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".avi"}
 REVIEW_DIR_NAME = "review"        # <project-dir>/review/ 抽帧 + verdict JSON 落这
 FRAMES_SUBDIR = "frames"
 
-# Frame extraction positions (% of duration). OpenMontage 抽 4 位，我们按其 + gbro
-# Gate 3 的逐秒抽帧折中——5 位（0/25/50/75/100%）足够拦黑帧/overlay 损，不堆 footage。
+# Frame extraction positions (% of duration). 5 位（0/25/50/75/100%）足够拦黑帧/overlay 损，不堆 footage。
 FRAME_POSITIONS_PCT = [0.0, 25.0, 50.0, 75.0, 100.0]
 
 # Black frame threshold — luma mean below this → "black". 对齐 check.py 的 0.02，可调。
@@ -75,7 +74,7 @@ BLACK_LUMA_THRESHOLD = 0.02
 AUDIO_SILENT_THRESHOLD_DB = -60.0
 AUDIO_CLIPPING_THRESHOLD_DB = -1.0
 
-# Duration tolerance — 拼接允许 ±5% 偏差（OpenMontage 也用 5%）
+# Duration tolerance — 拼接允许 ±5% 偏差
 DURATION_TOLERANCE_PCT = 5.0
 
 # Resolution floor — 9:16 竖屏短视频最低 720x1280，横屏 1280x720
@@ -451,7 +450,7 @@ def _finalize(verdict: dict, output_path: Path | None) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Final-video self-review. Runs after assemble.py, before delivery."
+        description="Final-video self-review. Runs after assemble.py / apply_cut.py, before delivery."
     )
     parser.add_argument("project_dir", help="项目目录 (含 video.mp4 与 artifacts/)")
     parser.add_argument("--target-duration", type=float, default=None,

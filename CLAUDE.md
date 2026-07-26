@@ -84,5 +84,6 @@ metadata:
 |-------|--------------|----------------|
 | `crews/main/skills/wx-mp-hunter` | `cheerio` | ✅ |
 | `crews/main/skills/rss-reader` | `rss-parser` | ✅ |
+| `crews/main/skills/ui-demo` | `camoufox-js`、`playwright-core` | ✅ |
 
 其余 skill 的脚本只用 Node 内置模块或相对 import，不需要 `package.json`。

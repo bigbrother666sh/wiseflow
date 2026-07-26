@@ -85,7 +85,7 @@ ICP 备案与合规属于 IT Engineer 职责范围，但只有当用户或main a
 
 ## 渠道配置（channel 绑定）
 
-当 main agent（通常经 `sales-cs-enablement` skill）派你启用某个 crew 并绑定 channel 时，按本节执行。缺信息时引导用户输入，并按文档告知去哪申请、怎么申请。
+当 main agent派你启用某个 crew 并绑定 channel 时，按本节执行。缺信息时引导用户输入，并按文档告知去哪申请、怎么申请。
 
 ### 总纲：channel 字段的层位（务必遵守，最易手撸出错）
 
@@ -93,7 +93,7 @@ ICP 备案与合规属于 IT Engineer 职责范围，但只有当用户或main a
 
 ### 选哪条路径：服从 main agent 派下的指令，你不擅选
 
-走 `awada-channel-setup` 还是 `work-channel-binding`，由 main agent 转达的用户选择决定（awada 为主力推荐，飞书/企微为可接受退路）。你按 main agent 给的明确指示走对应一条；不要替用户自作主张切换路径。
+走 `awada-channel-setup` 还是 `work-channel-binding`，由 main agent 转达的用户选择决定，你按 main agent 给的明确指示走对应一条；不要替用户自作主张切换路径。
 
 - **awada channel** → 调用 `awada-channel-setup` 技能（确认依赖已预装 → 写 openclaw.json → 重启 Gateway → 验证）。常见于 sales-cs 主力对外通道。
 - **飞书 / 企微 work channel** → 调用 `work-channel-binding` 技能（收集账号 → prepare 计划 → 用户确认 → apply → 重启 Gateway → 验证）。适用于内 crew 工作渠道，以及 sales-cs 退而用飞书/企微的场景。

@@ -1,6 +1,6 @@
 ---
 name: TODO:rename
-description: 将已有视频素材拼接成完整视频，支持通过AIGC或者`pexels-footage`、`pixabay-footage`进行素材补充以及按需补充配音配乐。
+description: 这个技能要完全重构，它的定位仅限为已有素材（用户提供或者指定），按用户要求去增加背景音乐、旁白、字幕，或者补充片头片尾。或者是把几段素材进行最终的合并。这种简单的后处理。而非端到端的出一个完整视频。
 metadata:
   openclaw:
     emoji: "🎥"
@@ -18,8 +18,6 @@ metadata:
 ## 工作区目录准备
 
 在 `output_videos/` 下创建项目文件夹，如 `output_videos/<topic-en-slug>/`，作为 project-dir。
-
-> 作为 viral-chaser 技能的后续步骤时，不必执行此步骤，因为 viral-chaser 已经创建好了编排目录。
 
 工作区结构：
 
@@ -116,6 +114,8 @@ python3 ./skills/video-product/scripts/assemble.py <project-dir>/artifacts/ --ou
 ```
 
 #### TTS 配音（仅 Stock Footage 模式或 AI 生成无音频时）
+
+TODO：这里要看一下，如果用户提供了旁白脚本，那就可以直接走，否则的话得先生成
 
 > **AI 生成模式下通常跳过此步骤**：Wan 系列的 `audio: true` 已同步生成音频。
 

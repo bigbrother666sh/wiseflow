@@ -1,9 +1,9 @@
 ---
-name: highlight-cut
-description: 基于用户提供的视频素材做高光剪辑——ASR 转写拿时间戳，自动识别高光段，ffmpeg 剪拼输出成片。仅做轻剪辑，不出脚本不烧字幕。
+name: talking-head-cut
+description: 口播类视频（口播/演讲/访谈/直播）的轻剪辑——ASR 转写拿逐字时间戳，去口气词/结巴/静音，或识别高光段剪成集锦。仅做基于人声的轻剪辑，不出脚本不烧字幕；纯画面类素材的集锦剪辑走 video-edit。
 metadata:
   openclaw:
-    emoji: "✨"
+    emoji: "🎙️"
     requires:
       bins:
       - python3
@@ -11,22 +11,24 @@ metadata:
       - ffprobe
 ---
 
-# 高光剪辑（highlight-cut）
+# 口播视频轻剪辑（talking-head-cut）
 
 ## 适用场景
 
-用户提供一段完整视频（演讲、直播、访谈、口播等），要求自动**识别精彩片段**并剪接成短成片。
+用户提供一段**有人说话**的视频（口播、演讲、访谈、直播回放等），要求：
 
-典型输入：
+- **去口气词**：删掉嗯/呃/结巴/长静音/假起头/重复句，让口播更干净（`--mode filler`）
+- **高光剪辑**：自动识别精彩发言段，剪接成短集锦（`--mode highlight`）
+- 两者都要：先去口气词再标高光（`--mode both`）
 
-- 一段 5–60 分钟的口播/直播/演讲视频
-- 用户给的目标时长（如"剪成 60 秒的高光集锦"）
+典型输入：一段 5–60 分钟的口播视频 + 目标时长（如"剪成 60 秒的高光集锦"）。
 
 不适用：
 
-- 用户已经明确告诉剪哪几段 → 直接用 `extract_and_concat.py` 手工抽段拼接
-- 需要从零生产视频 → 走 content-producer 的 `video-product` 流程
-- 需要烧字幕、加 BGM、加转场特效 → 不在本技能范围
+- 视频没有人声、或精彩与否要看**画面**而不是听内容 → 走 `video-edit` 的画面集锦流程
+- 用户已经明确告诉剪哪几段 → 直接用 `video-edit extract` 手工抽段拼接
+- 需要从零生产视频 → 委托 content-producer
+- 需要烧字幕、加 BGM → 剪完后走 `video-edit subtitles` / `video-edit audio-mix`
 
 ---
 
@@ -38,7 +40,7 @@ metadata:
 output_videos/<project-en-slug>/
 ├── source.mp4             # 用户提供的原始视频（重命名后的副本或软链）
 ├── cut_plan.json          # 检测产物：[{keep, start, end, reason}]
-└── highlight.mp4          # 最终高光成片
+└── highlight.mp4          # 最终成片
 ```
 
 ---
@@ -48,8 +50,7 @@ output_videos/<project-en-slug>/
 ### Step 1：检测生 cut_plan.json
 
 ```bash
-python3 ./skills/highlight-cut/scripts/cut_plan.py \
-    <source.mp4> \
+talking-head-cut <source.mp4> \
     --mode highlight \
     --language zh \
     --output <project-dir>/cut_plan.json
@@ -108,10 +109,10 @@ cut_plan.json 落盘后**必须先让用户看一眼**再剪：
 
 ### Step 3：按 cut_plan.json 剪拼成片
 
+剪拼由 `video-edit` 技能的 apply-cut 子命令执行：
+
 ```bash
-python3 ./skills/highlight-cut/scripts/apply_cut.py \
-    <source.mp4> \
-    <project-dir>/cut_plan.json \
+video-edit apply-cut <source.mp4> <project-dir>/cut_plan.json \
     --output <project-dir>/highlight.mp4 \
     --fade-ms 40
 ```
@@ -135,10 +136,10 @@ python3 ./skills/highlight-cut/scripts/apply_cut.py \
 剪拼完成后**必须**跑成片自检，自检不过不得交付：
 
 ```bash
-python3 ./skills/video-review/scripts/review.py <project-dir>/highlight.mp4
+video-review <project-dir>/highlight.mp4
 ```
 
-> review.py 是成片自检脚本，verdict=pass 才交付；verdict=fail 按 review 提示修。详见 `skills/video-review/SKILL.md`。
+> video-review 是成片自检闸门，verdict=pass 才交付；verdict=fail 按 review 提示修。详见 `video-review` 技能 SKILL.md。
 
 ### Step 5：用户确认
 
@@ -159,22 +160,24 @@ python3 ./skills/video-review/scripts/review.py <project-dir>/highlight.mp4
 | ffmpeg / ffprobe | 系统 | 抽 WAV、剪拼、concat |
 | 火山引擎豆包语音极速版 | env `VOLC_ASR_*` | ASR 转写拿 word 级时间戳 |
 | requests | 仓根 requirements.txt | 调火山 ASR HTTP API |
+| `video-edit` 技能 | 同 workspace | Step 3 剪拼（apply-cut） |
+| `video-review` 技能 | 公共 skills | Step 4 成片自检 |
 
-**火山 ASR 凭证**：需 `VOLC_ASR_APP_ID` + `VOLC_ASR_ACCESS_KEY`（旧控制台双头）或 `VOLC_ASR_APP_KEY`（新控制台单头）。未配置时 cut_plan.py 退出码 2 并提示走 viral-chaser 开通流程。
+**火山 ASR 凭证**：需 `VOLC_ASR_APP_ID` + `VOLC_ASR_ACCESS_KEY`（旧控制台双头）或 `VOLC_ASR_APP_KEY`（新控制台单头）。未配置时退出码 2 并提示走 viral-chaser 开通流程。
 
 ---
 
 ## 脚本清单
 
-| 脚本 | 用途 | 退出码 |
+| 调用 | 用途 | 退出码 |
 |------|------|--------|
-| `cut_plan.py` | ASR 转写 + 多层检测生 cut_plan.json | 0 成功 / 1 参数错 / 2 ASR env 未配 / 3 ffmpeg 不存在 |
-| `apply_cut.py` | 按 cut_plan.json ffmpeg 剪拼成片 | 0 成功 / 1 参数错 / 3 ffmpeg 不存在 |
+| `talking-head-cut <source> [参数...]` | ASR 转写 + 多层检测生 cut_plan.json | 0 成功 / 1 参数错 / 2 ASR env 未配 / 3 ffmpeg 不存在 |
+| `video-edit apply-cut <source> <plan> [参数...]` | 按 cut_plan.json ffmpeg 剪拼成片 | 0 成功 / 1 参数错 / 3 ffmpeg 不存在 |
 
 ---
 
 ## 禁止事项（强制）
 
-- **禁止跳过 review.py 交付**：剪拼完必须跑成片自检，verdict=pass 才交付
+- **禁止跳过 video-review 交付**：剪拼完必须跑成片自检，verdict=pass 才交付
 - **禁止硬剪不确认 plan**：cut_plan.json 落盘后必须先让用户确认 keep/remove 段再剪
-- **禁止直接写 ffmpeg 命令**：所有 ffmpeg 调用走本技能脚本，不在 exec 中拼 ffmpeg 命令
+- **禁止直接写 ffmpeg 命令**：所有 ffmpeg 调用走本技能与 video-edit 的标准化脚本，不在 exec 中拼 ffmpeg 命令

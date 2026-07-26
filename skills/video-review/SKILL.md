@@ -26,16 +26,17 @@ metadata:
 ## 调用
 
 ```bash
-python3 ./skills/video-review/scripts/review.py <project-dir>
-python3 ./skills/video-review/scripts/review.py <project-dir> --target-duration 30 --target-resolution 720x1280
-python3 ./skills/video-review/scripts/review.py <project-dir> --output review.json
+video-review <final.mp4>                    # 直接审单个成片文件
+video-review <project-dir>                  # 审 <dir>/video.mp4，并对 artifacts/ 做段一致性检查
+video-review <project-dir> --target-duration 30 --target-resolution 720x1280
+video-review <final.mp4> --output review.json
 ```
 
 参数：
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
-| `project_dir` | — | 项目目录（须含 `video.mp4` 与 `artifacts/`） |
+| `target` | — | 成片文件路径；或项目目录（目录时审 `<dir>/video.mp4`，且若存在 `artifacts/` 一并做段一致性检查） |
 | `--target-duration` | 无 | 目标时长（秒），从脚本片段规划累加得出 |
 | `--target-resolution` | 无 | 目标分辨率，形如 `720x1280` |
 | `--output` | `<project-dir>/review/verdict.json` | verdict JSON 落盘路径 |

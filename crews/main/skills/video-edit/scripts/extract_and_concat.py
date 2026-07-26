@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract segments from MP4(s) and optionally concatenate them into one MP4.
 
-Output normalization (matches assemble.py / gen.py defaults):
+Output normalization (matches assemble.py defaults):
   - 30 fps, yuv420p
   - 720x1280 (portrait HD; override with --width / --height, or pass --keep-resolution
     to keep the first input's dimensions)
@@ -10,16 +10,13 @@ Output normalization (matches assemble.py / gen.py defaults):
 
 Usage — single segment:
 
-  python3 ./skills/video-product/scripts/extract_and_concat.py \\
-      --input foo.mp4 --mode head --seconds 6 --output head6.mp4
-  python3 ./skills/video-product/scripts/extract_and_concat.py \\
-      --input foo.mp4 --mode tail --seconds 4 --output tail4.mp4
-  python3 ./skills/video-product/scripts/extract_and_concat.py \\
-      --input foo.mp4 --mode slice --start 2 --end 8 --output mid.mp4
+  video-edit extract --input foo.mp4 --mode head --seconds 6 --output head6.mp4
+  video-edit extract --input foo.mp4 --mode tail --seconds 4 --output tail4.mp4
+  video-edit extract --input foo.mp4 --mode slice --start 2 --end 8 --output mid.mp4
 
 Usage — multi-segment + concat (preferred for "剪 A 前 6s + 剪 B 后 4s" 类需求):
 
-  python3 ./skills/video-product/scripts/extract_and_concat.py \\
+  video-edit extract \\
       --segment input=foo.mp4 mode=head seconds=6 \\
       --segment input=bar.mp4 mode=tail seconds=4 \\
       --output final.mp4

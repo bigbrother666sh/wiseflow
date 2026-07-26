@@ -218,6 +218,7 @@ dev plan §Phase 7 续 写"验收"：
 ## 六、变更历史
 
 - **2026-07-04**：本任务在 dev plan §Phase 7 续 标注。文档化完成；实例软链化 + wrapper 补齐等部署阶段做。
+- **2026-07-26**：视频能力重规划落地（`docs/video-capability-replanning-2026-07-25.md`）连带 wrapper 变化：`video-product` 重构更名 `video-edit`，从 C 类"暂不加"转为**首个分发器 wrapper**（`video-edit <extract|assemble|audio-mix|subtitles|frames|apply-cut|preview>`）；`highlight-cut` 更名 `talking-head-cut`，加 B 类薄转发 wrapper（→ scripts/cut_plan.py，剪拼步改调 `video-edit apply-cut`）；公共 `video-review` 补 B 类薄转发 wrapper（→ scripts/review.py，review.py 同时兼容单文件入参）。三个 SKILL.md 示例均已 PATH 化。
 - **2026-07-12**：软链化早已在 `apply-addons.sh` / `crew-workspaces.sh` 落地（原文档误判为待做）。本轮交付 30 个 B 类薄转发 wrapper + `scripts/lib/skill-wrappers.sh` lib（暴露到 `~/.openclaw/bin/` + PATH 注入）。纠正原文档将 `login-manager` 列为 P0 wrapper 的错误（无脚本可包）；"全部 62 skill 加 wrapper"设想纠正为按入口形态三分（A 纯指导不加 / B 单一入口薄转发 / C 多并列脚本暂不加）。
 
 ---

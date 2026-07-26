@@ -20,9 +20,10 @@ NOT included (deliberately):
   - Decision audit trail — 那是 decisions.log 的事，归 state.json + decisions.log
 
 Usage:
-  python3 ./skills/video-review/scripts/review.py <project-dir>
-  python3 ./skills/video-review/scripts/review.py <project-dir> --target-duration 30 --target-resolution 720x1280
-  python3 ./skills/video-review/scripts/review.py <project-dir> --output review.json
+  video-review <final.mp4>                    # 直接审单个成片文件
+  video-review <project-dir>                  # 审 <dir>/video.mp4 + artifacts/ 段一致性
+  video-review <project-dir> --target-duration 30 --target-resolution 720x1280
+  video-review <final.mp4> --output review.json
 
 Exit codes:
   0  verdict = "pass"   → 可以交付
@@ -254,10 +255,9 @@ def probe_segments(project_dir: Path) -> list[dict]:
 
 # ── Main ───────────────────────────────────────────────────────────────────
 
-def review(project_dir: Path, target_duration: float | None, target_resolution: str | None,
-           output_path: Path | None) -> dict:
+def review(project_dir: Path, video: Path, target_duration: float | None,
+           target_resolution: str | None, output_path: Path | None) -> dict:
     """Run full review, build verdict dict, write JSON, return dict."""
-    video = project_dir / "video.mp4"
     if not video.is_file():
         die(f"成片不存在: {video}")
 
@@ -452,7 +452,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Final-video self-review. Runs after assemble.py / apply_cut.py, before delivery."
     )
-    parser.add_argument("project_dir", help="项目目录 (含 video.mp4 与 artifacts/)")
+    parser.add_argument("target", metavar="target",
+                        help="成片文件路径，或项目目录（目录时审 <dir>/video.mp4，并对 <dir>/artifacts/ 做段一致性检查）")
     parser.add_argument("--target-duration", type=float, default=None,
                         help="目标时长（秒），从 script.md 片段规划累加得出")
     parser.add_argument("--target-resolution", default=None,
@@ -461,16 +462,22 @@ def main() -> None:
                         help="verdict JSON 落盘路径，默认 <project-dir>/review/verdict.json")
     args = parser.parse_args()
 
-    project_dir = Path(args.project_dir).resolve()
-    if not project_dir.is_dir():
-        die(f"项目目录不存在: {project_dir}")
+    target = Path(args.target).resolve()
+    if target.is_file():
+        video = target
+        project_dir = target.parent
+    elif target.is_dir():
+        project_dir = target
+        video = target / "video.mp4"
+    else:
+        die(f"目标不存在: {target}")
 
     output_path = (
         Path(args.output).resolve() if args.output
         else project_dir / REVIEW_DIR_NAME / "verdict.json"
     )
 
-    verdict = review(project_dir, args.target_duration, args.target_resolution, output_path)
+    verdict = review(project_dir, video, args.target_duration, args.target_resolution, output_path)
 
     # Exit code: 0 pass / 1 fail / 2 warn / 3 script error
     sys.exit({

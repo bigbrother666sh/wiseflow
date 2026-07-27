@@ -206,7 +206,7 @@ async function pongXhs(map: CookieMap): Promise<{ ok: boolean; reason?: string }
   const cookies: Record<string, string> = {};
   for (const [k, c] of Object.entries(map)) if (c?.value) cookies[k] = c.value;
   try {
-    const r = await xhsFetch<{ success?: boolean; code?: number }>({
+    const r = await xhsFetch<{ success?: boolean; code?: number; data?: { user_id?: string; guest?: boolean } }>({
       baseUrl: "https://edith.xiaohongshu.com",
       uri: "/api/sns/web/v2/user/me",
       method: "get",
@@ -214,7 +214,13 @@ async function pongXhs(map: CookieMap): Promise<{ ok: boolean; reason?: string }
       signFormat: "xyw", // user/me 等 data API 用 xyw（见 relay-sign.ts 注释）
       timeoutMs: 15_000,
     });
-    if (r?.success) return { ok: true };
+    // ⚠️ guest 陷阱（2026-07-27 发现）：xhs 给未登录访客也发 web_session，游客 session 调
+    // v2 user/me 同样 success:true code:0，仅 data.guest=true——不判 guest 会把游客 cookie
+    // 误判为有效登录（登录被平台踢出降级成 guest 后完全探不出来）。
+    if (r?.success && r?.data?.guest !== true) return { ok: true };
+    if (r?.success && r?.data?.guest === true) {
+      return { ok: false, reason: "user/me 返回 guest=true（游客 session，非登录态——可能登录未完成或被平台强制登出）" };
+    }
     return { ok: false, reason: `user/me success=${r?.success} code=${r?.code}` };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

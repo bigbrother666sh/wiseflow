@@ -303,13 +303,26 @@ async function fetchKuaishou(photoId: string): Promise<RetroResult> {
 // xhsBrowserHeaders / extractInitialState / fetchXhsNoteFromHtml / parseXhsCount 复用
 // _shared/xhs-html-note.ts（与 viral-chaser / xhs-content-ops 同源，避免三处重复解析逻辑）。
 
-/** 解析 profile 页 window.__INITIAL_STATE__.user.notes，解 Vue ref 后建 note_id→xsec_token 映射。
- * 纯 HTTP：GET /user/profile/{user_id}（带 cookie）即可，无需 camoufox。返回 null 表示抓取/解析失败。 */
-async function fetchXhsNoteTokenMapping(
+/** profile 页 SSR 解析出的单条笔记（2026-07-25 起 xhs 把 SSR 里的 note id 置空，
+ * id 可能为空串——此时靠 title 匹配拿 xsec_token）。 */
+interface XhsProfileEntry {
+  id: string
+  title: string
+  xsecToken: string
+  xsecSource: string
+}
+
+/** 解析 profile 页 window.__INITIAL_STATE__.user.notes，解 Vue ref 后取笔记条目列表。
+ * 纯 HTTP：GET /user/profile/{user_id}（带 cookie）即可，无需 camoufox。返回 null 表示抓取/解析失败。
+ *
+ * 2026-07-25 起 xhs 改版：SSR 里每条笔记的 id/noteCard.noteId 全部置空（客户端 hydration 才回填），
+ * 但 xsecToken 和 noteCard.displayTitle 仍在。故不再只按 id 建映射，而是返回完整条目列表，
+ * 由调用方先按 id 匹配（兼容旧结构/未来回滚），miss 再按 title 匹配。 */
+async function fetchXhsProfileEntries(
   userId: string,
   cookieStr: string,
   ua: string,
-): Promise<Record<string, { xsecToken: string; xsecSource: string }> | null> {
+): Promise<XhsProfileEntry[] | null> {
   const url = `https://www.xiaohongshu.com/user/profile/${userId}`
   try {
     const resp = await fetch(url, {
@@ -323,23 +336,50 @@ async function fetchXhsNoteTokenMapping(
     if (!state) return null
     const unref = (v: any): any => (v && v.__v_isRef && v._rawValue !== undefined ? v._rawValue : v)
     const notes = unref(state?.user?.notes)
-    const mapping: Record<string, { xsecToken: string; xsecSource: string }> = {}
+    const entries: XhsProfileEntry[] = []
     if (Array.isArray(notes)) {
       for (const grp of notes) {
         const g = unref(grp)
         if (!Array.isArray(g)) continue
         for (const n of g) {
           const nn = unref(n)
-          if (nn?.id && nn?.xsecToken) {
-            mapping[nn.id] = { xsecToken: String(nn.xsecToken), xsecSource: nn.xsecSource || "pc_feed" }
-          }
+          const card = nn?.noteCard ?? {}
+          const token = nn?.xsecToken || card?.xsecToken
+          if (!token) continue
+          entries.push({
+            id: String(nn?.id || card?.noteId || ""),
+            title: String(card?.displayTitle ?? nn?.displayTitle ?? ""),
+            xsecToken: String(token),
+            xsecSource: nn?.xsecSource || card?.xsecSource || "pc_feed",
+          })
         }
       }
     }
-    return mapping
+    return entries
   } catch {
     return null
   }
+}
+
+/** 标题归一化：去首尾空白、折叠空白、去尾部省略号（SSR displayTitle 可能截断）。 */
+function normalizeXhsTitle(s: string): string {
+  return s.replace(/[\s　]+/g, " ").trim().replace(/[.…]+$/, "")
+}
+
+/** 按标题在 profile 条目里找唯一匹配：精确相等优先，其次前缀互含（防截断，最短 6 字符起）。
+ * 多条歧义时返回 null（宁可失败也不错配）。 */
+function matchXhsEntryByTitle(entries: XhsProfileEntry[], title: string): XhsProfileEntry | null {
+  const target = normalizeXhsTitle(title)
+  if (!target) return null
+  const exact = entries.filter(e => normalizeXhsTitle(e.title) === target)
+  if (exact.length === 1) return exact[0]
+  if (exact.length > 1) return null
+  const prefix = entries.filter(e => {
+    const t = normalizeXhsTitle(e.title)
+    if (t.length < 6 || target.length < 6) return false
+    return t.startsWith(target) || target.startsWith(t)
+  })
+  return prefix.length === 1 ? prefix[0] : null
 }
 
 /** 取 xhs-browse 自身 user_id：优先读 xhs-user-id.cache，缺失则调 get-xhs-user-id.sh（relay sign + user/me）。 */
@@ -360,7 +400,7 @@ function readXhsUserId(): string {
   return ""
 }
 
-async function fetchXhs(noteId: string, xsecToken: string = "", xsecSource: string = ""): Promise<RetroResult> {
+async function fetchXhs(noteId: string, xsecToken: string = "", xsecSource: string = "", title: string = ""): Promise<RetroResult> {
   const session = requireSession("xhs-browse")
   const cookieDict = parseCookies(session.cookies)
   const ua = sessionUA("xhs-browse", session)
@@ -391,17 +431,32 @@ async function fetchXhs(noteId: string, xsecToken: string = "", xsecSource: stri
     if (!userId) {
       return { ...result, ok: false, error: "NO_USER_ID", msg: "未取到 self user_id（xhs-user-id.cache 缺失且 get-xhs-user-id.sh 失败）" }
     }
-    const mapping = await fetchXhsNoteTokenMapping(userId, cookieStr, ua)
-    if (!mapping) {
+    const entries = await fetchXhsProfileEntries(userId, cookieStr, ua)
+    if (!entries) {
       return { ...result, ok: false, error: "PROFILE_FETCH_FAILED", msg: "profile 页抓取/解析失败（可能触发风控/登录态失效）" }
     }
-    const entry = mapping[noteId]
+    if (entries.length === 0) {
+      // 与"笔记不在列表里"区分开：0 条通常是 SSR 结构再次变化或页面异常，不是笔记问题
+      return { ...result, ok: false, error: "PROFILE_MAPPING_EMPTY", msg: "profile 页解析到 0 条笔记条目（SSR 结构可能再次变化，或页面异常/风控），请人工核查解析逻辑" }
+    }
+    // 先按 id 匹配（旧 SSR 结构/未来回滚仍可用），miss 再按 title 匹配
+    // （2026-07-25 起 SSR note id 置空，title 是唯一可用的匹配键）
+    let entry = entries.find(e => e.id === noteId) ?? null
+    let matchedBy = "id"
+    if (!entry && title) {
+      entry = matchXhsEntryByTitle(entries, title)
+      matchedBy = "title"
+    }
     if (!entry) {
-      return { ...result, ok: false, error: "NOTE_NOT_IN_PROFILE", msg: `profile 首页未加载到该笔记（仅近期笔记可见，可能已删除/私密/超出首页范围；共 ${Object.keys(mapping).length} 条映射）` }
+      const idsEmpty = entries.every(e => !e.id)
+      return {
+        ...result, ok: false, error: "NOTE_NOT_IN_PROFILE",
+        msg: `profile 首页未匹配到该笔记（共 ${entries.length} 条条目${idsEmpty ? "，SSR note id 全为空" : ""}${title ? "，title 匹配也未命中" : "，未提供 --title 无法按标题匹配"}；可能已删除/私密/超出首页范围）`,
+      }
     }
     token = entry.xsecToken
     source = entry.xsecSource || "pc_feed"
-    console.error(`  ✓ 映射命中（共 ${Object.keys(mapping).length} 条），拿到 xsec_token`)
+    console.error(`  ✓ 映射命中（共 ${entries.length} 条，按 ${matchedBy} 匹配），拿到 xsec_token`)
   }
 
   // 2. GET 笔记详情页 HTML，解析 interactInfo（复用 _shared/xhs-html-note.ts）
@@ -444,16 +499,18 @@ async function main(): Promise<void> {
   let contentId = ""
   let xsecToken = ""
   let xsecSource = ""
+  let title = ""
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--platform" && args[i + 1]) platform = args[++i]
     else if (args[i] === "--content-id" && args[i + 1]) contentId = args[++i]
     else if (args[i] === "--xsec-token" && args[i + 1]) xsecToken = args[++i]
     else if (args[i] === "--xsec-source" && args[i + 1]) xsecSource = args[++i]
+    else if (args[i] === "--title" && args[i + 1]) title = args[++i]
   }
 
   if (!platform || !contentId) {
-    process.stderr.write("用法: node fetch-retro-data.ts --platform <douyin|bilibili|kuaishou|xhs> --content-id <id> [--xsec-token <t> --xsec-source <s>]\n")
+    process.stderr.write("用法: node fetch-retro-data.ts --platform <douyin|bilibili|kuaishou|xhs> --content-id <id> [--xsec-token <t> --xsec-source <s>] [--title <t>]\n")
     process.exit(1)
   }
 
@@ -470,7 +527,7 @@ async function main(): Promise<void> {
       result = await fetchKuaishou(contentId)
       break
     case "xhs":
-      result = await fetchXhs(contentId, xsecToken, xsecSource)
+      result = await fetchXhs(contentId, xsecToken, xsecSource, title)
       break
     default:
       process.stderr.write(`❌ 不支持的平台: ${platform}\n`)

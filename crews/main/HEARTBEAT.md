@@ -99,9 +99,16 @@
 对每个已启用 content-calibrator 的平台，检查是否满足复盘条件：
 
 1. 从 published-track DB 读取该平台所有 `cal_enabled=1` 的记录
-2. 检查 `calibration/<platform>/predictions/` 中是否有对应的预测日志
+2. 按记录的 `source_folder` 逐个检查作品目录：`<source_folder>/calibration/` 下**有 `prediction.md` 且无 `retro.md`** 即为待复盘。预测日志是 per-work 存放的（见 content-calibrator SKILL.md），**不存在** `calibration/<platform>/predictions/` 这种平台级目录，不要去 ls 它
 3. 统计**有实际互动数据但尚未复盘**的记录数
 4. 如果积累了 **≥5 个新数据点** → 执行复盘流程
+
+检查命令用安全写法（**不要**对可能不存在的路径裸 `ls` 再 `&&` 串联——复合命令一次非零退出会让 cron 把整次任务误报为 failed，即使后续步骤全部完成）：
+
+```bash
+# 对 Step 1 拿到的每个 source_folder：
+if [ -f "<source_folder>/calibration/prediction.md" ] && [ ! -f "<source_folder>/calibration/retro.md" ]; then echo "PENDING: <source_folder>"; fi
+```
 
 复盘流程（由 Agent 执行）：
 - 从 published-track DB 读互动数据

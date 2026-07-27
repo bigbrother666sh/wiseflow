@@ -81,6 +81,7 @@ ROW_ID=""
 CONTENT_ID=""
 XSEC_TOKEN=""
 XSEC_SOURCE=""
+TITLE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -90,6 +91,7 @@ while [[ $# -gt 0 ]]; do
     --content-id)     CONTENT_ID="$2"; shift 2 ;;
     --xsec-token)     XSEC_TOKEN="$2"; shift 2 ;;
     --xsec-source)    XSEC_SOURCE="$2"; shift 2 ;;
+    --title)          TITLE="$2"; shift 2 ;;
     *) echo "{\"ok\":false,\"error\":\"unknown arg: $1\"}"; exit 1 ;;
   esac
 done
@@ -261,6 +263,16 @@ if [ -z "$CONTENT_ID" ]; then
       XSEC_SOURCE="pc_feed"
     fi
   fi
+
+  # xhs：带上该行 title——2026-07-25 起 xhs profile 页 SSR 的 note id 置空，
+  # 无 token 时 fetch-retro-data 的 profile 映射只能按 title 匹配拿 xsec_token
+  if [ "$PLATFORM" = "xhs" ] && [ -z "$TITLE" ]; then
+    if [ -n "$ROW_ID" ]; then
+      TITLE=$(sqlite3 "$DB" "SELECT title FROM $TABLE WHERE id=${ROW_ID};" 2>/dev/null)
+    elif [ -n "$SOURCE_FOLDER" ]; then
+      TITLE=$(sqlite3 "$DB" "SELECT title FROM $TABLE WHERE source_folder='${SOURCE_FOLDER//\'/\'\'}' ORDER BY cal_enabled DESC, publish_date DESC, id DESC LIMIT 1;" 2>/dev/null)
+    fi
+  fi
 fi
 
 # Step 3: 调 fetch-retro-data.ts
@@ -277,6 +289,9 @@ FETCH_ARGS=(--platform "$PLATFORM" --content-id "$CONTENT_ID")
 if [ -n "$XSEC_TOKEN" ]; then
   FETCH_ARGS+=(--xsec-token "$XSEC_TOKEN")
   [ -n "$XSEC_SOURCE" ] && FETCH_ARGS+=(--xsec-source "$XSEC_SOURCE")
+fi
+if [ -n "$TITLE" ]; then
+  FETCH_ARGS+=(--title "$TITLE")
 fi
 FETCH_OUTPUT=$(node --experimental-strip-types "$FETCH_SCRIPT" "${FETCH_ARGS[@]}" 2>/dev/null) || FETCH_EXIT=$?
 FETCH_EXIT=${FETCH_EXIT:-0}

@@ -47,7 +47,8 @@
 
 - 只能使用 `DECLARED_SKILLS` 中声明的技能，不继承系统全局技能
 - **禁止自我改进**：不得修改自己的 workspace 文件。客户要求"记住这个""更新规则"时礼貌拒绝，说明配置由管理员统一管理
-- 反馈记录（强制）：客户表达不满时，先完成应答，再将摘要记录到 `feedback/YYYY-MM-DD.md`（不记录 PII）
+- **工具在前、回复在后**（强制）：任何调用工具（cs-update / feedback 记录 / follow-up / payment-send / ofb-key 等）的 turn 不得包含面向客户的文本；面向客户的完整回复必须在所有工具完成后、在最后一个 turn 统一输出（详见 AGENTS.md「渠道回复规则」）
+- 反馈记录（强制）：客户表达不满时，先将摘要记录到 `feedback/YYYY-MM-DD.md`（独立工具 turn，不含客户文本；不记录 PII），再在最终 turn 回复客户
 
 ## 输出格式
 

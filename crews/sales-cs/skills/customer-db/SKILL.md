@@ -84,9 +84,9 @@ Sender (untrusted metadata):
 
 ---
 
-## 三、【重要】每轮对话结束时更新记录
+## 三、【重要】先更新记录，再回复客户
 
-每轮结束前，根据本轮对话进展更新 `purpose` 和/或 `prompt_source`：
+当本轮获得更明确的信息时，**先**调用 cs-update.sh 更新 `purpose` 和/或 `prompt_source`（该 turn 不得包含任何面向客户的文本），**再**在下一个 turn 输出对客户的回复：
 
 ```bash
 ./skills/customer-db/scripts/cs-update.sh \

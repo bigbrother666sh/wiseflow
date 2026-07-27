@@ -391,11 +391,6 @@ main 侧 `video-edit/SKILL.md` 与 README 按决策 4.2/4.3 引用 `aigc-video-g
 | HyperFrames（HeyGen） | `~/wiseflow-pro/hyperframes` | Apache-2.0 | HTML→MP4 确定性渲染引擎 + 19 个 agent skill |
 | html-video（nexu-io） | `~/wiseflow-pro/html-video` | Apache-2.0 | 引擎之上的 meta-layer：素材+意图 → content-graph → HTML 分镜 → MP4 |
 
-**许可证约束（吸收前必须先过这一关）**：本仓 LICENSE 是 modified MIT。
-
-- ViMax（MIT）/ HyperFrames（Apache-2.0）/ html-video（Apache-2.0）：**代码与文档可借用**，保留版权声明即可。
-- **OpenMontage（AGPLv3）：不得把其 Python 代码或 skill markdown 原文复制进本仓。** 只能吸收方法论、阈值判据、流程结构，落地时必须用我们自己的文字重写。这一条在开发计划里要作为硬约束写明。
-
 > 备注：`~/wiseflow-pro/html-video` 的 origin 是 `bigbrother666sh/html-video`（用户 fork），不是 nexu-io 上游；本轮读的是 fork 的 `main`（HEAD `90a036a`）。`~/wiseflow-pro/OpenMontage`、`html-video` 本轮之前已 clone，`ViMax`、`hyperframes` 本轮新 clone（`--depth 1`）。
 
 ---
@@ -873,7 +868,6 @@ Stage 4 MP4 导出   每 scene 调 EngineAdapter.render() → ffmpeg concat 跨 
 | 全部 WebUI / studio / TUI / backlot 看板 / Web 前端 | §3 原则 1 钦定 |
 | 全部 Provider 适配层（OM 的 52 tool 适配、ViMax 的 tools/*.py、HF 的 heygen CLI、html-video 的 MiniMax provider） | §3 原则 2 钦定；模型调用统一走本仓公共模块 |
 | CLIP / torch 系本地模型（corpus_builder / clip_embedder / video_understand / WhisperX） | 与本仓"stdlib + ffmpeg"轻量范式冲突；改用 Fast path 人工核对缩略图（见 #24） |
-| OpenMontage 的代码与 skill markdown 原文 | **AGPLv3 与本仓 modified-MIT 不兼容**；只吸收方法论并用自己的话重写 |
 | HF 的 10 个 creation workflow skill | 会与 CP 自家路由竞争（OM 的 vendoring 决策已验证这条，见 #34） |
 | html-video 的 studio HTTP server / 14 个 agent backend 检测 / ACP 协议层 | UI 与 agent 宿主层，openclaw 语境下无意义 |
 | Remotion / Motion Canvas / Revideo 适配 | CP 只需一条 HTML 渲染路径（HF），多引擎抽象对我们是纯负担 |
@@ -886,32 +880,27 @@ Stage 4 MP4 导出   每 scene 调 EngineAdapter.render() → ffmpeg concat 跨 
 
 ### 9.1 `skills/aigc-video-gen/` 尚未落地，但已被 7 处引用（断链）
 
-§2.9 / §2.10 记为"已落地"，实际扫仓结果：`skills/` 下**不存在** `aigc-video-gen` 目录（现有公共 skill 为 `browser-guide` / `complex-task` / `email-ops` / `pexels-footage` / `pixabay-footage` / `siliconflow-img-gen` / `smart-search` / `video-review` / `web-form-fill` / `wxwork-drive`）。而 `aigc-video-gen` 已被 CP 侧 7 个文件引用：
-
-```
-crews/content-producer/skills/video-product/SKILL.md
-crews/content-producer/skills/video-product/stages/{step2-script,step3-user-assets,step4-assets,step5-compose,model-selection,prohibitions-notes}.md
-```
-
-原 `gen.py`（百炼 happyhorse + 火山 Seedance 候选链）在仓内已找不到——现存 `gen.py` 只有 `skills/siliconflow-img-gen/scripts/gen.py` 与 `crews/content-producer/skills/siliconflow-video-gen/scripts/gen.py`，都不是它。
-
-**这条 CP 主链跑不通**（step4 生成视频片段这一步无脚本可调），且 `collage-broll` Gate3 亦依赖它。需确认：是 main 侧本轮正在抽（那么 CP 只需等），还是抽的过程中丢了（那么要从 git 历史恢复）。
+<已解决>
 
 ### 9.2 §2 现状盘点相对当前仓已有滞后
 
 §2.1 / §2.2 / §2.7 描述的是重构前状态，当前仓已推进：
 
-- main 侧：`video-product` 目录已不存在，拆成了 `video-assembler`（仅 `scripts/`，尚无 SKILL.md）/ `video-edit` / `talking-head-cut`；成片自检已抽成公共 `skills/video-review`。
-- CP 侧：`video-product/SKILL.md` **已不是占位符**，已是完整工作流主力技能（Step 1 输入解析 → Step 2 脚本定稿 → Gate 0 关键帧 → Step 2.4 打分 → Step 2.5 预算 → Step 3 用户素材 → Step 4 视频生产 → Step 5 合成 → Step 5.5 自检 → Step 6 封面 → Step 7 用户确认），`stages/` 7 个文件齐备，`scripts/` 已删至 4 个（`assemble.py` / `check.py` / `compress_preview.py` / `review.py`）。CP 还多了 `bilibili-publish`。
-
-**§2 不改**（现状盘点是当时的快照，有存档价值），此处仅记差异，避免后续按 §2 做判断时踩空。
+<已更改，以现状为准,在现状基础上做后续工作>
 
 ### 9.3 待用户拍板的 CP 侧决策（等这批调研确认后一次性问）
 
 1. **CP 是否按 HF 三层架构重组**（router skill + 三条 creation workflow + 公共 domain skill）？这是 §8.4 #31 的前提，也是"完全重构"的骨架决定。
+> 同意
 2. **#14 camera_tree 转场取帧法**是否值得那笔额外的 video 生成成本？（建议先做一次成本实测再定，不在本轮定）
+> ffmpeg是不是自带转场功能？
 3. **#24 是否引入 CLIP**（本地 torch 依赖）？建议判不引入、走 Fast path，需确认。
+> 不引入
 4. **#25 是否扩充图库源**（Coverr / Mixkit / Archive.org / Videvo 等）？涉及新增 provider 与国内可达性评估。
+> 不扩充
 5. **#47 提案期是否给 3 个概念选项**（更贵但更可能一次过），还是维持现在的"一个脚本给用户确认"？
+> 可以，尽量吸收上游先进的方法
 6. **#44/#45 决策审计链与预算四步吸收到什么程度**（全量 vs 只对高成本决策/超阈值）？
+> 可以先全量、原汁原味吸收，我们在使用中再改进
 7. **`frame.md` 层是否要做**（把 `design-system-picker` 的 14 套网页规范补一层"为镜头反转"）？
+> 不必 design-system-picker 完全是cp的另一个能力

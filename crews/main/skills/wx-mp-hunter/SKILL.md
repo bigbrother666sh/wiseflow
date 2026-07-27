@@ -1,9 +1,6 @@
 ---
 name: wx-mp-hunter
-description: 微信公众号内容抓取与 wx_mp 登录管理。三个场景：(1) 用户提供 mp.weixin.qq.com 文章链接
-  -> 直接用本技能 fetch 全文（禁止改用浏览器 web_fetch）；(2) 用户提供公众号名称 -> search 搜账号
-  -> account-posts 取文章列表 -> 逐篇 fetch 全文；(3) 统一负责 wx_mp 登录态（camoufox-cli wx_mp
-  session + 中央 cookie/token 存储，失效走扫码重登）。不支持视频号、评论、互动数据。
+description: 微信公众号内容抓取与 wx_mp 登录管理。如下三个场景必用本技能：(1) 用户提供 mp.weixin.qq.com 文章链接 -> 直接用本技能 fetch 全文（不要用浏览器 或 web_fetch）；(2) 用户提供公众号名称/专题页、主题页链接，要求获取对应的全部或部分文章；(3) wx_mp 登录态管理（camoufox-cli wx_mp session + 中央 cookie/token 存储，失效走扫码重登）。不支持视频号、评论、互动数据。
 metadata:
   openclaw:
     emoji: 📰

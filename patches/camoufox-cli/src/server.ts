@@ -195,7 +195,34 @@ export class DaemonServer {
 
   private async shutdown(): Promise<void> {
     if (this.watchdogTimer) clearInterval(this.watchdogTimer);
-    await this.manager.close();
+    // Give manager.close() (Playwright context.close -> kills camoufox-bin) a hard
+    // 8s budget. Under memory pressure or heavy-JS pages (xhs/twitter), Firefox can
+    // hang on context.close() and the await never resolves - the daemon zombifies,
+    // camoufox-bin never exits, and processes accumulate until the 13GB box OOMs.
+    // This is the idle-self-exit twin of the killDaemon fix (commit 0773afb): same
+    // context.close() hang race, but the idle-watchdog shutdown path was missed
+    // (2026-07-27 死机: 12:36 heartbeat 的 3 个 camoufox-bin idle 自退时卡死没退，
+    // 40 分钟内存不回落，叠加 13:17 小贝 xhs 任务撑爆). 8s matches killDaemon's
+    // budget (Firefox close routinely takes 2-5s). On timeout, SIGKILL the whole
+    // process group so camoufox-bin is reaped.
+    let timedOut = false;
+    await Promise.race([
+      this.manager.close(),
+      new Promise<void>((resolve) => setTimeout(() => { timedOut = true; resolve(); }, 8000)),
+    ]);
+    if (timedOut) {
+      process.stderr.write(`[camoufox-cli] manager.close() timed out after 8s (context.close hung); force-killing process group to reap camoufox-bin\n`);
+      // Unlink socket/pid first (sync, before the kill takes us down) so the next
+      // ensureDaemon doesn't see a stale socket. Then SIGKILL the whole process
+      // group: daemon.js is spawned detached:true (own pgid leader), and
+      // camoufox-bin + content procs are its children - killing only this pid
+      // would orphan camoufox-bin holding the profile lock + RAM (see 0773afb).
+      for (const p of [this.socketPath, this.pidPath]) { try { fs.unlinkSync(p); } catch {} }
+      if (this.forceExit) {
+        try { process.kill(-process.pid, "SIGKILL"); } catch {}
+        process.exit(1);
+      }
+    }
     if (this.server) {
       try { this.server.close(); } catch {}
     }

@@ -26,7 +26,12 @@ async function assetsViaApi(repo: string): Promise<any[]> {
   const resp = await fetch(`https://api.github.com/repos/${repo}/releases`, { headers: HEADERS });
   if (!resp.ok) throw new Error(`GitHub API responded with ${resp.status}`);
   const releases = (await resp.json()) as any[];
-  return releases.flatMap((release) => release.assets ?? []);
+  // Skip prerelease/draft releases: their assets may be incomplete (e.g. missing
+  // the browser binary), leading to a "successful" install of a broken release.
+  // (cherrypick from upstream #17 1a6c5e2)
+  return releases
+    .filter((release) => !release.prerelease && !release.draft)
+    .flatMap((release) => release.assets ?? []);
 }
 
 /**
@@ -122,5 +127,8 @@ export async function installBrowser(): Promise<void> {
   }
 
   await ensureMmdb();
-  maybeDownloadAddons(DefaultAddons);
+  // Await addon download: fire-and-forget can return before UBO finishes
+  // extracting, leaving an empty addons/UBO dir that makes subsequent open()
+  // fail with "manifest.json is missing". (cherrypick from upstream #19 c0ed8ad)
+  await maybeDownloadAddons(DefaultAddons);
 }

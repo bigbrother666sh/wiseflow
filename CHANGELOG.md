@@ -1,3 +1,18 @@
+# v5.6.2 (2026-07-29) - openclaw v2026.7.1 同步
+
+### openclaw 上游同步至 v2026.7.1
+
+- 从 v2026.6.11 升级到 v2026.7.1（merge-base 起 3368 commits；7.1 是 2026-07 最新稳定版，7.2 仍 beta）。openclaw release tag 是同级 release 分支（非线性累积），6.11 不是 7.1 的祖先；6.11 release-branch 独有的 28 commit 多为 CI/release/QA 收尾，关键代码修复 `fix(agents): preserve absent embedded session keys` 已经通过主线合入 7.1（`31a65e0647`），未丢失。
+- **6 个 browser-camoufox-pivot per-file patch 按 7.1 上游漂移重新生成**（原 patch `git apply --3way` 冲突，patch 集合不变，仅刷新内容）：
+  - `01` docs/tools/browser.md、`05` extensions/browser/src/browser-tool.ts、`09` extensions/browser/src/browser/profile-capabilities.ts、`11` src/agents/agent-tools.ts（mod patch，按 7.1 新结构 re-port）
+  - `10` / `17`（del patch，目标测试文件在 7.1 内容漂移，按 7.1 当前内容重新生成删除补丁）
+  - 7.1 新增 `local-extension` profile 模式（Chrome 扩展 relay 驱动），`09` re-port **保留该新模式**、仅移除 `local-managed`（camoufox 接管）
+  - `05` re-port 顺带修一个 latent 类型错误：`resolvedTarget` 未排除 `"camoufox"`，传给只接受 `"host"` 的 `resolveBrowserBaseUrl` 报 TS2322（原 patch 因 build 走 tsdown/esbuild 不做类型检查而一直未暴露，tsgo 现捕获）。修法 `target === "node" || target === "camoufox" ? undefined : target`，运行时等价（camoufox 必先早返回）
+- 保留 patch 002 / 007 + 其余 29 个 pivot per-file patch（均 `git apply --3way` 通过）
+- **验证**：全量 37 patch 顺序 apply 0 失败；tsgo 类型检查 `browser-tool.ts` / `profile-capabilities.ts` / `agent-tools.ts` / `camoufox-cli.adapter.ts` 均通过（无关报错均来自 6.11 node_modules 与 7.1 源码错配，非本仓改动）
+- **openclaw-weixin 无新发行版**：`@tencent-weixin/openclaw-weixin` 2.4.6 / `openclaw-weixin-cli` 2.1.4 / `@wecom/wecom-openclaw-cli` 1.1.0 均已是 npm 最新，`openclaw-weixin.version.json` 不变
+- `overrides.sh` 已与版本无关（浏览器转向后去掉 patchright 注入，仅注入 `OPENCLAW_DISABLE_WEB_SEARCH`），7.1 `package.json` 无 `pnpm.overrides`，兼容
+
 # v5.6.0 (2026-07-12)
 
 ### 浏览器栈整体替换（双线栈，spec `docs/browser-stack-replacement-spec-2026-07.md`）

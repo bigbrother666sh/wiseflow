@@ -1,9 +1,9 @@
 diff --git a/src/agents/sandbox/browser.create.test.ts b/src/agents/sandbox/browser.create.test.ts
 deleted file mode 100644
-index 19d8b79976..0000000000
+index 3181d895ee..0000000000
 --- a/src/agents/sandbox/browser.create.test.ts
 +++ /dev/null
-@@ -1,726 +0,0 @@
+@@ -1,730 +0,0 @@
 -// Sandbox browser creation tests cover Docker args, bridge auth, noVNC access,
 -// config hashing, and cached bridge invalidation.
 -import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -461,6 +461,8 @@ index 19d8b79976..0000000000
 -          cdpIsLoopback: true,
 -          cdpPortRangeStart: 18800,
 -          cdpPortRangeEnd: 18899,
+-          extensionRelayDefaultPort: 18799,
+-          extensionRelayPorts: {},
 -          remoteCdpTimeoutMs: 1500,
 -          remoteCdpHandshakeTimeoutMs: 3000,
 -          localLaunchTimeoutMs: 15_000,
@@ -523,6 +525,8 @@ index 19d8b79976..0000000000
 -          cdpIsLoopback: true,
 -          cdpPortRangeStart: 18800,
 -          cdpPortRangeEnd: 18899,
+-          extensionRelayDefaultPort: 18799,
+-          extensionRelayPorts: {},
 -          remoteCdpTimeoutMs: 1500,
 -          remoteCdpHandshakeTimeoutMs: 3000,
 -          localLaunchTimeoutMs: 15_000,

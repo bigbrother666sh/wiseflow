@@ -32,8 +32,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-# gen.py 路径——相对 xiaobei workspace 根
-GEN_PY = "./crews/main/skills/video-product/scripts/gen.py"
+# gen.py 路径——公共 domain skill，i2v 首尾帧插值生成
+GEN_PY = "./skills/aigc-video-gen/scripts/gen.py"
 
 
 def die(msg: str, code: int = 1) -> None:

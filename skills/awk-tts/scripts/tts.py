@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
-"""SiliconFlow text-to-speech — stdlib only (no httpx/requests)."""
+"""火山方舟豆包语音合成 2.0（seed-tts-2.0 字符版）— stdlib only (no httpx/requests).
+
+走火山 openspeech v3 单向流式接口：
+  POST https://openspeech.bytedance.com/api/v3/tts/unidirectional
+  鉴权用 X-Api-App-Id + X-Api-Access-Key（旧控制台双头）或 X-Api-Key（新控制台单头）
+  X-Api-Resource-Id 路由模型版本（seed-tts-2.0 / seed-icl-2.0 等）
+  响应是 NDJSON（换行分隔的 JSON），每行含 base64 音频分片，拼装成完整音频
+
+凭据复用本仓 viral-chaser 的火山 ASR 凭据池：
+  VOLC_TTS_APP_ID + VOLC_TTS_ACCESS_KEY（旧控制台双头，优先）
+  或 VOLC_TTS_APP_KEY（新控制台单头）
+  Resource ID 默认 seed-tts-2.0，可由 VOLC_TTS_RESOURCE_ID 覆盖
+
+ASR 自检走火山录音文件极速版（viral-chaser 同凭据池 VOLC_ASR_*），Jaccard 0.5 阈值。
+"""
 
 import argparse
+import base64
 import json
 import mimetypes
 import os
@@ -13,28 +28,46 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-DEFAULT_API_BASE = "https://api.siliconflow.cn/v1"
-DEFAULT_MODEL = "fnlp/MOSS-TTSD-v0.5"
-DEFAULT_VOICE = "fnlp/MOSS-TTSD-v0.5:benjamin"
-DEFAULT_ASR_MODEL = "TeleAI/TeleSpeechASR"
-VALID_FORMATS = {"mp3", "opus", "wav", "pcm"}
+DEFAULT_API_BASE = "https://openspeech.bytedance.com/api/v3"
+DEFAULT_TTS_PATH = "/tts/unidirectional"
+DEFAULT_RESOURCE_ID = "seed-tts-2.0"
+# 默认 speaker：爽快思思 2.0（通用，官方 2.0 音色）
+DEFAULT_SPEAKER = "zh_female_shuangkuaisisi_uranus_bigtts"
+
+# 官方 2.0 音色列表（_uranus_bigtts 后缀）—— 对应原 siliconflow 五音色的注释
 VALID_VOICES = {
-    "fnlp/MOSS-TTSD-v0.5:benjamin",
-    "fnlp/MOSS-TTSD-v0.5:charles",
-    "fnlp/MOSS-TTSD-v0.5:claire",
-    "fnlp/MOSS-TTSD-v0.5:david",
-    "fnlp/MOSS-TTSD-v0.5:diana",
+    # 通用女声（对应原 claire 清澈女声）
+    "zh_female_shuangkuaisisi_uranus_bigtts",   # 爽快思思 2.0，通用，推荐默认
+    "zh_female_cancan_uranus_bigtts",           # 知性灿灿 2.0，角色扮演
+    "zh_female_tianmeixiaoyuan_uranus_bigtts",  # 甜美小源 2.0，通用
+    "zh_female_vv_uranus_bigtts",               # Vivi 2.0，多语种通用
+    "zh_female_xiaohe_uranus_bigtts",           # 小何 2.0，通用
+    "zh_female_kefunvsheng_uranus_bigtts",      # 暖阳女声 2.0，客服
+    # 通用男声（对应原 benjamin 幽默男声 / david 清脆男声 / charles 激昂男声）
+    "zh_male_m191_uranus_bigtts",               # 舟 2.0，通用
+    "zh_male_taocheng_uranus_bigtts",           # 小天 2.0，通用
+    # 多语种（对应原 diana 可爱女声的娃娃音色备选）
+    "en_female_dacey_uranus_bigtts",            # Dacey，多语种（英）
+    "en_male_tim_uranus_bigtts",                # Tim，多语种（英）
 }
-SAMPLE_RATES_BY_FORMAT = {
-    "mp3": {32000, 44100},
-    "opus": {48000},
-    "wav": {8000, 16000, 24000, 32000, 44100},
-    "pcm": {8000, 16000, 24000, 32000, 44100},
-}
+
+VALID_FORMATS = {"mp3", "pcm", "ogg_opus", "wav"}
+SAMPLE_RATES = {8000, 16000, 22050, 24000, 32000, 44100, 48000}
+# 语速 [-50, 100]：0 默认，100 = 2x，-50 = 0.5x；映射到 [0.5, 2.0]
+SPEECH_RATE_MIN = -50
+SPEECH_RATE_MAX = 100
+LOUDNESS_RATE_MIN = -50
+LOUDNESS_RATE_MAX = 100
+
+DEFAULT_ASR_RESOURCE_ID = "volc.bigasr.auc_turbo"
+DEFAULT_ASR_MODEL = "bigasr"
+
 SAFE_INPUT_DIRS = (Path("scripts"), Path("assets"), Path("tmp"), Path("output_videos"), Path("fragments"))
 SAFE_OUTPUT_DIRS = (Path("assets/audio"), Path("tmp"), Path("output_videos"), Path("fragments"))
 TEXT_EXTENSIONS = {".txt", ".md", ".srt", ".vtt"}
 MAX_TEXT_FILE_BYTES = 512 * 1024
+# seed-tts-2.0 单次合成文本上限（字符版，保守值）
+MAX_TEXT_CHARS = 5000
 
 
 def die(message: str) -> None:
@@ -66,16 +99,12 @@ def _strip_markdown(text: str) -> str:
     lines: list[str] = []
     for line in text.splitlines():
         stripped = line.strip()
-        # Skip any markdown heading (# through ######)
         if re.match(r"^#{1,6}\s", stripped):
             continue
-        # Skip HTML comments
         if stripped.startswith("<!--") or stripped.endswith("-->"):
             continue
-        # Strip bold/italic markers
         cleaned = re.sub(r"\*{1,3}([^*]+)\*{1,3}", r"\1", stripped)
         cleaned = re.sub(r"_([^_]+)_", r"\1", cleaned)
-        # Strip leading list markers (- or * followed by space)
         cleaned = re.sub(r"^[-*]\s+", "", cleaned)
         lines.append(cleaned)
     return "\n".join(lines).strip()
@@ -116,12 +145,12 @@ def extract_tts_requirement_settings(content: str) -> dict:
     settings: dict = {}
     for line in content.splitlines():
         stripped = line.strip().strip("-").strip()
-        voice_match = re.search(r"(?:音色|语音|voice)\s*[:：]\s*`?([^\s`，,]+)", stripped, re.IGNORECASE)
+        voice_match = re.search(r"(?:音色|语音|voice|speaker)\s*[:：]\s*`?([^\s`，,]+)", stripped, re.IGNORECASE)
         if voice_match:
             settings["voice"] = voice_match.group(1)
-        speed_match = re.search(r"(?:语速|speed)\s*[:：]\s*(\d+(?:\.\d+)?)", stripped, re.IGNORECASE)
+        speed_match = re.search(r"(?:语速|speed|speech_rate)\s*[:：]\s*(-?\d+(?:\.\d+)?)", stripped, re.IGNORECASE)
         if speed_match:
-            settings["speed"] = float(speed_match.group(1))
+            settings["speech_rate"] = float(speed_match.group(1))
     return settings
 
 
@@ -215,68 +244,130 @@ def read_text(args: argparse.Namespace, root: Path | None = None) -> str:
 
 def apply_tts_settings(args: argparse.Namespace, settings: dict) -> None:
     if args.voice is None:
-        args.voice = settings.get("voice") or DEFAULT_VOICE
-    if args.speed is None and settings.get("speed") is not None:
-        args.speed = settings["speed"]
+        args.voice = settings.get("voice") or DEFAULT_SPEAKER
+    if args.speech_rate is None and settings.get("speech_rate") is not None:
+        args.speech_rate = settings["speech_rate"]
+
+
+def resolve_resource_id(speaker: str) -> str:
+    """按 speaker ID 特征路由 X-Api-Resource-Id。
+
+    - S_xxx 克隆音色 → seed-icl-2.0
+    - _uranus_bigtts / saturn_ 官方 2.0 → seed-tts-2.0
+    - _mars_bigtts / _moon_bigtts / ICL_ 官方 1.0 → seed-tts-1.0
+    """
+    if speaker.startswith("S_"):
+        return "seed-icl-2.0"
+    if "_uranus_bigtts" in speaker or speaker.startswith("saturn_"):
+        return "seed-tts-2.0"
+    if "_mars_bigtts" in speaker or "_moon_bigtts" in speaker or speaker.startswith("ICL_"):
+        return "seed-tts-1.0"
+    return os.environ.get("VOLC_TTS_RESOURCE_ID", DEFAULT_RESOURCE_ID).strip() or DEFAULT_RESOURCE_ID
 
 
 def build_payload(args: argparse.Namespace, text: str) -> dict:
-    payload = {
-        "model": args.model,
-        "input": text,
-        "voice": args.voice,
-        "response_format": args.format,
-        "stream": args.stream,
-    }
-    if args.max_tokens is not None:
-        payload["max_tokens"] = args.max_tokens
+    audio_params: dict = {"format": args.format}
     if args.sample_rate is not None:
-        payload["sample_rate"] = args.sample_rate
-    if args.speed is not None:
-        payload["speed"] = args.speed
-    if args.gain is not None:
-        payload["gain"] = args.gain
+        audio_params["sample_rate"] = args.sample_rate
+    if args.speech_rate is not None:
+        audio_params["speech_rate"] = int(args.speech_rate)
+    if args.loudness_rate is not None:
+        audio_params["loudness_rate"] = int(args.loudness_rate)
+
+    payload: dict = {
+        "user": {"uid": f"wiseflow-awk-tts-{int(time.time())}"},
+        "req_params": {
+            "text": text,
+            "speaker": args.voice,
+            "audio_params": audio_params,
+        },
+    }
+
+    additions: dict = {}
+    if args.context_text:
+        additions["context_texts"] = [args.context_text]
+    # 克隆音色需 model_type=4
+    if args.voice.startswith("S_"):
+        additions["model_type"] = 4
+    if additions:
+        payload["req_params"]["additions"] = json.dumps(additions, ensure_ascii=False)
+
     return payload
 
 
 def validate_args(args: argparse.Namespace, text: str) -> None:
-    if args.model != DEFAULT_MODEL:
-        die(f"Unsupported model: {args.model}. Use {DEFAULT_MODEL}")
+    if len(text) > MAX_TEXT_CHARS:
+        die(f"Input text exceeds {MAX_TEXT_CHARS} characters (seed-tts-2.0 single-call limit)")
     if args.voice and args.voice not in VALID_VOICES:
-        die(f"Unsupported voice: {args.voice}. Valid voices: {', '.join(sorted(VALID_VOICES))}")
-    if len(text) > 128000:
-        die("Input text exceeds 128000 characters")
-    if args.max_tokens is not None and args.max_tokens < 1:
-        die("--max-tokens must be greater than 0")
-    if args.sample_rate is not None and args.sample_rate not in SAMPLE_RATES_BY_FORMAT[args.format]:
-        valid_rates = ", ".join(str(rate) for rate in sorted(SAMPLE_RATES_BY_FORMAT[args.format]))
-        die(f"--sample-rate for {args.format} must be one of: {valid_rates}")
-    if args.speed is not None and not 0.25 <= args.speed <= 4.0:
-        die("--speed must be between 0.25 and 4.0")
-    if args.gain is not None and not -10 <= args.gain <= 10:
-        die("--gain must be between -10 and 10")
+        # 不硬拦——允许用户传克隆音色 S_xxx 或官方未列入的 speaker
+        if not (args.voice.startswith("S_") or "_uranus_bigtts" in args.voice or "_mars_bigtts" in args.voice or "_moon_bigtts" in args.voice or args.voice.startswith("saturn_") or args.voice.startswith("ICL_")):
+            die(f"Unsupported voice: {args.voice}. Valid voices: {', '.join(sorted(VALID_VOICES))}")
+    if args.sample_rate is not None and args.sample_rate not in SAMPLE_RATES:
+        die(f"--sample-rate must be one of: {', '.join(str(r) for r in sorted(SAMPLE_RATES))}")
+    if args.speech_rate is not None and not SPEECH_RATE_MIN <= args.speech_rate <= SPEECH_RATE_MAX:
+        die(f"--speech-rate must be between {SPEECH_RATE_MIN} and {SPEECH_RATE_MAX} (0=default, 100=2x, -50=0.5x)")
+    if args.loudness_rate is not None and not LOUDNESS_RATE_MIN <= args.loudness_rate <= LOUDNESS_RATE_MAX:
+        die(f"--loudness must be between {LOUDNESS_RATE_MIN} and {LOUDNESS_RATE_MAX}")
 
 
-def create_speech(api_base: str, api_key: str, payload: dict, *, timeout: int = 120) -> bytes:
+def build_headers(resource_id: str) -> dict[str, str]:
+    """构造火山鉴权 header：优先旧控制台双头，否则新控制台单头。"""
+    headers = {
+        "Content-Type": "application/json",
+        "X-Api-Resource-Id": resource_id,
+        "Connection": "keep-alive",
+    }
+    app_id = os.environ.get("VOLC_TTS_APP_ID", "").strip()
+    access_key = os.environ.get("VOLC_TTS_ACCESS_KEY", "").strip()
+    app_key = os.environ.get("VOLC_TTS_APP_KEY", "").strip()
+
+    if app_id and access_key:
+        headers["X-Api-App-Id"] = app_id
+        headers["X-Api-Access-Key"] = access_key
+    elif app_key:
+        headers["X-Api-Key"] = app_key
+    else:
+        die("火山 TTS 凭据未配置：需 VOLC_TTS_APP_ID + VOLC_TTS_ACCESS_KEY（旧控制台双头）或 VOLC_TTS_APP_KEY（新控制台单头）")
+    return headers
+
+
+def create_speech(api_base: str, payload: dict, headers: dict, *, timeout: int = 120) -> bytes:
+    """调火山 openspeech v3 单向流式 TTS，拼装 NDJSON 响应的 base64 音频分片。"""
+    url = f"{api_base.rstrip('/')}{DEFAULT_TTS_PATH}"
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        f"{api_base.rstrip('/')}/audio/speech",
-        data=data,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read()
+            raw = resp.read()
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")
         die(f"HTTP {exc.code}: {body}")
     except urllib.error.URLError as exc:
         die(f"request failed: {exc.reason}")
-    raise AssertionError("unreachable")
+
+    # NDJSON：逐行解析 JSON，收集 data 字段（base64 音频分片）
+    chunks: list[bytes] = []
+    for line in raw.decode(errors="replace").splitlines():
+        trimmed = line.strip()
+        if not trimmed:
+            continue
+        try:
+            parsed = json.loads(trimmed)
+        except json.JSONDecodeError:
+            continue
+        code = parsed.get("code")
+        if code == 0 and parsed.get("data"):
+            chunks.append(base64.b64decode(parsed["data"]))
+        elif code == 20000000:
+            # 正常结束事件
+            break
+        elif code is not None and code != 0:
+            die(f"火山 TTS 流错误: code={code} message={parsed.get('message', '')}")
+
+    if not chunks:
+        die("火山 TTS 返回空音频（无 data 分片）")
+    return b"".join(chunks)
+
 
 def resolve_output_path(args: argparse.Namespace, root: Path | None = None) -> Path:
     fragment_dir_arg = get_fragment_dir(args)
@@ -301,7 +392,7 @@ def resolve_output_path(args: argparse.Namespace, root: Path | None = None) -> P
         else:
             output_path = ensure_safe_path(str(frag_path / "artifacts" / f"speech.{args.format}"), SAFE_OUTPUT_DIRS, "output", root=root)
     else:
-        output_path = ensure_safe_path(str(Path(f"tmp/sf-tts-{int(time.time())}") / f"speech.{args.format}"), SAFE_OUTPUT_DIRS, "output", root=root)
+        output_path = ensure_safe_path(str(Path(f"tmp/awk-tts-{int(time.time())}") / f"speech.{args.format}"), SAFE_OUTPUT_DIRS, "output", root=root)
     if output_path.exists() and not args.overwrite:
         die(f"output file already exists: {output_path}. Use --overwrite to replace it")
     metadata_path = output_path.with_suffix(".json")
@@ -309,24 +400,23 @@ def resolve_output_path(args: argparse.Namespace, root: Path | None = None) -> P
         die(f"metadata file already exists: {metadata_path}. Use --overwrite to replace it")
     return output_path
 
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="SiliconFlow text-to-speech")
+    parser = argparse.ArgumentParser(description="火山方舟豆包语音合成 2.0 (seed-tts-2.0)")
     parser.add_argument("fragment_dir", nargs="?", default=None, help="Fragment directory containing tts_requirement.md")
     parser.add_argument("--text", default=None, help="Text to synthesize")
     parser.add_argument("--text-file", default=None, dest="text_file", help="UTF-8 text file")
-    parser.add_argument("--model", default=DEFAULT_MODEL, choices=[DEFAULT_MODEL], help="TTS model ID")
-    parser.add_argument("--voice", default=None, choices=sorted(VALID_VOICES), help="Voice ID")
+    parser.add_argument("--voice", default=None, help="Speaker ID (火山音色，如 zh_female_shuangkuaisisi_uranus_bigtts)")
     parser.add_argument(
         "--format",
         default="mp3",
         choices=sorted(VALID_FORMATS),
-        help="Audio response format",
+        help="Audio response format (mp3/pcm/ogg_opus/wav)",
     )
-    parser.add_argument("--max-tokens", type=int, default=None, dest="max_tokens", help="Maximum tokens to generate")
     parser.add_argument("--sample-rate", type=int, default=None, dest="sample_rate", help="Output sample rate")
-    parser.add_argument("--stream", action=argparse.BooleanOptionalAction, default=False, help="Enable streaming response")
-    parser.add_argument("--speed", type=float, default=None, help="Speech speed, 0.25 to 4.0")
-    parser.add_argument("--gain", type=float, default=None, help="Audio gain, -10 to 10")
+    parser.add_argument("--speech-rate", type=float, default=None, help="Speech rate [-50, 100], 0=default, 100=2x, -50=0.5x")
+    parser.add_argument("--loudness", type=float, default=None, dest="loudness_rate", help="Loudness [-50, 100], 0=default")
+    parser.add_argument("--context-text", default=None, dest="context_text", help="情感控制上下文文本（如 '用撒娇甜蜜的语气'）")
     parser.add_argument("--output", default=None, help="Exact output file path under assets/audio, tmp, output_videos, or fragments")
     parser.add_argument("--out-dir", default=None, dest="out_dir", help="Output directory under assets/audio, tmp, output_videos, or fragments")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
@@ -336,42 +426,41 @@ def main() -> None:
     text, tts_settings = read_text_source(args)
     apply_tts_settings(args, tts_settings)
     validate_args(args, text)
+
+    resource_id = resolve_resource_id(args.voice)
     payload = build_payload(args, text)
     output_path = resolve_output_path(args)
 
-    api_key = os.environ.get("SILICONFLOW_API_KEY", "").strip()
-    if not api_key:
-        die("SILICONFLOW_API_KEY not set")
-    api_base = os.environ.get("SILICONFLOW_API_BASE", DEFAULT_API_BASE).strip() or DEFAULT_API_BASE
+    api_base = os.environ.get("VOLC_TTS_API_BASE", DEFAULT_API_BASE).strip() or DEFAULT_API_BASE
+    headers = build_headers(resource_id)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Estimate TTS duration: ~4 Chinese chars/sec at normal speed
+    # 估算超时：中文约 4 字/秒（正常语速）
     estimated_duration = len(text) / 4
     timeout = max(120, int(estimated_duration * 1.5))
 
     print(
-        f"[info] generating speech: model={args.model} voice={args.voice} "
+        f"[info] generating speech: speaker={args.voice} resource={resource_id} "
         f"format={args.format} chars={len(text)} timeout={timeout}s"
     )
-    audio = create_speech(api_base, api_key, payload, timeout=timeout)
+    audio = create_speech(api_base, payload, headers, timeout=timeout)
     if not audio:
         die("empty audio response")
 
     output_path.write_bytes(audio)
 
-    # Calculate audio duration via ffprobe
     audio_duration = get_audio_duration(output_path)
 
     metadata_path = output_path.with_suffix(".json")
     metadata = {
-        "model": args.model,
-        "voice": args.voice,
+        "provider": "volcengine-openspeech-v3",
+        "resource_id": resource_id,
+        "speaker": args.voice,
         "format": args.format,
-        "stream": args.stream,
         "sample_rate": args.sample_rate,
-        "speed": args.speed,
-        "gain": args.gain,
+        "speech_rate": args.speech_rate,
+        "loudness_rate": args.loudness_rate,
         "text_chars": len(text),
         "audio_bytes": len(audio),
         "duration": round(audio_duration, 3),
@@ -383,7 +472,6 @@ def main() -> None:
     print(f"[done] Metadata: {metadata_path}")
     print(f"[done] Duration: {audio_duration:.3f}s")
 
-    # ASR self-check (optional, requires SILICONFLOW_API_KEY)
     if not args.no_asr_check:
         run_asr_check(output_path, text)
 
@@ -405,21 +493,19 @@ def get_audio_duration(filepath: Path) -> float:
     return 0.0
 
 
+# ── ASR 自检（火山录音文件极速版，与 viral-chaser 同凭据池）────────────────────
+
 def run_asr_check(audio_path: Path, script_text: str, threshold: float = 0.5) -> None:
-    """Transcribe audio via SiliconFlow ASR and compare with script text.
-
-    Uses Jaccard similarity with the given threshold (default 0.5).
-    Only warns on failure; does not abort.
-    """
-    api_key = os.environ.get("SILICONFLOW_API_KEY", "").strip()
-    if not api_key:
-        print("[info] ASR check skipped: SILICONFLOW_API_KEY not set")
+    """转写音频并与脚本文本比对 Jaccard 相似度。仅 WARN 不 abort。"""
+    app_id = os.environ.get("VOLC_ASR_APP_ID", "").strip()
+    access_key = os.environ.get("VOLC_ASR_ACCESS_KEY", "").strip()
+    app_key = os.environ.get("VOLC_ASR_APP_KEY", "").strip()
+    if not (app_id and access_key) and not app_key:
+        print("[info] ASR check skipped: VOLC_ASR_* 凭据未配置")
         return
-    api_base = os.environ.get("SILICONFLOW_API_BASE", DEFAULT_API_BASE).strip() or DEFAULT_API_BASE
-    asr_model = os.environ.get("SILICONFLOW_ASR_MODEL", DEFAULT_ASR_MODEL).strip() or DEFAULT_ASR_MODEL
 
-    print(f"[info] Running ASR self-check: model={asr_model}")
-    transcribed = transcribe_audio(audio_path, api_key, api_base=api_base, model=asr_model)
+    print("[info] Running ASR self-check (火山录音文件极速版)")
+    transcribed = transcribe_audio_volc_asr(audio_path)
     if not transcribed:
         print("[warn] ASR check: transcription failed, skipping comparison")
         return
@@ -436,53 +522,33 @@ def run_asr_check(audio_path: Path, script_text: str, threshold: float = 0.5) ->
             print(f"[warn] Missing keywords: {sample}...")
 
 
-def build_multipart_form_data(file_path: Path, fields: dict[str, str], boundary: str | None = None) -> tuple[bytes, str]:
-    """Build multipart/form-data for SiliconFlow audio transcription."""
-    boundary = boundary or f"----OpenClawBoundary{uuid.uuid4().hex}"
-    filename = file_path.name
-    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    body_parts: list[bytes] = []
+def transcribe_audio_volc_asr(audio_path: Path) -> str:
+    """调火山录音文件极速版 ASR，返回转写文本。"""
+    api_base = os.environ.get("VOLC_ASR_API_BASE", "https://openspeech.bytedance.com/api/v1").strip()
+    resource_id = os.environ.get("VOLC_ASR_RESOURCE_ID", DEFAULT_ASR_RESOURCE_ID).strip()
 
-    body_parts.append(
-        (
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'
-            f"Content-Type: {content_type}\r\n\r\n"
-        ).encode("utf-8")
+    headers = {"X-Api-Resource-Id": resource_id, "Content-Type": "audio/mpeg"}
+    app_id = os.environ.get("VOLC_ASR_APP_ID", "").strip()
+    access_key = os.environ.get("VOLC_ASR_ACCESS_KEY", "").strip()
+    app_key = os.environ.get("VOLC_ASR_APP_KEY", "").strip()
+    if app_id and access_key:
+        headers["X-Api-App-Id"] = app_id
+        headers["X-Api-Access-Key"] = access_key
+    else:
+        headers["X-Api-Key"] = app_key
+
+    audio_bytes = audio_path.read_bytes()
+    req = urllib.request.Request(
+        f"{api_base.rstrip('/')}/auc",
+        data=audio_bytes,
+        headers=headers,
+        method="POST",
     )
-    body_parts.append(file_path.read_bytes())
-    body_parts.append(b"\r\n")
-
-    for name, value in fields.items():
-        body_parts.append(
-            (
-                f"--{boundary}\r\n"
-                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
-                f"{value}\r\n"
-            ).encode("utf-8")
-        )
-
-    body_parts.append(f"--{boundary}--\r\n".encode("utf-8"))
-    return b"".join(body_parts), f"multipart/form-data; boundary={boundary}"
-
-
-def build_transcription_request(api_base: str, api_key: str, audio_path: Path, model: str = DEFAULT_ASR_MODEL) -> urllib.request.Request:
-    body, content_type = build_multipart_form_data(audio_path, {"model": model})
-    req = urllib.request.Request(f"{api_base.rstrip('/')}/audio/transcriptions", data=body, method="POST")
-    req.add_header("Authorization", f"Bearer {api_key}")
-    req.add_header("Content-Type", content_type)
-    return req
-
-
-def transcribe_audio(audio_path: Path, api_key: str, api_base: str = DEFAULT_API_BASE, model: str = DEFAULT_ASR_MODEL) -> str:
-    """Transcribe audio via SiliconFlow ASR API."""
-    req = build_transcription_request(api_base, api_key, Path(audio_path), model=model)
-
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             result = json.loads(resp.read().decode())
-            return result.get("text", "")
-    except (urllib.error.HTTPError, urllib.error.URLError):
+            return result.get("result", "") or ""
+    except (urllib.error.HTTPError, urllib.error.URLError, json.JSONDecodeError):
         return ""
 
 

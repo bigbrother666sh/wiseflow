@@ -389,6 +389,19 @@ ffmpeg -y -i <run>/final-5s-noaudio.mp4 \
 
 逐条 QA 结论（含带瑕疵通过的判定理由）写入 `<project>/gate3-qa.md`。
 
+### 成片技术自检（强制闸门）
+
+视觉 QA（contact sheet 看组装过程与落位）完成后，**必须**再跑公共 `video-review` 技术自检闸门，verdict=pass 才进交付：
+
+```bash
+video-review <run>/final-5s-noaudio.mp4
+# 或带声版：video-review <run>/final-5s.mp4
+```
+
+`video-review` 查的是技术层硬伤（ffprobe 全字段 / 5 位抽帧黑帧扫 / 音频电平 / 时长分辨率一致性），与上面的视觉 QA（看隐喻是否一眼看懂、组装过程是否成立）**互补不重叠**——视觉 QA 评审美与语义，video-review 评技术合规。verdict=fail 按 critical 项修或重生对应 job，verdict=warn 向用户复述由其决定。详见 `video-review` 技能 SKILL.md。
+
+> 拼贴动画默认无声交付时，`audio_absent` warning 是预期（`final-5s-noaudio.mp4` 本就是抽音轨版），warn 可放行；带声版 `final-5s.mp4` 出 `audio_absent` 则 critical——gen.py 声画同出模式该出声没出声是硬伤，退回重生成。
+
 ### 常见问题
 
 - 首帧边缘提前露出：轻微可接受；严格空场需求改用更坚定的 first-frame（纯色 + 边缘 padding）
@@ -408,7 +421,7 @@ ffmpeg -y -i <run>/final-5s-noaudio.mp4 \
 - 最终帧对照图
 - 一句说明每条文稿如何转成视觉隐喻
 
-如果成片问题来自 gen.py i2v 的生成限制（组装感弱 / 尾帧漂移），直接说明；只有需要精确图层控制时，才建议切换到其他方案（如 HyperFrames，但我们不内置 HyperFrames）。
+如果成片问题来自 gen.py i2v 的生成限制（组装感弱 / 尾帧漂移），直接说明；只有需要精确图层控制时，才建议切换到其他方案（如 Manim 科学动画 → manim-explainer）。
 
 ## 脚本清单
 

@@ -2,13 +2,13 @@
 """Loudness normalization — 发布平台通用响度归一化。
 
 把成片音频响度归一化到 -14 LUFS（短视频平台通用标准：抖音/视频号/B 竍竖屏通用）。
-跑在合成后、自检/交付前。OpenMontage 这条是必跑步骤，我们也按必跑设计——但脚本
+跑在合成后、自检/交付前。这条是必跑步骤——但脚本
 本身尊重 --skip 时跳过，由 caller（AGENTS.md 工作流）决定是否强制。
 
 为什么 -14 LUFS：
 - 抖音/视频号/B 竍竖屏发布通用标准，与平台播放器电平匹配，避免"在我机 sound bar
   听着正"但"在手机刷到时偏轻/偏响"
-- OpenMontage 同款阈值，industry de-facto for short-form video
+- industry de-facto for short-form video
 
 ffmpeg 用 loudnorm 双 pass：
 - Pass 1：探测当前响度 + 真实峰 + 阈值，落测量 JSON
@@ -42,7 +42,7 @@ from pathlib import Path
 DEFAULT_TARGET_LUFS = -14.0
 DEFAULT_TRUE_PEAK_DB = -1.5      # 真实峰上限，留 0.5dB headroom 避削顶
 DEFAULT_LRA = 11.0                # loudness range 目标，短视频通用 7–13，取中
-AGGRESSIVE_THRESHOLD = -20.0     # 平滑触发阈，OpenMontage 同款
+AGGRESSIVE_THRESHOLD = -20.0     # 平滑触发阈，industry de-facto
 
 
 def die(msg: str, code: int = 1) -> None:

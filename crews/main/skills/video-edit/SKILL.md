@@ -142,7 +142,7 @@ video-edit audio-mix input.mp4 --narration speech.mp3 --bgm music.mp3 --output o
 旁白音频的生成：
 
 1. **优先使用 OpenClaw 内置 TTS 工具**（`tts_generate` 或 agent 内置语音合成能力）
-2. 内置 TTS 不可用时，使用公共 `siliconflow-tts` 技能（要求环境变量已配置 `SILICONFLOW_API_KEY`）
+2. 内置 TTS 不可用时，使用公共 `awk-tts` 技能（火山方舟豆包语音合成 2.0，要求环境变量已配置 `VOLC_TTS_*` 凭据）
 3. 旁白时长必须与视频时长匹配（TTS 语速可微调以适配），混音前先核对两者时长
 
 ## 能力四：字幕烧录（subtitles）

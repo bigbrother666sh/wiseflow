@@ -29,8 +29,8 @@ Use Manim for technical explainers where motion, structure, and clarity matter m
 
 - `manim` CLI for scene rendering
 - `ffmpeg` for post-processing if needed
-- `fragment-assembly` for combining rendered video with TTS audio
-- `siliconflow-tts` for voiceover generation
+- `video-edit assemble` for combining rendered video with TTS audio
+- `awk-tts` for voiceover generation
 
 ## Default Output
 
@@ -110,6 +110,6 @@ Return:
 
 ## Related Skills
 
-- `fragment-assembly` for combining rendered video with TTS audio
-- `siliconflow-tts` for voiceover generation
+- `video-edit assemble` for combining rendered video with TTS audio
+- `awk-tts` for voiceover generation
 - `content-check` for verifying output quality and duration

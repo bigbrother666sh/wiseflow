@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# init-workspace — 为 designer 单项任务创建标准目录结构
-# 用法: ./skills/init-workspace/scripts/init.sh <任务名>
-# 示例: ./skills/init-workspace/scripts/init.sh wiseflow-official-website
+# init.sh — 为单项设计任务创建标准目录结构 + brief 模板
+# 用法: design-full init <任务名>（wrapper 转发到本脚本）
+# 示例: design-full init wiseflow-official-website
 
 set -euo pipefail
 

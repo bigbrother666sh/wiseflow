@@ -1,8 +1,8 @@
 # Content Producer 脚本索引
 
-五个后期脚本借 OpenMontage 的后期工作法补我们没做的后期环节。**两个必跑、三个可选**——必跑的是发布质量硬伤，可选的是用户要才跑。
+五个后期脚本补我们没做的后期环节。**两个必跑、三个可选**——必跑的是发布质量硬伤，可选的是用户要才跑。
 
-完整接入契约（落点 / 旁路条件 / 干湿分离 / 借鉴来源对照）在 `../AGENTS.md` 的 `## 脚本清单` 段；本文件只做脚本速查索引，**不重复契约**。
+完整接入契约（落点 / 旁路条件 / 干湿分离）在 `../AGENTS.md` 的 `## 脚本清单` 段；本文件只做脚本速查索引，**不重复契约**。
 
 ## 索引
 
@@ -54,16 +54,10 @@ python3 ./scripts/interp.py <video.mp4> --target-fps 30 --output <out.mp4>
 - `denoise.py`：AI 生成视频音轨干净 → 跳过；ffmpeg 不带 afftdn/arnndn → exit 1；arnndn 没传 `--rnn-model` → exit 1
 - `interp.py`：源 fps ≥ target fps → 自动跳过拷贝；ffmpeg 不带 minterpolate → exit 1；mci 模式出鬼影 → 退 blend 模式
 
-## 借鉴来源（OpenMontage 吸收审计用）
+## 借鉴来源（审计用）
 
-- `normalize.py` ← OpenMontage Ink Theater loudness gate（必跑步骤，我们同款必跑）
-- `burn-srt.py` ← OpenMontage Remotion-composer caption 烧录（Remition 内置，我们用 ffmpeg 平替）
-- `duck.py` ← OpenMontage Remotion-composer mixing（Remition 内置混音，我们用 ffmpeg sidechaincompress 平替）
-- `denoise.py` ← OpenMontage Ink Theater noise gate（我们只在用户素材用，AI 生成不用）
-- `interp.py` ← OpenMontage Backlot 看板 frame interpolation（Remition 内置补帧，我们用 ffmpeg minterpolate 平替）
-
-## 没吸收的 OpenMontage 能力
-
-（上一轮已拍板，备忘——不重做）
-- selector / scoring.py 7 维评分 → 已有 content-calibrator，不重
-- Backlot 看板 / Remotion-composer / HyperFrames / Ink Theater 实时调色 / quality scoring → runtime 哲学对立或重复，剥掉
+- `normalize.py` ← 响度归一化（必跑步骤）
+- `burn-srt.py` ← ffmpeg subtitles 滤镜烧录字幕
+- `duck.py` ← ffmpeg sidechaincompress 旁白触发 BGM 自动压低
+- `denoise.py` ← 用户素材降噪（只在用户素材用，AI 生成不用）
+- `interp.py` ← ffmpeg minterpolate 补帧

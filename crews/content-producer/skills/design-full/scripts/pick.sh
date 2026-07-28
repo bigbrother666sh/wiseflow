@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# design-system-picker — 根据风格描述从设计系统库中匹配最合适的设计系统
-# 用法: ./skills/design-system-picker/scripts/pick.sh "<风格描述>"
-# 示例: ./skills/design-system-picker/scripts/pick.sh "科技感暗色主题"
+# pick.sh — 从内置设计系统库匹配最合适的 1–3 套设计系统
+# 用法: design-full pick "<风格描述>"（wrapper 转发到本脚本）
+# 示例: design-full pick "科技感暗色主题"
 
 set -euo pipefail
 

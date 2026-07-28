@@ -1,5 +1,5 @@
 {
-  "skills": ["siliconflow-tts", "manim-explainer", "remotion-video-creation", "ui-demo", "hyperframes-video-creation", "siliconflow-img-gen", "siliconflow-video-gen", "pexels-footage", "pixabay-footage", "smart-search", "complex-task"],
+  "skills": ["video-producer", "collage-broll", "manim-explainer", "design-full", "awk-tts", "siliconflow-img-gen", "aigc-video-gen", "pexels-footage", "pixabay-footage", "video-review", "smart-search", "complex-task"],
   "subagents": {
     "allowAgents": ["it-engineer", "designer"]
   },

@@ -94,8 +94,11 @@ aigc-video-gen --ref-image character_reference.jpg \
 | `--resolution` | `720P` | 分辨率：`720P` / `1080P`（火山 Fast 仅 720P） |
 | `--image` | — | 首帧图像路径（i2v 模式） |
 | `--last-frame` | — | 尾帧图像路径（i2v 首尾帧插值） |
+| `--prev-segment` | — | 上一段视频本地路径：脚本自动抽取其末帧作为本段首帧（人物故事首尾帧对齐，与 `--image` 互斥） |
 | `--ref-image` | — | 用户参考图路径（r2v 模式） |
 | `--ref-video` | — | 参考视频路径（如有） |
+| `--no-audio` | off | 关闭声画同出（默认开启）；col-broll 拼贴动画等要抽无声交付时用 |
+| `--platform` | auto | 覆盖平台自动检测：`volcengine` / `dashscope`；不指定则按 env 自动判 |
 | `--model` | auto | 显式指定模型 ID（关闭候选链 fallback）；不指定则按模式走首选 + 候选链 |
 | `--output` | required | 输出 MP4 路径（必须在 `output_videos/` 下，gen.py 内部 `ensure_safe_output` 校验） |
 

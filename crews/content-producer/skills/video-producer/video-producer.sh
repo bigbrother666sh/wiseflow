@@ -22,7 +22,7 @@ video-producer — 端到端视频制作（wrapper）
   video-producer help                    列可用子命令
 
 子命令（按工作流阶段序）:
-  intent-router        Stage 0  意图路由 → 三档脚本模板（narrative/motion/montage）
+  intent-router        Stage 0  意图路由 → 三档脚本模板（故事讲述型/纯画面动效型/蒙太奇剪接型）
   reference-concepts   Stage 1  吃 viral-chaser 报告出 2–3 差异化概念（可选，无报告跳过）
   story-develop        Stage 2  idea → 故事（分场）
   script-write         Stage 3  故事 → 分场剧本（含 enhancement_cues + delivery_cues）

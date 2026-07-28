@@ -1,6 +1,6 @@
 ---
 name: video-producer
-description: 端到端视频制作——出脚本、分镜、机位一致性、素材匹配、闸门、渲染、自检、交付。接到"从零做视频""出一支完整视频""按这个脚本/主题拍片子"类需求时走本技能。意图路由三档脚本模板（narrative/motion/montage）+ 两道闸门（GATE A 文本闸、GATE B 素材闸）+ 产物文件即 checkpoint。
+description: 端到端视频制作——出脚本、分镜、机位一致性、素材匹配、闸门、渲染、自检、交付。接到"从零做视频""出一支完整视频""按这个脚本/主题拍片子"类需求时走本技能。意图路由三档脚本模板（故事讲述型/纯画面动效型/蒙太奇剪接型）+ 两道闸门（GATE A 文本闸、GATE B 素材闸）+ 产物文件即 checkpoint。
 metadata:
   openclaw:
     emoji: 🎬
@@ -96,7 +96,10 @@ output_videos/<topic-en-slug>/
 每段子命令是 `scripts/` 下一个独立 .py，agent 按本 SKILL.md 工作流逐个调。**产物文件存在性即 checkpoint**——每个子命令先查产物文件是否存在，存在则 load 不重生成（允许用户手改 JSON 后续跑）。
 
 ```
-Stage 0  intent-router        意图路由 → 三档脚本模板（narrative/motion/montage）
+Stage 0  intent-router        意图路由 → 三档脚本模板（故事讲述型/纯画面动效型/蒙太奇剪接型）
+  · 故事讲述型（narrative）——重情节、有人物弧光、含旁白；默认 3–5 镜/场
+  · 纯画面动效型（motion）——重节奏感/视觉冲击/少对白；默认 5–8 镜快切
+  · 蒙太奇剪接型（montage）——重氛围/抽象/纯视觉；默认 4–7 镜无叙事
 Stage 1  reference-concepts   若 main 喂了 viral-chaser 报告 → 吃报告出 2–3 差异化概念；无报告跳过
 Stage 2  story-develop        idea → 故事（含受众/类型显式复述，100–200 词梗概，人物，分场）
 Stage 3  script-write         故事 → 分场剧本（同时间同地点分一场；可拍化描述；enhancer 润色）
@@ -179,7 +182,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 
 ### 模糊意图不算确认
 
-- 用户说"做个短片""帮我策划"**不算确认**，必须先问清楚走哪条 workflow（narrative/motion/montage）、时长、受众
+- 用户说"做个短片""帮我策划"**不算确认**，必须先问清楚走哪条 workflow（故事讲述型/纯画面动效型/蒙太奇剪接型）、时长、受众
 - 起草/讨论脚本属对话协助，**不许调 render 工具**
 - 默认**小规模**：1 场 3–5 镜，不许把模糊想法擅自扩成多场多镜；用户要扩才扩
 

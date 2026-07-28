@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Stage 0 — intent-router：把用户意图路由成 narrative/motion/montage 三档脚本模板。
+"""Stage 0 — intent-router：把用户意图路由成三档脚本模板。
+
+三档（内部 key 保留英文，user-facing 表述用中文名）：
+- narrative（故事讲述型）——重情节、有人物弧光、含旁白 → 默认 3–5 镜/场
+- motion（纯画面动效型）——重节奏感/视觉冲击/少对白 → 默认 5–8 镜快切
+- montage（蒙太奇剪接型）——重氛围/抽象/纯视觉 → 默认 4–7 镜无叙事
 
 Usage:
   python3 scripts/intent-router.py <project_dir> [--user-text "..."] [--report-file path]
 
 入：project_dir（output_videos/<topic>/），可选用户原文或 viral-chaser 报告路径
 出：project_dir/script/intent.json（档位 + 主题 + 受众 + 时长目标 + 备选 + 决策理由）
-
-档位判定：
-- narrative：要讲故事/有情节/有人物弧光 → 默认 3–5 镜/场
-- motion：要节奏感/视觉冲击/少对白 → 默认 5–8 馕镜快切
-- montage：要氛围/抽象/纯视觉 → 默认 4–7 镜无叙事
 
 产物文件存在性即 checkpoint：intent.json 已存在则打印现状退出，不重生成（用户手改后续跑）。
 """

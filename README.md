@@ -359,7 +359,8 @@ wiseflow/
 - Everything Claude Code（Claude Code 全局 skill / rule / agent 集合，wiseflow 的 complex-task 等编排 skill 借鉴了其 blueprint 和 gan-style-harness 的设计思路） https://github.com/affaan-m/everything-claude-code
 - awesome-design-md（A curated collection of design systems in markdown format — Designer 内置设计系统库参考了此项目的设计系统结构） https://github.com/VoltAgent/awesome-design-md
 - cheat-on-content（自媒体打分算法借鉴） https://github.com/XBuilderLAB/cheat-on-content
-- AutoClip（AI 视频智能切片系统 — `talking-head-cut` 技能的高光剪辑算法与工作流借鉴自此） https://github.com/zhouxiaoka/autoclip
+- AutoClip（AI 视频智能切片系统 — `talking-head-cut` 技能的高光剪辑算法与工作流借鉴自此；`video-producer` 的 Stage 13b motion-audit 镜头抽帧打分思路亦借鉴其高光判定） https://github.com/zhouxiaoka/autoclip
+- ShortGPT（开源短视频自动化编排框架 — `video-producer` 的 Stage 12 拼接成片+转场工作流借鉴其片段组装与节奏控制思路） https://github.com/rife11/ShortGPT
 - agent-skills-launch-pack_（起号方法论知识来源） https://github.com/chenjin-cmd/agent-skills-launch-pack_
 
 ## Citation

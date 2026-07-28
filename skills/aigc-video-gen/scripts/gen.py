@@ -89,6 +89,12 @@ SAFE_OUTPUT_DIRS = (
 # Transient HTTP statuses worth retrying on the same model before falling back.
 RETRYABLE_HTTP = {408, 429, 500, 502, 503, 504}
 
+# Poll cadence / overall timeout for task polling (agent 不调，固定常量)
+VOLC_POLL_INTERVAL = 15
+VOLC_TIMEOUT = 900
+DS_POLL_INTERVAL = 15
+DS_TIMEOUT = 900
+
 
 def die(message: str, code: int = 1) -> None:
     print(f"[error] {message}", file=sys.stderr)
@@ -341,10 +347,6 @@ def volc_build_content(args: argparse.Namespace) -> list[dict]:
         items.append(
             {"type": "video_url", "video_url": {"url": resolve_media_url(args.ref_video, "ref-video")}}
         )
-    if args.ref_audio:
-        items.append(
-            {"type": "audio_url", "audio_url": {"url": resolve_media_url(args.ref_audio, "ref-audio")}}
-        )
     return items
 
 
@@ -357,8 +359,6 @@ def volc_submit(model: str, args: argparse.Namespace, api_key: str) -> str:
         "resolution": args.resolution.lower(),
         "generate_audio": args.audio,
     }
-    if args.seed is not None:
-        payload["seed"] = args.seed
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -370,10 +370,10 @@ def volc_submit(model: str, args: argparse.Namespace, api_key: str) -> str:
     return task_id
 
 
-def volc_poll(task_id: str, api_key: str, interval: int, timeout: int) -> str:
+def volc_poll(task_id: str, api_key: str) -> str:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     url = VOLC_QUERY.format(task_id=task_id)
-    deadline = time.time() + timeout
+    deadline = time.time() + VOLC_TIMEOUT
     attempt = 0
     while time.time() < deadline:
         attempt += 1
@@ -388,16 +388,14 @@ def volc_poll(task_id: str, api_key: str, interval: int, timeout: int) -> str:
         if status in {"failed", "cancelled", "expired"}:
             err = resp.get("error") or {}
             raise TaskFailed(f"volcengine task {status}: {err.get('code', '')} {err.get('message', '')}")
-        time.sleep(interval)
-    die(f"volcengine timed out after {timeout}s (task {task_id})")
+        time.sleep(VOLC_POLL_INTERVAL)
+    die(f"volcengine timed out after {VOLC_TIMEOUT}s (task {task_id})")
 
 
 # ---- platform: DashScope ------------------------------------------------------
 
 def ds_build_input(args: argparse.Namespace) -> dict:
     inp: dict = {"prompt": args.prompt}
-    if args.negative_prompt:
-        inp["negative_prompt"] = args.negative_prompt
 
     media: list[dict] = []
     if args.image:
@@ -406,22 +404,10 @@ def ds_build_input(args: argparse.Namespace) -> dict:
         media.append({"type": "last_frame", "url": resolve_image(args.last_frame)})
     if args.ref_image:
         m = {"type": "reference_image", "url": resolve_image(args.ref_image)}
-        if args.ref_audio:
-            m["reference_voice"] = resolve_media_url(args.ref_audio, "ref-audio")
         media.append(m)
     if args.ref_video:
         m = {"type": "reference_video", "url": resolve_media_url(args.ref_video, "ref-video")}
-        if args.ref_audio:
-            m["reference_voice"] = resolve_media_url(args.ref_audio, "ref-audio")
         media.append(m)
-    if args.ref_audio:
-        audio_url = resolve_media_url(args.ref_audio, "ref-audio")
-        if media and (args.image or args.last_frame) and not args.ref_image and not args.ref_video:
-            # i2v + driving audio: audio rides as a media item
-            media.append({"type": "driving_audio", "url": audio_url})
-        elif not media:
-            # t2v + audio: audio_url lives at input level
-            inp["audio_url"] = audio_url
     if media:
         inp["media"] = media
     return inp
@@ -435,12 +421,9 @@ def ds_submit(model: str, args: argparse.Namespace, api_key: str, base: str) -> 
             "resolution": args.resolution.upper(),
             "ratio": args.ratio,
             "duration": args.duration,
-            "prompt_extend": args.prompt_extend,
             "watermark": False,
         },
     }
-    if args.seed is not None:
-        payload["parameters"]["seed"] = args.seed
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -453,10 +436,10 @@ def ds_submit(model: str, args: argparse.Namespace, api_key: str, base: str) -> 
     return task_id
 
 
-def ds_poll(task_id: str, api_key: str, interval: int, timeout: int, base: str) -> str:
+def ds_poll(task_id: str, api_key: str, base: str) -> str:
     headers = {"Authorization": f"Bearer {api_key}"}
     url = f"{base}{DS_QUERY_PATH.format(task_id=task_id)}"
-    deadline = time.time() + timeout
+    deadline = time.time() + DS_TIMEOUT
     attempt = 0
     while time.time() < deadline:
         attempt += 1
@@ -473,8 +456,8 @@ def ds_poll(task_id: str, api_key: str, interval: int, timeout: int, base: str) 
             raise TaskFailed(
                 f"dashscope task {status}: {out.get('code', '')} {out.get('message', '')}"
             )
-        time.sleep(interval)
-    die(f"dashscope timed out after {timeout}s (task {task_id})")
+        time.sleep(DS_POLL_INTERVAL)
+    die(f"dashscope timed out after {DS_TIMEOUT}s (task {task_id})")
 
 
 class TaskFailed(Exception):
@@ -544,11 +527,11 @@ def run_one(platform: str, model: str, args: argparse.Namespace, api_key: str) -
     if platform == "volcengine":
         task_id = volc_submit(model, args, api_key)
         log(f"volcengine task submitted: {task_id} (model={model})")
-        return volc_poll(task_id, api_key, args.poll_interval, args.timeout)
+        return volc_poll(task_id, api_key)
     base = ds_base_for_model(model)
     task_id = ds_submit(model, args, api_key, base)
     log(f"dashscope task submitted: {task_id} (model={model} base={base})")
-    return ds_poll(task_id, api_key, args.poll_interval, args.timeout, base)
+    return ds_poll(task_id, api_key, base)
 
 
 def generate(platform: str, candidates: list[str], args: argparse.Namespace, api_key: str) -> str:
@@ -594,18 +577,12 @@ def main() -> None:
     parser.add_argument("--last-frame", default=None, dest="last_frame", help="尾帧图片：URL 或本地路径（i2v 首尾帧）")
     parser.add_argument("--ref-image", default=None, dest="ref_image", help="参考图片：URL 或本地路径（→ r2v，角色/主体一致性）")
     parser.add_argument("--ref-video", default=None, dest="ref_video", help="参考视频 URL（→ r2v，需公网 URL）")
-    parser.add_argument("--ref-audio", default=None, dest="ref_audio", help="驱动/参考音频 URL（需公网 URL）")
-    parser.add_argument("--negative-prompt", default=None, dest="negative_prompt", help="反向提示词")
     parser.add_argument("--duration", type=int, default=8, help="时长（秒），默认 8")
     parser.add_argument("--ratio", default="9:16", choices=sorted(VALID_RATIOS), help="宽高比，默认 9:16")
     parser.add_argument("--resolution", default="720P", choices=["720P", "1080P"], help="分辨率，默认 720P")
     parser.add_argument("--no-audio", action="store_false", dest="audio", help="关闭声画同出（默认开启）")
-    parser.add_argument("--no-prompt-extend", action="store_false", dest="prompt_extend", help="关闭 DashScope prompt 智能改写")
     parser.add_argument("--platform", default=None, choices=["volcengine", "dashscope"], help="覆盖平台自动检测")
     parser.add_argument("--model", default=None, help="指定模型 id（关闭候选链 fallback）")
-    parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--poll-interval", type=int, default=15, dest="poll_interval", help="轮询间隔秒，默认 15")
-    parser.add_argument("--timeout", type=int, default=900, help="整体超时秒，默认 900")
     parser.add_argument("--output", required=True, help="输出 MP4 路径（相对工作区，须在 output_videos/tmp/fragments/artifacts 下）")
     args = parser.parse_args()
 

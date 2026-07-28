@@ -79,7 +79,7 @@ metadata:
 
 ## 默认项目目录
 
-用 xiaobei 路径契约——落在 `output_videos/` 下，名 `<topic-en-slug>`：
+路径契约——落在 `output_videos/` 下，名 `<topic-en-slug>`：
 
 ```text
 output_videos/<topic-en-slug>/

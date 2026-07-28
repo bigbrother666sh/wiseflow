@@ -45,7 +45,7 @@ OpenClaw 内置 TTS 不可用时，回退到本 skill 的本地脚本（要求�
 
 > 鉴权二选一（脚本优先旧控制台双头）。脚本自动判：同时给出 `VOLC_TTS_APP_ID`+`VOLC_TTS_ACCESS_KEY` 走旧双头；否则用 `VOLC_TTS_APP_KEY` 走新单头。
 
-> 由小贝 spawn IT engineer subagent 写入实例环境变量，**小贝本人不要直接写环境变量文件**。
+> 应该 spawn IT engineer subagent 写入实例环境变量，**不要自己写环境变量文件**，it-engineer具有相关背景知识。
 
 ## Run
 

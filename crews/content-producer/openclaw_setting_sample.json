@@ -1,8 +1,18 @@
 {
-  "skills": ["video-producer", "collage-broll", "manim-explainer", "design-full", "awk-tts", "siliconflow-img-gen", "aigc-video-gen", "pexels-footage", "pixabay-footage", "video-review", "smart-search", "complex-task"],
-  "subagents": {
-    "allowAgents": ["it-engineer", "designer"]
+  "skills": [
+    "video-producer"
+  ],
+  "tools": {
+    "exec": {
+      "host": "gateway",
+      "security": "full",
+      "ask": "off"
+    }
   },
-  "maxConcurrent": 2,
-  "tools": {}
+  "subagents": {
+    "allowAgents": [
+      "it-engineer",
+      "content-producer"
+    ]
+  }
 }

@@ -1,6 +1,6 @@
 ---
 name: collage-broll
-description: 将约 5 秒口播文稿、观点句或抽象概念做成高级 editorial halftone paper-collage / 半调纸拼贴 B-roll。用户说"collage b-roll""纸拼贴 b-roll""半调拼贴""拼贴风格配画面""用这段文稿做拼贴动画""gbro-collage-broll"，或希望把一句文稿转成拼贴视觉隐喻时，必须使用此 skill。强制采用三阶段审批：先只提视觉隐喻，用户确认后用 siliconflow-img-gen 生成彩色拼贴静帧，静帧再次确认后用 gen.py（i2v 首尾帧插值）组装动画。视频生成走百炼 happyhorse-1.1-i2v 候选链（沿链 fallback）或火山 Seedance（视 env 配置），不调 Gemini Omni。
+description: 将约 5 秒口播文稿、观点句或抽象概念做成高级 editorial halftone paper-collage / 半调纸拼贴 B-roll。用户说"collage b-roll""纸拼贴 b-roll""半调拼贴""拼贴风格配画面""用这段文稿做拼贴动画"，或希望把一句文稿转成拼贴视觉隐喻时，必须使用此 skill。强制采用三阶段审批：先只提视觉隐喻，用户确认后用 siliconflow-img-gen 生成彩色拼贴静帧，静帧再次确认后用公共 aigc-video-gen 技能（i2v 首尾帧插值）组装动画。视频生成走百炼 happyhorse-1.1-i2v 候选链（沿链 fallback）或火山 Seedance（视 env 配置）。
 metadata:
   openclaw:
     emoji: 🗞️
@@ -19,54 +19,13 @@ metadata:
 
 把一句约 5 秒的口播压成一个 sharp visual idea，再做成高级编辑风纸拼贴组装动画。
 
-本 skill 由 gbro-collage-broll 适配而来——三闸门审批节奏 + assemble-from-empty prompt 写法保留，但所有外部依赖换到 xiaobei 语境：
-
-| 原膜（gbro） | 本 skill（xiaobei） |
-|------|------|
-| Gemini Omni Flash（视频） | gen.py i2v 首尾帧插值（百炼 happyhorse-1.1-i2v 沿链 / 火山 Seedance） |
-| Codex 内置 `image_gen`（静帧） | `siliconflow-img-gen` 技能（Seedream doubao-seedream-4.5） |
-| GEMINI_API_KEY + google-genai SDK | AWK_API_KEY（图像）/ MODELSTUDIO_API_KEY 或 AWK_GEN_KEY（视频） |
-| `~/hyperframes-projects/.omni-venv/` 独立 venv | 仓根 `requirements.txt` + `scripts/apply-addons.sh` 统一装，不留独立 venv |
-| `~/hyperframes-projects/YYYY-MM-DD-collage-broll-标题/` | `output_videos/<topic-en-slug>/`（xiaobei 路径契约） |
-| Veo 旧脚本兼容 | 不带——我们一开始就是 Seedance / happyhorse，无 Veo 遗产 |
-
 默认链路：
 
 1. 只设计视觉隐喻，等待用户确认（Gate 1）
 2. 只生成最终静帧，等待用户确认（Gate 2）
-3. 自动调 gen.py 生成视频并完成 QA（Gate 3）
+3. 自动调 `aigc-video-gen` 生成视频并完成 QA（Gate 3）
 
 这两个确认闸门是工作流的一部分。它们让用户把注意力放在审美和方向上，同时避免错误隐喻或错误静帧直接消耗视频生成成本。
-
-## 首次使用：环境自检
-
-每次触发本 skill 时，进入 Gate 1 之前先运行自检脚本：
-
-```bash
-bash <本skill目录>/scripts/check_setup.sh
-```
-
-全部通过则直接开始 Gate 1，不要向用户重复配置信息。任何一项失败时，视为首次使用：不进入 Gate 1，先向用户输出下面的配置指南（只列出缺失项），等用户确认配置完成后重新自检。
-
-### 配置指南（按缺失项输出）
-
-1. **AWK_API_KEY 未设置**（Gate 2 静帧生成要）
-   到 [火山方舟控制台](https://console.volcengine.com/ark) 创建 API key，然后写入 shell 配置：
-
-   ```bash
-   echo 'export AWK_API_KEY="你的key"' >> ~/.zshrc && source ~/.zshrc
-   ```
-
-2. **MODELSTUDIO_API_KEY / AWK_GEN_KEY 都未设置**（Gate 3 视频生成要）
-   - 百炼走 `MODELSTUDIO_API_KEY`（[阿里云百炼控制台](https://dashscope.console.aliyun.com/)）
-   - 火山走 `AWK_GEN_KEY`（火山方舟，同 AWK_API_KEY 控制台但需开视频生成权限）
-   - 两个都没配 → gen.py 退出码 2，向用户报告并按 gbro 原话提示"改用 pexels-footage / pixabay-footage 兜底"（但拼贴动画用 stock footage 没意义，实际是等用户配 key）
-
-3. **ffmpeg / ffprobe 缺失**
-   macOS：`brew install ffmpeg`；Debian/Ubuntu：`sudo apt install ffmpeg`。
-
-4. **Python 环境缺失或版本过旧**（需要 >= 3.10）
-   macOS：`brew install python3`；或从 python.org 安装。
 
 ## 强制审批协议
 
@@ -91,13 +50,13 @@ bash <本skill目录>/scripts/check_setup.sh
 
 隐喻确认后，才写 visual spec 和 imagegen prompt，并用 `siliconflow-img-gen` 技能生成最终静帧。
 
-把原图保存到项目目录，生成带编号的静帧 contact sheet，向用户展示并再次停下。此阶段仍然不调 gen.py，也不生成视频。
+把原图保存到项目目录，生成带编号的静帧 contact sheet，向用户展示并再次停下。此阶段仍然不调 `aigc-video-gen`，也不生成视频。
 
 如果用户只确认部分静帧，只让通过的条目进入 Gate 3；需要修改的静帧先重生并重新确认。
 
 ### Gate 3：视频生成
 
-静帧确认后，不再询问使用哪个视频模型，直接用本 skill 自带的 `scripts/run_gate3.py` 调 `gen.py` 走 i2v 首尾帧插值——默认走百炼 `happyhorse-1.1-i2v`（沿链 fallback 到 1.0 → wan2.7），百炼没配走火山 Seedance Fast → Normal → Mini。只有用户明确指定其他模型时才 `gen.py --model <id>` 覆盖。
+静帧确认后，不再询问使用哪个视频模型，直接调公共 `aigc-video-gen` 技能走 i2v 首尾帧插值——默认走百炼 `happyhorse-1.1-i2v`（沿链 fallback 到 1.0 → wan2.7），百炼没配走火山 Seedance Fast → Normal → Mini。只有用户明确指定其他模型时才 `aigc-video-gen --model <id>` 覆盖。
 
 ## 成功标准
 
@@ -109,7 +68,7 @@ bash <本skill目录>/scripts/check_setup.sh
 - 所有纸片有清晰裁切边、奶油白 keyline、低透明度柔和阴影和纸张颗粒
 - 动作是 assemble-from-empty，而不是轻微漂移、晃动或慢 zoom
 - 无字幕、无口播全文、无 logo、无水印、无 UI
-- 默认交付 9:16、5 秒、720×1280、有声画同出（gen.py 默认 `audio: true`，旁白/BGM/环境音写在 prompt 里）MP4
+- 默认交付 9:16、5 秒、720×1280、有声画同出（`aigc-video-gen` 默认 `audio: true`，旁白/BGM/环境音写在 prompt 里）MP4
 
 ## 什么时候不要用
 
@@ -127,20 +86,20 @@ output_videos/<topic-en-slug>/
 ├── brief.md                    # 文稿 + Gate 1 隐喻清单
 ├── visual-spec.json            # Gate 2 视觉规格
 ├── imagegen-prompts.md         # Gate 2 Seedream prompt 留档
-├── gen-jobs.json               # Gate 3 gen.py 批量调用清单
+├── gen-jobs.json               # Gate 3 aigc-video-gen 批量调用清单
 ├── gate2-qa.md                 # 静帧 QA 结论
 ├── gate3-qa.md                 # 视频 QA 结论
 ├── still-contact-sheet.jpg     # Gate 2 静帧总图
 ├── video-contact-sheet-all.jpg # Gate 3 全部成片逐秒抽帧
 ├── end-frame-comparison-all.jpg # 确认静帧 vs 视频末帧并排
 ├── 01-<concept-slug>/
-│   ├── gen-prompt.txt          # gen.py --prompt 内容（声画同出描述）
+│   ├── gen-prompt.txt          # aigc-video-gen --prompt 内容（声画同出描述）
 │   ├── frames/
 │   │   ├── still.png           # Gate 2 确认的完成帧（原图）
 │   │   ├── last-frame.png      # 统一裁到 720x1280 的尾帧
 │   │   └first-frame.png        # 纯色空首帧（同底色 hex）
 │   └gen-runs/run-v01/
-│       ├── final-5s.mp4        # gen.py 产物
+│       ├── final-5s.mp4        # aigc-video-gen 产物
 │       ├── final-5s-noaudio.mp4 # 强制无声交付（拼贴动画无声）
 │       ├── contact-sheet.jpg   # 逐秒抽帧总图
 │       └ video-last-frame.jpg
@@ -244,7 +203,7 @@ Constraints: [本条隐喻必须一眼看懂的关系].
 Avoid: no typography, no readable letters, no numerals, no logos, no watermark, no UI, no subtitles, no glossy 3D, no photoreal environment, no clutter.
 ```
 
-Seedream 不支持参考图锁定风格（gbro 原膜靠 Codex `image_gen` 的参考图能力），所以"同设计语言"靠**同一批用同一 `style_signature` 字串 + 同一 `color_field` 范围**在 prompt 里复用，不靠参考图。
+Seedream 不支持参考图锁定风格，所以"同设计语言"靠**同一批用同一 `style_signature` 字串 + 同一 `color_field` 范围**在 prompt 里复用，不靠参考图。
 
 ### 静帧 QA
 
@@ -269,11 +228,11 @@ ffmpeg -y -pattern_type glob -i "<project>/*/frames/still.png" \
 
 段数 > 5 时分多行（`tile=5x2`、`5x3`…）。
 
-## Phase 3：用 gen.py i2v 生成视频
+## Phase 3：用 aigc-video-gen i2v 生成视频
 
 ### 1. 准备首尾帧
 
-保留 imagegen 原图 `still.png`，再统一尾帧到 720x1280（gen.py i2v 收 720P/1080P，默认 720P）：
+保留 imagegen 原图 `still.png`，再统一尾帧到 720x1280（`aigc-video-gen` i2v 收 720P/1080P，默认 720P）：
 
 ```bash
 ffmpeg -y -i <item>/frames/still.png \
@@ -290,7 +249,7 @@ ffmpeg -y -f lavfi -i color=c=0x<HEX>:s=720x1280 \
 
 如果用户明确要求不从完全空白开始，首帧才保留一个基础物件。
 
-### 2. 写 gen.py 动画 prompt
+### 2. 写 aigc-video-gen 动画 prompt
 
 动作顺序默认采用：
 
@@ -298,17 +257,14 @@ ffmpeg -y -f lavfi -i color=c=0x<HEX>:s=720x1280 \
 基础结构 → 人物或关键卡片 → 连接件 → 动作 → 最终结果
 ```
 
-gen.py 的 `--prompt` 是**声画同出**描述（中文，happyhorse / Seedance 对中文响应好），不是 gbro 原膜的英文长 prompt。要把 gbro 原膜的 Omni prompt 段**转译**成 gen.py 风格：
+`aigc-video-gen` 的 `--prompt` 是**声画同出**描述（中文，happyhorse / Seedance 对中文响应好）。组装顺序与约束中文化写进 prompt：
 
-gbro 原膜 Omni prompt（英文长段）→ gen.py prompt（中文声画同出描述）转译规则：
-- `Image 1 is the exact empty first frame` → 不写（gen.py `--image first-frame.png` `--last-frame last-frame.png` 显式传首尾帧，不在 prompt 里写）
-- `Image 2 is the exact completed last frame` → 不写（同上）
-- 组装顺序段 → 中文化："画面从纯色空场开始，依次滑入 [基础结构] → [人物/卡片] → [连接件] → [动作]，最终定格在已确认的完成构图"
-- `No scene cuts, no camera movement, no zoom, no morphing` → 中文化："固定机位，无切镜、无 zoom、无变形"
-- `no text, no letters, no numbers, no logos, no watermark, no UI` → 中文化："画面无文字、无 logo、无水印、无 UI"
-- 声画同出补充（gbro 原膜是无声，gen.py 默认有声）："音频：纸片滑入的嗒嗰声 + 卡位时的咔嗒声 + 最终定格的短促 BGM 收尾"
+- 组装顺序段："画面从纯色空场开始，依次滑入 [基础结构] → [人物/卡片] → [连接件] → [动作]，最终定格在已确认的完成构图"
+- 机位与镜头约束："固定机位，无切镜、无 zoom、无变形"
+- 画面禁字："画面无文字、无 logo、无水印、无 UI"
+- 声画同出补充（`aigc-video-gen` 默认有声）："音频：纸片滑入的嗒嗰声 + 卡位时的咔嗒声 + 最终定格的短促 BGM 收尾"
 
-gen.py prompt 模板：
+prompt 模板：
 
 ```text
 画面从纯色空场开始，依次滑入 [基础结构] → [人物/卡片] → [连接件] → [动作]，最终定格在已确认的完成构图。固定机位，无切镜、无 zoom、无变形。画面无文字、无 logo、无水印、无 UI。音频：纸片滑入的嗒嗰声 + 卡位时的咔嗒声 + 最终定格的短促 BGM 收尾。
@@ -316,17 +272,13 @@ gen.py prompt 模板：
 
 每条 prompt 都要明确 `--image first-frame.png` 是空首帧、`--last-frame last-frame.png` 是确认过的完成帧。最终构图必须贴近 last-frame，不让模型自由改造尾帧。
 
-### 3. 检查 gen.py 运行环境
-
-gen.py 自带 env 自动判平台（MODELSTUDIO_API_KEY 优先百炼，AWK_GEN_KEY 走火山），不需要独立 venv 或 SDK 安装——仓根 `requirements.txt` + `scripts/apply-addons.sh` 统一装。自检脚本 `check_setup.sh` 只探 ffmpeg / ffprobe / AWK_API_KEY / 视频平台 key，不探 venv。
-
-### 4. 批量调用 gen.py
+### 3. 批量调用 aigc-video-gen
 
 创建 `gen-jobs.json`。每个 job 用首尾帧插值（i2v 模式）：
 
 ```json
 {
-  "prompt": "<gen.py prompt 中文>",
+  "prompt": "<aigc-video-gen prompt 中文>",
   "first_frame": "<item>/frames/first-frame.png",
   "last_frame": "<item>/frames/last-frame.png",
   "output": "<item>/gen-runs/run-v01/final-5s.mp4",
@@ -336,19 +288,24 @@ gen.py 自带 env 自动判平台（MODELSTUDIO_API_KEY 优先百炼，AWK_GEN_K
 }
 ```
 
-使用本 skill 自带脚本批量调 gen.py：
+逐条调公共 `aigc-video-gen` 走 i2v 模式（首尾帧插值）：
 
 ```bash
-python3 <本skill目录>/scripts/run_gate3.py --batch <project>/gen-jobs.json
+aigc-video-gen --mode i2v \
+  --image <item>/frames/first-frame.png \
+  --last-frame <item>/frames/last-frame.png \
+  --prompt "<prompt>" \
+  --output <item>/gen-runs/run-v01/final-5s.mp4 \
+  --ratio 9:16 --resolution 720P --duration 5
 ```
 
-脚本默认走 gen.py i2v 模式（首尾帧插值），百炼 happyhorse-1.1-i2v 沿链 fallback（1.1 → 1.0 → wan2.7），百炼没配走火山 Seedance Fast → Normal → Mini。gen.py 内部已带候选链 fallback + decisions.log 落盘，本脚本只做批量调度。
+`aigc-video-gen` 内部已带候选链 fallback（百炼 happyhorse-1.1-i2v 沿链 1.1 → 1.0 → wan2.7，百炼没配走火山 Seedance Fast → Normal → Mini）+ decisions.log 落盘，agent 只需逐条调度。
 
-如果出现 i2v 不收首尾帧的报错（gen.py 退出码非 0），检查 first-frame.png / last-frame.png 是否真存在、是否 720x1280——gen.py 的 `ensure_safe_output()` 要求相对路径在 `output_videos/` 下，**调 gen.py 时 workdir 必须是 workspace 根**。
+如果出现 i2v 不收首尾帧的报错（`aigc-video-gen` 退出码非 0），检查 first-frame.png / last-frame.png 是否真存在、是否 720x1280——`aigc-video-gen` 要求相对路径在 `output_videos/` 下，**调用时 workdir 必须是 workspace 根**。
 
-### 5. 强制无声交付
+### 4. 强制无声交付
 
-拼贴动画是无声的（gbro 原膜默认无声），但 gen.py 声画同出模式会出声。Gate 3 出片后用 ffmpeg 抽无声版交付：
+拼贴动画默认无声交付，但 `aigc-video-gen` 声画同出模式会出声。Gate 3 出片后用 ffmpeg 抽无声版交付：
 
 ```bash
 ffmpeg -y -i <run>/final-5s.mp4 \
@@ -358,7 +315,7 @@ ffmpeg -y -i <run>/final-5s.mp4 \
 
 默认交付 `final-5s-noaudio.mp4`，保留原始 `final-5s.mp4` 作为中间产物。
 
-如果用户明确要"带声"——拼贴动画的纸片嗰声 + BGM 是 gen.py 声画同出出的，可能挺贴——就不抽无声，直接交付 `final-5s.mp4`。但默认走无声（保 gbro 原膜契约）。
+如果用户明确要"带声"——拼贴动画的纸片嗰声 + BGM 是 `aigc-video-gen` 声画同出出的，可能挺贴——就不抽无声，直接交付 `final-5s.mp4`。但默认走无声。
 
 ## 视频 QA
 
@@ -400,16 +357,16 @@ video-review <run>/final-5s-noaudio.mp4
 
 `video-review` 查的是技术层硬伤（ffprobe 全字段 / 5 位抽帧黑帧扫 / 音频电平 / 时长分辨率一致性），与上面的视觉 QA（看隐喻是否一眼看懂、组装过程是否成立）**互补不重叠**——视觉 QA 评审美与语义，video-review 评技术合规。verdict=fail 按 critical 项修或重生对应 job，verdict=warn 向用户复述由其决定。详见 `video-review` 技能 SKILL.md。
 
-> 拼贴动画默认无声交付时，`audio_absent` warning 是预期（`final-5s-noaudio.mp4` 本就是抽音轨版），warn 可放行；带声版 `final-5s.mp4` 出 `audio_absent` 则 critical——gen.py 声画同出模式该出声没出声是硬伤，退回重生成。
+> 拼贴动画默认无声交付时，`audio_absent` warning 是预期（`final-5s-noaudio.mp4` 本就是抽音轨版），warn 可放行；带声版 `final-5s.mp4` 出 `audio_absent` 则 critical——`aigc-video-gen` 声画同出模式该出声没出声是硬伤，退回重生成。
 
 ### 常见问题
 
 - 首帧边缘提前露出：轻微可接受；严格空场需求改用更坚定的 first-frame（纯色 + 边缘 padding）
 - 组装感弱：缩短元素数量，并把 prompt 改为明确的逐件"滑入 / 卡位"顺序
-- 尾帧漂移：强化 prompt 里"最终定格在已确认的完成构图"，gen.py i2v 的 last-frame 权重高
+- 尾帧漂移：强化 prompt 里"最终定格在已确认的完成构图"，`aigc-video-gen` i2v 的 last-frame 权重高
 - 出现假字：先回到静帧重生（Seedream 也可能出假字），不要直接用视频 prompt 修补
 - 个别视频失败：只重跑对应 job，不要重跑已经通过的条目
-- i2v 报错（gen.py 退出码非 0）：检查首尾帧是否 720x1280、是否真存在、workdir 是否 workspace 根
+- i2v 报错（`aigc-video-gen` 退出码非 0）：检查首尾帧是否 720x1280、是否真存在、workdir 是否 workspace 根
 
 ## 默认交付
 
@@ -421,20 +378,12 @@ video-review <run>/final-5s-noaudio.mp4
 - 最终帧对照图
 - 一句说明每条文稿如何转成视觉隐喻
 
-如果成片问题来自 gen.py i2v 的生成限制（组装感弱 / 尾帧漂移），直接说明；只有需要精确图层控制时，才建议切换到其他方案（如 Manim 科学动画 → manim-explainer）。
+如果成片问题来自 `aigc-video-gen` i2v 的生成限制（组装感弱 / 尾帧漂移），直接说明；只有需要精确图层控制时，才建议切换到其他方案（如 Manim 科学动画 → manim-explainer）。
 
 ## 脚本清单
 
 | 脚本 | 文件名 | 用途 |
 |------|--------|------|
-| 环境自检 | `scripts/check_setup.sh` | 探 ffmpeg / ffprobe / AWK_API_KEY / 视频平台 key，全过 exit 0，否则 exit 1 报缺失项 |
-| Gate 3 批量调度 | `scripts/run_gate3.py` | 读 gen-jobs.json，逐条调 gen.py i2v 模式（首尾帧插值），落产物 + decisions.log |
+| Gate 3 批量调度 | `scripts/run_gate3.py` | 读 gen-jobs.json，逐条调公共 `aigc-video-gen` i2v 模式（首尾帧插值），落产物 + decisions.log |
 
 visual-spec.json 生成、imagegen prompt 拼装、contact sheet 拼图、首尾帧 ffmpeg 处理——这些靠 agent 直接调 `siliconflow-img-gen` + ffmpeg 完成，不单独上脚本（agent 直接调更灵活，且避免脚本重复造轮子）。
-
-## 没吸收的 gbro 原膜能力
-
-- Gemini Omni Flash / google-genai SDK / Files API 上传 → 全换成 gen.py i2v + siliconflow-img-gen
-- Veo 旧脚本兼容 → 不带（无 Veo 遗产）
-- `~/hyperframes-projects/.omni-venv/` 独立 venv → 不用（仓根 requirements.txt 统一装）
-- Codex 内置 `image_gen` 参考图锁定风格 → 不能（Seedream 无参考图锁定，靠 prompt 复用同一 style_signature + color_field）

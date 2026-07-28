@@ -19,7 +19,7 @@ else
   bad "AWK_API_KEY 未设置（Gate 2 静帧生成要——到 https://console.volcengine.com/ark 创建后 export 到 shell 配置）"
 fi
 
-# 2. 视频平台 key（Gate 3 视频生成要——gen.py / 百炼或火山）
+# 2. 视频平台 key（Gate 3 视频生成要——aigc-video-gen / 百炼或火山）
 if [ -n "${MODELSTUDIO_API_KEY:-}" ] || [ -n "${DASHSCOPE_API_KEY:-}" ]; then
   ok "MODELSTUDIO_API_KEY / DASHSCOPE_API_KEY 已设置（Gate 3 走百炼 happyhorse-1.1-i2v）"
 elif [ -n "${AWK_GEN_KEY:-}" ]; then

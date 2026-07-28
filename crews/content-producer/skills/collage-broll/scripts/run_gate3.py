@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""Gate 3 批量调度——读 gen-jobs.json 逐条调 gen.py i2v 模式（首尾帧插值）。
+"""Gate 3 批量调度——读 gen-jobs.json 逐条调公共 aigc-video-gen wrapper 走 i2v 模式（首尾帧插值）。
 
 每个 job 字段：
-  prompt         gen.py --prompt（中文声画同出描述）
+  prompt         aigc-video-gen --prompt（中文声画同出描述）
   first_frame    首帧路径（纯色空场，720x1280）
   last_frame     尾帧路径（确认静帧裁到 720x1280，720P）
-  output         输出 MP4 路径（相对 output_videos/，gen.py 的 ensure_safe_output 要求）
+  output         输出 MP4 路径（相对 output_videos/，aigc-video-gen 的 ensure_safe_output 要求）
   ratio          默认 9:16
   resolution     默认 720P
   duration       默认 5
 
-gen.py 内部已带候选链 fallback + decisions.log 落盘，本脚本只做批量调度——
-串行调（gen.py 视频生成是异步轮询任务，并行调会撞平台并发限）。
+aigc-video-gen wrapper 内部已带候选链 fallback + decisions.log 落盘，本脚本只做批量调度——
+串行调（视频生成是异步轮询任务，并行调会撞平台并发限）。
 
 Usage:
   python3 <skill-dir>/scripts/run_gate3.py --batch <project>/gen-jobs.json
   python3 <skill-dir>/scripts/run_gate3.py --batch <project>/gen-jobs.json --dry-run
 
 Exit codes:
-  0  全部 job �跑通
-  1  参数错 / gen-jobs.json 不存在 / 格式错
+  0  全部 job 跑通
+  1  参数错 / gen-jobs.json 不存在 / 格式错 / aigc-video-gen wrapper 不在 PATH
   2  部分 job 失败（stderr 报失败清单，已跑通的保留）
 """
 
@@ -27,13 +27,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-# gen.py 路径——公共 domain skill，i2v 首尾帧插值生成
-GEN_PY = "./skills/aigc-video-gen/scripts/gen.py"
+# 公共 wrapper——aigc-video-gen（PATH 化调用，不裸引用其下 scripts/gen.py）
+WRAPPER = "aigc-video-gen"
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -42,13 +42,13 @@ def die(msg: str, code: int = 1) -> None:
 
 
 def run_one(job: dict, job_id: int, dry_run: bool) -> tuple[bool, str]:
-    """调 gen.py i2v 跑一个 job. 返 (ok, detail)."""
+    """调 aigc-video-gen wrapper i2v 跑一个 job. 返 (ok, detail)."""
     for required in ("prompt", "first_frame", "last_frame", "output"):
         if not job.get(required):
             return False, f"job {job_id} missing field: {required}"
 
     cmd = [
-        "python3", GEN_PY,
+        WRAPPER,
         "--prompt", job["prompt"],
         "--image", job["first_frame"],        # i2v 首帧
         "--last-frame", job["last_frame"],    # i2v 尾帧
@@ -62,23 +62,26 @@ def run_one(job: dict, job_id: int, dry_run: bool) -> tuple[bool, str]:
         print(f"[dry-run] job {job_id}: {' '.join(cmd[:4])} ... --output {job['output']}")
         return True, "dry-run skipped"
 
-    print(f"[info] job {job_id}: gen.py i2v → {job['output']}")
+    print(f"[info] job {job_id}: aigc-video-gen i2v → {job['output']}")
     try:
         r = subprocess.run(cmd, timeout=1200)
         if r.returncode == 0:
             return True, f"ok exit 0 → {job['output']}"
-        return False, f"gen.py exit {r.returncode} for job {job_id}（查 gen.py stderr + decisions.log）"
+        return False, f"aigc-video-gen exit {r.returncode} for job {job_id}（查 wrapper stderr + decisions.log）"
     except subprocess.TimeoutExpired:
-        return False, f"gen.py timeout 1200s for job {job_id}"
+        return False, f"aigc-video-gen timeout 1200s for job {job_id}"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Gate 3 批量调度——读 gen-jobs.json 逐条调 gen.py i2v（首尾帧插值）."
+        description="Gate 3 批量调度——读 gen-jobs.json 逐条调公共 aigc-video-gen wrapper 走 i2v（首尾帧插值）."
     )
     parser.add_argument("--batch", required=True, help="gen-jobs.json 路径")
     parser.add_argument("--dry-run", action="store_true", help="只打印不真调")
     args = parser.parse_args()
+
+    if not shutil.which(WRAPPER):
+        die(f"wrapper 不在 PATH: {WRAPPER}（确认公共 aigc-video-gen 已通过 apply-addons.sh 软链到 ~/.openclaw/bin）")
 
     batch_path = Path(args.batch).resolve()
     if not batch_path.is_file():

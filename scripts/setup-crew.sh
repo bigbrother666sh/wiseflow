@@ -302,7 +302,20 @@ for agent_dir in "$CREWS_DIR"/*/; do
   inject_media_send_guide "$dest/USER.md"
 done
 
-# 注：原 §2/§3（shared 协议 / crew_templates / hrbp_templates 模板库同步）已移除。
+# ─── 1.5 业务知识软链：非 main crew 共享 main 的 business_knowledge（目录+md）──
+# sales-cs / content-producer 等需要业务上下文的 crew 通过软链读 main 的业务知识。
+# 原 sales-cs 走 sales-cs-enablement 技能手动建；此处统一幂等建好，新 crew 自动获得。
+MAIN_WS="$OPENCLAW_HOME/workspace-main"
+if [ -e "$MAIN_WS/business_knowledge" ]; then
+  for ws in "$OPENCLAW_HOME"/workspace-*/; do
+    [ -d "$ws" ] || continue
+    [ "$(basename "$ws")" = "workspace-main" ] && continue
+    ln -sfn "$MAIN_WS/business_knowledge" "$ws/business_knowledge" 2>/dev/null
+    if [ -e "$MAIN_WS/business_knowledge.md" ]; then
+      ln -sfn "$MAIN_WS/business_knowledge.md" "$ws/business_knowledge.md" 2>/dev/null
+    fi
+  done
+fi
 # D8 扁平化 + 去 hrbp 化后 crews/shared/ 不存在、无 agent 消费 crew_templates/，
 # 对外 crew 的 channel reply rules 注入改在 §4 对 workspace 直接做（见 inject_channel_reply_rules 调用）。
 

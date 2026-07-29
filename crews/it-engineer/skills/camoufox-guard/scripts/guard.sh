@@ -10,6 +10,7 @@
 #   CAMOUFOX_GUARD_HARD_LIMIT (默认 12) 硬上限（超了杀最老孤儿，防 OOM）
 #   CAMOUFOX_GUARD_MAX_AGE_MIN (默认 30) 超此年龄(分钟)视为孤儿可杀
 set -uo pipefail
+QUIET=false; [ "${1:-}" = "--quiet" ] && QUIET=true
 
 THRESHOLD="${CAMOUFOX_GUARD_THRESHOLD:-6}"
 HARD_LIMIT="${CAMOUFOX_GUARD_HARD_LIMIT:-12}"
@@ -21,7 +22,7 @@ list_pids() { ps -eo pid,etimes,rss,comm --no-headers | awk '$4=="camoufox-bin"'
 COUNT=$(list_pids | wc -l | tr -d ' ')
 
 if [ "$COUNT" -le "$THRESHOLD" ]; then
-  echo "camoufox-guard: OK ($COUNT 个 camoufox-bin，阈值 $THRESHOLD)"
+  [ "$QUIET" != "true" ] && echo "camoufox-guard: OK ($COUNT 个 camoufox-bin，阈值 $THRESHOLD)"
   exit 0
 fi
 

@@ -549,7 +549,7 @@ if [ -f "$CONFIG_PATH" ]; then
         [[ "$line" =~ ^\+ ]] || continue
         # 幂等检查：用 bash 内置逐行比，不调 grep（MSYS2 grep 对含全角括号的中文路径
         # workspace 文件 open() 时字节解错码，会卡死扫不进——setup-crew 实测卡 30min+ 元凶）
-        local _found=0
+        _found=0
         while IFS= read -r _existing; do [[ "$_existing" == "$line" ]] && _found=1 && break; done < "$workspace_ac"
         [[ "$_found" == "1" ]] || echo "$line" >> "$workspace_ac"
       done < "$template_ac"
@@ -597,7 +597,7 @@ if [ -f "$CONFIG_PATH" ]; then
       entry_cmd="${entry#+}"
       # 用 bash 内置逐行比，不调 grep（MSYS2 grep 对含全角括号的中文 workspace 路径 open()
       # 字节解错码卡死——setup-crew 实测卡 30min+ 元凶；bash 自己的 read 不经 MSYS2 grep）
-      local _has_pos=0 _has_neg=0
+      _has_pos=0 _has_neg=0
       while IFS= read -r _existing; do
         [[ "$_existing" == "$entry" ]] && _has_pos=1
         [[ "$_existing" == "-${entry_cmd}" ]] && _has_neg=1

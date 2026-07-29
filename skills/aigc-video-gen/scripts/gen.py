@@ -358,6 +358,7 @@ def volc_submit(model: str, args: argparse.Namespace, api_key: str) -> str:
         "duration": args.duration,
         "resolution": args.resolution.lower(),
         "generate_audio": args.audio,
+        "watermark": False,
     }
     headers = {
         "Authorization": f"Bearer {api_key}",

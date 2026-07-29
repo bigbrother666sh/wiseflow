@@ -1,0 +1,10 @@
+# 统一行尾：默认 LF；Windows 专用脚本保留 CRLF
+# 背景：2026-07-28 一次 AI 重构提交把 .sh/.md 存成 CRLF，破坏 shebang 执行
+# （setup-crew.sh 的 #!/bin/bash\r 找不到解释器，apply-addons.sh set -e 中止）
+* text=auto eol=lf
+
+# Windows 脚本保留 CRLF（PowerShell/Batch 在 Windows 上的正确行尾）
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf

@@ -86,10 +86,13 @@ def main() -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
 
     # ffmpeg filter_complex 构造：
-    # [i:a]adelay=<ms>,volume=<v>[a<i>]  各轨延时+音量
-    # [a0][a1]...[aN]amix=inputs=N:duration=longest:dropout_transition=0[aout]
+    # [i:a]adelay=<ms>,volume=<v>,apad=whole_dur=<dur>[a<i>]  各轨延时+音量+补虚到总时长
+    # [a0][a1]...[aN]amix=inputs=N:duration=longest:dropout_transition=0:normalize=0[aout]
+    # normalize=0 禁用 amix 自动除以轨道数，每轨 volume 即最终音量（设 2.0 就是 2 倍，不被稀释）
+    # apad=whole_dur=<dur> 把每轨补虚到 --duration 总时长，避免短轨被截、输出时长不足
     inputs: list[str] = []
     filter_parts: list[str] = []
+    dur_ms = int(args.duration * 1000) if args.duration is not None else None
     for i, (delay_s, vol) in enumerate(zip(delays, volumes)):
         inputs.extend(["-i", tracks[i]])
         delay_ms = int(delay_s * 1000)
@@ -98,16 +101,18 @@ def main() -> None:
             parts.append(f"adelay={delay_ms}")
         if vol != 1.0:
             parts.append(f"volume={vol}")
+        if dur_ms is not None:
+            # apad=whole_dur 是样本数（ms 级近似），确保该轨至少到 --duration 总时长
+            parts.append(f"apad=whole_dur={args.duration}")
         if parts:
             filter_parts.append(f"[{i}:a]" + ",".join(parts) + f"[a{i}]")
         else:
-            # 无延时无音量调整，直接用原标签
             filter_parts.append(f"[{i}:a]anull[a{i}]")
 
     mix_inputs = "".join(f"[a{i}]" for i in range(n))
-    amix_dur = "longest" if args.duration is None else "first"
+    # duration=longest + normalize=0：取最长轨时长，每轨音量不被稀释
     filter_parts.append(
-        f"{mix_inputs}amix=inputs={n}:duration={amix_dur}:dropout_transition=0[aout]"
+        f"{mix_inputs}amix=inputs={n}:duration=longest:dropout_transition=0:normalize=0[aout]"
     )
 
     filter_complex = ";".join(filter_parts)

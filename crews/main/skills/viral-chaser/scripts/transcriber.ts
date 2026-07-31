@@ -30,6 +30,7 @@
 import { existsSync, statSync } from "fs"
 import { execFile } from "child_process"
 import { promisify } from "util"
+import { fileURLToPath } from "url"
 
 const execFileAsync = promisify(execFile)
 
@@ -93,100 +94,22 @@ function synthesizeSegments(text: string, durationSeconds: number): TranscriptSe
   return segs
 }
 
-const PYTHON_SCRIPT = `
-import json, os, sys, uuid, base64
-try:
-    import requests
-except ImportError as e:
-    print(json.dumps({"ok": False, "error": f"requests 不可用: {e}"}))
-    sys.exit(1)
-
-audio_path = sys.argv[1]
-# 鉴权（二选一，优先旧控制台双头）：
-#   旧控制台双头：VOLC_ASR_APP_ID（数字 APP ID）+ VOLC_ASR_ACCESS_KEY（Access Token）
-#   新控制台单头：VOLC_ASR_APP_KEY（APP Key / X-Api-Key）
-app_id = os.environ.get("VOLC_ASR_APP_ID", "")
-access_key = os.environ.get("VOLC_ASR_ACCESS_KEY", "")
-app_key = os.environ.get("VOLC_ASR_APP_KEY", "")
-
-resource_id = os.environ.get("VOLC_ASR_RESOURCE_ID", "volc.bigasr.auc_turbo")
-url = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash"
-
-headers = {
-    "X-Api-Resource-Id": resource_id,
-    "X-Api-Request-Id": str(uuid.uuid4()),
-    "X-Api-Sequence": "-1",
-}
-if app_id and access_key:
-    headers["X-Api-App-Key"] = app_id
-    headers["X-Api-Access-Key"] = access_key
-    uid = app_id
-elif app_key:
-    headers["X-Api-Key"] = app_key
-    uid = app_key
-else:
-    print(json.dumps({"ok": False, "error": "火山 ASR 凭证未配置：需 VOLC_ASR_APP_ID+VOLC_ASR_ACCESS_KEY（旧控制台双头）或 VOLC_ASR_APP_KEY（新控制台单头）"}))
-    sys.exit(1)
-
-try:
-    with open(audio_path, "rb") as f:
-        b64 = base64.b64encode(f.read()).decode("ascii")
-except Exception as e:
-    print(json.dumps({"ok": False, "error": f"读取音频失败: {e}"}))
-    sys.exit(1)
-
-# 根据扩展名推断 format（火山支持 wav/mp3/ogg；默认 wav）
-ext = os.path.splitext(audio_path)[1].lower().lstrip(".")
-fmt = ext if ext in ("wav", "mp3", "ogg") else "wav"
-
-body = {
-    "user": {"uid": uid},
-    "audio": {"data": b64, "format": fmt},
-    "request": {
-        "model_name": "bigmodel",
-        "show_utterances": True,
-        "enable_itn": True,
-        "enable_punc": True,
-    },
-}
-
-try:
-    r = requests.post(url, json=body, headers=headers, timeout=300)
-except Exception as e:
-    print(json.dumps({"ok": False, "error": f"请求失败: {e}"}))
-    sys.exit(1)
-
-status = r.headers.get("X-Api-Status-Code", "")
-msg = r.headers.get("X-Api-Message", "")
-logid = r.headers.get("X-Tt-Logid", "")
-
-if status != "20000000":
-    snippet = r.text[:500] if r.text else ""
-    print(json.dumps({"ok": False, "error": f"火山 ASR 失败 (status={status}, msg={msg}, logid={logid}): {snippet}"}))
-    sys.exit(1)
-
-try:
-    resp = r.json()
-except Exception as e:
-    print(json.dumps({"ok": False, "error": f"响应解析失败: {e}; raw={r.text[:500]}"}))
-    sys.exit(1)
-
-result = resp.get("result") or {}
-text = result.get("text", "") or ""
+// 调公共 _shared/volc_asr.py（与 talking-head-cut / video-producer narration-align 共一份逻辑）。
+// 范式：python3 -c 加载 _shared 到 sys.path，import volc_asr，调它拿 {ok, text, utterances, words}，
+// 输出 JSON 到 stdout 供 Node 解析。_shared 路径按本剧本位置算（crews/main/skills/_shared）。
+const SHARED_DIR = fileURLToPath(new URL("../../_shared/", import.meta.url))
+const PYTHON_CALL = `
+import json, os, sys
+sys.path.insert(0, ${JSON.stringify(SHARED_DIR)})
+from volc_asr import volc_asr, load_env_file
+load_env_file()
+result = volc_asr(sys.argv[1])
+# 降级到 utterance 级供旧 TranscriptResult 结构兼容（viral-chaser 只用 utterance 级）
 segs = []
-for u in (result.get("utterances") or []):
-    try:
-        start_ms = float(u.get("start_time", 0))
-        end_ms = float(u.get("end_time", 0))
-        segs.append({
-            "start": round(start_ms / 1000.0, 3),
-            "end": round(end_ms / 1000.0, 3),
-            "text": u.get("text", "") or "",
-        })
-    except Exception:
-        continue
-
-print(json.dumps({"ok": True, "text": text, "segments": segs}, ensure_ascii=False))
+if result.get("ok"):
+    for u in (result.get("utterances") or []):
+        segs.append({"start": round(u["start"], 3), "end": round(u["end"], 3), "text": u["text"]})
+print(json.dumps({"ok": result.get("ok", False), "text": result.get("text", ""), "segments": segs, "error": result.get("error")}, ensure_ascii=False))
 `
 
 export async function transcribeAudio(audioPath: string, durationSeconds = 0): Promise<TranscriptResult> {
@@ -202,7 +125,7 @@ export async function transcribeAudio(audioPath: string, durationSeconds = 0): P
 
   const { stdout } = await execFileAsync(
     "python3",
-    ["-c", PYTHON_SCRIPT, audioPath],
+    ["-c", PYTHON_CALL, audioPath],
     { timeout: 320_000, maxBuffer: 50 * 1024 * 1024 },
   )
 

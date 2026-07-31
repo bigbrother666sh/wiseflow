@@ -17,6 +17,11 @@ import sys
 from pathlib import Path
 
 
+def die(msg: str) -> None:
+    print(f"[error] {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 14a make-cover")
     parser.add_argument("project_dir", help="output_videos/<topic>/")

@@ -5,7 +5,7 @@ Usage:
   python3 scripts/story-develop.py <project_dir>
 
 入：project_dir/script/intent.json（Stage 0）
-出：project_dir/script/story.md（100–200 词梗概 + 人物 + 分场）+ budget.json（estimate）
+出：project_dir/script/story.md（100–200 词梗概 + 人物 + 分场）
 
 场次划分原则：同时间同地点分一场。agent 按 SKILL.md 工作流填 story.md 模板。
 """
@@ -27,7 +27,6 @@ def main() -> None:
         die(f"前置缺失: intent.json 不存在，先跑 intent-router（Stage 0）")
 
     story_path = project / "script" / "story.md"
-    budget_path = project / "script" / "budget.json"
     story_path.parent.mkdir(parents=True, exist_ok=True)
 
     # checkpoint
@@ -69,24 +68,7 @@ def main() -> None:
 """
     story_path.write_text(stub, encoding="utf-8")
 
-    # budget estimate
-    budget = {
-        "stage": 2,
-        "mode": "observe",
-        "estimate": 0.0,
-        "reserve": 0.0,
-        "actual": 0.0,
-        "actions": [],
-    }
-    if budget_path.is_file():
-        existing = json.loads(budget_path.read_text(encoding="utf-8"))
-        existing["stage"] = 2
-        existing["estimate"] = existing.get("estimate", 0.0) + 0.0
-        budget = existing
-    budget_path.write_text(json.dumps(budget, ensure_ascii=False, indent=2), encoding="utf-8")
-
     print(f"[done] story.md 模板已落：{story_path}")
-    print(f"[done] budget.json estimate 已落：{budget_path}")
     print(f"[next] agent 填梗概/人物/分场 → 跑 script-write（Stage 3）")
 
 

@@ -8,21 +8,24 @@ Usage:
 出：project_dir/render/shot-NN/ 下产物：
     first-frame.png（首帧静照，调 siliconflow-img-gen 生成或素材裁切）
     last-frame.png（尾帧静照）
-    gen-run-v01.mp4（aigc-video-gen i2v 产物，首尾帧插值）
+    gen*.mp4（aigc-video-gen i2v 产物，首尾帧插值；实际产出名不固定，gen.mp4 / gen-run-v01.mp4 / gen-v2.mp4 等，assemble 自动识别取最新）
     settings.log
 
 按 variation_type 传参考图：
 - static：传 1 张（first=last）
 - dynamic：传 2 张（first + last）
 - transition：跨机位慎用，传 2 张但可能跳镜
-
-预算四步：render 前必 reserve（锁额），render 后写 actual，超 $0.50/动作暂停确认。
 """
 
 import argparse
 import json
 import sys
 from pathlib import Path
+
+
+def die(msg: str) -> None:
+    print(f"[error] {msg}", file=sys.stderr)
+    sys.exit(1)
 
 
 def main() -> None:
@@ -77,13 +80,11 @@ def main() -> None:
                 "siliconflow-img-gen → last-frame.png" if variation != "static" else "(skip, same as first)",
                 "aigc-video-gen i2v --first first-frame.png --last last-frame.png → gen-run-v01.mp4",
             ],
-            "budget_estimate_usd": 0.30,
         }
         (shot_dir / "settings.log").write_text(json.dumps(plan, ensure_ascii=False, indent=2), encoding="utf-8")
 
         print(f"[plan] {sid} 渲染计划已落 {shot_dir}/settings.log")
         print(f"  - variation={variation} reference_images={plan['reference_images']}")
-        print(f"  - budget estimate=${plan['budget_estimate_usd']}")
         if args.dry_run:
             print(f"  [dry-run] 不真调")
         else:

@@ -48,7 +48,6 @@ output_videos/<topic-en-slug>/
 │   ├── story.md                # Stage 2
 │   ├── script.md               # Stage 3（含 enhancement_cues 六型 + delivery_cues）
 │   ├── self-eval.json          # Stage 3 自评
-│   ├── budget.json             # 预算四步：estimate → reserve → actual → reconcile
 │   ├── decisions.json          # 决策审计链（跨阶段累积）
 ├── storyboard/
 │   ├── storyboard.json         # Stage 4 镜头表
@@ -114,8 +113,8 @@ Stage 9a slideshow-risk       六维幻灯风险打分（pre-compose 闸门，�
 Stage 9b delivery-promise-lock 交付承诺八类锁定 + motion_ratio 预估
    ────── GATE B：素材闸门（素材齐+计划过审，停，发用户看 contact sheet）──────
 Stage 10 render-shot          按 slot 渲染（AIGC 走 aigc-video-gen i2v 首尾帧插值；静图走 siliconflow-img-gen）
-Stage 11 mix-audio            旁白（awk-tts）+ BGM 混音 + 字幕烧录
-Stage 12 assemble             按镜头顺序拼接成片 + 转场（ffmpeg xfade）
+Stage 11 mix-audio            配音配乐四场景分流（A 人物对话声画同出 / B 旁白一次性 TTS 带字级时间戳 + 对齐 / C BGM 成片后统一生成 / D 用户口播录音 → ASR 时间戳 → 按时间戳补素材）
+Stage 12 assemble             按序拼接成片（原子工具箱：clip-trim 切段 / audio-mix 混音 / timeline-compose 时间轴合成 / assemble 拼接，agent 按 §Stage 12 工具箱场景化组合，不写死 Workflow）
 Stage 13a video-review        公共 video-review 技术自检（强制闸门）
 Stage 13b motion-audit       CP 侧 motion_led 抽查（兑付 delivery-promise）
 Stage 14a make-cover          封面（siliconflow-img-gen，必含标题文字）
@@ -132,7 +131,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 |--------|----|----|------|
 | `intent-router` | brief.md（主题/关键词，或 viral-chaser 报告） | `script/intent.json`（档位+主题） | Stage 0 |
 | `reference-concepts` | viral-chaser 报告（main 喂入，可选） | `reference-driven/concepts.md` | Stage 1：只吃报告出概念，不做下载/转写/抽帧；无报告跳过 |
-| `story-develop` | intent.json | `script/story.md` + `script/budget.json`（estimate） | Stage 2 |
+| `story-develop` | intent.json | `script/story.md` | Stage 2 |
 | `script-write` | story.md | `script/script.md`（含 enhancement_cues + delivery_cues） | Stage 3 |
 | `script-self-eval` | script.md | `script/self-eval.json`（N 维分，任一维 <3 必返工） | Stage 3b |
 | `storyboard-build` | script.md | `storyboard/storyboard.json` | Stage 4 |
@@ -143,8 +142,12 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 | `slideshow-risk` | storyboard.json + slot-plan.json + asset-resolve.json | `slots/slideshow-risk.json`（六维分） | Stage 9a |
 | `delivery-promise-lock` | storyboard.json + brief.md | `slots/delivery-promise.json`（八类锁） | Stage 9b |
 | `render-shot` | shot_decompose.json + characters/ + slot-picks | `render/shot-NN/` 下产物 | Stage 10（调 aigc-video-gen i2v / siliconflow-img-gen） |
-| `mix-audio` | script.md（delivery_cues）+ video.mp4 | `audio/narration.mp3` + `audio/bgm.mp3` + `audio/subtitles.srt` | Stage 11（调 awk-tts + audio-mix） |
-| `assemble` | render/ 顺序 + audio/ + slots/promise | `video.mp4` | Stage 12（ffmpeg concat + xfade 转场 + 烧字幕） |
+| `mix-audio` | script.md（delivery_cues） | `audio/` 目录 + `subtitles.srt` 模板 | Stage 11（四场景分流：A 声画同出 / B 旁白一次性 TTS+ASR 对齐 / C BGM 成片后生成 / D 用户口播录音 → ASR 时间戳 → 按时间戳补素材） |
+| `narration-align` | audio/narration.mp3 + audio/narration.subtitle.json | `audio/narration-segments.json`（统一 segments 格式） | Stage 11b（优先复用 awk-tts --enable-subtitle 落盘的 TTS 原生字级时间戳，缺失时回退火山 ASR 极速版，凭据复用 viral-chaser 同池 `VOLC_ASR_*`） |
+| `assemble` | render/ 顺序 | `video.mp4` | Stage 12（按序拼接 + 可选转场 + 可选分辨率归一化） |
+| `clip-trim` | 素材路径 + 入点/出点/倍速 | 切好的片段 | Stage 12 原子工具：精确切素材，视频和音频分别处理 |
+| `audio-mix` | 多条音轨 + 各自延时/音量 | 混合音频 | Stage 12 原子工具：多轨混音 |
+| `timeline-compose` | timeline.json（每段素材/入点/出点/倍速/音轨及延时） | 合成片段 | Stage 12 原子工具：按时间轴调 clip-trim + audio-mix 合成 |
 | `motion-audit` | video.mp4 + delivery-promise.json | `review/motion-audit.json`（motion_led 抽查） | Stage 13b（补公共 video-review） |
 | `make-cover` | brief.md（标题）+ storyboard 关键帧 | `cover.jpg` | Stage 14a（调 siliconflow-img-gen） |
 
@@ -158,7 +161,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 
 文本产物全齐（脚本+分镜+机位+角色），**停下发用户审**：
 
-- 呈交摘要：档位、场次数、镜数、角色数、预算 estimate、关键决策（路径/模型/风格选择的备选+置信度+理由）
+- 呈交摘要：档位、场次数、镜数、角色数、关键决策（路径/模型/风格选择的备选+置信度+理由）
 - **结束本轮回复**，不许在同条回复里进 Stage 7
 - 批准是**逐闸门的**——早先的一句"你继续"不覆盖本闸门
 - 用户要改哪段就重跑对应子命令（产物文件存在性即 checkpoint，不会重生成未改的）
@@ -186,10 +189,6 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 - 起草/讨论脚本属对话协助，**不许调 render 工具**
 - 默认**小规模**：1 场 3–5 镜，不许把模糊想法擅自扩成多场多镜；用户要扩才扩
 
-### 预算四步
-
-每阶段开头 `script/budget.json` 写 `estimate`；调任何付费生成前 `reserve`（锁额）；调后写 `actual`；最后 `reconcile`。三种模式 `observe`/`warn`/`cap`。**单动作超 $0.50 暂停确认；总额默认上限 $10，超也暂停**。
-
 ### 决策审计链
 
 每个选择（路径/模型/风格/音色/任何 fallback）记 `备选 + 置信度 + 理由`，跨阶段累积进 `script/decisions.json`。
@@ -203,8 +202,9 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 | python3 / ffmpeg / ffprobe | 系统 | 各阶段脚本 |
 | 公共 `aigc-video-gen` | skills/ | Stage 8/10 视频片段生成（百炼/火山声画同出，i2v 首尾帧插值） |
 | 公共 `siliconflow-img-gen` | skills/ | Stage 6 角色三视图 / Stage 10 静帧 / Stage 14 封面 |
-| 公共 `awk-tts` | skills/ | Stage 11 旁白（OpenClaw 内置 TTS 优先 → awk-tts fallback） |
-| 公共 `pexels-footage` / `pixabay-footage` | skills/ | Stage 8 Stock Footage 素材补充 |
+| 公共 `awk-tts` | skills/ | Stage 11B 旁白一次性 TTS（OpenClaw 内置 TTS 优先 → awk-tts fallback；加 `--enable-subtitle` 让火山单向流式 HTTP 原生返回字级时间戳，落 `narration.subtitle.json`） |
+| 火山 ASR 凭据 `VOLC_ASR_*` | 实例 env | Stage 11b narration-align 回退路径 + Stage 11D 用户口播录音转写拿时间戳（复用 viral-chaser 同池：旧控制台双头 `VOLC_ASR_APP_ID`+`VOLC_ASR_ACCESS_KEY`，或新控制台单头 `VOLC_ASR_APP_KEY`） |
+| 公共 `pexels-footage` / `pixabay-footage` | skills/ | Stage 8 Stock Footage 素材补充 / Stage 11C BGM 搜 |
 | 公共 `video-review` | skills/ | Stage 13a 成片技术自检闸门 |
 | `requests` | 仓根 requirements.txt | 各脚本 HTTP 调用 |
 
@@ -227,10 +227,54 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 | `video-producer slideshow-risk` | 六维幻灯风险打分 | 0 成功 / 1 参数错 |
 | `video-producer delivery-promise-lock` | 八类承诺锁定 | 0 成功 / 1 参数错 |
 | `video-producer render-shot` | 按 slot 渲染 | 0 成功 / 1 参数错 / 2 env 未配 |
-| `video-producer mix-audio` | 旁白+BGM+字幕 | 0 成功 / 1 参数错 / 2 env 未配 |
-| `video-producer assemble` | 拼接成片+转场 | 0 成功 / 1 参数错 |
+| `video-producer mix-audio` | 三场景分流占位 | 0 成功 / 1 参数错 |
+| `video-producer narration-align` | 旁白 ASR 对齐时间戳 | 0 成功 / 1 参数错 / 2 env 未配 |
+| `video-producer assemble` | 按序拼接成片 | 0 成功 / 1 参数错 |
+| `video-producer clip-trim` | 切素材段 | 0 成功 / 1 参数错 |
+| `video-producer audio-mix` | 多轨混音 | 0 成功 / 1 参数错 |
+| `video-producer timeline-compose` | 时间轴合成 | 0 成功 / 1 参数错 |
 | `video-producer motion-audit` | motion_led 抽查 | 0 成功 / 1 参数错 |
 | `video-producer make-cover` | 封面（必含标题） | 0 成功 / 1 参数错 / 2 env 未配 |
+
+---
+
+## Stage 12 工具箱（场景化组合，不写死 Workflow）
+
+Stage 12 段**不规定固定 Workflow**——下面四个原子工具 agent 按实际场景灵活组合。
+
+### 原子工具清单
+
+| 工具 | 干什么 | 关键参数 |
+|------|--------|---------|
+| `clip-trim` | 精确切素材段（入点/出点/倍速，视频和音频分别处理） | `--input/--output/--start/--end/--speed/--sync-audio` |
+| `audio-mix` | 多轨混音（每轨独立延时和音量） | `--track（可重复）/--delay/--volume/--output/--duration` |
+| `timeline-compose` | 按时间轴 JSON 调 clip-trim + audio-mix 合成片段 | `<project_dir> --timeline timeline.json [--transition ...]` |
+| `assemble` | 按序拼接已就绪的段 + 可选转场 + 可选分辨率归一化 | `<project_dir> [--transition hard/fade/dissolve/xfade] [--width 1080] [--fps 30]` |
+
+### 场景化组合示例（非强制，agent 按实际判断）
+
+**场景 A：无旁白直拼**
+段就绪、无需切素材、无需混音——`assemble <project_dir> --transition fade` 一把过。
+
+**场景 B：有旁白走时间轴**
+旁白一次性 TTS 生成 + narration-align 拿字级时间戳后，按时间戳把各段素材对齐旁白：
+1. agent 据 narration-segments.json 各段 start/end 冡素材入点/出点，写 timeline.json
+2. `timeline-compose <project_dir> --timeline timeline.json` → 调 clip-trim 切段 + audio-mix 把旁白按延时叠到各段
+3. 全段 BGM 走 timeline.json 的 `audio_globals` 字段混入
+
+**场景 C：分段先合再合**
+长片或某些段需独立预合（如先合 shot-01~03 为一场，再合 shot-04~06 为另一场，最后两场合片）：
+1. 对 shot-01~03 跑 `assemble <sub_dir> --transition fade` 出 sub-1.mp4
+2. 对 shot-04~06 同样出 sub-2.mp4
+3. 把 sub-1.mp4 / sub-2.mp4 当段素材，再跑 `assemble` 或 `timeline-compose` 合片
+
+**场景 D：素材尺寸不一**
+AIGC 720x1280、录屏 1080x2384、片尾 784x1176 混拼——`assemble` 传 `--width 1080 --fps 30` 归一化（scale + pad 16:9 + sar + fps 统一）后再 concat。
+
+**场景 E：精确调速某段**
+某段需 2x 快放——`clip-trim --input <段> --output <快放段> --speed 2 --sync-audio` 切好后，把快放段当段素材再拼。
+
+agent 据剧本实际选场景组合，可混合多场景（如 B+E：旁白时间轴 + 某段快放）。脚本不预设顺序。
 
 ---
 

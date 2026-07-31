@@ -273,6 +273,10 @@ def build_payload(args: argparse.Namespace, text: str) -> dict:
         audio_params["speech_rate"] = int(args.speech_rate)
     if args.loudness_rate is not None:
         audio_params["loudness_rate"] = int(args.loudness_rate)
+    # enable_subtitle=true 让火山单向流式 HTTP 原生返回字级时间戳
+    # （sentence.words 带 startTime/endTime，秒）。默认 false 保持向后兼容。
+    if getattr(args, "enable_subtitle", False):
+        audio_params["enable_subtitle"] = True
 
     payload: dict = {
         "user": {"uid": f"wiseflow-awk-tts-{int(time.time())}"},
@@ -331,8 +335,13 @@ def build_headers(resource_id: str) -> dict[str, str]:
     return headers
 
 
-def create_speech(api_base: str, payload: dict, headers: dict, *, timeout: int = 120) -> bytes:
-    """调火山 openspeech v3 单向流式 TTS，拼装 NDJSON 响应的 base64 音频分片。"""
+def create_speech(api_base: str, payload: dict, headers: dict, *, timeout: int = 120) -> tuple[bytes, list[dict]]:
+    """调火山 openspeech v3 单向流式 TTS。
+
+    返回 (audio_bytes, sentences)：
+    - audio_bytes: 拼装后的 base64 音频分片
+    - sentences: 各 sentence 段（含 text/words/phonemes），enable_subtitle=true 时 words 带字级时间戳
+    """
     url = f"{api_base.rstrip('/')}{DEFAULT_TTS_PATH}"
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
@@ -345,8 +354,9 @@ def create_speech(api_base: str, payload: dict, headers: dict, *, timeout: int =
     except urllib.error.URLError as exc:
         die(f"request failed: {exc.reason}")
 
-    # NDJSON：逐行解析 JSON，收集 data 字段（base64 音频分片）
+    # NDJSON：逐行解析 JSON，收集 data 字段（base64 音频分片）+ sentence 段
     chunks: list[bytes] = []
+    sentences: list[dict] = []
     for line in raw.decode(errors="replace").splitlines():
         trimmed = line.strip()
         if not trimmed:
@@ -358,6 +368,8 @@ def create_speech(api_base: str, payload: dict, headers: dict, *, timeout: int =
         code = parsed.get("code")
         if code == 0 and parsed.get("data"):
             chunks.append(base64.b64decode(parsed["data"]))
+        if code == 0 and parsed.get("sentence"):
+            sentences.append(parsed["sentence"])
         elif code == 20000000:
             # 正常结束事件
             break
@@ -366,7 +378,7 @@ def create_speech(api_base: str, payload: dict, headers: dict, *, timeout: int =
 
     if not chunks:
         die("火山 TTS 返回空音频（无 data 分片）")
-    return b"".join(chunks)
+    return b"".join(chunks), sentences
 
 
 def resolve_output_path(args: argparse.Namespace, root: Path | None = None) -> Path:
@@ -421,6 +433,7 @@ def main() -> None:
     parser.add_argument("--out-dir", default=None, dest="out_dir", help="Output directory under assets/audio, tmp, output_videos, or fragments")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
     parser.add_argument("--no-asr-check", action="store_true", dest="no_asr_check", help="Skip ASR self-check after TTS generation")
+    parser.add_argument("--enable-subtitle", action="store_true", dest="enable_subtitle", help="让火山单向流式 HTTP 原生返回字级时间戳（sentence.words 带 startTime/endTime，秒）")
     args = parser.parse_args()
 
     text, tts_settings = read_text_source(args)
@@ -444,7 +457,7 @@ def main() -> None:
         f"[info] generating speech: speaker={args.voice} resource={resource_id} "
         f"format={args.format} chars={len(text)} timeout={timeout}s"
     )
-    audio = create_speech(api_base, payload, headers, timeout=timeout)
+    audio, sentences = create_speech(api_base, payload, headers, timeout=timeout)
     if not audio:
         die("empty audio response")
 
@@ -468,9 +481,21 @@ def main() -> None:
     }
     metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    # enable_subtitle=true 时 sentences 带 words[startTime/endTime]，落盘供下游对齐
+    subtitle_path: Path | None = None
+    if sentences:
+        subtitle_path = output_path.with_suffix(".subtitle.json")
+        subtitle_path.write_text(
+            json.dumps({"sentences": sentences}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
     print(f"[done] Audio saved to: {output_path}")
     print(f"[done] Metadata: {metadata_path}")
     print(f"[done] Duration: {audio_duration:.3f}s")
+    if subtitle_path:
+        total_words = sum(len(s.get("words", [])) for s in sentences)
+        print(f"[done] Subtitle (字级时间戳): {subtitle_path} ({len(sentences)} sentences, {total_words} words)")
 
     if not args.no_asr_check:
         run_asr_check(output_path, text)

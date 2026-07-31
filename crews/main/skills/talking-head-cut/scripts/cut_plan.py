@@ -47,130 +47,13 @@ import tempfile
 import uuid
 from pathlib import Path
 
+# 注入 _shared 到 sys.path，复用公共火山 ASR 脚本（与 xhs-publish/scripts/publish_xhs.py 同范式）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared"))
+from volc_asr import volc_asr  # noqa: E402
+
 # 语气词清单
 FILLERS_ZH = {"嗯", "呃", "额", "唔", "哎", "诶", "欸", "啊", "呀", "嘛", "呢", "吧"}
 FILLERS_EN = {"um", "uh", "uhm", "er", "erm", "eh", "ah"}
-
-
-def volc_asr(audio_path: str) -> dict:
-    """调火山方舟豆包语音极速版，返 {ok, text, utterances, words}。
-    utterances: [{start, end, text}]
-    words: [{start, end, text}]（字级时间戳，精确剪语气词的前提）
-    """
-    try:
-        import requests
-    except ImportError as e:
-        return {"ok": False, "error": f"requests 不可用: {e}"}
-
-    app_id = os.environ.get("VOLC_ASR_APP_ID", "")
-    access_key = os.environ.get("VOLC_ASR_ACCESS_KEY", "")
-    app_key = os.environ.get("VOLC_ASR_APP_KEY", "")
-    resource_id = os.environ.get("VOLC_ASR_RESOURCE_ID", "volc.bigasr.auc_turbo")
-    url = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash"
-
-    headers = {
-        "X-Api-Resource-Id": resource_id,
-        "X-Api-Request-Id": str(uuid.uuid4()),
-        "X-Api-Sequence": "-1",
-    }
-
-    if app_id and access_key:
-        headers["X-Api-App-Key"] = app_id
-        headers["X-Api-Access-Key"] = access_key
-        uid = app_id
-    elif app_key:
-        headers["X-Api-Key"] = app_key
-        uid = app_key
-    else:
-        return {
-            "ok": False,
-            "error": "火山 ASR 凭证未配置：需 VOLC_ASR_APP_ID+VOLC_ASR_ACCESS_KEY（旧控制台双头）或 VOLC_ASR_APP_KEY（新控制台单头）。开通流程见 viral-chaser SKILL.md",
-        }
-
-    try:
-        with open(audio_path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode("ascii")
-    except Exception as e:
-        return {"ok": False, "error": f"读取音频失败: {e}"}
-
-    ext = os.path.splitext(audio_path)[1].lower().lstrip(".")
-    fmt = ext if ext in ("wav", "mp3", "ogg") else "wav"
-
-    body = {
-        "user": {"uid": uid},
-        "audio": {"data": b64, "format": fmt},
-        "request": {
-            "model_name": "bigmodel",
-            "show_utterances": True,
-            "enable_itn": True,
-            "enable_punc": True,
-        },
-    }
-
-    try:
-        r = requests.post(url, json=body, headers=headers, timeout=300)
-    except Exception as e:
-        return {"ok": False, "error": f"请求失败: {e}"}
-
-    status = r.headers.get("X-Api-Status-Code", "")
-    msg = r.headers.get("X-Api-Message", "")
-    logid = r.headers.get("X-Tt-Logid", "")
-
-    if status != "20000000":
-        snippet = r.text[:500] if r.text else ""
-        return {
-            "ok": False,
-            "error": f"火山 ASR 失败 (status={status}, msg={msg}, logid={logid}): {snippet}",
-        }
-
-    try:
-        resp = r.json()
-    except Exception as e:
-        return {"ok": False, "error": f"响应解析失败: {e}; raw={r.text[:500]}"}
-
-    result = resp.get("result") or {}
-    text = result.get("text", "") or ""
-
-    utterances = []
-    for u in (result.get("utterances") or []):
-        try:
-            utterances.append({
-                "start": float(u.get("start_time", 0)) / 1000.0,
-                "end": float(u.get("end_time", 0)) / 1000.0,
-                "text": u.get("text", "") or "",
-            })
-        except Exception:
-            continue
-
-    # word 级时间戳：火山 utterance 内含 words 列表，每 word 带 start_time/end_time
-    words = []
-    for u in (result.get("utterances") or []):
-        for w in (u.get("words") or []):
-            try:
-                words.append({
-                    "start": float(w.get("start_time", 0)) / 1000.0,
-                    "end": float(w.get("end_time", 0)) / 1000.0,
-                    "text": (w.get("text") or "").strip(),
-                })
-            except Exception:
-                continue
-
-    # 兜底：若火山未返 word 级，按 utterance 切单字近似（中文每字一字）
-    if not words and utterances:
-        for u in utterances:
-            chars = list(u["text"])
-            if not chars:
-                continue
-            dur = u["end"] - u["start"]
-            per = dur / len(chars) if chars else 0
-            for i, ch in enumerate(chars):
-                words.append({
-                    "start": u["start"] + i * per,
-                    "end": u["start"] + (i + 1) * per,
-                    "text": ch,
-                })
-
-    return {"ok": True, "text": text, "utterances": utterances, "words": words}
 
 
 def extract_wav(video_path: str, out_wav: str) -> bool:

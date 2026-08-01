@@ -100,8 +100,9 @@
 
 1. 从 published-track DB 读取该平台所有 `cal_enabled=1` 的记录
 2. 按记录的 `source_folder` 逐个检查作品目录：`<source_folder>/calibration/` 下**有 `prediction.md` 且无 `retro.md`** 即为待复盘。预测日志是 per-work 存放的（见 content-calibrator SKILL.md），**不存在** `calibration/<platform>/predictions/` 这种平台级目录，不要去 ls 它
-3. 统计**有实际互动数据但尚未复盘**的记录数
-4. 如果积累了 **≥5 个新数据点** → 执行复盘流程
+3. **T+3d 时间窗口过滤**：只保留 `published_at + 3天 < 当前时间` 的记录（数据未稳定的不复盘；`published_at` 取自 published-track DB）
+4. 统计**过窗口且有实际互动数据但尚未复盘**的记录数
+5. 如果积累了 **≥5 个新数据点** → 执行复盘流程
 
 检查命令用安全写法（**不要**对可能不存在的路径裸 `ls` 再 `&&` 串联——复合命令一次非零退出会让 cron 把整次任务误报为 failed，即使后续步骤全部完成）：
 
@@ -110,10 +111,11 @@
 if [ -f "<source_folder>/calibration/prediction.md" ] && [ ! -f "<source_folder>/calibration/retro.md" ]; then echo "PENDING: <source_folder>"; fi
 ```
 
-复盘流程（由 Agent 执行）：
-- 从 published-track DB 读互动数据
+复盘流程（由 Agent 执行，每个作品一份）：
+- 从 published-track DB 读该 work 在各平台的互动数据
 - 对比预测 vs 实际
-- 提炼观察 → 写入 `calibration/<platform>/rubric-memo.md`
+- 写 `<work>/calibration/retro.md`（T+3d 写一次，immutable，含多平台实绩对比）
+- 提炼观察 → 写入**统一** `calibration/rubric-memo.md`（根级，非平台目录；见 content-calibrator SKILL.md 归集表）
 - 检测是否触发 bump（≥3 次同向偏差）
 
 **如果某平台未启用 content-calibrator，跳过此步骤。Agent 不得自动启用。**
@@ -151,7 +153,7 @@ if [ -f "<source_folder>/calibration/prediction.md" ] && [ ! -f "<source_folder>
    > **只报告取数端 cookie**。**不要报告、也不要探测 `xhs-publish`（小红书发布端 / creator.xiaohongshu.com）**：
    > 复盘/取数完全不依赖发布端 cookie，探测它只会给 creator 域增加风控概率且结论与取数无关。
    > 发布端失效由发布任务（xhs-publish 技能）自己管，不在本复盘心跳职责内。
-3. content-calibrator 复盘结果摘要（如有）
+3. content-calibrator 复盘结果摘要（如有）：列出本轮复盘的**每个作品**（`source_folder` / 标题）+ 预测 vs 实际对比简述 + 是否触发 bump 信号
 4. 用户咨询回复摘要。
 
 发送后本次定时任务结束。

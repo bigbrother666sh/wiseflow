@@ -122,19 +122,28 @@ camoufox-cli --session twitter --persistent --headed --json open "https://x.com/
 ```
 1. Navigate to https://x.com/compose/post
 2. Wait for the compose box to load
-3. Click the media icon (camera/photo button below compose box)
-4. Upload the image file using the file picker
-5. Wait for image upload to complete (thumbnail appears)
-6. Click into the caption area and type the caption
+3. Upload the image file using camoufox-cli upload（见下方选择器说明）
+4. Wait for image upload to complete (thumbnail / "Media" group appears)
+5. Click into the text area and type the caption
    - Plain text only (no Markdown)
    - Max 280 characters for standard accounts
-7. **立即点击 "Post" 按钮——不要等待用户确认！**
-8. Wait for confirmation and report the post URL
-9. Parse stats (same as plain text)
-10. Update frequency tracker
+6. **立即点击 "Post" 按钮——不要等待用户确认！**
+7. Wait for confirmation and report the post URL
+8. Parse stats (same as plain text)
+9. Update frequency tracker
 ```
 
-> forked cli 的 `upload` 命令底层走 Playwright `setInputFiles`，穿透 shadow DOM，无需 `locator.drop()` hack。
+### 文件上传选择器（重要）
+
+X compose 页面有**两个** `<input type="file" data-testid="fileInput">` 元素（可见 + 隐藏），直接用 `input[type=file]` 或 `[data-testid=fileInput]` 会触发 Playwright **strict mode violation: resolved to 2 elements**。
+
+**必须用 `>> nth=0` 消歧**：
+
+```bash
+camoufox-cli --session twitter --persistent --json upload "[data-testid=fileInput] >> nth=0" /path/to/image.jpg
+```
+
+> forked cli 的 `upload` 命令底层走 Playwright `setInputFiles`，#穿透 shadow DOM，无需 `locator.drop()` hack。
 
 ---
 
@@ -326,6 +335,8 @@ snapshot eval: document.querySelector('[data-testid="icon-verified"]') !== null
 | Character limit exceeded (280) | Trim content or use thread format |
 | Character limit exceeded (Premium 25K) | Trim or use thread |
 | Media upload fails | Retry once; check file format and size |
+| Upload strict mode violation (2 elements) | **用 `[data-testid=fileInput] >> nth=0` 消歧**（见 Workflow: Post with Image） |
+| "Something went wrong, but don't fret" after Post | X 服务端瞬时错误。**自动重试**：reload compose 页 → retype → reupload → re-click Post，最多 3 次。3 次仍失败才报告用户。无需等待，立即重试。 |
 | Rate limit error | **Wait 30 min minimum** (not 15) + check frequency tracker |
 | Post button greyed out | Content is empty or over limit — check before clicking |
 | Frequency tracker warns high-risk | Ask user: continue or defer to tomorrow? |

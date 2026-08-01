@@ -22,6 +22,7 @@ const SHORT_LINK_DOMAINS = new Set([
   "v.douyin.com",
   "b23.tv",
   "xhslink.com",
+  "xhslink.cn",
 ])
 
 // Domain → platform mapping
@@ -33,6 +34,7 @@ const DOMAIN_TO_PLATFORM: Record<string, Platform> = {
   "bilibili.com": "bilibili",
   "www.bilibili.com": "bilibili",
   "xhslink.com": "xhs",
+  "xhslink.cn": "xhs",
   "xiaohongshu.com": "xhs",
   "www.xiaohongshu.com": "xhs",
 }

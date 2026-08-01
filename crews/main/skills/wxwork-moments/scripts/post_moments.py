@@ -27,6 +27,7 @@ from pathlib import Path
 DEFAULT_RELAY_BASE_URL = "https://relay.openclaw-for-business.com"
 IMAGE_MAX_DIM = 1248
 RESIZE_TARGET = 1200
+IMAGE_MIN_DIM = 600  # wxwork moments 41081: both dims must be ≥ 600
 
 
 def die(msg: str) -> None:
@@ -115,20 +116,46 @@ def download_file(url: str, dest: str) -> bool:
 
 
 def auto_resize_image(filepath: str) -> str:
+    """Normalize image for wxwork moments upload.
+
+    Handles three cases that cause errcode 41081 "media's resolution invalid":
+    1. Non-RGB mode (RGBA/P/CMYK) → convert to RGB
+    2. Both dims > IMAGE_MAX_DIM → scale down to RESIZE_TARGET
+    3. Either dim < IMAGE_MIN_DIM → scale up so both dims ≥ IMAGE_MIN_DIM
+    Returns original filepath if PIL unavailable or no change needed.
+    """
     try:
         from PIL import Image
     except ImportError:
         return filepath
     img = Image.open(filepath)
+    changed = False
+
+    # 1. Convert to RGB (RGBA/P/CMYK cause 41081 on wxwork)
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+        changed = True
+
     w, h = img.size
-    if w < IMAGE_MAX_DIM or h < IMAGE_MAX_DIM:
+
+    # 2. Too large → scale down
+    if w > IMAGE_MAX_DIM or h > IMAGE_MAX_DIM:
+        ratio = RESIZE_TARGET / max(w, h)
+        nw, nh = int(w * ratio), int(h * ratio)
+        img = img.resize((nw, nh), Image.LANCZOS)
+        w, h = nw, nh
+        changed = True
+
+    # 3. Too small → scale up so both dims ≥ IMAGE_MIN_DIM
+    if w < IMAGE_MIN_DIM or h < IMAGE_MIN_DIM:
+        ratio = IMAGE_MIN_DIM / min(w, h)
+        nw, nh = int(w * ratio), int(h * ratio)
+        img = img.resize((nw, nh), Image.LANCZOS)
+        changed = True
+
+    if not changed:
         return filepath
-    ratio = RESIZE_TARGET / max(w, h)
-    nw, nh = int(w * ratio), int(h * ratio)
-    img = img.resize((nw, nh), Image.LANCZOS)
-    left = (nw - RESIZE_TARGET) // 2
-    top = (nh - RESIZE_TARGET) // 2
-    img = img.crop((left, top, left + RESIZE_TARGET, top + RESIZE_TARGET))
+
     tmp = tempfile.NamedTemporaryFile(prefix="_wx_auto_resize_", suffix=".jpg", delete=False)
     tmp.close()
     img.save(tmp.name, "JPEG", quality=92, optimize=True)
@@ -223,7 +250,7 @@ def main() -> None:
         if ftype == "image":
             upload_path = auto_resize_image(filepath)
             if upload_path != filepath:
-                log("  ⚠ 原始分辨率超标，已自动缩放到 1200x1200")
+                log("  ⚠ 图片已规范化（RGB 转换 / 分辨率调整）以符合朋友圈要求")
         mid = upload_media(upload_path, ftype, relay, ofb_key, corp_id, corp_secret)
         log(f"  media_id: {mid}")
         media_ids.append(mid)

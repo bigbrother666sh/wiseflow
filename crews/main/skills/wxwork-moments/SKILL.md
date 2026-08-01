@@ -93,6 +93,7 @@ wxwork-moments "推荐阅读" --link https://example.com/article "文章标题" 
 | `MISSING_CORP_CREDENTIALS`（relay 400） | 请求体缺 corp_id/corp_secret | 检查 daemon.env 是否生效（需重启） |
 | `GETTOKEN_FAILED`（relay 502） | corp_secret 错或 corp_id 不存在 | 核对凭据；按 `REFERENCE.md` 重新获取 |
 | `no privilege` | 应用未开通客户联系权限 | 按 `REFERENCE.md` 第 3 步开通 |
+| `41081 media's resolution invalid` | 图片分辨率不合规（非 RGB / 过小 / 过大） | 脚本已自动规范化（RGB 转换 + 分辨率调整），若仍失败检查图片是否损坏 |
 | `图片最多 9 张` | 超出数量限制 | 减少传入文件数量 |
 
 ---

@@ -222,9 +222,12 @@ function selectSentOnceFollowUp(dbFile: string, peer: string): SentFollowUp | nu
   return { id: parseInt(id, 10), sent_text };
 }
 
-function completePendingFollowUps(dbFile: string, peer: string): void {
+function completeSentOnceFollowUps(dbFile: string, peer: string): void {
+  // 客户主动回复 → 仅完成已实际发送过的跟进（sent_once）。
+  // pending 任务尚未发送，客户只是在继续当前对话，不能被这里误杀；
+  // pending 只应由 heartbeat 发送、cancel-pending 或 expire 推进。
   sqliteExec(dbFile, [
-    `UPDATE follow_up SET status='completed', completed_at=strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime') WHERE peer=${sqlQuote(peer)} AND status IN ('pending', 'sent_once');`,
+    `UPDATE follow_up SET status='completed', completed_at=strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime') WHERE peer=${sqlQuote(peer)} AND status='sent_once';`,
   ]);
 }
 
@@ -345,7 +348,7 @@ export function registerCustomerDb(api: OpenClawPluginApi, cfg: CustomerDbConfig
       if (!row) return;
 
       const sentFollowUp = selectSentOnceFollowUp(dbFile, peer);
-      completePendingFollowUps(dbFile, peer);
+      completeSentOnceFollowUps(dbFile, peer);
 
       let appendCtx = buildDynamicContext(row);
       if (sentFollowUp) {

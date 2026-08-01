@@ -219,6 +219,12 @@ export class DaemonServer {
       // would orphan camoufox-bin holding the profile lock + RAM (see 0773afb).
       for (const p of [this.socketPath, this.pidPath]) { try { fs.unlinkSync(p); } catch {} }
       if (this.forceExit) {
+        // SIGTERM first (graceful): Firefox catches it, flushes GPU fences/
+        // WebRender state, exits cleanly. Direct SIGKILL on WebRender-active
+        // Firefox dangles amdgpu fences → hard-lock (2026-08-01 Vega freeze,
+        // memory 48). Wait 3s, then SIGKILL the whole group as last resort.
+        try { process.kill(-process.pid, "SIGTERM"); } catch {}
+        await new Promise((r) => setTimeout(r, 3000));
         try { process.kill(-process.pid, "SIGKILL"); } catch {}
         process.exit(1);
       }

@@ -133,16 +133,40 @@ function recoverOrphanBrowser(persistent: string): { recovered: boolean; reason?
     ppid = parseInt(stat.split(" ")[3], 10);
   } catch { /* /proc 不可读（非 Linux）→ 只杀 bin 自己 */ }
   const killTargets = ppid > 1 ? [ppid, binPid] : [binPid];
+  // SIGTERM first (graceful): Firefox catches it, flushes GPU fences/WebRender
+  // state, exits cleanly. Direct SIGKILL on a WebRender-active Firefox dangles
+  // amdgpu fences and can hard-lock the box (2026-08-01 Vega iGPU freeze, mem 48).
+  for (const pid of killTargets) {
+    try { process.kill(-pid, "SIGTERM"); } catch { try { process.kill(pid, "SIGTERM"); } catch {} }
+  }
+  // Wait up to 3s for Firefox + content procs to follow the graceful exit.
+  for (let i = 0; i < 30; i++) {
+    try { process.kill(binPid, 0); } catch { break; }
+    const start = Date.now(); while (Date.now() - start < 100) { /* sync spin */ }
+  }
+  // Still alive after 3s — SIGKILL the whole group as last resort.
   for (const pid of killTargets) {
     try { process.kill(-pid, "SIGKILL"); } catch { try { process.kill(pid, "SIGKILL"); } catch {} }
   }
-  // SIGKILL 不可拦，但 Firefox content procs 需一点时间跟随退出。最多等 ~2s。
   for (let i = 0; i < 20; i++) {
     try { process.kill(binPid, 0); } catch { break; }
     const start = Date.now(); while (Date.now() - start < 100) { /* sync spin */ }
   }
   for (const p of [lockPath, parentLockPath]) { try { fs.unlinkSync(p); } catch {} }
   return { recovered: true };
+}
+
+/** SIGTERM the process group (graceful — Firefox catches SIGTERM, flushes GPU
+ * fences/WebRender state, exits cleanly), wait ~3s, then SIGKILL if still
+ * alive. Direct SIGKILL on a WebRender-active Firefox dangles amdgpu fences
+ * and can hard-lock the box (2026-08-01 Vega iGPU freeze, memory 48). */
+async function termThenKill(pid: number): Promise<void> {
+  try { process.kill(-pid, "SIGTERM"); } catch { try { process.kill(pid, "SIGTERM"); } catch {} }
+  for (let i = 0; i < 30; i++) {
+    try { process.kill(pid, 0); } catch { return; }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  try { process.kill(-pid, "SIGKILL"); } catch { try { process.kill(pid, "SIGKILL"); } catch {} }
 }
 
 /** Tear down a live daemon so a fresh one can take its socket — used when the
@@ -167,12 +191,13 @@ async function killDaemon(session: string): Promise<void> {
   // Kill the whole process GROUP (-pid): daemon.js is spawned detached:true so
   // it's its own pgid leader, and camoufox-bin + content procs are its children.
   // Killing only the daemon pid leaves camoufox-bin orphaned holding the profile
-  // lock + RAM. Fall back to plain pid if the group kill misses (ESRCH).
+  // lock + RAM. SIGTERM first (graceful) so Firefox flushes GPU state; SIGKILL
+  // only if it doesn't exit in 3s (see termThenKill / memory 48).
   if (fs.existsSync(pidPath)) {
     try {
       const pid = parseInt(fs.readFileSync(pidPath, "utf-8").trim(), 10);
       if (pid) {
-        try { process.kill(-pid, "SIGKILL"); } catch { try { process.kill(pid, "SIGKILL"); } catch {} }
+        await termThenKill(pid);
       }
     } catch {}
   }

@@ -1,6 +1,6 @@
 ---
 name: viral-chaser
-description: 下载分析抖音/B站/小红书爆款视频，生成追爆报告。仅产出报告，视频生产需另外委托content-producer进行。
+description: 用户转发/分享抖音、B站、小红书视频链接要求拆解分析时使用（俗称「追爆」）：下载视频、ASR 转写、结构化拆解，产出拆解分析报告。仅产出报告，视频生产需另外委托 content-producer。
 metadata:
   openclaw:
     emoji: 🎯

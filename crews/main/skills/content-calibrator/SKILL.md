@@ -45,7 +45,18 @@ metadata:
 📊 打分+盲预测 → 🚀 发布 → 📝 记录(1B) → 📈 T+3d 复盘(per-work) → 🧬 进化 rubric
 ```
 
-打分与盲预测在**同一次 blind sub-agent 调用**内完成（合并理由：subagent 已读稿件、已出分值，顺手出预测；且合并后 Predict 不再是可被跳过的独立软步骤，闭环天然不断）。
+打分与盲预测**同一次出分**内完成（合并理由：已读稿件、已出分值，顺手出预测；且合并后 Predict 不再是可被跳过的独立软步骤，闭环天然不断）。
+
+### 派发策略：blind sub-agent 是条件派发，不是强制
+
+blind sub-agent 的隔离价值在于"主对话已看过用户对话/实绩/复盘历史，inline 打分会污染"。**这一前提只在交互式会话成立。** 发布常走定时任务 + isolatedSession，此时主 agent 本就是全新对话、无上下文，再套一层隔离 subagent 买不到隔离收益，反而 subagent 经 `sessions_yield` 回包会让 isolated 主 agent 误判本轮结束、截断后续发布动作（见 gotcha：心跳 isolated session 交互死锁）。
+
+| 会话场景 | 打分方式 | 理由 |
+|---------|---------|------|
+| **交互式会话**（主 agent 有对话/复盘上下文） | `sessions_spawn` blind sub-agent | 主对话被污染，需 spawn 硬隔离 |
+| **定时 / isolatedSession**（发布 cron、heartbeat 触发） | **主 agent inline 打分**，不派 subagent | 全新对话无上下文，盲条件由"发布前=无实际数据"天然满足；避免 sessions_yield 截断发布流 |
+
+**inline 打分时必须遵守的隔离纪律**（用文字约束替代 spawn 硬隔离，弱一档但可接受）：打分前**只读**稿件 + `calibration/rubric_notes.md`；**不要读** `rubric-memo.md`、`.cheat-state.json`、其他 work 的 `calibration/`、`audience.md`、`benchmark.md`。读完即出分 + 预测，不翻历史。
 
 ---
 
@@ -55,9 +66,12 @@ metadata:
 
 ### 流程 1A·打分+盲预测（发布前自检）
 
-发布前对稿件做盲打分 + 盲预测 + 阈值门，**避免主 agent 自创自评**。
+发布前对稿件做盲打分 + 盲预测 + 阈值门，**避免自创自评**。派发方式按上方"派发策略"表，依会话场景选 inline 或 blind sub-agent。
 
-1. **主 agent `sessions_spawn` 一个 blind sub-agent**，只喂 `script_path`（稿件/视频定稿）+ `calibration/rubric_notes.md`。sub-agent 硬禁读 `.cheat-state.json`/各 work 的 `calibration/`/`rubric-memo.md`/`audience.md`/`benchmark.md`/对话历史，输出严格 JSON：
+1. **出分+出预测**（inline 或 blind sub-agent 二选一，见派发策略表）：
+   - **交互式会话**：主 agent `sessions_spawn` 一个 blind sub-agent，只喂 `script_path`（稿件/视频定稿）+ `calibration/rubric_notes.md`。sub-agent 硬禁读 `.cheat-state.json`/各 work 的 `calibration/`/`rubric-memo.md`/`audience.md`/`benchmark.md`/对话历史。
+   - **定时 / isolatedSession**：主 agent 自己 inline 打分，只读稿件 + `calibration/rubric_notes.md`，不读上述禁读文件，不翻对话历史。
+   - 两种方式输出同一份严格 JSON：
    - 7 维分（ER/HP/SR/QL/NA/AB/PV，各 0-5）+ per-dim confidence
    - **盲预测草稿**：cold-start 期（前 5 个作品）= 一句话 bet；过 cold-start = 每目标平台的 bucket + 概率分布 + 中枢 + 反事实场景 + 关键校准假设
 2. 主 agent 拿分调 `score-only.sh` 校验 + 算 composite + 判阈值门：
@@ -75,7 +89,7 @@ metadata:
      --prediction-file /tmp/prediction-draft.md
    ```
    写 `score.json` + `prediction.md`。**同 work 重复打分直接覆盖**（用户有意见/未过阈值 → 改稿重打，新结果覆盖旧的）。
-4. **阈值门**：`passed=false` → 主 agent 据 `failing_dims` 改稿 → 重新 spawn blind sub-agent 打分+预测 → 再判门。**最多 2 轮**，仍不达标 → 暂停发布、上报用户裁定。
+4. **阈值门**：`passed=false` → 主 agent 据 `failing_dims` 改稿 → 按派发策略重新出分+预测 → 再判门。**最多 2 轮**，仍不达标 → 暂停发布、上报用户裁定。
 5. `passed=true` → 放行，进入发布技能。
 6. **平台未启用 calibration**（`calibration/<platform>/.platform-state.json` 不存在或 `enabled=false`）→ 跳过 1A，直接发布。
 
@@ -190,15 +204,15 @@ Agent 在复盘或发布时，发现对应平台未启用 calibration，**不得
 
 ## Score+Predict — 打分+盲预测（合并）
 
-给单篇稿子打 rubric 分 + 出盲预测，在发布前作为自检门（流程见上方"流程 1A"）。**脚本不做 LLM 打分/预测**；打分+预测由主 agent `sessions_spawn` 的 blind sub-agent 一次完成，脚本只做算术、门禁、落盘。
+给单篇稿子打 rubric 分 + 出盲预测，在发布前作为自检门（流程见上方"流程 1A"）。**脚本不做 LLM 打分/预测**；打分+预测由主 agent 出（inline 或 blind sub-agent，按上方"派发策略"表选），脚本只做算术、门禁、落盘。
 
-**blind sub-agent 隔离规则**（主对话已看过用户对话/实绩/复盘历史，inline 打分会污染，故必须 delegate）：
+**隔离规则**（无论 inline 还是 subagent，白名单/禁读清单相同；区别只是 inline 靠文字自律、subagent 靠 spawn 硬隔离）：
 
 - **白名单只读**：稿件（`script.md`/`article.md`/`post.md`）+ `calibration/rubric_notes.md`
-- **rubric 路径**：统一 rubric 只在根级 `calibration/rubric_notes.md`。`calibration/<platform>/` 下**没有独立 rubric**，只有 `audience.md`/`benchmark.md`/`.platform-state.json`（平台目录里的 `rubric_notes.md` 是指向根级的软链，读它等于读根级）。主 agent spawn 时应把根级 rubric 路径或内容显式喂给 subagent，不要让 subagent 自己去平台目录找。
+- **rubric 路径**：统一 rubric 只在根级 `calibration/rubric_notes.md`。`calibration/<platform>/` 下**没有独立 rubric**，只有 `audience.md`/`benchmark.md`/`.platform-state.json`（平台目录里的 `rubric_notes.md` 是指向根级的软链，读它等于读根级）。派发 subagent 时应把根级 rubric 路径或内容显式喂给 subagent，不要让 subagent 自己去平台目录找。
 - **硬禁读**：`rubric-memo.md`、`.cheat-state.json`、各 `<work>/calibration/`、`audience.md`、`benchmark.md`、对话历史
 - **输出**：严格 JSON = 7 维分（各 0-5）+ per-dim confidence + 盲预测草稿
-- 校准池重打分**强制** blind sub-agent，不接受 fallback
+- 校准池重打分（Bump 流程）**强制** blind sub-agent，不接受 inline fallback——Bump 是交互式深度操作，主 agent 必有上下文，且全量重打需要严格隔离保证排序一致性校验有效
 
 ### 盲预测的"盲"与落盘分工
 

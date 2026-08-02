@@ -1,6 +1,6 @@
 ---
 name: video-producer
-description: 端到端视频制作——出脚本、分镜、机位一致性、素材匹配、闸门、渲染、自检、交付。接到"从零做视频""出一支完整视频""按这个脚本/主题拍片子"类需求时走本技能。意图路由三档脚本模板（故事讲述型/纯画面动效型/蒙太奇剪接型）+ 两道闸门（GATE A 文本闸、GATE B 素材闸）+ 产物文件即 checkpoint。
+description: 视频制作与片段修整。两种用法——(A) 端到端生产：从零做一支完整视频，出脚本、分镜、机位一致性、素材匹配、闸门、渲染、自检、交付；(B) 片段修整：已有几个片段要拼一下、给一个片段配音合成、稍微剪辑烧字幕等，直接用 Stage 12 工具箱（assemble/clip-trim/audio-mix/timeline-compose/scene-compose/add-silent-audio/make-outro）。接到"从零做视频""出一支完整视频""按这个脚本/主题拍片子"类需求走模式 A；接到"把这几段拼一下""给这片段配个旁白""稍微剪一下烧个字幕"类需求走模式 B。
 metadata:
   openclaw:
     emoji: 🎬
@@ -14,20 +14,32 @@ metadata:
     primaryEnv: AWK_API_KEY
 ---
 
-# 端到端视频制作（video-producer）
+# 视频制作与片段修整（video-producer）
 
-## 适用场景
+## 双模式
 
-用户给主题/关键词/已有脚本/已有素材中的任一组合，要求做一支完整视频。
+本技能有两种用法，agent 据用户请求判断走哪条：
 
-另可接收 **main agent 喂入的 viral-chaser 追爆报告**（作为 brief 的一部分，本技能不做视频下载/转写/抽帧——那是 viral-chaser 的活）。
+**模式 A：端到端生产**——用户给主题/关键词/已有脚本/已有素材中的任一组合，要求从零做一支完整视频。走 Stage 0→14 全流程：意图路由 → 故事 → 剧本 → 分镜 → 机位 → 素材 → 闸门 → 渲染 → 自检 → 交付。另可接收 **main agent 喂入的 viral-chaser 追爆报告**（作为 brief 的一部分，本技能不做视频下载/转写/抽帧——那是 viral-chaser 的活）。
+
+**模式 B：片段修整**——用户已有几个片段要处理，不涉及从零开剧本。直接用 Stage 12 工具箱（见下方"Stage 12 工具箱"段）做修整活儿：
+
+- 几个片段拼一下 → `assemble`（自动统一分辨率/帧率/音频格式 + 转场）
+- 一个片段配个旁白/配音 → `audio-mix`（多轨混音，延时/音量可控）
+- 稍微剪一下（入点/出点/倍速）→ `clip-trim`（`--pre-buffer` 避免切 MP3 吞首字）
+- 按时间轴切素材+混音 → `timeline-compose`（`audio_mode=concat` 出连续轨）
+- 单个 Scene 合成（片段+旁白+对白）→ `scene-compose`
+- 无音频片段补静音轨 → `add-silent-audio`
+- 片尾制作（形象图+黑边+烧字幕）→ `make-outro`
+
+模式 B 不走 Stage 0→11、不走 GATE A/B、不建完整工作区目录——就在用户给的工作目录下建 `artifacts/` 落产物即可。
 
 不适用：
 
 - 纸拼贴 B-roll → `collage-broll`
 - Manim 技术演示动画 → `manim-explainer`
 - 平面设计 → `design-full`
-- 基于已有素材的轻剪辑（去口气词/高光剪辑/拼接/烧字幕）→ main 的 `video-edit` / `talking-head-cut`
+- 基于已有素材的深度高光剪辑（去口气词/智能剪重点）→ main 的 `video-edit` / `talking-head-cut`（本技能模式 B 只做几何级修整：切段/拼接/混音/烧字幕/补轨，不做语义级剪辑）
 - 视频下载与爆款分析 → main 的 `viral-chaser`
 
 ---

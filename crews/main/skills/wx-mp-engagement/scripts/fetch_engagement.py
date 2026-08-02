@@ -14,7 +14,6 @@ CLI 形态：
 
 依赖：
 - camoufox-cli（npm 全局）
-- wx-mp-hunter skill（同 crew 私有，提供 wx_mp session 探活 + 登录 + 中央存储 cookie/token/UA）
 - published-track skill（同 crew 私有）
 - python3 stdlib
 """
@@ -28,6 +27,7 @@ import secrets
 import sqlite3
 import subprocess
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -35,7 +35,7 @@ from typing import Any
 # ── 常量 ─────────────────────────────────────────────────────────────────────
 
 PLATFORM = "wx_mp"                              # published-track 表名前缀
-SESSION_NAME = "wx_mp"                          # 与 wx-mp-hunter 共用的 camoufox 持久化 session 名
+SESSION_NAME = "wx_mp"                          # 本技能自管的 camoufox 持久化 session 名
 
 # 创作者中心入口（登录后跳转到这里，带 token）
 CREATOR_CENTER_URL = os.environ.get(
@@ -48,12 +48,6 @@ PUBLISHED_LIST_URL_TEMPLATE = (
     "https://mp.weixin.qq.com/cgi-bin/appmsgpublish"
     "?sub=list&begin=0&count=20&token={token}&lang=zh_CN"
 )
-
-WX_MP_HUNTER_BIN = os.environ.get(
-    "WX_MP_HUNTER_BIN",
-    "~/.openclaw/workspace-main/skills/wx-mp-hunter/scripts/wx-mp-hunter.sh",
-)
-WX_MP_HUNTER_BIN = os.path.expanduser(WX_MP_HUNTER_BIN)
 
 PUBLISHED_TRACK_ROOT = Path(
     os.environ.get("PUBLISHED_TRACK_ROOT", "./db")
@@ -69,7 +63,12 @@ UPDATE_METRICS_SH = PUBLISHED_TRACK_SCRIPTS / "update-metrics.sh"
 
 CAMOUFOX_BIN = os.environ.get("CAMOUFOX_CLI", "camoufox-cli")
 FETCH_TIMEOUT_S = 30
-SESSION_CLEANUP_ON_EXIT = True  # 仅 close camoufox session，不动 wx-mp-hunter 中央存储
+SESSION_CLEANUP_ON_EXIT = True  # 仅 close camoufox session，不动中央存储
+
+# 登录流程常量（本技能自管 wx_mp session 的扫码登录）
+QR_FILE = "/tmp/qr-wx-mp.png"
+LOGIN_CONFIRM_POLL_MAX_S = 150
+LOGIN_CONFIRM_POLL_INTERVAL_S = 3
 
 # spike dump 输出目录
 PROBE_OUT_DIR = Path(
@@ -135,39 +134,33 @@ def update_metrics_row(row_id: int, metrics: dict) -> dict:
         return {"ok": True, "stdout": result.stdout.strip()}
 
 
-# ── wx-mp-hunter 集成（探活） ──────────────────────────────────────────────
+# ── wx-mp-engagement 自管 wx_mp session ────────────────────────────────────
 #
-# wx-mp-engagement 与 wx-mp-hunter 共用 camoufox 持久化 session `wx_mp`：
-# - wx-mp-hunter 负责 探活 + 登录 + 导出 cookie/token/UA 落中央存储
-# - wx-mp-engagement 只走 camoufox-cli 操作浏览器，不吃 cookie；探活委托 wx-mp-hunter
-# - 失效时 exit 2 让调用方触发 wx-mp-hunter 的 login 流程重登
-
-def wx_mp_hunter_check() -> bool:
-    """调 wx-mp-hunter.sh check 探活。exit 0 = 有效；非 0 = 失效。"""
-    result = subprocess.run(
-        [WX_MP_HUNTER_BIN, "check"],
-        capture_output=True, text=True, timeout=15, check=False,
-    )
-    return result.returncode == 0
-
-
+# wx-mp-engagement 自管 camoufox 持久化 session `wx_mp`（类似 zhihu-publish /
+# weibo-publish 自管各自平台 session）：
+# - 本技能自己负责 wx_mp session 的探活 + 登录 + 重登
+# - 登录态在 wx_mp session profile 里就位即可，不导出 cookie/UA/token
+# - 失效时 exit 2，由调用方（agent / HEARTBEAT）触发本技能自己的重登流程
 # ── camoufox-cli 集成 ───────────────────────────────────────────────────────
 
 def session_name() -> str:
-    """返回与 wx-mp-hunter 共用的固定 session 名 `wx_mp`。
+    """返回本技能自管的固定 session 名 `wx_mp`。
     不再开独立 nonce session——wx_mp 持久化 session 里登录态已就位，
     camoufox-cli 直接复用即可（fail-first 队列管并发）。"""
     return SESSION_NAME
 
 
 def camoufox_run(args: list[str], *, timeout: int = FETCH_TIMEOUT_S) -> subprocess.CompletedProcess:
-    cmd = [CAMOUFOX_BIN, "--json"] + args
+    # --persistent 固定带：所有 camoufox-cli 命令复用同一 daemon + 同一 profile，
+    # 避免每次命令重起 daemon 不带 profile（cookie/登录态不恢复）+ 多 daemon
+    # 同 session 冲突互杀（SIGKILL）。--persistent 是 per-call flag，必须每次都带。
+    cmd = [CAMOUFOX_BIN, "--persistent", "--json"] + args
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
 
 
 def camoufox_open(session: str, url: str) -> None:
     """打开 URL。camoufox-cli 默认 headless，不需要 --headless 参数。"""
-    args = ["--session", session, "--persistent", "open", url]
+    args = ["--session", session, "open", url]
     result = camoufox_run(args)
     if result.returncode != 0:
         raise RuntimeError(f"camoufox-cli open failed: {result.stderr.strip()}")
@@ -213,6 +206,108 @@ def camoufox_screenshot(session: str, out_path: Path) -> bool:
 def camoufox_close(session: str) -> None:
     """关闭 camoufox session"""
     camoufox_run(["--session", session, "close"], timeout=10)
+
+
+# ── 登录流程（本技能自管 wx_mp session）─────────────────────────────────────
+#
+# 本技能自己负责 wx_mp session 的扫码登录 + 验登录就位。
+# 登录态在 wx_mp session profile 里就位即可，不导出 cookie/UA/token。
+# 类似 zhihu-publish / weibo-publish 自管各自平台 session。
+
+def cmd_login(args) -> None:
+    """camoufox 无头打开公众号首页 → 截 QR PNG。
+
+    agent 拿 QR_FILE 发用户扫码，用户回复「已扫码」后调 login-confirm。
+
+    关键：camoufox-cli ``open`` 是「打开 + 立刻返回」，微信登录页的二维码是 JS
+    动态注入的 ``<img>``（src 是 base64 或 JS 拼的），页面 onload 后才填。
+    若 open 后立刻 screenshot，QR 还没注入完，截图空白。故 open 后先 wait
+    等二维码 ``<img>`` 出现（或兜底等固定时间），再 screenshot。
+    """
+    # camoufox-cli open 公众号首页
+    camoufox_open(SESSION_NAME, CREATOR_CENTER_URL)
+
+    # 等二维码 <img> 出现：微信登录页 QR 是 JS 动态注入的 <img>，
+    # camoufox-cli open 是「打开 + 立刻返回」，QR 还没注入完就截图会空白。
+    # 不用 selector 锁 QR 元素（微信登录页结构不固定），直接轮询 eval
+    # 验证 <img> 元素已出现 + 有 src，再截图。最多等 10s。
+    deadline = time.time() + 10
+    qr_ready = False
+    while time.time() < deadline:
+        raw = camoufox_eval(
+            SESSION_NAME,
+            "(() => { const imgs = document.querySelectorAll('img'); "
+            "for (const i of imgs) { if (i.src && i.src.startsWith('data:image')) return '1'; } "
+            "return String(imgs.length); })()",
+        )
+        if raw == "1":
+            qr_ready = True
+            break
+        time.sleep(0.5)
+    if not qr_ready:
+        # �兜底等固定时间（onload + JS 注入完成），即使 eval 没拿到 QR img
+        camoufox_run(
+            ["--session", SESSION_NAME, "wait", "3000"],
+            timeout=10,
+        )
+
+    # screenshot 截 QR PNG
+    r = camoufox_run(
+        ["--session", SESSION_NAME, "screenshot", QR_FILE],
+        timeout=FETCH_TIMEOUT_S,
+    )
+    if r.returncode != 0:
+        sys.stderr.write(f"error: camoufox screenshot failed: {r.stderr.strip()}\n")
+        sys.exit(1)
+
+    sys.stdout.write(json.dumps({
+        "ok": True,
+        "qr_path": QR_FILE,
+        "message": "二维码已截，请用微信（公众号管理员账号）扫码，完成后回复「已扫码」",
+    }, ensure_ascii=False, indent=2))
+    sys.stdout.write("\n")
+
+
+def cmd_login_confirm(args) -> None:
+    """轮询当前页等用户手机确认 → 验登录就位（redirect 到 /cgi-bin/home?token=xxx）→ close session。
+
+    不导出 cookie/UA/token——登录态在 wx_mp session profile 里就位即可。
+    """
+    deadline = time.time() + LOGIN_CONFIRM_POLL_MAX_S
+    token: str | None = None
+
+    while time.time() < deadline:
+        current_url = camoufox_get_url(SESSION_NAME)
+        if current_url and "/cgi-bin/home" in current_url:
+            m = re.search(r"token=(\d+)", current_url)
+            if m:
+                token = m.group(1)
+                break
+        # 还在 scanloginqrcode 页，等待
+        time.sleep(LOGIN_CONFIRM_POLL_INTERVAL_S)
+
+    if not token:
+        camoufox_close(SESSION_NAME)
+        sys.stderr.write("error: 登录超时或未就位，请重新调 login 生成新二维码\n")
+        sys.exit(2)
+
+    # 验登录就位：open 首页看是否跳 /cgi-bin/home（带 token）
+    camoufox_open(SESSION_NAME, CREATOR_CENTER_URL)
+    final_url = camoufox_get_url(SESSION_NAME)
+    if not final_url or "/cgi-bin/home" not in final_url:
+        camoufox_close(SESSION_NAME)
+        sys.stderr.write("error: 登录未就位（首页未跳 /cgi-bin/home）\n")
+        sys.exit(2)
+
+    # 登录态在 profile 里就位，close session 不影响 profile 持久化
+    camoufox_close(SESSION_NAME)
+
+    sys.stdout.write(json.dumps({
+        "ok": True,
+        "message": "登录成功，登录态已在 wx_mp session profile 就位",
+        "token": token,
+    }, ensure_ascii=False, indent=2))
+    sys.stdout.write("\n")
 
 
 # ── token 提取 + 列表页导航 ─────────────────────────────────────────────────
@@ -374,24 +469,58 @@ def match_article(rows: list[dict], target_title: str) -> dict | None:
 # ── CLI 子命令 ──────────────────────────────────────────────────────────────
 
 def _ensure_login() -> None:
-    if not wx_mp_hunter_check():
-        sys.stderr.write(
-            "error: wx_mp session 失效，请先走 wx-mp-hunter login + login-confirm 流程重登\n"
-        )
+    """判登录态：camoufox 打开创作者中心首页，轮询 redirect URL 等 token 出现。
+
+    - 跳 /cgi-bin/home?...&token=xxx = 就位，return
+    - 跳 login / scanloginqrcode / 超时仍无 token = 失效，exit 2
+
+    关键：camoufox-cli ``open`` 是「打开 + 立刻返回」，不等页面 redirect 完成。
+    微信首页在有登录态时会 redirect 到 /cgi-bin/home?token=xxx，但这个 redirect
+    是浏览器拿到 HTML 后 JS 触发的，需要时间。open 后立刻读 URL 会读到首页 URL
+    （无 token），误判失效。故 open 后轮询 URL，等 token 出现或超时判真失效。
+
+    登录态在 wx_mp session profile 里就位即可，不导出 cookie/UA/token。
+    """
+    session = SESSION_NAME
+    try:
+        camoufox_open(session, CREATOR_CENTER_URL)
+    except RuntimeError as e:
+        sys.stderr.write(f"error: camoufox 打开首页失败: {e}\n")
         sys.exit(2)
+
+    # 轮询 redirect URL，等 token 出现（最多 15s）
+    deadline = time.time() + 15
+    token: str | None = None
+    current_url = ""
+    while time.time() < deadline:
+        current_url = camoufox_get_url(session)
+        # 显式跳登录页 → 真失效，不等
+        if "login" in current_url or "scanloginqrcode" in current_url:
+            break
+        token = extract_token_from_url(current_url)
+        if token:
+            return
+        time.sleep(0.5)
+
+    sys.stderr.write(
+        f"error: wx_mp session 失效，请走 wx-mp-engagement login 流程重登\n"
+        f"  (final url: {current_url[:100]})\n"
+    )
+    sys.exit(2)
 
 
 def _prepare_session() -> str:
-    """复用与 wx-mp-hunter 共用的 wx_mp 持久化 session。
+    """复用 wx_mp 持久化 session。
+
     不再开独立 nonce session、不再 import cookie——wx_mp session profile
-    里登录态已就位（由 wx-mp-hunter login 流程落），camoufox-cli 直接用即可。
+    里登录态已就位（由本技能 login 流程落），camoufox-cli 直接用即可。
     返回固定 session 名 SESSION_NAME。"""
     return SESSION_NAME
 
 
 def _cleanup_session(session: str) -> None:
-    """用完即 close——登录态在磁盘 profile + 中央存储，不留进程占内存。
-    下次 fetch / wx-mp-hunter 按需重起无头 session，profile 桥接登录态。"""
+    """用完即 close——登录态在磁盘 profile，不留进程占内存。
+    下次 fetch 按需重起无头 session，profile 桥接登录态。"""
     camoufox_close(session)
 
 
@@ -532,6 +661,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("probe", help="打开创作者中心 dump DOM/截图").set_defaults(func=cmd_probe)
     sub.add_parser("list", help="列出后台所有文章 + 行内 metrics").set_defaults(func=cmd_list)
+
+    sub.add_parser("login", help="camoufox 无头截 QR PNG").set_defaults(func=cmd_login)
+    sub.add_parser("login-confirm", help="确认登录 + close session").set_defaults(func=cmd_login_confirm)
 
     p_fetch = sub.add_parser("fetch", help="抓单篇 engagement（按 title 在列表页匹配）")
     g = p_fetch.add_mutually_exclusive_group(required=True)

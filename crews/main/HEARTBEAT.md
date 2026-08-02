@@ -78,7 +78,7 @@
    wx-mp-engagement fetch --row-id <rowid>
    ```
 
-   内部流程：wx-mp-hunter check 探活 wx_mp session → camoufox 抓创作者中心发表记录页 → 解析 innerText 按标题匹配 → update-metrics.sh 写 pub_wx_mp。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。
+   内部流程：camoufox 打开创作者中心首页看 redirect URL 判登录态（跳 `/cgi-bin/home?token=xxx` = 就位，跳 `login`/`scanloginqrcode` = 失效）→ 从 redirect URL 提 token 拼「发表记录」页 URL → camoufox 抓发表记录页 → 解析 innerText 按标题匹配 → update-metrics.sh 写 pub_wx_mp。不导出 cookie/UA/token——登录态在 `wx_mp` session profile 里就位即可。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。
 
    > ⚠️ 不要调 `fetch-and-update-metrics.sh --platform wx_mp`——该脚本对 wx_mp 直接 exit 1 报错提示走 wx-mp-engagement。两条链路独立维护，避免机制错配。
 

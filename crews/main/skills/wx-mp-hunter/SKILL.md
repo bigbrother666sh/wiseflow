@@ -1,21 +1,20 @@
 ---
 name: wx-mp-hunter
-description: 微信公众号内容抓取与 wx_mp 登录管理。如下三个场景必用本技能：(1) 用户提供 mp.weixin.qq.com 文章链接 -> 直接用本技能 fetch 全文（不要用浏览器 或 web_fetch）；(2) 用户提供公众号名称/专题页、主题页链接，要求获取对应的全部或部分文章；(3) wx_mp 登录态管理（camoufox-cli wx_mp session + 中央 cookie/token 存储，失效走扫码重登）。不支持视频号、评论、互动数据。
+description: 微信公众号内容抓取。如下三个场景必用本技能：(1) 用户提供 mp.weixin.qq.com 文章链接 -> 直接用本技能 fetch 全文（不要用浏览器 或 web_fetch）；(2) 用户提供公众号名称、要求获取该账号过去数小时的发布列表 -> 用本技能 posts-list（依赖本机运行的微信客户端容器，使用前检查相关环境变量是否存在，不存在直接报错）；(3) 用户提供 mp.weixin.qq.com/mp/homepage 专题页/主题页链接 或 mp.weixin.qq.com/mp/appmsgalbum 合集链接，要求采集该页面全部文章 -> 用本技能 homepage 采集目录链接（走 camoufox 无头浏览器，不走 HTTP），再逐篇 fetch 抓全文。不支持视频号、评论、互动数据。
 metadata:
   openclaw:
     emoji: 📰
     requires:
       bins:
-      - node
+      - python3
 ---
 
 # WeChat Official Account Hunter (wx-mp-hunter)
 
 Use this skill when:
-- The user wants to search for a WeChat Official Account (公众号) by keyword
-- The user wants to list the latest posts of a specific Official Account
 - The user wants to fetch the full text of a WeChat article by its `mp.weixin.qq.com` URL
-- The user provides a `mp.weixin.qq.com/mp/homepage` topic/homepage URL and wants to collect article links from that page
+- The user wants to list the latest posts of specific Official Accounts over the past N hours
+- The user provides a `mp.weixin.qq.com/mp/homepage` topic/homepage URL or `mp.weixin.qq.com/mp/appmsgalbum` album URL and wants to collect article links from that page
 
 **Does NOT support:** WeChat Video Accounts (视频号), comments, or engagement metrics (those require Credentials).
 
@@ -26,252 +25,51 @@ Use this skill when:
 1. **严格按本 SKILL.md 的步骤执行**，不得在服务器结果未返回时自行编排下一步。
 2. **等待服务器响应**：每次执行脚本命令后，必须等待脚本返回 JSON 结果。若结果需要时间，**先向用户说明"正在请求服务器，请稍候……"**，然后等待。
 3. **严禁提前假设结果**：不得在脚本输出 JSON 之前就根据假设继续后续步骤。
-4. **批量前必须小样本验证**：批量抓全文前，必须先 `check`，再选 1 篇文章 `fetch` 验证链路成功；成功后才能批量。
+4. **批量前必须小样本验证**：批量抓全文前，必须先选 1 篇文章 `fetch` 验证链路成功；成功后才能批量。
 5. **中间产物归集到专用子目录**：执行过程中产生的任何中间/临时文件（命令输出落盘、解析片段、`_wx*.txt` / `_wx_*.txt` 之类的 scratch 捕获、二维码图片等）**一律写入工作区下的 `wx-mp-hunter-out/` 子目录**，不要散落工作区根目录。脚本本身只输出 JSON 到 stdout，凡需要落盘的中间态由你显式写到该子目录（必要时先 `mkdir -p wx-mp-hunter-out`）。最终交付给用户的文章 JSON/Markdown 也放该子目录。
-
----
-
-## Prerequisites
-
-通过 PATH 调用 wrapper：`wx-mp-hunter <cmd>`，无需手动拼接 node 命令或脚本路径。
-
-**登录态管理**：走 camoufox-cli 持久化 session `wx_mp`（`--session wx_mp --persistent`，与 `wx-mp-engagement` 共用同一 profile 目录与登录态，靠 session 名约定共享）。登录态在 session profile 里，**无 TTL**——失效时 `check` 命令会 exit 2 触发重登。登录就位后导出 cookie + UA + token 落中央存储：
-
-| 文件 | 内容 |
-|------|------|
-| `~/.openclaw/logins/wx_mp.json` | cookie（camoufox-cli `cookies export` 原生格式）+ `token` 字段（登录 redirect URL 里提的创作者中心后台 token，拼列表页 URL 用）+ `ua` 字段（向后兼容）+ `updated_at` |
-| `~/.openclaw/logins/wx_mp.ua.json` | UA + 指纹摘要（`camoufox-cli identity export` 输出） |
-
----
-
-## Step 0 — 登录探活
-
-**每次使用前可选地检查 session 是否有效：**
-
-```bash
-wx-mp-hunter check
-```
-
-| 返回值 | 含义 |
-|--------|------|
-| `{"ok": true}` | session 有效，可直接使用 |
-| `{"ok": false, "error": "SESSION_EXPIRED"}` (exit 2) | 需要重新登录 |
-
-`check` 走纯 HTTP `_ping`（不起浏览器）：带 cookie+token GET `mp.weixin.qq.com/cgi-bin/home?t=home/index&token=<token>`，解析返回 HTML 的 `<h2>`——含「新的创作」= 有效，含「请重新登录」/`scanloginqrcode` = 失效。cookie + token 从中央存储 `wx_mp.json` 读。
-
----
-
-## 自动重新登录流程（Session 过期时触发）
-
-**触发条件**：任意命令返回 `"error": "SESSION_EXPIRED"`（exit code 2），或首次使用无 session 文件。
-
-### 第 1 步 — 无头截二维码
-
-```bash
-wx-mp-hunter login
-```
-
-脚本内部走 camoufox-cli：`--session wx_mp --persistent open "https://mp.weixin.qq.com/"`（默认 headless）+ `screenshot /tmp/qr-wx-mp.png`，**不 close session**（仅此一处例外：留给紧接的 `login-confirm` 复用同一进程，login-confirm 导出后即 close）。等待脚本输出 JSON：
-
-```json
-{
-  "ok": true,
-  "qr_path": "/tmp/qr-wx-mp.png",
-  "message": "二维码已截，请用微信（公众号管理员账号）扫码，完成后运行 login-confirm"
-}
-```
-
-### 第 2 步 — 将二维码发给用户
-
-将二维码图直接发送给用户。
-**不要**只发本地文件路径——用户在飞书客户端中无法访问 agent 本地文件系统。
-
-同时告知用户：
-> "公众号 Cookie 已失效，请用微信（公众号管理员账号）扫描以下二维码重新授权。扫码并点击确认登录后，回复"已扫码"。"
-
-### 第 3 步 — 等待用户确认
-
-**停止执行，等待用户回复。** 用户回复"已扫码"、"好了"、"扫完了"或类似确认语即可继续。
-
-### 第 4 步 — 确认登录 + 导出 cookie + UA + token
-
-```bash
-wx-mp-hunter login-confirm
-```
-
-脚本内部走 camoufox-cli：复用已开的 `wx_mp` session `open "https://mp.weixin.qq.com/"` → `eval window.location.href` 读 redirect URL 验登录态就位（跳到 `/cgi-bin/home?...&token=xxx` = 就位）→ 从 URL 提 token → `cookies export` 到临时文件 → **`_ping` 验证 cookie+token 真能用（后台首页返回「新的创作」）才 commit** → 写 `~/.openclaw/logins/wx_mp.json`（cookie + token + ua + updated_at 同文件）+ `identity export ~/.openclaw/logins/wx_mp.ua.json` → **close session**（登录态已落磁盘 profile + 中央存储，wx-mp-engagement 下次 `--session wx_mp --persistent` 重起无头即恢复，不留进程占内存）。验证不过直接报错、不写中央存储、不重试（避免风控）。等待脚本返回：
-
-```json
-{"ok": true, "message": "登录成功，cookie + UA + token 已落中央存储（session 已关，登录态在磁盘 profile）", "token": "..."}
-```
-
-| 情况 | 处理 |
-|------|------|
-| `{"ok": true}` | 继续执行原来被中断的任务 |
-| `ret != 0` 或超时 | 重新从第 1 步开始，告知用户二维码已过期 |
 
 ---
 
 ## 两条独立工作流
 
-`fetch` 和 `search + account-posts` 是**相互独立**的两条路径，可单独使用：
-
 ```
-流程 0：登录探活（每次使用前可选）
-  └─ check
+流程 1a：直接获取指定文章内容（URL 来源不限）
+  └─ fetch <url>             → 微信客户端 UA 直访拿正文
 
-流程 1a：搜索账号 → 获取最新发布列表
-  ├─ search <keyword>        → 获取 fakeid
-  └─ account-posts <fakeid>  → 获取该账号最新发布文章列表
+流程 1b：获取指定账号过去数小时的发布列表
+  └─ posts-list [--hours N] [--accounts a,b,c]
+                              → 扫本机微信客户端容器消息库
+                                （依赖容器环境，使用前检查环境变量）
 
-流程 1b：直接获取指定文章内容（URL 来源不限）
-  └─ fetch <url>             → 获取正文
-
-流程 1c：专题页/主页目录链接采集（mp/homepage）
-  └─ camoufox-cli 完整滚动页面和分类 → 提取 mp.weixin.qq.com/s 文章链接 → 如需全文再逐篇 fetch
+流程 1c：专题页/主页/合集目录链接采集（mp/homepage 或 mp/appmsgalbum）
+  └─ homepage <url>          → camoufox-cli 打开专题页，完整滚动 +
+                                分类 tab 采集 mp.weixin.qq.com/s 文章链接
+  └─ 对每个链接 fetch <url>   → 逐篇抓全文
 ```
 
-> 当用户直接提供 `mp.weixin.qq.com` 文章链接时，**直接走流程 1b**，无需经过 search / account-posts。
-> 当用户提供的是 `mp.weixin.qq.com/mp/homepage` 专题页/主页链接时，当前 CLI 不支持直接列出该页面全部文章；必须按“专题页抓取流程”使用 camoufox-cli 完整采集目录，再对单篇链接使用 `fetch`。
+> **fetch 不需要登录态**：用微信客户端 UA（含 `MicroMessenger`）+ 完整浏览器
+> headers + `httpx follow_redirects` 直访文章长链，腾讯风控对该 UA 直接放行
+> （302 → `&nwr_flag=1#wechat_redirect` → 正文），零 cookie / 零 captcha。
+
+> **posts-list 不需要登录态**：直接扫本机微信客户端容器内的消息库
+> （SQLCipher 加密 + Zstd 压缩），按账号白名单过滤、按时间窗口取过去 N 小时
+> 的文章。**仅能拿到容器客户端已登录微信账号已关注的公众号推送**。
+
+> **homepage 不需要登录态**：camoufox-cli 无头打开专题页，完整滚动 +
+> 分类 tab 采集 `mp.weixin.qq.com/s` 文章链接。用临时 session，不绑持久化
+> profile，不需要任何登录态。
 
 ---
 
-## 专题页抓取流程（mp/homepage）
-
-触发条件：用户提供类似以下 URL，并要求抓取该页面/专题/合集里的文章：
-
-```text
-https://mp.weixin.qq.com/mp/homepage?...
-http://mp.weixin.qq.com/mp/homepage?...
-```
-
-### 目录采集
-
-1. **不要直接承诺“已抓完全部文章”**。先说明该页面是微信动态专题页，需要完整滚动加载后统计。
-2. 使用 camoufox-cli 打开专题页（headless session，操作要点：snapshot 拿 ref → eval 滚动/提取，别自己 hack selector）。
-3. 先执行整页滚动到底，直到 `document.documentElement.scrollHeight` 连续多次稳定。
-4. 查找分类 tab（常见 class：`.jsCate`）。对每个分类逐个执行：
-   - 点击分类；
-   - 等待内容加载；
-   - 从顶部滚动到底，直到高度稳定；
-   - 提取所有 `a[href*="mp.weixin.qq.com/s"]` 的标题和链接。
-5. 合并顶部推荐与各分类结果，按 URL 去重。
-6. 向用户报告：分类列表、原始链接数、去重文章数；如果数量明显偏少，继续滚动或请用户确认页面是否还存在折叠/下拉区域。
-
-### 全文采集
-
-1. 批量抓全文前，必须先运行：
-   ```bash
-   wx-mp-hunter check
-   ```
-2. 如果返回 `SESSION_EXPIRED`，先执行自动重新登录流程。
-3. 登录有效后，只选 1 篇样本运行：
-   ```bash
-   wx-mp-hunter fetch <article_link> --html
-   ```
-4. 只有样本返回 `content_text` / `content_markdown` / `content_html` 后，才允许批量抓全文。
-5. 如果样本返回 `未找到文章正文 (#js_content)`，用 camoufox-cli 打开该文章验证页面内容：
-   - 如果出现“环境异常”“拖动下方滑块完成拼图”等验证页，**不得尝试绕过验证码或自动拖滑块**；告知用户需要人工完成微信环境验证后再继续。
-   - 如果是文章已删除、私有或付费，跳过该文章并记录失败原因。
-6. 批量抓取时每篇间隔 1–2 秒；连续失败 3 篇以上时停止批量，先检查错误，不要继续跑完整列表。
-
----
-
-## 命令详解
-
-### search — 搜索公众号
+## fetch — 获取文章全文
 
 ```bash
-wx-mp-hunter search <keyword> [--begin N] [--size N]
-```
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `keyword` | required | 搜索词（账号名或别名） |
-| `--begin` | 0 | 分页偏移 |
-| `--size` | 10 | 每页数量（最大 20） |
-
-输出示例：
-```json
-{
-  "total": 3,
-  "accounts": [
-    {
-      "fakeid": "MzA3NzAyMzMyMA==",
-      "nickname": "Python之禅",
-      "alias": "the_zen_of_python",
-      "signature": "...",
-      "service_type": 0,
-      "avatar": "https://..."
-    }
-  ]
-}
-```
-
-**注意**：保存 `fakeid`，后续 `account-posts` 命令需要它。
-
-`service_type`：0 = 订阅号，2 = 服务号。
-
----
-
-### account-posts — 获取指定账号最新发布列表
-
-> 原命令名 `articles` 仍可用（向后兼容），推荐使用 `account-posts`。
-
-```bash
-wx-mp-hunter account-posts <fakeid> [--begin N] [--size N] [--keyword K]
-```
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `fakeid` | required | 来自 search 结果 |
-| `--begin` | 0 | 分页偏移（每页 20，依次传 0、20、40…） |
-| `--size` | 20 | 每页数量（最大 20） |
-| `--keyword` | "" | 按标题关键词过滤 |
-
-输出示例：
-```json
-{
-  "total": 312,
-  "begin": 0,
-  "size": 20,
-  "articles": [
-    {
-      "aid": "2247483649_1",
-      "title": "文章标题",
-      "link": "https://mp.weixin.qq.com/s/xxxxx",
-      "digest": "文章摘要",
-      "author": "作者名",
-      "create_time": 1710000000,
-      "cover": "https://...",
-      "item_show_type": 0,
-      "is_deleted": false,
-      "is_pay_subscribe": 0,
-      "wecoin_count": 0
-    }
-  ]
-}
-```
-
-**分页**：循环传入 `--begin 0`、`--begin 20`… 直到 `articles` 为空或 `begin >= total`。
-
-`item_show_type`：0/1 = 图文，5 = 视频，6 = 音乐，8 = 图片帖。
-
-`is_pay_subscribe`：0 = 免费，1 = 付费文章（直接 fetch 正文需要公众号管理员 Credential，本 skill 不支持）。`wecoin_count` 为对应的微信豆价格。
-
-**重要**：请求间隔保持 1–2 秒，避免连续快速请求。
-
----
-
-### fetch — 获取文章全文
-
-```bash
-wx-mp-hunter fetch <url> [--html]
+wx-mp-hunter fetch <url> [--html] [--download-images] [--output-dir <dir>]
 ```
 
 | Option | Description |
 |--------|-------------|
-| `url` | 文章链接（`mp.weixin.qq.com`） |
+| `url` | 文章链接（`mp.weixin.qq.com`，长链或短链均可） |
 | `--html` | 同时返回正文原始 HTML |
 | `--download-images` | 把正文图片下载到本地，`content_markdown` 中的图片 URL 替换为本地相对路径 |
 | `--output-dir <dir>` | 图片下载目标目录（配合 `--download-images`；默认当前目录） |
@@ -279,6 +77,7 @@ wx-mp-hunter fetch <url> [--html]
 输出示例：
 ```json
 {
+  "ok": true,
   "url": "https://mp.weixin.qq.com/s/xxxxx",
   "title": "文章标题",
   "author": "公众号名称",
@@ -300,7 +99,7 @@ wx-mp-hunter fetch <url> [--html]
 
 ### 图片本地化
 
-加 `--download-images --output-dir <dir>` 后，脚本并发下载（默认 4 并发、单图 ≤5MB、总量 ≤100MB、单图失败重试 1 次）到 `<dir>/images/<hash>.<ext>`，并把 `content_markdown` 里的图片 URL 替换为本地相对路径，便于离线阅读 / 二次加工 / 转存。仅依赖 Node 18+ stdlib，无 npm 依赖。
+加 `--download-images --output-dir <dir>` 后，脚本并发下载（默认 4 并发、单图 ≤5MB、总量 ≤100MB）到 `<dir>/images/<hash>.<ext>`，并把 `content_markdown` 里的图片 URL 替换为本地相对路径，便于离线阅读 / 二次加工 / 转存。
 
 ```
 wx-mp-hunter fetch <url> --html --download-images --output-dir ./article-out
@@ -308,27 +107,145 @@ wx-mp-hunter fetch <url> --html --download-images --output-dir ./article-out
 
 ---
 
+## posts-list — 获取指定账号过去数小时的发布列表
+
+```bash
+wx-mp-hunter posts-list [--hours N] [--accounts a,b,c]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--hours` | 24 | 时间窗口（小时） |
+| `--accounts` | "" | 公众号名白名单，逗号分隔；不传则返回全部 |
+
+输出示例：
+```json
+{
+  "ok": true,
+  "limit_hours": 24,
+  "total": 3,
+  "posts": [
+    {
+      "title": "文章标题",
+      "url": "https://mp.weixin.qq.com/s/xxxxx",
+      "author": "公众号名称",
+      "publish_time": "2024-03-10",
+      "cover": "https://..."
+    }
+  ],
+  "missing_accounts": ["某未命中公众号"],
+  "hint": "以下账号过去 24h 未在消息库中扫到文章（共 1 个）：某未命中公众号。可能是该公众号在此时间窗口内未发布，也可能是本机微信客户端未关注该公众号。若需稳定接收该公众号推送，请确认本机微信客户端已关注该公众号。"
+}
+```
+
+### ⚠️ 使用前的环境检查
+
+`posts-list` 依赖本机运行的微信客户端容器。**使用此命令前必须检查以下环境变量是否存在**：
+
+| 环境变量 | 用途 |
+|---------|------|
+| `WX_BIZ_CONTAINER` | 微信客户端容器名 |
+| `WX_BIZ_USER_DIR` | 容器内微信用户数据根目录 |
+| `WX_BIZ_KEYS_FILE` | 容器内密钥文件路径 |
+
+如果这些环境变量不存在（或容器未运行），脚本会直接报错退出：
+```
+{"ok": false, "error": "缺少环境变量 WX_BIZ_CONTAINER：posts-list 依赖本机微信客户端容器，请先在环境中设置该变量指向运行中的容器名"}
+```
+
+**重要**：仅 `posts-list` 命令会检查这些环境变量。普通 `fetch` 抓文章不需要这些变量，也不会检查。
+
+### 已关注账号约束
+
+`posts-list` 只能拿到**容器客户端已登录微信账号已关注的公众号**的推送。如果用户要求抓取的账号不在已关注清单中（即消息库中扫不出来），脚本会在 `missing_accounts` 字段列出这些账号，并在 `hint` 字段提示用户：
+
+> 可能是该公众号在此时间窗口内未发布，也可能是本机微信客户端未关注该公众号。若需稳定接收该公众号推送，请确认本机微信客户端已关注该公众号。
+
+遇到这种情况，**告知用户**：需要先在本机微信客户端（容器内已登录的微信账号）关注该公众号，才能通过 `posts-list` 拿到该账号的推送。
+
+---
+
+## homepage — 专题页/主页/合集目录链接采集（mp/homepage 或 mp/appmsgalbum）
+
+触发条件：用户提供类似以下 URL，并要求抓取该页面/专题/合集里的文章：
+
+```text
+https://mp.weixin.qq.com/mp/homepage?...
+http://mp.weixin.qq.com/mp/homepage?...
+https://mp.weixin.qq.com/mp/appmsgalbum?...
+http://mp.weixin.qq.com/mp/appmsgalbum?...
+```
+
+> `mp/homepage` 是专题页/主题页，`mp/appmsgalbum` 是合集页（album）。两种形态都走
+> `homepage` 命令——camoufox-cli 无头浏览器打开，完整滚动 + 分类 tab 采集文章链接，
+> **不走 HTTP 直访**（合集页是 JS 渲染的动态列表，HTTP 拿不到完整链接）。
+
+```bash
+wx-mp-hunter homepage <url>
+```
+
+输出示例：
+```json
+{
+  "ok": true,
+  "total": 15,
+  "categories": ["全部", "技术", "产品"],
+  "links": [
+    {"title": "文章标题 1", "url": "https://mp.weixin.qq.com/s/xxxxx"},
+    {"title": "文章标题 2", "url": "https://mp.weixin.qq.com/s/yyyyy"}
+  ],
+  "session": "wx_mp"
+}
+```
+
+### 目录采集流程
+
+1. **不要直接承诺"已抓完全部文章"**。先说明该页面是微信动态专题页，需要完整滚动加载后统计。
+2. 使用 camoufox-cli 打开专题页（headless session，操作要点：snapshot 拿 ref → eval 滚动/提取，别自己 hack selector）。
+3. 先执行整页滚动到底，直到 `document.documentElement.scrollHeight` 连续多次稳定。
+4. 查找分类 tab（常见 class：`.jsCate`）。对每个分类逐个执行：
+   - 点击分类；
+   - 等待内容加载；
+   - 从顶部滚动到底，直到高度稳定；
+   - 提取所有 `a[href*="mp.weixin.qq.com/s"]` 的标题和链接。
+5. 合并顶部推荐与各分类结果，按 URL 去重。
+6. 向用户报告：分类列表、原始链接数、去重文章数；如果数量明显偏少，继续滚动或请用户确认页面是否还存在折叠/下拉区域。
+
+### 全文采集
+
+1. 拿到 `homepage` 输出的 `links` 列表后，对每个链接走 `fetch`：
+   ```bash
+   wx-mp-hunter fetch <article_link> --html
+   ```
+2. 先选 1 篇样本验证，成功后才批量。
+3. 批量抓取时每篇间隔 1–2 秒；连续失败 3 篇以上时停止批量，先检查错误，不要继续跑完整列表。
+4. 如果样本返回 `未找到文章正文 (#js_content)`，用 camoufox-cli 打开该文章验证页面内容：
+   - 如果出现"环境异常""拖动下方滑块完成拼图"等验证页，**不得尝试绕过验证码或自动拖滑块**；告知用户需要人工完成微信环境验证后再继续。
+   - 如果是文章已删除、私有或付费，跳过该文章并记录失败原因。
+
+---
+
 ## 典型用法示例
 
-**场景 A：监控某账号最新文章**
+**场景 A：直接抓取已知 URL 的文章**
 ```
-1. check            → 探活
-2. search "公众号名"         → 得到 fakeid
-3. account-posts <fakeid>   → 得到文章列表（第 1 页）
-4. fetch <article_link>     → 获取感兴趣文章的正文
+1. fetch <url>              → 微信客户端 UA 直访拿正文
 ```
 
-**场景 B：直接抓取已知 URL 的文章**
+**场景 B：监控某账号最新文章**
 ```
-1. check            → 探活
-2. fetch <url>              → 直接获取正文
+1. posts-list --hours 24 --accounts "公众号名"
+                              → 扫容器消息库拿过去 24h 该账号的推送
+2. 对感兴趣的文章 fetch <article_link>
+                              → 抓全文
 ```
 
-**场景 C：批量获取**
+**场景 C：批量获取专题页文章**
 ```
-loop account-posts --begin 0, 20, 40, ...
-  for each article link: fetch <link>
-  pause 1-2s between requests
+1. homepage <mp/homepage url>
+                              → camoufox 滚动采集专题页文章链接
+2. 对每个链接 fetch <article_link>
+   pause 1-2s between requests
 ```
 
 ---
@@ -337,7 +254,7 @@ loop account-posts --begin 0, 20, 40, ...
 
 | Error | 原因 | 处理 |
 |-------|------|------|
-| `未登录` | 无 session 文件 | 执行登录流程 |
-| `"error": "SESSION_EXPIRED"` (exit 2) | camoufox-cli open 首页后 redirect URL 跳到 `login` / `scanloginqrcode`（登录态失效）或无 session 文件 | 执行**自动重新登录流程**（`login` → 用户扫码 → `login-confirm`） |
-| `API 错误 (ret=...)` | 微信 API 错误 | 检查网络，重试一次 |
+| `UA 直访被风控` (fetch) | 微信客户端 UA 也被风控（罕见） | 重试一次；仍失败跳过该文章 |
+| `未找到文章正文 (#js_content)` (fetch) | 文章已删除或私有 | 跳过该文章 |
+| `缺少环境变量 WX_BIZ_CONTAINER` (posts-list) | 容器环境未配置 | 报错退出，告知用户需配置环境变量并启动容器 |
 | `HTTP 4xx` on fetch | 文章已删除或私有 | 跳过该文章 |

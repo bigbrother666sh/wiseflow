@@ -144,7 +144,8 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 | `render-shot` | shot_decompose.json + characters/ + slot-picks | `render/shot-NN/` 下产物 | Stage 10（调 aigc-video-gen i2v / siliconflow-img-gen） |
 | `mix-audio` | script.md（delivery_cues） | `audio/` 目录 + `subtitles.srt` 模板 | Stage 11（四场景分流：A 声画同出 / B 旁白一次性 TTS+ASR 对齐 / C BGM 成片后生成 / D 用户口播录音 → ASR 时间戳 → 按时间戳补素材） |
 | `narration-align` | audio/narration.mp3 + audio/narration.subtitle.json | `audio/narration-segments.json`（统一 segments 格式） | Stage 11b（优先复用 awk-tts --enable-subtitle 落盘的 TTS 原生字级时间戳，缺失时回退火山 ASR 极速版，凭据复用 viral-chaser 同池 `VOLC_ASR_*`） |
-| `assemble` | render/ 顺序 | `video.mp4` | Stage 12（按序拼接 + 可选转场 + 可选分辨率归一化） |
+| `assemble` | render/ 顺序 | `video.mp4` | Stage 12（按序拼接 + 可选转场 + 可选分辨率归一化 + 自动补静音/统一音频格式） |
+| `add-silent-audio` | 无音频视频片段 | 含静音音轨的视频 | Stage 12 原子工具：concat 前补齐音轨，保持连续 |
 | `clip-trim` | 素材路径 + 入点/出点/倍速 | 切好的片段 | Stage 12 原子工具：精确切素材，视频和音频分别处理 |
 | `audio-mix` | 多条音轨 + 各自延时/音量 | 混合音频 | Stage 12 原子工具：多轨混音 |
 | `timeline-compose` | timeline.json（每段素材/入点/出点/倍速/音轨及延时） | 合成片段 | Stage 12 原子工具：按时间轴调 clip-trim + audio-mix 合成 |
@@ -230,6 +231,9 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 | `video-producer mix-audio` | 三场景分流占位 | 0 成功 / 1 参数错 |
 | `video-producer narration-align` | 旁白 ASR 对齐时间戳 | 0 成功 / 1 参数错 / 2 env 未配 |
 | `video-producer assemble` | 按序拼接成片 | 0 成功 / 1 参数错 |
+| `video-producer add-silent-audio` | 给无音频视频补静音轨 | 0 成功 / 1 参数错 |
+| `video-producer scene-compose` | 单 Scene 分段合成 | 0 成功 / 1 参数错 |
+| `video-producer make-outro` | 片尾制作 | 0 成功 / 1 参数错 |
 | `video-producer clip-trim` | 切素材段 | 0 成功 / 1 参数错 |
 | `video-producer audio-mix` | 多轨混音 | 0 成功 / 1 参数错 |
 | `video-producer timeline-compose` | 时间轴合成 | 0 成功 / 1 参数错 |
@@ -246,10 +250,13 @@ Stage 12 段**不规定固定 Workflow**——下面四个原子工具 agent 按
 
 | 工具 | 干什么 | 关键参数 |
 |------|--------|---------|
-| `clip-trim` | 精确切素材段（入点/出点/倍速，视频和音频分别处理） | `--input/--output/--start/--end/--speed/--sync-audio` |
+| `clip-trim` | 精确切素材段（入点/出点/倍速/前置缓冲，视频和音频分别处理） | `--input/--output/--start/--end/--speed/--sync-audio/--pre-buffer` |
 | `audio-mix` | 多轨混音（每轨独立延时和音量） | `--track（可重复）/--delay/--volume/--output/--duration` |
 | `timeline-compose` | 按时间轴 JSON 调 clip-trim + audio-mix 合成片段 | `<project_dir> --timeline timeline.json [--transition ...]` |
-| `assemble` | 按序拼接已就绪的段 + 可选转场 + 可选分辨率归一化 | `<project_dir> [--transition hard/fade/dissolve/xfade] [--width 1080] [--fps 30]` |
+| `assemble` | 按序拼接已就绪的段 + 可选转场 + 自动分辨率归一化 + 自动统一音频格式 | `<project_dir> [--transition hard/fade/dissolve/xfade] [--width 1080] [--fps 30] [--audio-format 24000/mono] [--low-memory] [--preview-duration 30]` |
+| `add-silent-audio` | 给无音频视频片段补静音音轨（concat 前置，assemble 内部也自动调） | `--input/--output/--duration/--sample-rate 24000/--channels mono` |
+| `scene-compose` | 单 Scene 分段合成（片段+旁白+对白 → 一个 Scene 片段） | `<project_dir> --scene scene.json [--output scene-01.mp4]` |
+| `make-outro` | 片尾制作（形象图+黑边+烧字幕+静音轨 → 标准比例片尾） | `<project_dir> --image <形象图> --slogan <文本> [--color color.json] [--duration 5] [--width 1080] [--fps 30]` |
 
 ### 场景化组合示例（非强制，agent 按实际判断）
 
@@ -262,17 +269,27 @@ Stage 12 段**不规定固定 Workflow**——下面四个原子工具 agent 按
 2. `timeline-compose <project_dir> --timeline timeline.json` → 调 clip-trim 切段 + audio-mix 把旁白按延时叠到各段
 3. 全段 BGM 走 timeline.json 的 `audio_globals` 字段混入
 
-**场景 C：分段先合再合**
-长片或某些段需独立预合（如先合 shot-01~03 为一场，再合 shot-04~06 为另一场，最后两场合片）：
-1. 对 shot-01~03 跑 `assemble <sub_dir> --transition fade` 出 sub-1.mp4
-2. 对 shot-04~06 同样出 sub-2.mp4
-3. 把 sub-1.mp4 / sub-2.mp4 当段素材，再跑 `assemble` 或 `timeline-compose` 合片
+**场景 C：分段先合再合（scene-compose 两阶段）**
+长片或某些段需独立预合（如先合 shot-01~03 为一场 Scene，再合 shot-04~06 为另一场，最后两场 concat）：
+1. 写 `scene-01.json`（clips 片段列表 + narration 旁白 + dialogue 对白），跑 `scene-compose <project_dir> --scene scene-01.json --output scene-01.mp4`
+2. 同样出 `scene-02.mp4`
+3. 把 scene-01.mp4 / scene-02.mp4 当段素材，再跑 `assemble <project_dir> --source-dir scenes --transition fade` 合片
+scene-compose 内部调 clip-trim 切段 + audio-mix 混旁白/对白 + assemble 拼段，一步出单 Scene 完整片段。
 
 **场景 D：素材尺寸不一**
 AIGC 720x1280、录屏 1080x2384、片尾 784x1176 混拼——`assemble` 传 `--width 1080 --fps 30` 归一化（scale + pad 16:9 + sar + fps 统一）后再 concat。
 
 **场景 E：精确调速某段**
 某段需 2x 快放——`clip-trim --input <段> --output <快放段> --speed 2 --sync-audio` 切好后，把快放段当段素材再拼。
+
+**场景 F：低内存机器**
+机器内存吃紧（< 4G 或容器限额）——`assemble <project_dir> --transition fade --low-memory`，preset 切 ultrafast、crf 放宽到 28，避免 x264 缓冲爆内存。打印里会标注 `低内存模式：preset=ultrafast, crf=28`。
+
+**场景 G：先试听再合成**
+长片合成前想先听前 30 秒验证旁白/BGM 平衡——`assemble <project_dir> --preview-duration 30`，成片照常落，额外产 `video-preview.mp4`（前 30 秒，`-c copy` 秒切）。试听满意后再决定是否重混。
+
+**场景 H：AIGC 无音频段混拼 + 旁白切段吞首字**
+AIGC i2v 产物常无音频流，与有音频段直拼会断续；旁白用 `clip-trim --ss` 切 MP3 会吞第一个字。`assemble` 现在自动统一音频格式（默认 24000/mono，无音频段补静音，规格不符段重采样）+ 不传 `--width/--fps` 时自动探测各段分辨率/帧率、不一时统一到最低公共规格。旁白切段走 `clip-trim --pre-buffer 0.5`，实际入点提前 0.5s 保留段头音频，逻辑入点不变。
 
 agent 据剧本实际选场景组合，可混合多场景（如 B+E：旁白时间轴 + 某段快放）。脚本不预设顺序。
 

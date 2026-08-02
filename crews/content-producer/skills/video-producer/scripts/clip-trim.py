@@ -92,6 +92,8 @@ def main() -> None:
     parser.add_argument("--end", type=float, default=None, help="出点（秒，默认=输入全长）")
     parser.add_argument("--speed", type=float, default=1.0, help="倍速（默认 1.0）")
     parser.add_argument("--sync-audio", action="store_true", help="视频倍速时同步音频倍速")
+    parser.add_argument("--pre-buffer", type=float, default=0.0,
+                        help="切段前置缓冲（秒，默认 0）：实际入点提前该值，避免 -ss 切 MP3 吞首字；逻辑入点仍是原 start")
     args = parser.parse_args()
 
     src = Path(args.input).resolve()
@@ -105,12 +107,16 @@ def main() -> None:
         die(f"出点({end})必须大于入点({args.start})")
     if args.speed <= 0:
         die(f"倍速必须 > 0，收到 {args.speed}")
+    if args.pre_buffer < 0:
+        die(f"--pre-buffer 必须 >= 0，收到 {args.pre_buffer}")
 
-    trim_dur = end - args.start
+    # pre-buffer：实际入点提前 N 秒（不越过 0），保留段头音频避免 -ss 吞首字
+    real_start = max(0.0, args.start - args.pre_buffer)
+    trim_dur = end - real_start
     out_dur = trim_dur / args.speed
 
     # -ss/-t 放 -i 后（output seek，精确切）；倍速时 -t 限的是输出时长（out_dur）
-    cmd = ["ffmpeg", "-y", "-i", str(src), "-ss", str(args.start), "-t", str(out_dur)]
+    cmd = ["ffmpeg", "-y", "-i", str(src), "-ss", str(real_start), "-t", str(out_dur)]
 
     has_video = is_video(src)
     vf_parts = []
@@ -136,8 +142,10 @@ def main() -> None:
 
     actual_dur = probe_duration(dst)
     print(f"[done] {src.name} → {dst.name}")
-    print(f"  - 入点 {args.start}s 出点 {end}s，倍速 {args.speed}x")
+    print(f"  - 入点 {real_start}s 出点 {end}s，倍速 {args.speed}x")
     print(f"  - 期望时长 {out_dur:.3f}s，实际 {actual_dur:.3f}s")
+    if args.pre_buffer > 0:
+        print(f"  - 前置缓冲 {args.pre_buffer}s（逻辑入点 {args.start}s）")
     if has_video and args.sync_audio:
         print(f"  - 视音频同步倍速")
 

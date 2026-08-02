@@ -37,6 +37,9 @@ video-producer — 端到端视频制作（wrapper）
   render-shot          Stage 10 按 slot 渲染（AIGC i2v / 静图）
   mix-audio            Stage 11 旁白（awk-tts）+ BGM + 字幕
   assemble             Stage 12 按镜顺序拼接成片 + 转场
+  add-silent-audio     给无音频的视频片段补静音音轨（concat 前置）
+  scene-compose        Stage 12 单 Scene 分段合成（片段+旁白+对白 → 一个 Scene 片段）
+  make-outro           Stage 12 片尾制作（形象图+黑边+烧字幕+静音轨 → 标准比例片尾）
   motion-audit         Stage 13 motion_led 抽查（补公共 video-review）
   make-cover           Stage 14 封面（siliconflow-img-gen，必含标题文字）
 

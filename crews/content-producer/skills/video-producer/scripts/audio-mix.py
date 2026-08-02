@@ -24,8 +24,10 @@ Usage:
   --output  输出混合音频路径
   --duration 输出总时长（秒，可选；不传则取最长轨延时+时长）
 
-实现：ffmpeg adelay（毫秒延时）+ volume（音量）+ amix（叠加）。
-延时用 adelay=<ms>，amix inputs=N duration=longest dropout_transition=0。
+实现：ffmpeg adelay（毫秒延时）+ volume（音量）+ apad（补虚到 --duration）+ amix（叠加）。
+延时用 adelay=<ms>；--duration 时 apad=whole_dur=<dur> 把每轨补虚到总时长；
+amix inputs=N duration=longest dropout_transition=0 normalize=0——
+normalize=0 禁用 amix 自动除以轨道数，每轨 volume 即最终音量（设 2.0 就是 2 倍，不被稀释）。
 """
 
 import argparse

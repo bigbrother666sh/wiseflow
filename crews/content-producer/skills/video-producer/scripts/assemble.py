@@ -53,6 +53,45 @@ def probe_duration(path: Path) -> float:
         return 0.0
 
 
+def probe_audio(path: Path) -> tuple[int, int] | None:
+    """探测音频流的 (sample_rate, channels)。无音频流返回 None。"""
+    p = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-select_streams", "a:0",
+         "-show_entries", "stream=sample_rate,channels",
+         "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    )
+    out = p.stdout.strip()
+    if not out:
+        return None
+    try:
+        sr, ch = out.split(",")
+        return (int(sr), int(ch))
+    except (ValueError, IndexError):
+        return None
+
+
+def has_audio(path: Path) -> bool:
+    """ffprobe 探测是否有音频流。"""
+    p = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-select_streams", "a:0",
+         "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    )
+    return p.stdout.strip() == "audio"
+
+
+def parse_audio_format(s: str) -> tuple[int, str]:
+    """解析 --audio-format 'SR/CH'（如 '24000/mono'）→ (sample_rate, channel_layout)。"""
+    try:
+        sr_str, ch_str = s.split("/")
+        sr = int(sr_str)
+        ch = "mono" if ch_str.lower() in ("mono", "1") else "stereo"
+        return (sr, ch)
+    except (ValueError, IndexError):
+        die(f"--audio-format 格式错误: {s}（应为 SR/CH，如 24000/mono）")
+
+
 def pick_latest(shot_dir: Path, patterns: list[str]) -> Path | None:
     """自动识别 gen*.mp4 / multi-best*.mp4 变体，按版本号取最新。"""
     candidates: list[Path] = []
@@ -68,7 +107,14 @@ def pick_latest(shot_dir: Path, patterns: list[str]) -> Path | None:
     return sorted(candidates, key=version_key)[-1]
 
 
-def normalize_segment(src: Path, dst: Path, width: int, fps: int) -> float:
+def encode_opts(low_memory: bool) -> tuple[str, str]:
+    """返回 (preset, crf)。--low-memory 时 ultrafast + crf 28（轻量、低内存机器友好）。"""
+    if low_memory:
+        return ("ultrafast", "28")
+    return ("fast", "23")
+
+
+def normalize_segment(src: Path, dst: Path, width: int, fps: int, preset: str, crf: str) -> float:
     """分辨率归一化：scale 到目标宽度 + pad 16:9 + sar 归一 + fps 统一。返回时长。"""
     height = round(width * 9 / 16)
     vf = (
@@ -79,11 +125,101 @@ def normalize_segment(src: Path, dst: Path, width: int, fps: int) -> float:
     run([
         "ffmpeg", "-y", "-i", str(src),
         "-vf", vf,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:v", "libx264", "-preset", preset, "-crf", crf,
         "-c:a", "aac", "-b:a", "128k", "-r", str(fps),
         str(dst),
     ])
     return probe_duration(dst)
+
+
+def unify_audio(
+    src: Path, dst: Path, target_sr: int, target_ch: str,
+    video_dur: float, preset: str, crf: str,
+) -> None:
+    """统一音频格式到 (target_sr, target_ch)：无音频段补静音，有音频段重采样。
+
+    无音频 → anullsrc 生成静音 lavfi 源，合流到视频。
+    有音频但规格不符 → aresample=target_sr, aformat=channel_layouts=target_ch。
+    规格已符 → 直接 copy 输出（idempotent，避免无谓重编码）。
+
+    audio_dur 用 -t 限制静音轨时长（--audio-duration 或视频时长），-shortest 对齐视频。
+    """
+    audio_info = probe_audio(src)
+    has_vid = has_video(src)
+    actual_dur = video_dur if video_dur > 0 else probe_duration(src)
+
+    # 规格已符 → 直接 copy（idempotent）
+    if audio_info is not None:
+        cur_sr, cur_ch = audio_info
+        target_ch_n = 1 if target_ch == "mono" else 2
+        if cur_sr == target_sr and cur_ch == target_ch_n:
+            run(["ffmpeg", "-y", "-i", str(src), "-c", "copy", str(dst)])
+            return
+
+    if audio_info is None:
+        # 无音频 → 补静音
+        layout = target_ch
+        src_inputs = ["-i", str(src)]
+        silent_inputs = [
+            "-f", "lavfi", "-t", f"{actual_dur:.3f}",
+            "-i", f"anullsrc=channel_layout={layout}:sample_rate={target_sr}",
+        ]
+        af = None
+        map_args = ["-map", "0:v:0", "-map", "1:a:0"]
+    else:
+        # 有音频但规格不符 → 重采样
+        src_inputs = ["-i", str(src)]
+        silent_inputs = []
+        af = f"aresample={target_sr},aformat=channel_layouts={target_ch}"
+        map_args = ["-map", "0:v:0", "-map", "0:a:0"]
+
+    cmd = ["ffmpeg", "-y"]
+    cmd.extend(src_inputs)
+    cmd.extend(silent_inputs)
+    cmd.extend(map_args)
+    if has_vid:
+        cmd.extend(["-c:v", "libx264", "-preset", preset, "-crf", crf])
+    cmd.extend(["-c:a", "aac", "-b:a", "128k"])
+    if af:
+        cmd.extend(["-af", af])
+    cmd.extend(["-shortest", str(dst)])
+    run(cmd)
+
+
+def has_video(path: Path) -> bool:
+    """用 ffprobe 看是否有视频流。"""
+    p = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
+         "-show_entries", "stream=codec_type", "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    )
+    return p.stdout.strip() == "video"
+
+
+def probe_video(path: Path) -> tuple[int, int, int] | None:
+    """探测视频流的 (width, height, fps)。无视频流返回 None。
+
+    fps 取 avg_frame_rate，转为整数（常见 24/25/30）。
+    """
+    p = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-select_streams", "v:0",
+         "-show_entries", "stream=width,height,avg_frame_rate",
+         "-of", "csv=p=0", str(path)],
+        capture_output=True, text=True,
+    )
+    out = p.stdout.strip()
+    if not out:
+        return None
+    try:
+        w, h, fr = out.split(",")
+        # avg_frame_rate 形如 "30/1" 或 "30000/1001"
+        num, den = fr.split("/")
+        fps_num = int(num)
+        fps_den = int(den) if int(den) != 0 else 1
+        fps = fps_num // fps_den if fps_num % fps_den == 0 else round(fps_num / fps_den)
+        return (int(w), int(h), fps)
+    except (ValueError, IndexError, ZeroDivisionError):
+        return None
 
 
 def concat_hard(segments: list[tuple[str, Path]], out: Path) -> None:
@@ -100,7 +236,7 @@ def concat_hard(segments: list[tuple[str, Path]], out: Path) -> None:
     list_file.unlink(missing_ok=True)
 
 
-def concat_xfade(segments: list[tuple[str, Path, float]], out: Path, transition: str) -> None:
+def concat_xfade(segments: list[tuple[str, Path, float]], out: Path, transition: str, preset: str, crf: str) -> None:
     """fade/dissolve/xfade 转场：链式 xfade。过渡时长 0.5s，不足 1s 的段硬切。"""
     if len(segments) == 1:
         shutil.copy2(segments[0][1], out)
@@ -126,8 +262,9 @@ def concat_xfade(segments: list[tuple[str, Path, float]], out: Path, transition:
         prev_label = cur_label
         accum_dur += dur - transition_dur
 
+    # normalize=0 禁用 amix 自动除以轨道数，与 audio-mix.py 保持一致，避免音量稀释
     amix_parts = [f"[{i}:a]" for i in range(len(segments))]
-    amix_parts.append(f"amix=inputs={len(segments)}:duration=longest[aout]")
+    amix_parts.append(f"amix=inputs={len(segments)}:duration=longest:dropout_transition=0:normalize=0[aout]")
     filter_parts.append("".join(amix_parts))
 
     filter_complex = ";".join(filter_parts)
@@ -136,7 +273,7 @@ def concat_xfade(segments: list[tuple[str, Path, float]], out: Path, transition:
     cmd.extend([
         "-filter_complex", filter_complex,
         "-map", prev_label, "-map", "[aout]",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:v", "libx264", "-preset", preset, "-crf", crf,
         "-c:a", "aac", "-b:a", "128k", str(out),
     ])
     run(cmd)
@@ -150,20 +287,40 @@ def main() -> None:
     parser.add_argument("--transition", default="hard", choices=sorted(VALID_TRANSITIONS))
     parser.add_argument("--width", type=int, default=None, help="归一化目标宽度（不传则不归一化，直 concat）")
     parser.add_argument("--fps", type=int, default=None, help="归一化帧率（不传则不归一化）")
+    parser.add_argument("--low-memory", action="store_true", help="低内存机器：用 ultrafast preset + crf 28（默认 fast/crf 23）")
+    parser.add_argument("--preview-duration", type=float, default=None, help="额外输出前 N 秒预览到 <output-stem>-preview.mp4，用于试听")
+    parser.add_argument("--audio-format", default="24000/mono",
+                        help="concat 前统一音频格式（采样率/声道，默认 24000/mono，与 awk-tts 对齐）")
+    parser.add_argument("--audio-duration", type=float, default=None,
+                        help="静音轨时长（秒，默认取视频时长对齐）")
     args = parser.parse_args()
 
     project = Path(args.project_dir).resolve()
     source_dir = project / args.source_dir if args.source_dir else project / "render"
+    preset, crf = encode_opts(args.low_memory)
+    audio_sr, audio_ch = parse_audio_format(args.audio_format)
 
     # 收段：两种目录结构兼容
     # - render/：按 shot-NN/ 子目录收，每目录取最新 gen*.mp4 / multi-best*.mp4
     # - 其他目录（如 artifacts/timeline/）：直接收目录下的 clip-NN.mp4 或 *.mp4，按文件名序
     segments: list[tuple[str, Path]] = []
     if source_dir.name == "render":
-        for shot_dir in sorted(source_dir.glob("shot-*")):
+        # 收段：shot-NN/ 子目录 + 命名子目录（outro/、intro/ 等）
+        # shot-NN/ 走 multi-best*.mp4 / gen*.mp4 变体识别
+        # 命名子目录直接收目录下的 *.mp4（按文件名序）
+        shot_dirs = sorted(source_dir.glob("shot-*"))
+        named_dirs = sorted(
+            d for d in source_dir.iterdir()
+            if d.is_dir() and not d.name.startswith("shot-") and not d.name.startswith(".")
+        )
+        for shot_dir in shot_dirs:
             pick = pick_latest(shot_dir, ["multi-best*.mp4", "gen*.mp4"])
             if pick and pick.is_file():
                 segments.append((shot_dir.name, pick))
+        for named_dir in named_dirs:
+            for pick in sorted(named_dir.glob("*.mp4")):
+                if pick.is_file():
+                    segments.append((f"{named_dir.name}/{pick.stem}", pick))
     else:
         for pick in sorted(source_dir.glob("*.mp4")):
             if pick.is_file():
@@ -179,16 +336,53 @@ def main() -> None:
 
     print(f"[plan] 共 {len(segments)} 段，转场={args.transition}")
 
-    # 可选归一化（段尺寸/帧率不一时传 --width/--fps）
-    if args.width is not None and args.fps is not None:
+    # 音频格式统一（concat 前置）：无音频段补静音，规格不符段重采样到目标规格。
+    # 默认 24000/mono（与 awk-tts 输出对齐）。输出到 artifacts/unified-audio/。
+    audio_work = project / "artifacts" / "unified-audio"
+    audio_work.mkdir(parents=True, exist_ok=True)
+    unified: list[tuple[str, Path]] = []
+    for idx, (name, src) in enumerate(segments, 1):
+        dst = audio_work / f"{idx:02d}_{name}.mp4"
+        vid_dur = args.audio_duration if args.audio_duration is not None else probe_duration(src)
+        if not dst.is_file():
+            print(f"[auni] {name} → {dst.name} (sr={audio_sr}, ch={audio_ch})")
+            unify_audio(src, dst, audio_sr, audio_ch, vid_dur, preset, crf)
+        unified.append((name, dst))
+    segments = unified
+    print(f"  - 音频统一：{audio_sr}Hz {audio_ch}")
+
+    # 归一化判定：显式传 --width/--fps 用之；否则自动探测各段规格，
+    # 不一时统一到最低公共规格（最小宽度、最低帧率），避免 concat demuxer 报错。
+    auto_w, auto_fps = None, None
+    if args.width is None or args.fps is None:
+        specs = [probe_video(s) for _, s in segments]
+        widths = sorted({w for w, _, _ in specs if w})
+        fpses = sorted({f for _, _, f in specs if f})
+        if len(widths) > 1 or len(fpses) > 1:
+            auto_w = min(widths) if widths else None
+            auto_fps = min(fpses) if fpses else None
+            if args.width is not None:
+                auto_w = args.width
+            if args.fps is not None:
+                auto_fps = args.fps
+            print(f"[auto] 检测到段规格差异 widths={widths} fpses={fpses}，统一到 {auto_w}x{round(auto_w*9/16)}@{auto_fps}fps")
+        else:
+            # 规格一致，无需归一化
+            pass
+
+    # 归一化目标：显式优先，否则用自动探测结果（auto_w/auto_fps 可能仍为 None）
+    norm_w = args.width if args.width is not None else auto_w
+    norm_fps = args.fps if args.fps is not None else auto_fps
+
+    if norm_w is not None and norm_fps is not None:
         work_dir = project / "artifacts" / "normalized"
         work_dir.mkdir(parents=True, exist_ok=True)
         normalized: list[tuple[str, Path, float]] = []
         for idx, (name, src) in enumerate(segments, 1):
             dst = work_dir / f"{idx:02d}_{name}.mp4"
             if not dst.is_file():
-                print(f"[norm] {name} → {dst.name} (scale={args.width}, fps={args.fps})")
-                dur = normalize_segment(src, dst, args.width, args.fps)
+                print(f"[norm] {name} → {dst.name} (scale={norm_w}, fps={norm_fps})")
+                dur = normalize_segment(src, dst, norm_w, norm_fps, preset, crf)
             else:
                 dur = probe_duration(dst)
             normalized.append((name, dst, dur))
@@ -197,8 +391,8 @@ def main() -> None:
         if args.transition == "hard":
             concat_hard([(n, d) for n, d, _ in normalized], video_out)
         else:
-            concat_xfade(normalized, video_out, args.transition)
-        print(f"  - 归一化：{args.width}x{round(args.width*9/16)}@{args.fps}fps")
+            concat_xfade(normalized, video_out, args.transition, preset, crf)
+        print(f"  - 归一化：{norm_w}x{round(norm_w*9/16)}@{norm_fps}fps")
     else:
         # 不归一化，直 concat（要求各段已同尺寸/帧率；否则 ffmpeg 会失败，agent 应先归一化）
         print(f"[concat] 直拼 {len(segments)} 段（未归一化，要求段已同尺寸/帧率）")
@@ -207,10 +401,22 @@ def main() -> None:
         else:
             # xfade 需要时长信息
             with_dur = [(n, s, probe_duration(s)) for n, s in segments]
-            concat_xfade(with_dur, video_out, args.transition)
+            concat_xfade(with_dur, video_out, args.transition, preset, crf)
+
+    # 可选预览：截前 N 秒到 <output-stem>-preview.mp4，用于试听
+    if args.preview_duration is not None:
+        preview_out = video_out.with_name(f"{video_out.stem}-preview{video_out.suffix}")
+        run([
+            "ffmpeg", "-y", "-i", str(video_out),
+            "-t", str(args.preview_duration),
+            "-c", "copy", str(preview_out),
+        ])
+        print(f"[preview] 前 {args.preview_duration}s 已落：{preview_out}")
 
     print(f"[done] 成片已落：{video_out}")
     print(f"  - 段数：{len(segments)}，转场：{args.transition}")
+    if args.low_memory:
+        print(f"  - 低内存模式：preset={preset}, crf={crf}")
 
 
 if __name__ == "__main__":

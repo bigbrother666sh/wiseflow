@@ -24,6 +24,7 @@ Usage:
   "audio_globals": [                           # 全段音轨（可选，按 delay 跨段叠加）
     {"source": "audio/bgm.mp3", "delay": 0, "volume": 0.15}
   ],
+  "audio_mode": "mix",                         # mix（默认，走 amix）/ concat（各段音轨静音填充后 concat 成连续轨）
   "width": 1080,                              # 归一化宽度（可选，默认不归一化）
   "fps": 30                                   # 归一化帧率（可选，默认不归一化）
 }
@@ -57,6 +58,20 @@ def run(cmd: list[str]) -> subprocess.CompletedProcess:
     return p
 
 
+def probe_duration(path: Path) -> float:
+    """ffprobe 取时长（秒）。"""
+    p = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", str(path)],
+        capture_output=True, text=True,
+    )
+    if p.returncode != 0:
+        return 0.0
+    try:
+        return float(json.loads(p.stdout).get("format", {}).get("duration", 0) or 0)
+    except Exception:
+        return 0.0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="timeline-compose 时间轴合成")
     parser.add_argument("project_dir", help="output_videos/<topic>/")
@@ -77,11 +92,15 @@ def main() -> None:
     if not segments:
         die("时间轴无 segments")
 
+    audio_mode = tl.get("audio_mode", "mix")
+    if audio_mode not in ("mix", "concat"):
+        die(f"audio_mode 须为 mix / concat，收到 {audio_mode}")
+
     work_dir = project / "artifacts" / "timeline"
     work_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. 每段调 clip-trim 切素材
-    print(f"[plan] 共 {len(segments)} 段，切段中...")
+    print(f"[plan] 共 {len(segments)} 段，audio_mode={audio_mode}，切段中...")
     clip_paths: list[Path] = []
     for i, seg in enumerate(segments, 1):
         src = Path(seg["source"])
@@ -108,28 +127,29 @@ def main() -> None:
         run(cmd)
         clip_paths.append(clip_dst)
 
-    # 2. 各段音轨混入：每段如有 audio_tracks，跑 audio-mix 叠到段音轨
-    for i, seg in enumerate(segments, 1):
-        audio_tracks = seg.get("audio_tracks") or []
-        if not audio_tracks:
-            continue
-        clip = work_dir / f"clip-{i:02d}.mp4"
-        mixed = work_dir / f"clip-{i:02d}-mixed.mp4"
-        cmd = ["python3", str(SCRIPT_DIR / "audio-mix.py")]
-        cmd.extend(["--track", str(clip), "--delay", "0", "--volume", "1.0"])
-        for tr in audio_tracks:
-            tsrc = Path(tr["source"])
-            if not tsrc.is_absolute():
-                tsrc = project / tr["source"]
-            cmd.extend(["--track", str(tsrc)])
-            cmd.extend(["--delay", str(tr.get("delay", 0))])
-            cmd.extend(["--volume", str(tr.get("volume", 1.0))])
-        cmd.extend(["--output", str(mixed)])
-        print(f"[mix] 段 {i} 音轨混入")
-        run(cmd)
-        clip_paths[i - 1] = mixed  # 替换为混音后的版本
+    if audio_mode == "mix":
+        # mix 模式（默认）：各段 audio_tracks 跑 audio-mix 叠到段音轨
+        for i, seg in enumerate(segments, 1):
+            audio_tracks = seg.get("audio_tracks") or []
+            if not audio_tracks:
+                continue
+            clip = work_dir / f"clip-{i:02d}.mp4"
+            mixed = work_dir / f"clip-{i:02d}-mixed.mp4"
+            cmd = ["python3", str(SCRIPT_DIR / "audio-mix.py")]
+            cmd.extend(["--track", str(clip), "--delay", "0", "--volume", "1.0"])
+            for tr in audio_tracks:
+                tsrc = Path(tr["source"])
+                if not tsrc.is_absolute():
+                    tsrc = project / tr["source"]
+                cmd.extend(["--track", str(tsrc)])
+                cmd.extend(["--delay", str(tr.get("delay", 0))])
+                cmd.extend(["--volume", str(tr.get("volume", 1.0))])
+            cmd.extend(["--output", str(mixed)])
+            print(f"[mix] 段 {i} 音轨混入")
+            run(cmd)
+            clip_paths[i - 1] = mixed  # 替换为混音后的版本
 
-    # 3. 拼接各段（走 assemble.py 做按序 concat + �可选转场）
+    # 3. 拼接各段（走 assemble.py 做按序 concat + 可选转场）
     out_path = project / args.output
     width = tl.get("width")
     fps = tl.get("fps")
@@ -145,6 +165,89 @@ def main() -> None:
     if width is not None and fps is not None:
         cmd.extend(["--width", str(width), "--fps", str(fps)])
     run(cmd)
+
+    if audio_mode == "concat":
+        # concat 模式：各段音轨静音填充后 concat 成一条连续轨，避免 amix 断续/稀释
+        # 1. 每段音轨 adelay 到该段在整个 timeline 的起始时刻 + apad 填充到整片总时长
+        # 2. 各段音轨 concat 成一条整片音轨
+        # 3. 与视频合成
+        # 段起始时刻 = 前面所有段时长之和（每段时长 = clip 时长 / speed）
+        # 整片总时长 = 所有段时长之和
+        seg_start_times: list[float] = []
+        seg_durations: list[float] = []
+        accum = 0.0
+        for i, seg in enumerate(segments, 1):
+            seg_start_times.append(accum)
+            clip = work_dir / f"clip-{i:02d}.mp4"
+            seg_dur = probe_duration(clip)
+            seg_durations.append(seg_dur)
+            accum += seg_dur
+        total_dur = accum
+
+        # 各段音轨：该段 clip 的音轨 + 该段 audio_tracks（旁白等）
+        seg_audio_paths: list[Path] = []
+        for i, seg in enumerate(segments, 1):
+            clip = work_dir / f"clip-{i:02d}.mp4"
+            audio_tracks = seg.get("audio_tracks") or []
+            # 该段音轨 = clip 音轨 + audio_tracks 混合
+            # 但 concat 模式下，clip 音轨本身也是段的一部分
+            # 简化：该段音轨 = clip 音轨（如有）+ audio_tracks 混合，然后 adelay 到段起始 + apad 到总时长
+            if audio_tracks:
+                mixed = work_dir / f"clip-{i:02d}-mixed.mp4"
+                mix_cmd = ["python3", str(SCRIPT_DIR / "audio-mix.py")]
+                mix_cmd.extend(["--track", str(clip), "--delay", "0", "--volume", "1.0"])
+                for tr in audio_tracks:
+                    tsrc = Path(tr["source"])
+                    if not tsrc.is_absolute():
+                        tsrc = project / tr["source"]
+                    mix_cmd.extend(["--track", str(tsrc)])
+                    mix_cmd.extend(["--delay", str(tr.get("delay", 0))])
+                    mix_cmd.extend(["--volume", str(tr.get("volume", 1.0))])
+                mix_cmd.extend(["--output", str(mixed)])
+                print(f"[mix] 段 {i} 音轨混入（concat 模式）")
+                run(mix_cmd)
+                seg_audio_src = mixed
+            else:
+                seg_audio_src = clip
+
+            # 提取该段音轨，adelay 到段起始 + apad 填充到整片总时长
+            seg_audio = work_dir / f"seg-audio-{i:02d}.wav"
+            delay_ms = int(seg_start_times[i - 1] * 1000)
+            af = f"adelay={delay_ms},apad=whole_dur={total_dur:.3f}"
+            run([
+                "ffmpeg", "-y", "-i", str(seg_audio_src),
+                "-vn", "-af", af,
+                "-c:a", "pcm_s16le", str(seg_audio),
+            ])
+            seg_audio_paths.append(seg_audio)
+
+        # 各段音轨 concat 成一条整片音轨
+        concat_list = work_dir / "audio-concat-list.txt"
+        concat_list.write_text(
+            "\n".join(f"file '{p.resolve()}'" for p in seg_audio_paths),
+            encoding="utf-8",
+        )
+        full_audio = work_dir / "full-audio.wav"
+        run([
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+            "-i", str(concat_list),
+            "-c:a", "pcm_s16le", str(full_audio),
+        ])
+
+        # 与视频合成
+        tmp_with_audio = work_dir / "with-audio.mp4"
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", str(out_path),
+            "-i", str(full_audio),
+            "-map", "0:v:0", "-map", "1:a:0",
+            "-c:v", "copy",
+            "-c:a", "aac", "-b:a", "192k",
+            "-shortest", str(tmp_with_audio),
+        ]
+        print(f"[concat] 各段音轨 concat 成连续轨，与视频合成")
+        run(cmd)
+        tmp_with_audio.replace(out_path)
 
     # 4. 全段音轨（audio_globals）混入最终片段
     globals_audio = tl.get("audio_globals") or []
@@ -165,7 +268,7 @@ def main() -> None:
         tmp_with_globals.replace(out_path)
 
     print(f"[done] 时间轴合成已落：{out_path}")
-    print(f"  - {len(segments)} 段，转场 {args.transition}")
+    print(f"  - {len(segments)} 段，转场 {args.transition}，audio_mode={audio_mode}")
     if globals_audio:
         print(f"  - 全段音轨 {len(globals_audio)} 条已混入")
 

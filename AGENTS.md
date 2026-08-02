@@ -86,12 +86,3 @@ metadata:
 | `crews/main/skills/rss-reader` | `rss-parser` | ✅ |
 
 其余 skill 的脚本只用 Node 内置模块或相对 import，不需要 `package.json`。
-
-## video-producer 双模式
-
-`crews/content-producer/skills/video-producer` 有两种用法，改 SKILL.md / 脚本时须兼顾两种模式：
-
-- **模式 A：端到端生产**——走 Stage 0→14 全流程（脚本→分镜→机位→素材→闸门→渲染→自检→交付），走 GATE A/B 两道闸门，建完整工作区目录（`script/`、`storyboard/`、`characters/`、`render/` 等）。
-- **模式 B：片段修整**——只调 Stage 12 工具箱（`assemble` / `clip-trim` / `audio-mix` / `timeline-compose` / `scene-compose` / `add-silent-audio` / `make-outro`）做几何级修整：切段、拼接、混音、烧字幕、补轨、片尾。不走 Stage 0→11、不走闸门、不建完整工作区目录——在用户给的工作目录下建 `artifacts/` 落产物即可。
-
-接到"从零做一支完整视频"类请求走模式 A；接到"把这几段拼一下""给这片段配个旁白""稍微剪一下烧个字幕"类请求走模式 B。模式 B 不做语义级剪辑（去口气词/智能剪重点仍是 main 的 `video-edit` / `talking-head-cut` 的活）。

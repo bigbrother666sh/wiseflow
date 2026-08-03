@@ -25,7 +25,7 @@ metadata:
 
 ### 1. wx_mp session 登录态（本技能自管）
 
-wx-mp-engagement 自管 camoufox 持久化 session `wx_mp`（类似 zhihu-publish / weibo-publish 自管各自平台 session）。camoufox-cli 命令统一 `--session wx_mp --persistent`，登录态在 session profile 里已就位即可，**不导出 cookie/UA/token**。
+wx-mp-engagement 自管 camoufox 持久化 session `wx_mp`，camoufox-cli 命令统一 `--session wx_mp --persistent`，登录态在 session profile 里已就位即可，**不导出 cookie/UA/token**。
 
 **登录态判断**（不再会话前探活）：直接 camoufox 打开创作者中心首页，看 redirect URL：
 - 跳到 `/cgi-bin/home?...&token=xxx` = 登录就位
@@ -74,7 +74,7 @@ wx-mp-engagement fetch-all --days 7
 
 ## 工作流程
 
-### 关键发现（2026-07-09）
+### 注意点
 
 1. **发表记录页 URL**：`https://mp.weixin.qq.com/cgi-bin/appmsgpublish?sub=list&begin=0&count=20&token=<TOKEN>&lang=zh_CN`
    - 不是 `appmsg?action=list`（那是草稿箱）

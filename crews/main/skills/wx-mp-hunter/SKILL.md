@@ -1,6 +1,6 @@
 ---
 name: wx-mp-hunter
-description: 微信公众号内容抓取。如下三个场景必用本技能：(1) 用户提供 mp.weixin.qq.com 文章链接 -> 直接用本技能 fetch 全文（不要用浏览器 或 web_fetch）；(2) 用户提供公众号名称、要求获取该账号过去数小时的发布列表 -> 用本技能 posts-list（依赖本机运行的微信客户端容器，使用前检查相关环境变量是否存在，不存在直接报错）；(3) 用户提供 mp.weixin.qq.com/mp/homepage 专题页/主题页链接 或 mp.weixin.qq.com/mp/appmsgalbum 合集链接，要求采集该页面全部文章 -> 用本技能 homepage 采集目录链接（走 camoufox 无头浏览器，不走 HTTP），再逐篇 fetch 抓全文。不支持视频号、评论、互动数据。
+description: 微信公众号内容抓取。如下三个场景必用本技能：(1) 用户提供 mp.weixin.qq.com 文章链接 -> 直接用本技能 fetch 全文（不要用浏览器 或 web_fetch）；(2) 用户提供公众号名称、要求获取该账号过去数小时的发布列表 -> 用本技能 posts-list；(3) 用户提供 mp.weixin.qq.com/mp/homepage 专题页/主题页链接 或 mp.weixin.qq.com/mp/appmsgalbum 合集链接，要求采集该页面全部文章 -> 用本技能 homepage 采集目录链接
 metadata:
   openclaw:
     emoji: 📰
@@ -26,7 +26,6 @@ Use this skill when:
 2. **等待服务器响应**：每次执行脚本命令后，必须等待脚本返回 JSON 结果。若结果需要时间，**先向用户说明"正在请求服务器，请稍候……"**，然后等待。
 3. **严禁提前假设结果**：不得在脚本输出 JSON 之前就根据假设继续后续步骤。
 4. **批量前必须小样本验证**：批量抓全文前，必须先选 1 篇文章 `fetch` 验证链路成功；成功后才能批量。
-5. **中间产物归集到专用子目录**：执行过程中产生的任何中间/临时文件（命令输出落盘、解析片段、`_wx*.txt` / `_wx_*.txt` 之类的 scratch 捕获、二维码图片等）**一律写入工作区下的 `wx-mp-hunter-out/` 子目录**，不要散落工作区根目录。脚本本身只输出 JSON 到 stdout，凡需要落盘的中间态由你显式写到该子目录（必要时先 `mkdir -p wx-mp-hunter-out`）。最终交付给用户的文章 JSON/Markdown 也放该子目录。
 
 ---
 
@@ -53,7 +52,7 @@ Use this skill when:
 
 > **posts-list 不需要登录态**：直接扫本机微信客户端容器内的消息库
 > （SQLCipher 加密 + Zstd 压缩），按账号白名单过滤、按时间窗口取过去 N 小时
-> 的文章。**仅能拿到容器客户端已登录微信账号已关注的公众号推送**。
+> 的文章。**仅能拿到容器客户端所登录的微信账号已关注的公众号推送**。
 
 > **homepage 不需要登录态**：camoufox-cli 无头打开专题页，完整滚动 +
 > 分类 tab 采集 `mp.weixin.qq.com/s` 文章链接。用临时 session，不绑持久化
@@ -157,7 +156,7 @@ wx-mp-hunter posts-list [--hours N] [--accounts a,b,c]
 
 ### 已关注账号约束
 
-`posts-list` 只能拿到**容器客户端已登录微信账号已关注的公众号**的推送。如果用户要求抓取的账号不在已关注清单中（即消息库中扫不出来），脚本会在 `missing_accounts` 字段列出这些账号，并在 `hint` 字段提示用户：
+`posts-list` 只能拿到**容器客户端所登录的微信账号关注的公众号**的推送。如果用户要求抓取的账号不在已关注清单中（即消息库中扫不出来），脚本会在 `missing_accounts` 字段列出这些账号，并在 `hint` 字段提示用户：
 
 > 可能是该公众号在此时间窗口内未发布，也可能是本机微信客户端未关注该公众号。若需稳定接收该公众号推送，请确认本机微信客户端已关注该公众号。
 

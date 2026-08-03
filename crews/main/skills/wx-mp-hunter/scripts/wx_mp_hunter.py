@@ -71,11 +71,8 @@ HOMEPAGE_SESSION = "wx_mp_hunter_homepage"
 
 # ── biz 消息库扫库常量 ───────────────────────────────────────────────────────
 # 依赖本机微信客户端容器，相关路径通过环境变量注入。
-WX_BIZ_CONTAINER = os.environ.get("WX_BIZ_CONTAINER", "mimicwx-linux")
-WX_BIZ_USER_DIR = os.environ.get(
-    "WX_BIZ_USER_DIR",
-    "/home/wechat/Documents/xwechat_files/lonely2012_b040",
-)
+WX_BIZ_CONTAINER = os.environ.get("WX_BIZ_CONTAINER")
+WX_BIZ_USER_DIR = os.environ.get("WX_BIZ_USER_DIR")
 WX_BIZ_KEYS_FILE = os.environ.get(
     "WX_BIZ_KEYS_FILE",
     "/home/wechat/.xwechat/wechat_keys.json",

@@ -1,6 +1,6 @@
 ---
 name: wechat-channels-publish
-description: 通过 forked camoufox-cli 挰久化 session wechat-channel 发布视频到微信视频号。处理 wujie shadow DOM（snapshot 穿透），支持视频上传、标题描述填写、即时发布。
+description: 通过 camoufox-cli 挰久化 session wechat-channel 发布视频到微信视频号。处理 wujie shadow DOM（snapshot 穿透），支持视频上传、标题描述填写、即时发布。
 metadata:
   openclaw:
     emoji: 📺
@@ -8,26 +8,25 @@ metadata:
 
 # 微信视频号发布
 
-通过 **camoufox-cli** 持久化 session `wechat-channel`（有且只有一个，fail-first 队列：同 session 已有命令在跑时新命令直接 fail）在微信视频号创作者中心发布视频。视频号创作者中心使用 **wujie 微前端**，所有表单元素在 `<wujie-app>::shadow-root` 内——forked cli 的 `snapshot` 默认穿透 shadow DOM 拿 ref，后续 `click` / `type` / `upload` 按 ref 操作即可，无需 CDP hack。
+通过 **camoufox-cli** 持久化 session `wechat-channel`（有且只有一个，fail-first 队列：同 session 已有命令在跑时新命令直接 fail）在微信视频号创作者中心发布视频。视频号创作者中心使用 **wujie 微前端**，所有表单元素在 `<wujie-app>::shadow-root` 内——camoufox-cli 的 `snapshot` 默认穿透 shadow DOM 拿 ref，后续 `click` / `type` / `upload` 按 ref 操作即可，无需 CDP hack。
 
 > **主力后端 = `target=camoufox`**。下方命令 / 示例只针对 `target=camoufox`。
-> **`target=host` / `target=node`**：只按本 skill 的「流程 + 提示事项」走——何时有头 / 何时无头 / 频率限制 / 错误处理约定是**后端无关**的，照本 skill 执行。不要照搬 `camoufox-cli ...` 命令，用你当前后端自带的浏览器工具语义调用即可。
+> **`target=host` / `target=node`**：只按本 skill 的「流程 + 提示事项」走——全部无头 / 频率限制 / 错误处理约定是**后端无关**的，照本 skill 执行。不要照搬 `camoufox-cli ...` 命令，用你当前后端自带的浏览器工具语义调用即可。
 
 ---
 
 ## 前置条件
 
-1. 持久化 session `wechat-channel` 已登录（登录态存 session profile 里）。本 skill 与 login-manager **完全无关**——自管探活 + 登录，**不导出 cookie/UA 落中央存储**。
-2. 首次使用 / 登录态失效时，走**有头手动扫码**登录流（视频号登录页无法无头截 QR，必须弹出有头窗口让用户在浏览器里手动扫码）：
-   - `camoufox-cli --session wechat-channel --persistent --headed --viewport 1920x1080 --json open "https://channels.weixin.qq.com/platform/home"`
-   - `--viewport 1920x1080`：camoufox 默认按指纹给移动端窗口比例，二维码看不全；强制桌面 1920×1080
-   - 告知用户「**微信视频号** 登录已失效，浏览器窗口已打开，请在窗口里用微信扫码确认登录，完成后回复"已扫码"」
-   - **Stop and wait**，用户回复后 `snapshot` 验页面已跳走 / QR 消失
+1. 持久化 session `wechat-channel` 已登录（登录态存 session profile 里）。本 skill 与 login-manager **完全无关**——自管探活 + 登录，**不导出 cookie/UA 落中央存储**。登录和发布**全部走无头模式**（camoufox-cli 默认即 headless）。
+2. 首次使用 / 登录态失效时，走**无头截图扫码**登录流（与 wx-mp-engagement 同机制）：
+   - `camoufox-cli --session wechat-channel --persistent --json open "https://channels.weixin.qq.com/platform/home"`
+   - 等登录页 QR 二维码 `<img>` 注入完成（轮询 `eval` 检查 `document.querySelectorAll('img')` 有 `src` 以 `data:image` 开头的元素，最多等 10s）
+   - `camoufox-cli --session wechat-channel --persistent --json screenshot /tmp/qr-wechat-channel.png` 截 QR PNG
+   - 发 QR PNG 给用户，告知「**微信视频号** 登录已失效，请用微信扫码确认，完成后回复"已扫码"」
+   - **Stop and wait**，用户回复后轮询当前 URL（`camoufox-cli --session wechat-channel --json url`），确认已跳走登录页（URL 含 `platform/home` 且不含 `login`）即登录就位
    - 登录后**close session**——登录态落磁盘 profile，不留进程占内存；本 skill 下次 `--session wechat-channel --persistent` 重起无头即恢复，用完再 close。
 
 > **不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本 skill 不调用 `cookies export` / `identity export`。
->
-> 登录走**有头**（`--headed --viewport 1920x1080`）；业务发布操作走默认无头（camoufox-cli 默认即 headless，无需额外 flag）。
 
 ---
 
@@ -43,7 +42,7 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 ### Step 2: 检查登录态
 
-`snapshot` 看页面 URL 是否含 `login` 或出现登录二维码——命中走前置条件的有头手动扫码登录流。
+`snapshot` 看页面 URL 是否含 `login` 或出现登录二维码——命中走前置条件的无头截图扫码登录流。
 
 ### Step 3: 上传视频
 
@@ -52,7 +51,7 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 2. camoufox-cli --session wechat-channel --persistent --json click <上传触发-ref>
 3. snapshot 拿到弹出的 <input type="file"> ref
 4. camoufox-cli --session wechat-channel --persistent --json upload <input-ref> <video.mp4>
-   - forked cli upload 命令底层走 Playwright setInputFiles，穿透 shadow DOM，无需 CDP setFileInput / base64 hack
+   - camoufox-cli upload 命令底层走 Playwright setInputFiles，穿透 shadow DOM，无需 CDP setFileInput / base64 hack
 ```
 
 **支持的视频格式**：`.mp4`、`.mov`、`.avi`、`.webm`
@@ -159,7 +158,7 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 - **触发**：访问视频号页面未登录
 - **症状**：跳转到扫码登录页，无用户名/密码选项
-- **workaround**：走前置条件的有头手动扫码流程（`--headed --viewport 1920x1080`），等待用户在浏览器窗口里用手机微信扫码确认
+- **workaround**：走前置条件的无头截图扫码流程（screenshot QR PNG → 发用户扫码 → 轮询 URL 确认登录就位），与 wx-mp-engagement 同机制
 
 ### pitfall: form_reset_on_idle
 
@@ -173,7 +172,7 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 | 情况 | 处理 |
 |------|------|
-| 未登录 | 走前置条件的有头手动扫码登录流，重试一次 |
+| 未登录 | 走前置条件的无头截图扫码登录流，重试一次 |
 | 上传失败 | 检查视频格式（mp4/mov/avi/webm），重试一次 |
 | 转码超时 | 增加超时时间，或告知用户稍后在创作者中心检查 |
 | 发表按钮 disabled | 检查必填字段是否已填写（视频是否上传完成） |

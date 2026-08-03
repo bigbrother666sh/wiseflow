@@ -79,6 +79,7 @@ wx-mp-engagement fetch-all --days 7
 1. **发表记录页 URL**：`https://mp.weixin.qq.com/cgi-bin/appmsgpublish?sub=list&begin=0&count=20&token=<TOKEN>&lang=zh_CN`
    - 不是 `appmsg?action=list`（那是草稿箱）
    - **必须带 token 参数**，否则显示"请重新登录"
+   - **`count=20` 是有意设计，不是 bug**：只抓最近 20 篇的 engagement。发布超过 ~30 天的老文章数据已稳定，每天重抓无收益只增风控暴露。老内容不在列表里自然跳过，**不要加翻页逻辑去补抓**。复盘如需老内容数据，用 DB 里已有的历史值。
 
 2. **Token 来源**：camoufox 打开首页后从 redirect URL 实时提 token（首页自动重定向到 `/cgi-bin/home?...&token=xxx`）。token 与 wx_mp session 同寿命，失效则一并失效（首页跳登录页 → 走本技能重登流）。
 
@@ -197,3 +198,4 @@ wx-mp-engagement fetch --row-id <rowid>
 - **限频建议**：单公众号每 24h 全量 ≤ 1 次；单篇按需触发
 - **失败兜底**：本 skill 跑不通时回退到 manual update（`update-metrics.sh --reads ... --likes ... --comments ...` 手动填）
 - **camoufox-cli 注意**：本 skill 全部命令统一 `--session wx_mp --persistent`（本技能自管的持久化 session），headless 是默认行为；token 从 session 内 redirect URL 实时拿
+- **报错约束**：调用方（agent）报告失败时必须原样转述脚本 stderr + exit code，禁止根据 DB 字段（如 `publish_url` 是否为空）自行归因。token 从首页 redirect URL 提取，**与 `publish_url` 无关**——`publish_url` 仅用于输出 JSON，不参与抓取逻辑

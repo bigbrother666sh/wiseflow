@@ -86,11 +86,21 @@
 
    > 这条路效果一般，**尽力而为即可，不要硬弄**——拿不到就跳过，切勿反复操作以免引发风控。后面会持续更新。
 
+##### 取数时效窗口
+
+**发布超过 30 天的内容不再每天抓取互动数据**——数据已稳定，边际变化可忽略，反复抓只浪费配额/增加风控暴露。按平台类型：
+
+- **浏览器方案**（wx_mp 等）：列表页/创作者中心天然只展示近期内容（wx_mp 发表记录页 `count=20`），无需额外过滤——老内容不在列表里自然抓不到，**这是设计不是 bug**，不要加翻页去补抓老内容。
+- **接口方案**（xhs / bilibili / douyin / kuaishou）：Step 1 查询时加 `publish_date >= date('now', '-30 days')` 过滤，超过 30 天的行直接跳过不调 `fetch-and-update-metrics.sh`。
+
+**复盘（Step 3）不受此限**——复盘按 T+3d 窗口 + 有 `prediction.md` 无 `retro.md` 判断，可能涉及发布较早但尚未复盘的内容。Step 2 没抓到新数据时，复盘用 DB 里已有的历史数据。
+
 ##### 通用规则
 
 - **必须传 `--id <rowid>`**（脚本类平台）：`<rowid>` 取自 Step 1 查询结果里的 `id` 字段。同一 `source_folder` 可能对应多条记录（同内容重复发布到不同帖子），按 `--id` 逐条抓取/写库才能让每次发布各自独立统计；若只传 `--source-folder`，脚本会只抓一行指标却批量写进所有同 folder 行，造成重复发布之间互相污染。
 - **SESSION_EXPIRED**：脚本返回 `ok=false, error=SESSION_EXPIRED`（exit 2）时，**跳过该平台**本轮取数，记入 `EXPIRED_PLATFORMS`，Step 5 统一汇报，由用户白天用 login-manager 重新登录。**凌晨不唤醒用户、不扫码登录、不私拉会话**（见约束 4/5）。
 - **xhs 风控显著高于其他平台**：xhs 任何登录失效迹象 → 立刻整段跳过 xhs，不尝试任何恢复。取数只走 `xhs-browse`，**禁止**探测/使用 `xhs-publish` creator 域 cookie。
+- **⛔ 取数失败时必须原样报告脚本 stderr + exit code，禁止自行归因**：脚本的 stderr 是排查的唯一可靠依据。Agent 不得根据 DB 字段（如 `publish_url` 是否为空）脑补错误原因、不得改写/概括 stderr 成自己的话。例：`wx-mp-engagement fetch` exit 1 stderr=`error: 发表记录页未找到标题匹配的 row id=3`，就报这个原文，不要脑补成 "publish_url 无效"。错误归因错误会误导排查方向。
 
 ---
 
@@ -117,6 +127,8 @@ if [ -f "<source_folder>/calibration/prediction.md" ] && [ ! -f "<source_folder>
 - 写 `<work>/calibration/retro.md`（T+3d 写一次，immutable，含多平台实绩对比）
 - 提炼观察 → 写入**统一** `calibration/rubric-memo.md`（根级，非平台目录；见 content-calibrator SKILL.md 归集表）
 - 检测是否触发 bump（≥3 次同向偏差）
+
+**Step 2 取数失败时复盘不跳过**：若某条记录 Step 2 取数失败但 DB 里已有历史互动数据（reads/likes/plays 等 > 0），复盘**必须用已有数据做**，不得因 re-fetch 失败就跳过复盘。只有 DB 里完全没有数据（全 0）且取数也失败时才跳过。
 
 **如果某平台未启用 content-calibrator，跳过此步骤。Agent 不得自动启用。**
 

@@ -393,6 +393,183 @@ def volc_poll(task_id: str, api_key: str) -> str:
     die(f"volcengine timed out after {VOLC_TIMEOUT}s (task {task_id})")
 
 
+# ---- platform: MiniMax (Hailuo-H3 video + music) ------------------------------
+# 官方文档:
+#   视频生成 V2: https://platform.minimaxi.com/docs/api-reference/video-generation-v2-create
+#   音乐生成:    https://platform.minimaxi.com/docs/api-reference/music-generation
+#
+# 视频生成走 V2 异步任务模型:
+#   POST /v2/video_generation          → 创建任务,返回 task_id
+#   GET  /v2/query/video_generation/{task_id}  → 轮询 task.status
+#   成功时 task.content.url 即成片下载地址(无需 file_id / files/retrieve 换链)。
+# 请求体用 content[] 多模态数组,每个元素 type(text/image_url/video_url/audio_url)
+# + role(first_frame/last_frame/reference_image/reference_video/reference_audio)。
+#
+# 音乐生成走 /v1/music_generation,官方示例为同步 POST 直接返回结果。
+#
+# 鉴权:HTTP header `Authorization: Bearer ${MINIMAX_API_KEY}`。
+MM_BASE = "https://api.minimaxi.com"
+MM_VIDEO_CREATE = f"{MM_BASE}/v2/video_generation"
+MM_VIDEO_QUERY = f"{MM_BASE}/v2/query/video_generation/{{task_id}}"
+MM_MUSIC_CREATE = f"{MM_BASE}/v1/music_generation"
+
+# MiniMax 视频模型候选链(质量优先 → 速度/兜底)
+# 主力 MiniMax-H3;兜底暂留 MiniMax-H3(官方文档示例仅 H3,无其他可选项披露)。
+MM_VIDEO_MODELS = {
+    "hailuo-h3": "MiniMax-H3",
+}
+MM_MUSIC_MODEL = "music-3.0"
+
+MM_POLL_INTERVAL = 10  # 官方推荐轮询间隔 10 秒
+MM_TIMEOUT = 900
+
+
+def mm_headers(api_key: str) -> dict:
+    return {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+
+def mm_video_build_content(model: str, args: argparse.Namespace) -> list[dict]:
+    """构造 MiniMax V2 视频 content[] 数组。
+
+    模式映射(与百炼/火山对齐):
+      - t2v: 纯 prompt 文本
+      - i2v: prompt + first_frame image
+      - r2v: prompt + reference image
+
+    content[] 每个元素:type(text/image_url/video_url/audio_url) + role(可选)
+    """
+    items: list[dict] = [{"type": "text", "text": args.prompt}]
+    if args.image:
+        items.append(
+            {"type": "image_url", "image_url": {"url": resolve_image(args.image)}, "role": "first_frame"}
+        )
+    if args.last_frame:
+        items.append(
+            {"type": "image_url", "image_url": {"url": resolve_image(args.last_frame)}, "role": "last_frame"}
+        )
+    if args.ref_image:
+        items.append(
+            {"type": "image_url", "image_url": {"url": resolve_image(args.ref_image)}, "role": "reference_image"}
+        )
+    if args.ref_video:
+        items.append(
+            {"type": "video_url", "video_url": {"url": resolve_media_url(args.ref_video, "ref-video")}, "role": "reference_video"}
+        )
+    return items
+
+
+def mm_video_build_payload(model: str, args: argparse.Namespace) -> dict:
+    """构造 MiniMax V2 视频生成请求体。
+
+    通用字段:model / content[] / duration / resolution / ratio
+    i2v 场景宽高比由输入图片决定,ratio 恒为 adaptive(官方文档);此处仅在用户显式
+    传 --ratio 时带上,否则省略让服务端自判。
+    """
+    payload: dict = {
+        "model": model,
+        "content": mm_video_build_content(model, args),
+        "duration": args.duration,
+        "resolution": args.resolution,
+    }
+    # t2v 场景 ratio 必填且不能为 adaptive;i2v 由图片决定 ratio 应省略。
+    # 此处简化:仅在无 --image 时带 ratio(对齐官方示例的 t2va 必填 ratio 约束)。
+    if args.ratio and not args.image:
+        payload["ratio"] = args.ratio
+    return payload
+
+
+def mm_video_submit(model: str, args: argparse.Namespace, api_key: str) -> str:
+    payload = mm_video_build_payload(model, args)
+    resp = post_json(MM_VIDEO_CREATE, payload, mm_headers(api_key), timeout=60)
+    # V2 响应:顶层 task_id(V2 不再用 base_resp 信封,错误走 HTTP 状态码)
+    task_id = resp.get("task_id") or resp.get("id")
+    if not task_id:
+        die(
+            f"minimax video submit: no task id in response: "
+            f"raw={json.dumps(resp, ensure_ascii=False)}"
+        )
+    return task_id
+
+
+def mm_video_poll(task_id: str, api_key: str) -> str:
+    """轮询 MiniMax V2 视频任务,成功时返回 task.content.url(成片下载地址)。"""
+    url = MM_VIDEO_QUERY.format(task_id=task_id)
+    deadline = time.time() + MM_TIMEOUT
+    attempt = 0
+    while time.time() < deadline:
+        attempt += 1
+        resp = get_json(url, mm_headers(api_key), timeout=30)
+        task = resp.get("task") or resp  # V2 响应在 task 字段下,兜底兼容顶层
+        status = (task.get("status") or "").lower()
+        log(f"minimax video poll #{attempt}: status={status}")
+        if status == "succeeded":
+            content = task.get("content") or {}
+            video_url = content.get("url") or content.get("video_url")
+            if not video_url:
+                die(f"minimax video succeeded but no content.url: {json.dumps(resp, ensure_ascii=False)}")
+            return video_url
+        if status in {"failed", "cancelled"}:
+            err = task.get("error") or {}
+            raise TaskFailed(
+                f"minimax video task {status}: code={err.get('code', '')} msg={err.get('message', '')}"
+            )
+        time.sleep(MM_POLL_INTERVAL)
+    die(f"minimax video timed out after {MM_TIMEOUT}s (task {task_id})")
+
+
+def mm_video_candidates(args: argparse.Namespace) -> list[str]:
+    """MiniMax 视频候选链:目前仅 MiniMax-H3。--model 显式指定时只用该模型。"""
+    return [MM_VIDEO_MODELS["hailuo-h3"]]
+
+
+# ---- MiniMax 音乐生成 ---------------------------------------------------------
+
+
+def mm_music_build_payload(args: argparse.Namespace) -> dict:
+    """构造 MiniMax 音乐生成请求体。
+
+    官方字段:model(music-3.0) / prompt(风格描述) / lyrics(歌词,可含 [verse]/[chorus] 标签)
+    / audio_setting(sample_rate/bitrate/format)。
+    """
+    payload: dict = {
+        "model": MM_MUSIC_MODEL,
+        "prompt": args.prompt,
+    }
+    lyrics = getattr(args, "lyrics", None)
+    if lyrics:
+        payload["lyrics"] = lyrics
+    audio_setting: dict = {"format": "mp3", "sample_rate": 44100, "bitrate": 256000}
+    payload["audio_setting"] = audio_setting
+    return payload
+
+
+def mm_music_generate(args: argparse.Namespace, api_key: str) -> bytes:
+    """MiniMax 音乐生成:POST /v1/music_generation,返回音频二进制。
+
+    官方示例为同步 POST,响应体即音频字节流(或 JSON 含 base64 audio 字段)。
+    """
+    payload = mm_music_build_payload(args)
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        MM_MUSIC_CREATE, data=data, headers=mm_headers(api_key), method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            content_type = resp.headers.get("Content-Type", "")
+            body = resp.read()
+            if "audio" in content_type or content_type == "application/octet-stream":
+                return body
+            json_resp = json.loads(body.decode("utf-8"))
+            audio_field = json_resp.get("audio") or (json_resp.get("data") or {}).get("audio")
+            if audio_field:
+                return base64.b64decode(audio_field)
+            die(f"minimax music: no audio in response: {json.dumps(json_resp, ensure_ascii=False)}")
+    except urllib.error.HTTPError as exc:
+        die(f"minimax music HTTP {exc.code}: {exc.read().decode(errors='replace')}")
+    except urllib.error.URLError as exc:
+        die(f"minimax music URLError: {exc.reason}")
+
+
 # ---- platform: DashScope ------------------------------------------------------
 
 def ds_build_input(args: argparse.Namespace) -> dict:
@@ -499,17 +676,23 @@ def ds_candidates(args: argparse.Namespace, mode: str) -> list[str]:
 def resolve_platform() -> str:
     has_ds = bool(os.environ.get("MODELSTUDIO_API_KEY", "").strip() or os.environ.get("DASHSCOPE_API_KEY", "").strip())
     has_volc = bool(os.environ.get("AWK_GEN_KEY", "").strip())
+    has_mm = bool(os.environ.get("MINIMAX_API_KEY", "").strip())
     if has_ds:
         return "dashscope"
     if has_volc:
         return "volcengine"
+    if has_mm:
+        return "minimax"
     print(
-        "[error] 未检测到任何视频生成平台的环境变量（MODELSTUDIO_API_KEY / AWK_GEN_KEY 均未设置）。\n"
+        "[error] 未检测到任何视频生成平台的环境变量"
+        "（MODELSTUDIO_API_KEY / AWK_GEN_KEY / MINIMAX_API_KEY 均未设置）。\n"
         "[hint] 请改用 pexels-footage 和 pixabay-footage 技能搜集素材：\n"
         "       1) pexels-footage 搜索并下载 9:16 竖屏素材（按片段时长设 --min-duration/--max-duration）\n"
         "       2) pexels 无结果时用 pixabay-footage 兜底\n"
         "       3) 下载后按脚本片段编号重命名放入 artifacts/，再用 check.py 自检\n"
-        "       若要启用 AI 直生成，请配置 MODELSTUDIO_API_KEY（阿里云百炼，优先）或 AWK_GEN_KEY（火山引擎）。",
+        "       若要启用 AI 直生成，请配置 MODELSTUDIO_API_KEY（阿里云百炼，优先）/ "
+        "AWK_GEN_KEY（火山引擎）/ MINIMAX_API_KEY（MiniMax Hailuo）。\n"
+        "       ⚠️ MINIMAX_API_KEY 缺失时，需提醒用户实时提供，然后交 IT engineer 配置。",
         file=sys.stderr,
     )
     sys.exit(2)
@@ -529,6 +712,10 @@ def run_one(platform: str, model: str, args: argparse.Namespace, api_key: str) -
         task_id = volc_submit(model, args, api_key)
         log(f"volcengine task submitted: {task_id} (model={model})")
         return volc_poll(task_id, api_key)
+    if platform == "minimax":
+        task_id = mm_video_submit(model, args, api_key)
+        log(f"minimax video task submitted: {task_id} (model={model})")
+        return mm_video_poll(task_id, api_key)
     base = ds_base_for_model(model)
     task_id = ds_submit(model, args, api_key, base)
     log(f"dashscope task submitted: {task_id} (model={model} base={base})")
@@ -567,26 +754,74 @@ def generate(platform: str, candidates: list[str], args: argparse.Namespace, api
     die(f"all model attempts failed; last error: {last_err}")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Video AIGC generation via Volcengine Seedance or Aliyun DashScope (auto-detected)."
-    )
-    parser.add_argument("--prompt", required=True, help="画面+音频描述（声画同出）")
-    parser.add_argument("--image", default=None, help="首帧图片：URL 或本地路径（→ i2v）")
-    parser.add_argument("--prev-segment", default=None, dest="prev_segment",
-                        help="上一段视频本地路径：脚本自动抽取其末帧作为本段首帧（人物故事首尾帧对齐）。与 --image 互斥")
-    parser.add_argument("--last-frame", default=None, dest="last_frame", help="尾帧图片：URL 或本地路径（i2v 首尾帧）")
-    parser.add_argument("--ref-image", default=None, dest="ref_image", help="参考图片：URL 或本地路径（→ r2v，角色/主体一致性）")
-    parser.add_argument("--ref-video", default=None, dest="ref_video", help="参考视频 URL（→ r2v，需公网 URL）")
-    parser.add_argument("--duration", type=int, default=8, help="时长（秒），默认 8")
-    parser.add_argument("--ratio", default="9:16", choices=sorted(VALID_RATIOS), help="宽高比，默认 9:16")
-    parser.add_argument("--resolution", default="720P", choices=["720P", "1080P"], help="分辨率，默认 720P")
-    parser.add_argument("--no-audio", action="store_false", dest="audio", help="关闭声画同出（默认开启）")
-    parser.add_argument("--platform", default=None, choices=["volcengine", "dashscope"], help="覆盖平台自动检测")
-    parser.add_argument("--model", default=None, help="指定模型 id（关闭候选链 fallback）")
-    parser.add_argument("--output", required=True, help="输出 MP4 路径（相对工作区，须在 output_videos/tmp/fragments/artifacts 下）")
-    args = parser.parse_args()
+def cmd_music(args: argparse.Namespace) -> None:
+    """MiniMax 背景音乐生成子命令。
 
+    流程:mm_music_generate(同步 POST /v1/music_generation)→ 写文件。
+    仅 minimax 平台支持,需 MINIMAX_API_KEY。
+    """
+    api_key = (os.environ.get("MINIMAX_API_KEY") or "").strip()
+    if not api_key:
+        die("MINIMAX_API_KEY 未设置 —— 请实时提醒用户提供 key,然后交 IT engineer 配置")
+    output_path = ensure_safe_output(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    log(f"minimax music generation: prompt={args.prompt!r}")
+    audio_bytes = mm_music_generate(args, api_key)
+    output_path.write_bytes(audio_bytes)
+    meta = output_path.with_suffix(".json")
+    meta.write_text(
+        json.dumps(
+            {
+                "platform": "minimax",
+                "capability": "music",
+                "model": MM_MUSIC_MODEL,
+                "prompt": args.prompt,
+                "lyrics": getattr(args, "lyrics", None),
+                "file": str(output_path),
+                "bytes": len(audio_bytes),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(f"[done] music saved: {output_path}")
+    print(f"[done] metadata:    {meta}")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Video AIGC generation via Volcengine Seedance, Aliyun DashScope, or MiniMax Hailuo (auto-detected)."
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    # ── 默认子命令:video(向后兼容,无子命令时走 video) ──
+    p_video = sub.add_parser("video", help="视频生成(默认,可省略 video 子命令)")
+    p_video.add_argument("--prompt", required=True, help="画面+音频描述（声画同出）")
+    p_video.add_argument("--image", default=None, help="首帧图片：URL 或本地路径（→ i2v）")
+    p_video.add_argument("--prev-segment", default=None, dest="prev_segment",
+                         help="上一段视频本地路径：脚本自动抽取其末帧作为本段首帧（人物故事首尾帧对齐）。与 --image 互斥")
+    p_video.add_argument("--last-frame", default=None, dest="last_frame", help="尾帧图片：URL 或本地路径（i2v 首尾帧）")
+    p_video.add_argument("--ref-image", default=None, dest="ref_image", help="参考图片：URL 或本地路径（→ r2v，角色/主体一致性）")
+    p_video.add_argument("--ref-video", default=None, dest="ref_video", help="参考视频 URL（→ r2v，需公网 URL）")
+    p_video.add_argument("--duration", type=int, default=8, help="时长（秒），默认 8")
+    p_video.add_argument("--ratio", default="9:16", choices=sorted(VALID_RATIOS), help="宽高比，默认 9:16")
+    p_video.add_argument("--resolution", default="720P", choices=["720P", "1080P"], help="分辨率，默认 720P")
+    p_video.add_argument("--no-audio", action="store_false", dest="audio", help="关闭声画同出（默认开启）")
+    p_video.add_argument("--platform", default=None, choices=["volcengine", "dashscope", "minimax"], help="覆盖平台自动检测")
+    p_video.add_argument("--model", default=None, help="指定模型 id（关闭候选链 fallback）")
+    p_video.add_argument("--output", required=True, help="输出 MP4 路径（相对工作区，须在 output_videos/tmp/fragments/artifacts 下）")
+
+    # ── music 子命令:minimax 背景音乐生成 ──
+    p_music = sub.add_parser("music", help="MiniMax 背景音乐生成(需 MINIMAX_API_KEY)")
+    p_music.add_argument("--prompt", required=True, help="音乐描述(风格/情绪/乐器)")
+    p_music.add_argument("--duration", type=int, default=None, dest="music_duration", help="音乐时长(秒),不传走模型默认")
+    p_music.add_argument("--output", required=True, help="输出音频路径(相对工作区,须在 output_videos/tmp/fragments/artifacts 下)")
+
+    return parser
+
+
+def cmd_video(args: argparse.Namespace) -> None:
     if args.duration < 2 or args.duration > 15:
         die("--duration 必须在 2–15 秒之间")
 
@@ -608,6 +843,11 @@ def main() -> None:
         if not api_key:
             die("AWK_GEN_KEY 未设置")
         candidates = [args.model] if args.model else volc_candidates(args)
+    elif platform == "minimax":
+        api_key = (os.environ.get("MINIMAX_API_KEY") or "").strip()
+        if not api_key:
+            die("MINIMAX_API_KEY 未设置 —— 请实时提醒用户提供 key,然后交 IT engineer 配置")
+        candidates = [args.model] if args.model else mm_video_candidates(args)
     else:
         api_key = (os.environ.get("MODELSTUDIO_API_KEY") or os.environ.get("DASHSCOPE_API_KEY") or "").strip()
         if not api_key:
@@ -647,6 +887,27 @@ def main() -> None:
     )
     print(f"[done] video saved: {output_path}")
     print(f"[done] metadata:    {meta}")
+
+
+def main() -> None:
+    parser = build_parser()
+
+    # 向后兼容:无子命令时,把全部 argv 当成 video 子命令的参数
+    argv = sys.argv[1:]
+    if not argv or argv[0].startswith("-"):
+        argv = ["video"] + argv
+
+    # video 子命令可省略:如果第一个 token 不是已知子命令,默认走 video
+    known_subcommands = {"video", "music"}
+    if argv and argv[0] not in known_subcommands:
+        argv = ["video"] + argv
+
+    args = parser.parse_args(argv)
+
+    if args.command == "music":
+        cmd_music(args)
+    else:
+        cmd_video(args)
 
 
 if __name__ == "__main__":

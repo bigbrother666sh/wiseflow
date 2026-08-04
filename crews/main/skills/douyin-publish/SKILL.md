@@ -18,6 +18,31 @@ metadata:
 
 ---
 
+## 发布前置:open 上传页 + agent 判定登录态(必做)
+
+抖音 cookie 存在预热机制,直接 `douyin-publish run` 可能因 cookie 未激活而不生效。**每次发布前必须先 open 上传页**(无头 persistent session),由 agent 在此页面根据元素判定登录态,之后再走 `run`。
+
+```bash
+# 1. open 上传页(无头 persistent session `douyin`)
+douyin-publish open-page
+# 输出: {"ok": true, "session": "douyin", "url": "...", "hint": "agent 用 camoufox-cli eval/snapshot 判定登录态"}
+
+# 2. agent 判定登录态:用 camoufox-cli eval 查页面元素(用户头像/用户名是否存在、是否跳 /login)
+camoufox-cli --session douyin --persistent --json eval "document.querySelector('头像 selector') ? 'logged_in' : 'not_logged_in'"
+
+# 3a. 判定为已登录 → 走发布
+douyin-publish run --video /path/to/video.mp4 --title "标题" --caption "描述"
+
+# 3b. 判定为未登录 → 走 login-manager 有头重登流
+camoufox-cli --session douyin --persistent --headed --json open "https://www.douyin.com"
+# 告知用户在窗口里手动完成创作者中心登录,确认后:
+login-manager --platform douyin
+```
+
+> ⚠️ **`_check_logged_in` 已 mute 成 no-op**(2026-08-04):原版用 URL 跳转 + cookies export 双信号判登录态,实测误判率高(cookie 预热机制、临时 profile 等导致 SESSION_EXPIRED 假阳性)。登录态判定改由 agent 在 open 上传页后自行根据页面元素(用户头像/用户名等)判定。脚本内 `_check_logged_in` 保留签名但不再做任何检查、不再 exit 2。
+
+---
+
 ## 如果登录失效:使用 login-manager 重新登录
 
 走 login-manager skill 流程,复用 `douyin` 持久化 session
@@ -44,6 +69,8 @@ douyin-publish run \
 ```
 
 `run` 内部串:upload → fill → publish → get-link。
+
+> ⚠️ **发布前必做 `open-page` + 登录态判定**(见上方"发布前置"章节),否则可能因 cookie 未预热而不生效。
 
 ### 分步调用(agent 按需)
 

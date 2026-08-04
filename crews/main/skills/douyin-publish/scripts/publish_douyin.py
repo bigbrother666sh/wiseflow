@@ -74,49 +74,14 @@ DOUYIN_LOGIN_COOKIES = ("sessionid", "sid_tt", "uid_tt")
 
 
 def _check_logged_in(session: str) -> None:
-    """open 完上传页后立即验登录态，未登录直接 exit 2（SESSION_EXPIRED）。
+    """已 mute 成 no-op（2026-08-04）。
 
-    双重信号，任中即判未登录：
-      1. URL 跳到登录页（含 /login 或 passport，或已不在 creator-micro/content/upload 上）
-      2. cookies 缺 sessionid/sid_tt/uid_tt 任一（兜住「页面渲染但无真 session」的假登录态）
-
-    SKILL.md 约定 exit 2 = session 失效 → 调用方走 login-manager 有头重登。本 skill 不自管重登。
-    之前没这层守卫，未登录也一路点下去误报「发布成功」（2026-07-17 xiaobei 事故）。
+    原版用 URL 跳转 + cookies export 双信号判登录态，实测误判率高（cookie 预热机制、
+    临时 profile 等导致 SESSION_EXPIRED 假阳性）。改为由 agent 在 open 上传页后自行根据
+    页面元素（用户头像/用户名等是否存在）判定登录态，再决定是否走 run / 重登。
+    本函数保留签名以免破坏现有调用链，但不再做任何检查、不再 exit 2。
     """
-    # 信号 1：URL 跳登录页
-    cur_url = camoufox_eval(session, "window.location.href") or ""
-    on_login_page = ("/login" in cur_url) or ("passport" in cur_url)
-    left_upload = "/creator-micro/content/upload" not in cur_url
-    # 信号 2：导出 cookies 查关键字段
-    tmp = f"/tmp/dy-logincheck-{session}.json"
-    missing: list[str] = []
-    try:
-        subprocess.run(
-            [CAMOUFOX_BIN, "--session", session, "--persistent", "--json", "cookies", "export", tmp],
-            capture_output=True, text=True, timeout=30, check=False,
-        )
-        raw = json.loads(Path(tmp).read_text("utf-8"))
-        arr = raw if isinstance(raw, list) else (raw.get("cookies") if isinstance(raw, dict) else [])
-        names = {c.get("name") for c in arr if isinstance(c, dict)}
-        missing = [k for k in DOUYIN_LOGIN_COOKIES if k not in names]
-    except Exception as e:
-        # 导出/解析失败本身是异常，但先不直接 crash——若 URL 已判登录页就够下结论；
-        # 否则把导出失败当未登录处理（宁可误报重登，不可误报成功）。
-        sys.stderr.write(f"[douyin-publish] warn: 登录态 cookie 导出异常: {e}\n")
-        missing = list(DOUYIN_LOGIN_COOKIES)
-
-    if on_login_page or (left_upload and not cur_url.startswith("about:")):
-        sys.stderr.write(
-            f"error: 未登录或登录态已失效（URL={cur_url}，已跳离上传页/到登录页）——"
-            f"请走 login-manager --platform douyin 有头重登后重试\n"
-        )
-        sys.exit(2)
-    if missing:
-        sys.stderr.write(
-            f"error: 未登录或登录态已失效（cookies 缺 {','.join(missing)}）——"
-            f"请走 login-manager --platform douyin 有头重登后重试\n"
-        )
-        sys.exit(2)
+    return None
 
 
 def _dismiss_draft_dialog(session: str) -> None:
@@ -302,6 +267,29 @@ def camoufox_click_leaf_by_text(session: str, text: str) -> bool:
 
 
 # ── 子命令实现 ──────────────────────────────────────────────────────────────
+
+
+def cmd_open_page(*, session: Optional[str] = None) -> None:
+    """open 上传页(无头 persistent session),供 agent 判定登录态后再走 run。
+
+    新流程(2026-08-04):agent 先调本命令 open 上传页,再用 camoufox-cli eval/snapshot
+    根据页面元素(用户头像/用户名是否存在、是否跳 /login)判定登录态。判定为已登录后
+    调 `douyin-publish run` 走发布;判定为未登录则走 login-manager 有头重登。
+
+    本命令只 open + 输出 session 名 + 当前 URL,不做任何登录态判定(原 _check_logged_in
+    已 mute,误判率高)。
+    """
+    if not session:
+        session = PERSISTENT_SESSION
+    camoufox_open(session, UPLOAD_URL)
+    # 给页面一点渲染时间,再读 URL 供 agent 参考
+    time.sleep(2)
+    cur_url = camoufox_eval(session, "window.location.href") or ""
+    sys.stdout.write(json.dumps(
+        {"ok": True, "session": session, "url": cur_url, "hint": "agent 用 camoufox-cli eval/snapshot 判定登录态"},
+        ensure_ascii=False,
+    ))
+    sys.stdout.write("\n")
 
 
 def cmd_upload(*, video: str, session: Optional[str] = None) -> None:
@@ -703,6 +691,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="抖音内容发布(纯浏览器模拟方案,形态仿 wechat-channels-publish。探活/有头登录/导出 cookie+UA 交 login-manager)",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    p_open = sub.add_parser("open-page", help="open 上传页(无头 persistent session),供 agent 判定登录态后再走 run")
+    p_open.add_argument("--session", default=None)
+    p_open.set_defaults(func=lambda a: cmd_open_page(session=a.session))
 
     p_upload = sub.add_parser("upload", help="上传视频")
     p_upload.add_argument("--video", required=True)

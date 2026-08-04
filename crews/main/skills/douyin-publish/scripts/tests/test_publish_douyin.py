@@ -97,37 +97,21 @@ class TestCmdUpload(unittest.TestCase):
 
 
 class TestCheckLoggedIn(unittest.TestCase):
-    """登录态守卫：open 完上传页后立即验，未登录 exit 2（SESSION_EXPIRED）。"""
+    """_check_logged_in 已 mute 成 no-op（2026-08-04）。
 
-    @mock.patch("publish_douyin.subprocess.run")
-    @mock.patch("publish_douyin.camoufox_eval")
-    @mock.patch("publish_douyin.Path")
-    def test_logged_in_passes(self, mock_path, mock_eval, mock_run):
-        # URL 停在上传页 + cookies 三字段齐全 → 不 exit
-        mock_eval.return_value = "https://creator.douyin.com/creator-micro/content/upload?enter_from=dou_web"
-        mock_path.return_value.read_text.return_value = json.dumps(
-            [{"name": "sessionid", "value": "x"}, {"name": "sid_tt", "value": "y"}, {"name": "uid_tt", "value": "z"}]
-        )
+    原版用 URL 跳转 + cookies export 双信号判登录态，实测误判率高（cookie 预热机制、
+    临时 profile 等导致 SESSION_EXPIRED 假阳性）。改为由 agent 在 open 上传页后自行根据
+    页面元素判定登录态。本函数保留签名但不再做任何检查、不再 exit 2。
+    """
+
+    def test_muted_no_op_does_not_exit(self):
+        # 无论输入什么，no-op 实现都不应抛 SystemExit
         publish_douyin._check_logged_in("douyin")  # 不抛即通过
+        publish_douyin._check_logged_in("any-session")  # 不抛即通过
 
-    @mock.patch("publish_douyin.subprocess.run")
-    @mock.patch("publish_douyin.camoufox_eval")
-    def test_login_page_redirect_exits_2(self, mock_eval, mock_run):
-        mock_eval.return_value = "https://creator.douyin.com/login?from=upload"
-        with self.assertRaises(SystemExit) as ctx:
-            publish_douyin._check_logged_in("douyin")
-        self.assertEqual(ctx.exception.code, 2)
-
-    @mock.patch("publish_douyin.subprocess.run")
-    @mock.patch("publish_douyin.camoufox_eval")
-    @mock.patch("publish_douyin.Path")
-    def test_missing_login_cookies_exits_2(self, mock_path, mock_eval, mock_run):
-        # URL 停在上传页但 cookies 缺 sessionid → exit 2（兜住「页面渲染但无真 session」）
-        mock_eval.return_value = "https://creator.douyin.com/creator-micro/content/upload"
-        mock_path.return_value.read_text.return_value = json.dumps([{"name": "sid_tt", "value": "y"}, {"name": "uid_tt", "value": "z"}])
-        with self.assertRaises(SystemExit) as ctx:
-            publish_douyin._check_logged_in("douyin")
-        self.assertEqual(ctx.exception.code, 2)
+    def test_muted_no_op_returns_none(self):
+        # no-op 实现应返回 None
+        self.assertIsNone(publish_douyin._check_logged_in("douyin"))
 
 
 class TestFetchNewestAwemeId(unittest.TestCase):

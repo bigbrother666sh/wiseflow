@@ -106,25 +106,20 @@
 
 #### Step 3: content-calibrator 复盘
 
-对每个已启用 content-calibrator 的平台，检查是否满足复盘条件：
-
-1. 从 published-track DB 读取该平台所有 `cal_enabled=1` 的记录
-2. 按记录的 `source_folder` 逐个检查作品目录：`<source_folder>/calibration/` 下**有 `prediction.md` 且无 `retro.md`** 即为待复盘。预测日志是 per-work 存放的（见 content-calibrator SKILL.md），**不存在** `calibration/<platform>/predictions/` 这种平台级目录，不要去 ls 它
-3. **T+3d 时间窗口过滤**：只保留 `published_at + 3天 < 当前时间` 的记录（数据未稳定的不复盘；`published_at` 取自 published-track DB）
-4. 统计**过窗口且有实际互动数据但尚未复盘**的记录数
-5. 如果积累了 **≥5 个新数据点** → 执行复盘流程
-
-检查命令用安全写法（**不要**对可能不存在的路径裸 `ls` 再 `&&` 串联——复合命令一次非零退出会让 cron 把整次任务误报为 failed，即使后续步骤全部完成）：
+一键扫描待复盘作品 + 带出互动数据（有 `prediction.md` 无 `retro.md` + 过 T+3d 窗口的 `cal_enabled=1` 记录）：
 
 ```bash
-# 对 Step 1 拿到的每个 source_folder：
-if [ -f "<source_folder>/calibration/prediction.md" ] && [ ! -f "<source_folder>/calibration/retro.md" ]; then echo "PENDING: <source_folder>"; fi
+./skills/published-track/scripts/query-retro-pending.sh --days 3 --min-count 5
 ```
 
+返回 JSON：`{total, min_count, pending: [{source_folder, title, prediction_path, publish_date, cal_scores, platforms: {<platform>: {id, metrics}}}]}`
+- `total < min_count` → 待复盘积攒不够，跳过本轮复盘
+- `total >= min_count` → 对 `pending` 数组里每个作品执行复盘流程
+
 复盘流程（由 Agent 执行，每个作品一份）：
-- 从 published-track DB 读该 work 在各平台的互动数据
-- 对比预测 vs 实际
-- 写 `<work>/calibration/retro.md`（T+3d 写一次，immutable，含多平台实绩对比）
+- 读 `prediction_path` 拿预测（路径已在 JSON 里，无需自己拼）
+- 对比预测 vs `platforms` 里各平台的实际 `metrics`（数据已在 JSON 里，无需再查 DB）
+- 写 `<source_folder>/calibration/retro.md`（T+3d 写一次，immutable，含多平台实绩对比）
 - 提炼观察 → 写入**统一** `calibration/rubric-memo.md`（根级，非平台目录；见 content-calibrator SKILL.md 归集表）
 - 检测是否触发 bump（≥3 次同向偏差）
 

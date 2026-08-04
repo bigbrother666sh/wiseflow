@@ -212,6 +212,15 @@ Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSI
   --platform zhihu --source-folder "output_articles/xxx"              # 是否已发布
 ```
 
+### 流程 3D·查询待复盘作品（凌晨 heartbeat Step 3 用）
+
+```bash
+# 一键扫描待复盘作品 + 带出互动数据（有 prediction.md 无 retro.md + 过 T+Nd 窗口）
+./skills/published-track/scripts/query-retro-pending.sh --days 3 --min-count 5
+```
+
+返回 JSON：`{total, min_count, pending: [{source_folder, title, prediction_path, publish_date, cal_scores, platforms: {<platform>: {id, metrics}}}]}`。`total < min_count` 时 `pending` 为空数组（积攒不够，跳过本轮复盘）。Agent 拿到后直接对比预测 vs 实际写 retro.md，无需再查 DB 或 ls 目录。
+
 ---
 
 ## 与发布技能的配合

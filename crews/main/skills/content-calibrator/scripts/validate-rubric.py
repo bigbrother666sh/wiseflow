@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """validate-rubric.py — 新 rubric 公式合格性验证
 
-对比新旧公式在同一批作品上的偏差信号数。新公式偏差显著减少 → pass。
+对比新旧公式在同一批作品上的偏差信号数。新公式偏差信号降幅 ≥ 阈值 → pass。
 
 工作方式：
 1. 从 DB 查最新发布且有数据的 N 篇作品的旧分数 + 实际指标 → 算旧偏差信号数
 2. 读 Agent 批量重打的新分数（JSON 文件，由 blind sub-agent 产出）
 3. 用同一归一化逻辑算新偏差信号数
-4. 新信号数 < 旧信号数 → pass=true
+4. 降幅 = (old - new) / old ≥ 阈值（默认 30%）→ pass=true
 
 Usage:
     python3 validate-rubric.py --new-scores /tmp/new-scores.json
-    python3 validate-rubric.py --new-scores /tmp/new-scores.json --sample-size 10
+    python3 validate-rubric.py --new-scores /tmp/new-scores.json --reduction-threshold 0.3
 
 new-scores.json 格式：
 [
@@ -154,7 +154,7 @@ def get_old_scores(conn: sqlite3.Connection, source_folders: set[str]) -> dict[s
 
 # ── 主逻辑 ───────────────────────────────────────────────────────────────────
 
-def validate(new_scores_path: str, sample_size: int) -> dict:
+def validate(new_scores_path: str, sample_size: int, reduction_threshold: float) -> dict:
     # 读新分数
     new_scores_data = json.loads(Path(new_scores_path).read_text(encoding="utf-8"))
     source_folders = {item["source_folder"] for item in new_scores_data}
@@ -194,8 +194,19 @@ def validate(new_scores_path: str, sample_size: int) -> dict:
                 new_data_points += 1
                 new_signal_count += count_bias_signals(new_scores_map[sf], m["actual_score"])
 
-        # 判定：新信号数 < 旧信号数 → pass
-        passed = new_signal_count < old_signal_count
+        # 判定：降幅 ≥ 阈值 → pass
+        reduction = old_signal_count - new_signal_count
+        if old_signal_count == 0:
+            passed = False
+            reason = "旧公式偏差信号数已为 0，无升级必要"
+            reduction_ratio = 0.0
+        else:
+            reduction_ratio = reduction / old_signal_count
+            passed = reduction_ratio >= reduction_threshold
+            if passed:
+                reason = f"偏差信号降幅 {reduction_ratio:.0%} ≥ 阈值 {reduction_threshold:.0%}"
+            else:
+                reason = f"偏差信号降幅 {reduction_ratio:.0%} < 阈值 {reduction_threshold:.0%}"
 
         return {
             "pass": passed,
@@ -204,8 +215,10 @@ def validate(new_scores_path: str, sample_size: int) -> dict:
             "new_signals": new_signal_count,
             "old_data_points": old_data_points,
             "new_data_points": new_data_points,
-            "reduction": old_signal_count - new_signal_count,
-            "reason": "新公式偏差信号数减少" if passed else "新公式偏差信号数未减少",
+            "reduction": reduction,
+            "reduction_ratio": round(reduction_ratio, 4),
+            "reduction_threshold": reduction_threshold,
+            "reason": reason,
         }
     finally:
         conn.close()
@@ -218,9 +231,15 @@ def main() -> int:
     )
     parser.add_argument("--new-scores", required=True, help="新分数 JSON 文件路径")
     parser.add_argument("--sample-size", type=int, default=10, help="验证样本数（默认 10）")
+    parser.add_argument(
+        "--reduction-threshold",
+        type=float,
+        default=0.3,
+        help="偏差信号降幅阈值（默认 0.3=30%%，新公式信号数需 ≤ 旧 × (1-阈值)）",
+    )
     args = parser.parse_args()
 
-    result = validate(args.new_scores, args.sample_size)
+    result = validate(args.new_scores, args.sample_size, args.reduction_threshold)
     json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
     return 0 if result.get("pass") else 1

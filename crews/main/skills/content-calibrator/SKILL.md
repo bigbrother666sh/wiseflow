@@ -359,9 +359,9 @@ Agent 拿到后：
 2. **批量盲重打**：Agent 派 blind sub-agent 对**最新发布且有数据的 10 篇**作品用新公式重打分（不足 10 篇则用全部，最少 3 篇才做验证）
 3. **脚本验证**：
    ```bash
-   ./skills/content-calibrator/scripts/validate-rubric.sh
+   ./skills/content-calibrator/scripts/validate-rubric.sh --new-scores /tmp/new-scores.json
    ```
-   脚本复用 `detect-bump-signals` 的归一化 + 偏差检测逻辑，对这 10 篇的新分数 vs 实际数据算偏差信号。新公式下偏差信号数比旧公式显著减少 → `pass=true`；否则 → `pass=false`
+   脚本复用 `detect-bump-signals` 的归一化 + 偏差检测逻辑，对这 10 篇的新分数 vs 实际数据算偏差信号。**降幅 = (旧信号数 - 新信号数) / 旧信号数 ≥ 30%（默认阈值）** → `pass=true`；否则 → `pass=false`。`--reduction-threshold` 可调阈值。旧信号数=0 时直接 fail（旧公式本无偏差，无升级必要）。
 4. **pass=false** → 回到第 1 步重新生成公式，**最多 3 轮**。3 轮仍 false → 报用户"自动验证未通过，建议人工介入"
 5. **pass=true → 落地**：
    - 正式写入 `calibration/rubric_notes.md`
@@ -499,7 +499,7 @@ blind subagent 出分 + 预测草稿后，主 agent 调 `commit-prediction.sh` �
 ./skills/content-calibrator/scripts/validate-rubric.sh --new-scores /tmp/new-scores.json
 ```
 
-`--new-scores` 指向 blind sub-agent 用新公式重打分的 JSON 文件（格式见脚本头注释）。脚本复用 `detect-bump-signals` 的 log 桶归一化 + 偏差检测逻辑，对同一批作品对比新旧公式的偏差信号数。新公式偏差信号数 < 旧公式 → `pass=true`；否则 → `pass=false`。返回 JSON：`{pass, sample_size, old_signals, new_signals, reduction, reason}`。exit code：0=pass，1=fail。
+`--new-scores` 指向 blind sub-agent 用新公式重打分的 JSON 文件（格式见脚本头注释）。脚本复用 `detect-bump-signals` 的 log 桶归一化 + 偏差检测逻辑，对同一批作品对比新旧公式的偏差信号数。**降幅 = (旧 - 新) / 旧 ≥ 30%（默认）** → `pass=true`；`--reduction-threshold` 可调。返回 JSON：`{pass, sample_size, old_signals, new_signals, reduction, reduction_ratio, reduction_threshold, reason}`。exit code：0=pass，1=fail。
 
 ### 导入追爆报告
 

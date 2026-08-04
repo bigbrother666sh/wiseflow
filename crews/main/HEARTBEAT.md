@@ -114,14 +114,30 @@
 
 返回 JSON：`{total, min_count, pending: [{source_folder, title, prediction_path, publish_date, cal_scores, platforms: {<platform>: {id, metrics}}}]}`
 - `total < min_count` → 待复盘积攒不够，跳过本轮复盘
-- `total >= min_count` → 对 `pending` 数组里每个作品执行复盘流程
+- `total >= min_count` → 进入 Step 3a
 
-复盘流程（由 Agent 执行，每个作品一份）：
+##### Step 3a: 单篇复盘（批量）
+
+对 `pending` 数组里**每个作品依次**执行：
 - 读 `prediction_path` 拿预测（路径已在 JSON 里，无需自己拼）
 - 对比预测 vs `platforms` 里各平台的实际 `metrics`（数据已在 JSON 里，无需再查 DB）
 - 写 `<source_folder>/calibration/retro.md`（T+3d 写一次，immutable，含多平台实绩对比）
-- 提炼观察 → 写入**统一** `calibration/rubric-memo.md`（根级，非平台目录；见 content-calibrator SKILL.md 归集表）
-- 检测是否触发 bump（≥3 次同向偏差）
+- 提炼本篇观察 → 追加写入**统一** `calibration/rubric-memo.md`（根级，非平台目录；见 content-calibrator SKILL.md 归集表）
+
+**所有作品全部写完 retro.md + rubric-memo.md 后，才进入 Step 3b。** 不在单篇之间插 bump 检测。
+
+##### Step 3b: Bump 信号检测（一次性）
+
+全部单篇复盘完成后，调脚本一次性检测：
+
+```bash
+./skills/content-calibrator/scripts/detect-bump-signals.sh
+```
+
+返回 JSON：`{analyzed, data_points, signals: [{dimension, direction, count, threshold, triggered, examples}], recommend_bump}`
+
+- `recommend_bump=false` → 本轮无 bump，复盘结束
+- `recommend_bump=true` → Agent 检查 `triggered_signals` 里各信号的 `examples`（work/platform 分布），**评估混杂因素**（同账号/同平台集中 → 可能非 rubric 问题）→ 结论写入 `rubric-memo.md` → 如混杂因素已排除则进入 Bump 升级流程（见 content-calibrator SKILL.md Bump 段）
 
 **Step 2 取数失败时复盘不跳过**：若某条记录 Step 2 取数失败但 DB 里已有历史互动数据（reads/likes/plays 等 > 0），复盘**必须用已有数据做**，不得因 re-fetch 失败就跳过复盘。只有 DB 里完全没有数据（全 0）且取数也失败时才跳过。
 
@@ -160,7 +176,7 @@
    > **只报告取数端 cookie**。**不要报告、也不要探测 `xhs-publish`（小红书发布端 / creator.xiaohongshu.com）**：
    > 复盘/取数完全不依赖发布端 cookie，探测它只会给 creator 域增加风控概率且结论与取数无关。
    > 发布端失效由发布任务（xhs-publish 技能）自己管，不在本复盘心跳职责内。
-3. content-calibrator 复盘结果摘要（如有）：列出本轮复盘的**每个作品**（`source_folder` / 标题）+ 预测 vs 实际对比简述 + 是否触发 bump 信号
+3. content-calibrator 复盘结果摘要（如有）：列出本轮复盘的**每个作品**（`source_folder` / 标题）+ 预测 vs 实际对比简述；Step 3b bump 检测结果（`detect-bump-signals.sh` 输出的 `recommend_bump` + 触发的维度/方向/count + 混杂因素评估结论）
 4. 用户咨询回复摘要。
 
 发送后本次定时任务结束。

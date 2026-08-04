@@ -42,10 +42,13 @@ metadata:
 ## 核心闭环
 
 ```
-📊 打分+盲预测 → 🚀 发布 → 📝 记录(1B) → 📈 T+3d 复盘(per-work) → 🧬 进化 rubric
+📊 打分+盲预测 → 🚀 发布 → 📝 记录(1B) → 📈 T+3d 复盘 → 🧬 进化 rubric
+                                    │
+                                    ├─ 3a: 单篇复盘批量（retro.md + rubric-memo.md）
+                                    └─ 3b: bump 信号检测（detect-bump-signals.sh，一次性）
 ```
 
-打分与盲预测**同一次出分**内完成（合并理由：已读稿件、已出分值，顺手出预测；且合并后 Predict 不再是可被跳过的独立软步骤，闭环天然不断）。
+打分与盲预测**同一次出分**内完成（合并理由：已读稿件、已出分值，顺手出预测；且合并后 Predict 不再是可被跳过的独立软步骤，闭环天然不断）。复盘拆两步：先批量写完所有单篇 retro.md + 观察进 rubric-memo.md（3a），再一次性跑 bump 信号检测（3b）——bump 是跨作品统计判断，需本批全部观察落盘后才有效。
 
 ### 派发策略：blind sub-agent 是条件派发，不是强制
 
@@ -119,8 +122,8 @@ blind sub-agent 的隔离价值在于"主对话已看过用户对话/实绩/复�
 |--------|------|----------|
 | "初始化校准 [--platform xxx]" | Init | 首次使用 |
 | "打分这篇 [path] --platform xxx" / "打分+预测" | Score+Predict | rubric_notes.md 存在 |
-| "复盘 [work] --platform xxx" / "T+3d 数据来了" | Retro | 有预测 + 已发布 + 过时间窗口 |
-| "升级公式" / "bump rubric" | Bump | 校准池 ≥ MIN_SAMPLES |
+| "复盘 [work] --platform xxx" / "T+3d 数据来了" | Retro (Step 3a 批量 + 3b bump 检测) | 有预测 + 已发布 + 过时间窗口 |
+| "升级公式" / "bump rubric" | Bump | `detect-bump-signals.sh` 触发 + 混杂因素已排除 |
 | "导入对标 --platform xxx" / "learn from" | LearnFrom | 有 viral-chaser 报告或用户提供对标数据 |
 | "校准状态 [--platform xxx]" / "calibration status" | Status | 任意时刻 |
 | "加维度 XX" | 维度变更 | **必须用户确认** |
@@ -242,18 +245,17 @@ Agent 在复盘或发布时，发现对应平台未启用 calibration，**不得
 
 ---
 
-## Retro — 复盘（per-work）
+## Retro — 复盘
 
-T+N 天后从 published-track DB 读实际数据 → 对比预测 → 提炼观察。**一个作品一个复盘文件** `<work>/calibration/retro.md`，内含该作品在各平台的实绩对比与假设验证。
+复盘分两步：**先批量做完所有单篇复盘，再一次性检测 bump 信号**。不在单篇复盘中途插 bump 检测——bump 是跨作品统计判断，需要本批全部观察落盘后才有效。
 
 ### 两个入口
 
 #### 入口 1：凌晨 HEARTBEAT 自动复盘
 
 心跳巡检时：
-- 从 published-track DB 查所有 `cal_enabled=1` 且过 T+3d 窗口的记录
-- 按 `source_folder`（work）聚合 → 找出 `<work>/calibration/retro.md` 不存在的 work
-- 如积累 **≥5 个新数据点**（有实际互动数据但尚未复盘的 work）→ 自动执行复盘流程
+- 调 `query-retro-pending.sh` 一键拿待复盘作品列表 + 互动数据
+- 按 Step 3a → Step 3b 顺序执行（见下方流程）
 
 #### 入口 2：用户导入对标
 
@@ -261,27 +263,54 @@ T+N 天后从 published-track DB 读实际数据 → 对比预测 → 提炼观�
 
 > **复盘的本质**：复盘是"拿实际数据验证预测，提炼观察，可能触发 rubric 升级"。导入对标是"从外部信号校准 rubric 的初始假设"。两者互补：复盘是内源校准，对标是外源校准。
 
-### 数据来源（全部从 published-track DB）
+### Step 3a·单篇复盘（批量）
 
-复盘时**只从 published-track DB 读取数据**，不另行抓取：
+对 `query-retro-pending.sh` 返回的每个待复盘作品，**依次**执行：
+
+1. 读 `prediction_path` 拿盲预测（路径已在 JSON 里，无需自己拼）
+2. 对比预测 vs `platforms` 里各平台的实际 `metrics`（数据已在 JSON 里，无需再查 DB）
+3. 写 `<source_folder>/calibration/retro.md`（T+3d 写一次，immutable，含多平台实绩对比 + 假设验证/推翻）
+4. 提炼本篇观察 → 追加写入**统一** `calibration/rubric-memo.md`（根级，非平台目录）
+5. 更新 `calibration/.cheat-state.json` 的 `calibration_samples`
+
+**所有待复盘作品全部写完 retro.md + rubric-memo.md 后，才进入 Step 3b。** 不在单篇之间插 bump 检测。
+
+### Step 3b·Bump 信号检测（一次性）
+
+全部单篇复盘完成后，调脚本一次性检测 bump 信号：
 
 ```bash
-# 读取某 work 在各平台的记录（按 source_folder 聚合）
-./skills/published-track/scripts/query.sh --platform wx_mp --limit 10
-
-# 或直接 SQL
-sqlite3 db/published_track.db "SELECT * FROM pub_wx_mp WHERE source_folder='output_articles/xxx'"
+./skills/content-calibrator/scripts/detect-bump-signals.sh
 ```
 
-### 复盘流程
+脚本逻辑：
+1. 扫描所有已复盘作品（有 `retro.md` 的 work）
+2. 从 `score.json` 读 7 维分，从 published-track DB 读各平台实际互动总量
+3. **归一化**：互动总量经 log 桶映射到 0-5 `actual_score`（0→0, 1-10→1, 11-50→2, 51-200→3, 201-1000→4, 1000+→5）
+4. **偏差检测**（per work × platform）：维度分 ≥3 但 actual ≤2 = 高估信号；维度分 ≤2 但 actual ≥3 = 低估信号
+5. **聚合**：按维度 + 方向统计，≥3 次同向 → bump 信号触发
 
-1. 校验时间窗口（默认 T+3d）
-2. 读 `<work>/calibration/prediction.md`（盲预测）
-3. 从 published-track DB 读该 work 在各平台的互动数据
-4. 写 `<work>/calibration/retro.md`：写实绩段（多平台）+ top 评论关键词聚类（如有）+ 验证/推翻预测各假设
-5. 提炼新观察 → 写入统一 `calibration/rubric-memo.md`
-6. 更新 `calibration/.cheat-state.json` 的 `calibration_samples`
-7. 检测是否触发 bump（≥3 次同向偏差）
+返回 JSON：
+
+```json
+{
+  "analyzed": 7,
+  "data_points": 11,
+  "signals": [
+    {"dimension": "pv", "direction": "overestimate", "count": 9, "threshold": 3, "triggered": true, "examples": [...]}
+  ],
+  "triggered_signals": [...],
+  "recommend_bump": true
+}
+```
+
+Agent 拿到后：
+- `recommend_bump=false` → 本轮无 bump，复盘结束
+- `recommend_bump=true` → **先评估混杂因素**（见下方 Bump 流程），再决定是否真正升级
+
+### 数据来源（全部从 published-track DB）
+
+复盘时**只从 published-track DB 读取数据**，不另行抓取。`query-retro-pending.sh` 已把待复盘作品的互动数据带出，Agent 无需再查 DB 或 ls 目录。
 
 ### 阈值推荐（复盘副产物）
 
@@ -297,11 +326,25 @@ sqlite3 db/published_track.db "SELECT * FROM pub_wx_mp WHERE source_folder='outp
 
 ## Bump — Rubric 升级（统一）
 
-系统性偏差信号 → 校准池全量重打 → 排序一致性校验 → 落地新公式。**影响全局 rubric**（统一 rubric，一次升级对所有平台生效）。
+由 `detect-bump-signals.sh` 触发 → 评估混杂因素 → 校准池全量重打 → 排序一致性校验 → 落地新公式。**影响全局 rubric**（统一 rubric，一次升级对所有平台生效）。
 
-### 流程
+### 触发条件
 
-1. 前置门槛检查（校准池样本数 + 观察强度）
+`detect-bump-signals.sh` 返回 `recommend_bump=true`（某维度 ≥3 次同向偏差）。**脚本只提供信号，不自动升级**——Agent 必须评估混杂因素后决定。
+
+### 混杂因素评估（Agent 判断，脚本不代劳）
+
+脚本报 `pv overestimate count=9` 不等于"PV 维度公式有问题"。Agent 必须检查 `examples` 里的 work/platform 分布：
+
+- **同账号混杂**：全部样本来自同一新号 → 可能是冷启动惩罚而非维度失准（新号全平台低量是正常的，不归因于 rubric）
+- **同平台混杂**：偏差集中在单一平台 → 可能是该平台 baseline 偏移而非 rubric 问题
+- **跨平台一致**：多平台多账号同向偏差 → rubric 维度失准证据强，可进入升级流程
+
+评估结论写入 `rubric-memo.md`，再决定是否升级。
+
+### 升级流程
+
+1. 前置门槛检查（校准池样本数 + 观察强度 + 混杂因素已排除）
 2. 写出新公式完整方程
 3. 校准池全量重打分（blind sub-agent 隔离）
 4. 计算排序一致性（新公式排序 vs 实际排序，阈值 4/5）
@@ -421,6 +464,15 @@ blind subagent 出分 + 预测草稿后，主 agent 调 `commit-prediction.sh` �
 ```
 
 从 published-track DB + 各 work 的 `calibration/score.json` 构建全局校准池（per-work 归集）。
+
+### Bump 信号检测
+
+```bash
+./skills/content-calibrator/scripts/detect-bump-signals.sh                # 默认阈值 3
+./skills/content-calibrator/scripts/detect-bump-signals.sh --threshold 5  # 改阈值
+```
+
+扫描所有已复盘作品（有 `retro.md`），比较 rubric 维度分 vs 实际互动表现（log 桶归一化到 0-5），按维度统计同向偏差。≥3 次同向 → bump 信号。返回结构化 JSON（见 Retro Step 3b）。
 
 ### 导入追爆报告
 

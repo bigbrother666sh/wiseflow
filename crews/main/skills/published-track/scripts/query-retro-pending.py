@@ -11,7 +11,6 @@
 Usage:
     python3 query-retro-pending.py                # 默认 T+3d
     python3 query-retro-pending.py --days 5       # T+5d 窗口
-    python3 query-retro-pending.py --min-count 5  # 仅当 ≥5 条待复盘时才输出（默认 1）
 """
 from __future__ import annotations
 
@@ -190,15 +189,10 @@ def main() -> int:
         description="扫描待复盘作品 + 带出互动数据",
     )
     parser.add_argument("--days", type=int, default=3, help="T+Nd 窗口（默认 3）")
-    parser.add_argument("--min-count", type=int, default=1, help="最少待复盘数才输出（默认 1）")
     args = parser.parse_args()
 
     pending = scan_pending(args.days)
-
-    if len(pending) < args.min_count:
-        json.dump({"total": len(pending), "min_count": args.min_count, "pending": []}, sys.stdout, ensure_ascii=False, indent=2)
-    else:
-        json.dump({"total": len(pending), "pending": pending}, sys.stdout, ensure_ascii=False, indent=2)
+    json.dump({"total": len(pending), "pending": pending}, sys.stdout, ensure_ascii=False, indent=2)
     sys.stdout.write("\n")
     return 0
 

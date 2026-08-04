@@ -109,12 +109,12 @@
 一键扫描待复盘作品 + 带出互动数据（有 `prediction.md` 无 `retro.md` + 过 T+3d 窗口的 `cal_enabled=1` 记录）：
 
 ```bash
-./skills/published-track/scripts/query-retro-pending.sh --days 3 --min-count 5
+./skills/published-track/scripts/query-retro-pending.sh --days 3
 ```
 
-返回 JSON：`{total, min_count, pending: [{source_folder, title, prediction_path, publish_date, cal_scores, platforms: {<platform>: {id, metrics}}}]}`
-- `total < min_count` → 待复盘积攒不够，跳过本轮复盘
-- `total >= min_count` → 进入 Step 3a
+返回 JSON：`{total, pending: [{source_folder, title, prediction_path, publish_date, cal_scores, platforms: {<platform>: {id, metrics}}}]}`
+- `total = 0` → 无待复盘作品，跳过
+- `total >= 1` → 进入 Step 3a
 
 ##### Step 3a: 单篇复盘（批量）
 

@@ -1,6 +1,6 @@
 ---
 name: viral-chaser
-description: 用户转发/分享抖音、B站、小红书视频链接要求拆解分析时使用（俗称「追爆」）：下载视频、ASR 转写、结构化拆解，产出拆解分析报告。仅产出报告，视频生产需另外委托 content-producer。
+description: 用户转发/分享抖音、B站、小红书视频链接要求拆解分析时使用（俗称「追爆」）：下载视频、ASR 转写、结构化拆解，产出拆解分析报告。仅产出报告，视频生产需另外委托 content-producer。常见链接域名：抖音 v.douyin.com、B站 b23.tv、小红书 xhslink.com / xhslink.cn。
 metadata:
   openclaw:
     emoji: 🎯

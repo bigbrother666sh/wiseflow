@@ -126,9 +126,9 @@
 
 **所有作品全部写完 retro.md + rubric-memo.md 后，才进入 Step 3b。** 不在单篇之间插 bump 检测。
 
-##### Step 3b: Bump 信号检测（一次性）
+##### Step 3b: 综合评估（一次性）
 
-全部单篇复盘完成后，调脚本一次性检测：
+全部单篇复盘完成后，调脚本一次性检测偏差信号并做综合评估：
 
 ```bash
 ./skills/content-calibrator/scripts/detect-bump-signals.sh
@@ -136,15 +136,10 @@
 
 返回 JSON：`{newly_processed, data_points, signals: [{dimension, direction, count, threshold, triggered, platforms, examples}], recommend_bump}`
 
-脚本纯 DB 操作：从 `cal_score_*` + 互动指标算偏差信号，写回 `cal_bias_signals` 列。每条记录只处理一次（`cal_bump_evaluated` 标记），信号跨轮次累积。`platforms` 字段给出各信号的平台分布。
+脚本纯 DB 操作：从 `cal_score_*` + 互动指标算偏差信号，写回 `cal_bias_signals` 列，聚合后**自动清空**（信号已被消费，不跨轮次累积）。每条记录只处理一次（`cal_bump_evaluated` 标记）。`platforms` 字段给出各信号的平台分布。
 
-- `recommend_bump=false` → 本轮无 bump，复盘结束
-- `recommend_bump=true` → 自动启动 **Bump 流程 A·综合评估**（见 content-calibrator SKILL.md）：
-  1. **混杂因素评估**：检查 `triggered_signals` 的 `platforms` 分布 + `examples` 的 work 分布——同账号集中 → 可能冷启动惩罚；同平台集中 → 可能该平台 baseline 偏移；跨平台多账号一致 → rubric 维度失准证据强
-  2. **写结论**：评估结论写入 `calibration/rubric-memo.md`
-  3. **清信号**：信号已被评估消费，不再重复触发（`cal_bias_signals` 置 NULL，`cal_bump_evaluated` 保持 1）
-  4. **提醒用户**：在 Step 5 汇总中告知评估结论 + 问"是否据此升级打分标准？"
-  5. **Agent 不得自动升级 rubric**——升级由用户发起（Bump 流程 B）
+- `recommend_bump=false` → 本轮无系统性偏差，复盘结束
+- `recommend_bump=true` → **混杂因素评估**：检查 `triggered_signals` 的 `platforms` 分布 + `examples` 的 work 分布——同账号集中 → 可能冷启动惩罚；同平台集中 → 可能该平台 baseline 偏移；跨平台多账号一致 → rubric 维度失准证据强 → 评估结论写入 `calibration/rubric-memo.md` → 在 Step 5 汇总中告知用户 + 建议（是否升级 rubric / 是否调整发布阈值）。**Agent 不得自动升级 rubric 或改阈值。**
 
 **Step 2 取数失败时复盘不跳过**：若某条记录 Step 2 取数失败但 DB 里已有历史互动数据（reads/likes/plays 等 > 0），复盘**必须用已有数据做**，不得因 re-fetch 失败就跳过复盘。只有 DB 里完全没有数据（全 0）且取数也失败时才跳过。
 
@@ -183,8 +178,8 @@
    > **只报告取数端 cookie**。**不要报告、也不要探测 `xhs-publish`（小红书发布端 / creator.xiaohongshu.com）**：
    > 复盘/取数完全不依赖发布端 cookie，探测它只会给 creator 域增加风控概率且结论与取数无关。
    > 发布端失效由发布任务（xhs-publish 技能）自己管，不在本复盘心跳职责内。
-3. content-calibrator 复盘结果摘要（如有）：列出本轮复盘的**每个作品**（`source_folder` / 标题）+ 预测 vs 实际对比简述；Step 3b bump 检测结果（`detect-bump-signals.sh` 输出的 `recommend_bump` + 触发的维度/方向/count + 混杂因素评估结论）
-4. **Bump 综合评估结论（如有）**：Step 3b `recommend_bump=true` 时，Agent 输出综合评估结论——包含触发的维度/方向/count、证据（`examples` 里的 work/platform/dim_score/actual_score）、混杂因素评估结果、是否建议升级。**Agent 不得自动执行升级**。用户白天确认后，由用户发起 Bump 流程 B（Rubric 升级：生成新公式 → 盲重打 10 篇 → `validate-rubric.sh` 验证 → pass=true 落地 / pass=false 重试最多 3 轮）。
+3. content-calibrator 复盘结果摘要（如有）：列出本轮复盘的**每个作品**（`source_folder` / 标题）+ 预测 vs 实际对比简述；Step 3b 综合评估结果（`detect-bump-signals.sh` 输出的 `recommend_bump` + 触发的维度/方向/count + 混杂因素评估结论）
+4. **综合评估建议（如有）**：Step 3b `recommend_bump=true` 时，Agent 输出评估结论——包含触发的维度/方向/count、证据（`examples` 里的 work/platform/dim_score/actual_score）、混杂因素评估结果、是否建议升级 rubric / 调整发布阈值。**Agent 不得自动执行升级或改阈值**。用户白天确认后，由用户发起 Rubric 升级流程（生成新公式 → 盲重打 10 篇 → `validate-rubric.sh` 验证 → pass=true 落地 / pass=false 重试最多 3 轮）。
 5. 用户咨询回复摘要。
 
 发送后本次定时任务结束。

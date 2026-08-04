@@ -4,6 +4,7 @@
 从 published_track.db 读取所有 cal_enabled=1 的记录，对未评估的记录
 （cal_bump_evaluated=0）计算偏差信号并写回 cal_bias_signals，
 然后聚合全量信号按维度统计同向偏差。≥3 次同向 → bump 信号。
+聚合后自动清空 cal_bias_signals（信号已被消费，不再重复触发）。
 
 数据全部来自 DB：cal_score_*（盲打分）+ 互动指标（实测）。
 偏差信号 = 纯数学：log 桶归一化 actual → 与 dim score 比较。
@@ -248,6 +249,13 @@ def aggregate_signals(conn: sqlite3.Connection, threshold: int) -> dict:
     }
 
 
+def clear_signals(conn: sqlite3.Connection) -> None:
+    """聚合后清空所有 cal_bias_signals（信号已被消费，不再重复触发）。"""
+    for table in get_all_platform_tables(conn):
+        conn.execute(f"UPDATE {table} SET cal_bias_signals = NULL WHERE cal_bias_signals IS NOT NULL")
+    conn.commit()
+
+
 # ── main ─────────────────────────────────────────────────────────────────────
 
 def main() -> int:
@@ -269,6 +277,8 @@ def main() -> int:
         processed = process_new_records(conn)
         result = aggregate_signals(conn, args.threshold)
         result["newly_processed"] = processed
+        # 信号已被聚合消费，清空防下轮重复计入
+        clear_signals(conn)
         json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
         sys.stdout.write("\n")
         return 0

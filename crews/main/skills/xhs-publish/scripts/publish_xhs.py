@@ -132,21 +132,67 @@ def cookie_str(cookie_dict: dict) -> str:
 
 
 def extract_topics(body: str, extra_topics: list[str] | None = None) -> list[dict]:
-    """Extract #话题 from body text, return AiToEarn-format hash_tag list."""
+    """Extract #话题 from body text, return AiToEarn-format hash_tag list.
+
+    每个话题 dict 补 link 字段（话题页 URL 占位），服务端部分版本需要 link 才认标签。
+    """
     tags = []
     seen = set()
     for m in re.finditer(r"#([^#\s]+)", body):
         name = m.group(1)
         if name not in seen:
             seen.add(name)
-            tags.append({"id": "", "name": name, "type": "topic"})
+            tags.append({
+                "id": "",
+                "name": name,
+                "type": "topic",
+                "link": f"https://www.xiaohongshu.com/page/topics/?naviHidden=yes",
+            })
     if extra_topics:
         for t in extra_topics:
             t = t.strip()
             if t and t not in seen:
                 seen.add(t)
-                tags.append({"id": "", "name": t, "type": "topic"})
+                tags.append({
+                    "id": "",
+                    "name": t,
+                    "type": "topic",
+                    "link": f"https://www.xiaohongshu.com/page/topics/?naviHidden=yes",
+                })
     return tags
+
+
+# 小红书 web 端识别 body 内联话题的两个硬性要求：
+# 1. body 里话题必须写成 `#话题名[话题]#`（[话题] 和首尾两个 # 都是固定字面量）
+# 2. 整个话题字符串前后要包不可见字符 \uFEFF（ZERO WIDTH NO-BREAK SPACE / BOM）
+# 朴素 `#话题` 写法服务端不认，会被当普通文本渲染。
+# 参考：ReaJason/xhs issue #68、sddtc xhs-robot 博客。
+# 正则匹配朴素单 # 话题：#名字，名字不含 []# 空格 BOM；
+# 负向前瞻 (?!\[话题\]#) 排除已闭环的 #话题[话题]#，避免重复套娃。
+BOM = "\uFEFF"
+PLAIN_TOPIC_RE = re.compile(
+    r"#([^\[\]#\s" + BOM + r']+)(?!\[话题\]#)'
+)
+
+
+def rewrite_topics_in_body(body: str, topics: list[dict]) -> str:
+    """把 body 里所有朴素 `#话题` 重写成 `\uFEFF#话题[话题]#\uFEFF`。
+
+    重写后服务端才能识别为可点话题标签，而非纯文本。
+    已带 `[话题]#` 闭环的不再重复处理。
+    """
+    if not topics:
+        return body
+
+    topic_names = {t["name"] for t in topics if t.get("name")}
+
+    def _replace(m: re.Match) -> str:
+        name = m.group(1)
+        if name in topic_names:
+            return f"{BOM}#{name}[话题]#{BOM}"
+        return m.group(0)
+
+    return PLAIN_TOPIC_RE.sub(_replace, body)
 
 
 # ---------------------------------------------------------------------------
@@ -683,6 +729,8 @@ def main() -> None:
     client = None
 
     topics = extract_topics(args.body, args.topics)
+    # 重写 body 里话题为 \uFEFF#话题[话题]#\uFEFF，否则服务端当纯文本
+    body = rewrite_topics_in_body(args.body, topics)
 
     if args.mode == "image":
         if not args.images:
@@ -690,14 +738,14 @@ def main() -> None:
         if len(args.images) > 18:
             err_exit("Too many images (max 18)")
         result = publish_image_note(
-            client, cookie_dict, ua, args.title, args.body,
+            client, cookie_dict, ua, args.title, body,
             args.images, topics, args.private,
         )
     else:
         if not args.video:
             err_exit("--video required for video mode")
         result = publish_video_note(
-            client, cookie_dict, ua, args.title, args.body,
+            client, cookie_dict, ua, args.title, body,
             args.video, args.cover, topics, args.private,
         )
 

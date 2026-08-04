@@ -124,7 +124,7 @@ blind sub-agent 的隔离价值在于"主对话已看过用户对话/实绩/复�
 | "初始化校准 [--platform xxx]" | Init | 首次使用 |
 | "打分这篇 [path] --platform xxx" / "打分+预测" | Score+Predict | rubric_notes.md 存在 |
 | "复盘 [work] --platform xxx" / "T+3d 数据来了" | Retro (Step 3a 批量 + 3b bump 检测) | 有预测 + 已发布 + 过时间窗口 |
-| "升级公式" / "bump rubric" | Bump | `detect-bump-signals.sh` 触发 + 混杂因素已排除 |
+| "升级公式" / "bump rubric" | Bump 流程 B（用户发起） | 综合评估已完成 + 用户确认 |
 | "导入对标 --platform xxx" / "learn from" | LearnFrom | 有 viral-chaser 报告或用户提供对标数据 |
 | "校准状态 [--platform xxx]" / "calibration status" | Status | 任意时刻 |
 | "加维度 XX" | 维度变更 | **必须用户确认** |
@@ -315,7 +315,7 @@ Agent 在复盘或发布时，发现对应平台未启用 calibration，**不得
 
 Agent 拿到后：
 - `recommend_bump=false` → 本轮无 bump，复盘结束
-- `recommend_bump=true` → **先评估混杂因素**（见下方 Bump 流程），再决定是否真正升级
+- `recommend_bump=true` → 自动启动**综合评估**（见下方 Bump 流程 A），评估后提醒用户是否升级。**Agent 不得自动升级 rubric**
 
 #### 数据来源（全部从 published-track DB）
 
@@ -333,34 +333,44 @@ Agent 拿到后：
 
 ---
 
-## Bump — Rubric 升级（统一）
+## Bump — Rubric 升级
 
-由 `detect-bump-signals.sh` 触发 → 评估混杂因素 → 校准池全量重打 → 排序一致性校验 → 落地新公式。**影响全局 rubric**（统一 rubric，一次升级对所有平台生效）。
+拆成两个独立流程：**综合评估**（Heartbeat 自动）+ **Rubric 升级**（用户发起）。`rubric_notes.md` 只能由用户发起修改，Agent 只能建议。
 
-### 触发条件
+### 流程 A：综合评估（Heartbeat 自动）
 
-`detect-bump-signals.sh` 返回 `recommend_bump=true`（某维度 ≥3 次同向偏差）。**脚本只提供信号，不自动升级**——Agent 必须评估混杂因素后决定。
+`detect-bump-signals.sh` 返回 `recommend_bump=true` 时自动启动。
 
-### 混杂因素评估（Agent 判断，脚本不代劳）
+1. **混杂因素评估**（Agent 判断，脚本不代劳）：检查 `triggered_signals` 的 `platforms` 分布 + `examples` 里的 work 分布：
+   - **同账号混杂**：全部样本来自同一新号 → 可能冷启动惩罚，非 rubric 问题
+   - **同平台混杂**：偏差集中在单一平台（如 13/17 来自 xhs）→ 可能该平台 baseline 偏移
+   - **跨平台一致**：多平台多账号同向偏差 → rubric 维度失准证据强
+2. **写结论**：评估结论写入 `calibration/rubric-memo.md`
+3. **清信号**：`UPDATE pub_* SET cal_bias_signals=NULL, cal_bump_evaluated=1 WHERE cal_bias_signals IS NOT NULL`（信号已被评估消费，不再重复触发）
+4. **提醒用户**：在 Heartbeat 汇总中告知用户评估结论 + 问"是否据此升级打分标准？"
 
-脚本报 `pv overestimate count=17, platforms={xhs:13, wx_mp:1, ...}` 不等于"PV 维度公式有问题"。Agent 必须检查 `platforms` 分布 + `examples` 里的 work 分布：
+用户不确认 → 流程到此结束，新作品继续积累新信号，同样模式再现会再触发评估。
 
-- **同账号混杂**：全部样本来自同一新号 → 可能是冷启动惩罚而非维度失准（新号全平台低量是正常的，不归因于 rubric）
-- **同平台混杂**：偏差集中在单一平台（如 13/17 来自 xhs）→ 可能是该平台 baseline 偏移而非 rubric 问题
-- **跨平台一致**：多平台多账号同向偏差 → rubric 维度失准证据强，可进入升级流程
+### 流程 B：Rubric 升级（用户发起）
 
-评估结论写入 `rubric-memo.md`，再决定是否升级。
+**前置**：用户在看到综合评估结论后明确同意升级。
 
-### 升级流程
+1. **生成新公式**：Agent 综合读 `rubric-memo.md` 积累的历史观察 + 评估结论，写出新打分公式（新 `rubric_notes.md` 草稿）
+2. **批量盲重打**：Agent 派 blind sub-agent 对**最新发布且有数据的 10 篇**作品用新公式重打分（不足 10 篇则用全部，最少 3 篇才做验证）
+3. **脚本验证**：
+   ```bash
+   ./skills/content-calibrator/scripts/validate-rubric.sh
+   ```
+   脚本复用 `detect-bump-signals` 的归一化 + 偏差检测逻辑，对这 10 篇的新分数 vs 实际数据算偏差信号。新公式下偏差信号数比旧公式显著减少 → `pass=true`；否则 → `pass=false`
+4. **pass=false** → 回到第 1 步重新生成公式，**最多 3 轮**。3 轮仍 false → 报用户"自动验证未通过，建议人工介入"
+5. **pass=true → 落地**：
+   - 正式写入 `calibration/rubric_notes.md`
+   - 10 篇重打作品的新分数写回 DB（`cal_score_*` + `cal_rubric_version`）
+   - 重打作品的 `cal_bump_evaluated` 重置为 0（新公式下应重新参与未来 bump 检测）
+   - 归档 `calibration/rubric-memo.md` → `rubric-memo-v<旧版本>-<日期>.md`，按模板重置 `rubric-memo.md`
+   - 更新 `.cheat-state.json` 的 `rubric_version` + `last_bump_at`
 
-1. 前置门槛检查（校准池样本数 + 观察强度 + 混杂因素已排除）
-2. 基于`rubric-memo.md`观察记录和本次评估结论，写出新公式完整方程
-3. 校准池全量重打分（blind sub-agent 隔离）
-4. 计算排序一致性（新公式排序 vs 实际排序，阈值 4/5）
-5. 落地 + cleanup pass（删被推翻/吸收的观察）
-6. 更新所有校准样本的 Re-scored 标记
-7. **清空旧偏差信号**：`UPDATE pub_* SET cal_bias_signals=NULL, cal_bump_evaluated=1 WHERE cal_bias_signals IS NOT NULL`（旧观察基于旧公式已失效；`cal_bump_evaluated=1` 防止旧记录重算）
-8. 更新 `calibration/rubric_notes.md` 版本速查 + `calibration/.cheat-state.json` 的 `rubric_version`/`last_bump_at`
+> 不做全量重打——老作品保留旧分数（历史数据），新作品按新公式打分。验证只用最新 10 篇，够代表性且成本低。
 
 ---
 
@@ -368,11 +378,10 @@ Agent 拿到后：
 
 **维度和权重可以被修改，但必须满足以下条件之一**：
 1. **用户主动要求** — "加个 XX 维度" / "把 SR 权重调到 2.0"
-2. **Agent 提议 + 用户确认** — Agent 在 Bump 流程中检测到系统性偏差后提议变更，**必须等待用户明确同意才生效**
+2. **Agent 提议 + 用户确认** — Agent 在综合评估中检测到系统性偏差后提议变更，**必须等待用户明确同意才生效**
 
 变更流程：
-- 变更维度（增/删/替换）→ 走 Bump 全量重打 + 排序一致性校验
-- 变更权重 → 走 Bump 流程
+- 变更维度（增/删/替换）或权重 → 走流程 B（生成新公式 → 盲重打 → validate-rubric.sh 验证）
 - 变更被拒绝 → rubric 不动，观察记入 `rubric-memo.md`
 
 ---
@@ -483,6 +492,14 @@ blind subagent 出分 + 预测草稿后，主 agent 调 `commit-prediction.sh` �
 ```
 
 纯 DB 操作：查 `cal_enabled=1 AND cal_bump_evaluated=0` 的记录 → 从 `cal_score_*` + 互动指标算偏差信号 → 写回 `cal_bias_signals` + `cal_bump_evaluated=1` → 聚合全量信号按维度统计同向偏差。≥3 次同向 → bump 信号。返回结构化 JSON（含每信号的 platform 分布）。
+
+### Rubric 升级验证（Bump 流程 B 用）
+
+```bash
+./skills/content-calibrator/scripts/validate-rubric.sh --new-scores /tmp/new-scores.json
+```
+
+`--new-scores` 指向 blind sub-agent 用新公式重打分的 JSON 文件（格式见脚本头注释）。脚本复用 `detect-bump-signals` 的 log 桶归一化 + 偏差检测逻辑，对同一批作品对比新旧公式的偏差信号数。新公式偏差信号数 < 旧公式 → `pass=true`；否则 → `pass=false`。返回 JSON：`{pass, sample_size, old_signals, new_signals, reduction, reason}`。exit code：0=pass，1=fail。
 
 ### 导入追爆报告
 

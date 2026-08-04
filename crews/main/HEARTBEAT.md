@@ -136,7 +136,7 @@
 
 返回 JSON：`{newly_processed, data_points, signals: [{dimension, direction, count, threshold, triggered, platforms, examples}], recommend_bump}`
 
-脚本纯 DB 操作：从 `cal_score_*` + 互动指标算偏差信号，写回 `cal_bias_signals` 列，聚合后**自动清空**（信号已被消费，不跨轮次累积）。每条记录只处理一次（`cal_bump_evaluated` 标记）。`platforms` 字段给出各信号的平台分布。
+脚本纯 DB 操作：从 `cal_score_*` + 互动指标算偏差信号，写回 `cal_bias_signals` 列，**触发 bump 时自动清空**（未触发时保留，跨轮累积直到达标）。每条记录只处理一次（`cal_bump_evaluated` 标记）。`platforms` 字段给出各信号的平台分布。
 
 - `recommend_bump=false` → 本轮无系统性偏差，复盘结束
 - `recommend_bump=true` → **混杂因素评估**：检查 `triggered_signals` 的 `platforms` 分布 + `examples` 的 work 分布——同账号集中 → 可能冷启动惩罚；同平台集中 → 可能该平台 baseline 偏移；跨平台多账号一致 → rubric 维度失准证据强 → 评估结论写入 `calibration/rubric-memo.md` → 在 Step 5 汇总中告知用户 + 建议（是否升级 rubric / 是否调整发布阈值）。**Agent 不得自动升级 rubric 或改阈值。**

@@ -292,9 +292,9 @@ Agent 在复盘或发布时，发现对应平台未启用 calibration，**不得
 3. **偏差检测**（per record = per work × platform）：维度分 ≥3 但 actual ≤2 = 高估；维度分 ≤2 但 actual ≥3 = 低估
 4. 偏差信号写回该记录的 `cal_bias_signals` 列，`cal_bump_evaluated` 置 1
 5. **聚合**：查所有 `cal_bias_signals IS NOT NULL` 的记录，按维度 + 方向统计 count，≥3 → bump 信号触发
-6. **自动清信号**：聚合后清空 `cal_bias_signals`（信号已被消费，下轮不会重复计入）
+6. **触发时自动清信号**：`recommend_bump=true` 时清空 `cal_bias_signals`（信号已达阈值被消费）；未触发时保留，跨轮累积直到达标
 
-每条记录只处理一次（`cal_bump_evaluated` 标记）。信号每轮消费即清，不跨轮次累积——若偏差模式持续存在，新记录会再产生新信号自然再触发。
+每条记录只处理一次（`cal_bump_evaluated` 标记）。未达阈值的信号保留在 DB 里，下一轮新记录的信号会叠加到聚合计数上，直到某维度+方向累计 ≥3 触发 bump。触发后清空，下轮从零开始。
 
 返回 JSON：
 
@@ -470,7 +470,7 @@ blind subagent 出分 + 预测草稿后，主 agent 调 `commit-prediction.sh` �
 ./skills/content-calibrator/scripts/detect-bump-signals.sh --threshold 5  # 改阈值
 ```
 
-纯 DB 操作：查 `cal_enabled=1 AND cal_bump_evaluated=0` 的记录 → 从 `cal_score_*` + 互动指标算偏差信号 → 写回 `cal_bias_signals` + `cal_bump_evaluated=1` → 聚合全量信号按维度统计同向偏差 → **自动清空 `cal_bias_signals`**（信号已被消费）。≥3 次同向 → bump 信号。返回结构化 JSON（含每信号的 platform 分布）。
+纯 DB 操作：查 `cal_enabled=1 AND cal_bump_evaluated=0` 的记录 → 从 `cal_score_*` + 互动指标算偏差信号 → 写回 `cal_bias_signals` + `cal_bump_evaluated=1` → 聚合全量信号按维度统计同向偏差 → **触发 bump 时自动清空 `cal_bias_signals`**（未触发时保留，跨轮累积）。≥3 次同向 → bump 信号。返回结构化 JSON（含每信号的 platform 分布）。
 
 ### Rubric 升级验证（Rubric 升级流程用）
 

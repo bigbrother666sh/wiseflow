@@ -4,7 +4,8 @@
 从 published_track.db 读取所有 cal_enabled=1 的记录，对未评估的记录
 （cal_bump_evaluated=0）计算偏差信号并写回 cal_bias_signals，
 然后聚合全量信号按维度统计同向偏差。≥3 次同向 → bump 信号。
-聚合后自动清空 cal_bias_signals（信号已被消费，不再重复触发）。
+触发 bump 时自动清空 cal_bias_signals（信号已达阈值被消费）；
+未触发时保留信号，跨轮累积直到达标。
 
 数据全部来自 DB：cal_score_*（盲打分）+ 互动指标（实测）。
 偏差信号 = 纯数学：log 桶归一化 actual → 与 dim score 比较。
@@ -277,8 +278,10 @@ def main() -> int:
         processed = process_new_records(conn)
         result = aggregate_signals(conn, args.threshold)
         result["newly_processed"] = processed
-        # 信号已被聚合消费，清空防下轮重复计入
-        clear_signals(conn)
+        # 只有触发 bump（信号已达阈值被消费）才清空；
+        # 未触发时信号保留在 DB 里，跨轮累积直到达标
+        if result["recommend_bump"]:
+            clear_signals(conn)
         json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
         sys.stdout.write("\n")
         return 0

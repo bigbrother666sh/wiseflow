@@ -177,6 +177,7 @@
    > 复盘/取数完全不依赖发布端 cookie，探测它只会给 creator 域增加风控概率且结论与取数无关。
    > 发布端失效由发布任务（xhs-publish 技能）自己管，不在本复盘心跳职责内。
 3. content-calibrator 复盘结果摘要（如有）：列出本轮复盘的**每个作品**（`source_folder` / 标题）+ 预测 vs 实际对比简述；Step 3b bump 检测结果（`detect-bump-signals.sh` 输出的 `recommend_bump` + 触发的维度/方向/count + 混杂因素评估结论）
-4. 用户咨询回复摘要。
+4. **Bump 提议（如有）**：Step 3b `recommend_bump=true` 且混杂因素已排除时，Agent 在汇总最后输出 bump 提议——包含触发的维度/方向/count、证据（`examples` 里的 work/platform/dim_score/actual_score）、提议的具体公式调整、混杂因素排除理由。**Agent 不得自动执行升级**，由用户白天确认后才进入 Bump 升级流程。
+5. 用户咨询回复摘要。
 
 发送后本次定时任务结束。

@@ -1,6 +1,6 @@
 ---
 name: viral-chaser
-description: 用户转发/分享抖音、B站、小红书视频链接要求拆解分析时使用（俗称「追爆」）：下载视频、ASR 转写、结构化拆解，产出拆解分析报告。仅产出报告，视频生产需另外委托 content-producer。常见链接域名：抖音 v.douyin.com、B站 b23.tv、小红书 xhslink.com / xhslink.cn。
+description: 用户转发/分享抖音、B站、小红书视频链接(v.douyin.com / b23.tv / xhslink.com / xhslink.cn),要求拆解分析时使用（俗称「追爆」）：下载视频、ASR 转写、结构化拆解，产出拆解分析报告。仅产出报告，视频生产需另外委托 content-producer。
 metadata:
   openclaw:
     emoji: 🎯
@@ -49,7 +49,7 @@ Use this skill when:
 
 **本技能仅产出追爆报告**，不生成脚本，不制作视频。如需据此生成视频，需另行委托 `content-producer` （spawn subagent）执行。
 
-**Supported platforms:** 抖音（Douyin）、B 站（Bilibili）、小红书（XHS — 仅视频笔记）
+**Supported platforms:** 抖音（Douyin）、B 站（Bilibili）、小红书（XHS — 仅视频笔记, 如果是图文的话则转向执行 `xhs-content-ops` 技能。）
 
 **Not supported:** 微信视频号、TikTok
 

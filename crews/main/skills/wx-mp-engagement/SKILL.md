@@ -1,6 +1,6 @@
 ---
 name: wx-mp-engagement
-description: 微信公众号 engagement 数据抓取。通过 camoufox-cli 跑创作者中心拿已发布文章的阅读数 / 点赞数 / 评论数 / 分享数 / 收藏数，写入 published-track的 pub_wx_mp 表。
+description: 微信公众号已发布作品数据抓取，写入 published-track的 pub_wx_mp 表。wx_mp session 登录。
 metadata:
   openclaw:
     emoji: 📈
@@ -159,7 +159,6 @@ wx-mp-engagement fetch --row-id <rowid>
 - **浏览器方案**：camoufox-cli 主推；不 fork；不 bake chromium
 - **并发**：本技能自管 `wx_mp` 持久化 session，fail-first 队列串行接力，不自动 close 正在跑的 session
 - **登录态管理**：不导出 cookie/UA/token——登录态在 wx_mp session profile 里就位即可。失效时走本技能 `login` + `login-confirm` 重登（重登后登录态在 profile 里就位），再 camoufox 打开首页拿新 token 拼列表页 URL
-- **整块 client 容器内闭环**（不碰 relay）
 - **凭据边界**：本 skill 只用浏览器 session token；**不动** `wx-mp-publisher` 的 AppID/AppSecret
 
 ---

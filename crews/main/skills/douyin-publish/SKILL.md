@@ -27,16 +27,16 @@ metadata:
 douyin-publish open-page
 # 输出: {"ok": true, "session": "douyin", "url": "...", "hint": "agent 用 camoufox-cli eval/snapshot 判定登录态"}
 
-# 2. agent 判定登录态:用 camoufox-cli eval 查页面元素(用户头像/用户名是否存在、是否跳 /login)
+# 2. agent 判定登录态
+通过页面元素判定登录态,如用户头像/用户名等。示例:
 camoufox-cli --session douyin --persistent --json eval "document.querySelector('头像 selector') ? 'logged_in' : 'not_logged_in'"
+
+也可以直接截图调用视觉模型判定。
 
 # 3a. 判定为已登录 → 走发布
 douyin-publish run --video /path/to/video.mp4 --title "标题" --caption "描述"
 
-# 3b. 判定为未登录 → 走 login-manager 有头重登流
-camoufox-cli --session douyin --persistent --headed --json open "https://www.douyin.com"
-# 告知用户在窗口里手动完成创作者中心登录,确认后:
-login-manager --platform douyin
+# 3b. 判定为未登录 → 见下方“如果登录失效”处理流程
 ```
 
 > ⚠️ **`_check_logged_in` 已 mute 成 no-op**(2026-08-04):原版用 URL 跳转 + cookies export 双信号判登录态,实测误判率高(cookie 预热机制、临时 profile 等导致 SESSION_EXPIRED 假阳性)。登录态判定改由 agent 在 open 上传页后自行根据页面元素(用户头像/用户名等)判定。脚本内 `_check_logged_in` 保留签名但不再做任何检查、不再 exit 2。
@@ -93,7 +93,9 @@ douyin-publish get-link --session <s>
 > **get-link 取链接策略**(2026-07-17 事故修正):发布走 form/导航(非 fetch/XHR),发布页拦截器抓不到 aweme_id。改打作品管理 list API `creator.douyin.com/janus/douyin/creator/pc/work_list` 拿 `aweme_list`,**按 `create_time` 排序取最新**(列表不按时间排,必须自排),拼 `https://www.douyin.com/video/<aweme_id>`。`publish` 记 `publish_start` 时刻,筛 `create_time >= publish_start - 120` 锁定本次作品,落 `localStorage.douyin_last_aweme_id` 供 `get-link` 复用。`get-link` 三级策略:① localStorage ② work_list 取全局最新 ③ 管理页 DOM 兜底。`run` 全流程在 `close` session 之前就拿到链接,不依赖 close 后重开。
 
 > **注意**：本 skill **没有 `login` 子命令、也没有 `cleanup` 子命令**--执行过程中任何时候发现登录态已失效，重走 login-manager 登录流程。
->
+
+>`upload` open 上传页后会检测「你还有上次未发布的视频，是否继续编辑？」草稿恢复框并点「放弃」清掉，给新发布一个干净上传页。旧草稿在场时新视频上传/发布会被带偏。
+
 > **自主声明流程**（2026-07-17 真机确认）：点开"请选择自主声明"下拉 -> 选"内容由AI生成" -> **点弹窗右下角粉色"确定"按钮**让声明生效。`fill` 命令已内置此流程。
 
 ---
@@ -122,10 +124,6 @@ douyin-publish get-link --session <s>
 | `1` | 参数错 / crash / DOM 改版（按钮/input 未找到）/ 上传转码超时 | 排查后重试 |
 | `2` | `SESSION_EXPIRED`——未登录或登录态失效（URL 跳登录页 或 cookies 缺 sessionid/sid_tt/uid_tt） | 走 login-manager `--platform douyin` 有头重登后重试 |
 | `3` | 发布流程走完但未捕获到 aweme_id——发布可能未真正成功（发布 API 未命中拦截器或被服务端拒） | **人工到管理页核实是否真有新作品**；把 `/tmp/dy-publish-debug-*.json` 回传给研发定位真实发布 API |
-
-### 发布前清理草稿弹窗
-
-`upload` open 上传页后会检测「你还有上次未发布的视频，是否继续编辑？」草稿恢复框并点「放弃」清掉，给新发布一个干净上传页。旧草稿在场时新视频上传/发布会被带偏（2026-07-17 xiaobei 事故根因之一：页面跳管理页但实际没发出去）。
 
 ### aweme_id 捕获 + debug 日志
 

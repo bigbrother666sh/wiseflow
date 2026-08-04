@@ -1,6 +1,6 @@
 ---
 name: aigc-video-gen
-description: AIGC 视频片段生成（声画同出）。直连阿里云百炼 happyhorse / 火山方舟 Seedance / MiniMax Hailuo-H3 候选链，支持 t2v / i2v / r2v 三种模式，每段 3–15 秒。MiniMax 还支持背景音乐生成（music 子命令）。平台自动判断写在 gen.py 里：有 MODELSTUDIO_API_KEY 走百炼，否则有 AWK_GEN_KEY 走火山，否则有 MINIMAX_API_KEY 走 MiniMax，三者皆无则输出提示让 Agent 改用 pexels-footage / pixabay-footage（退出码 2）。
+description: AIGC 视频片段生成（声画同出）。支持阿里云百炼 happyhorse / 火山方舟 Seedance / MiniMax Hailuo-H3 provider，支持 t2v / i2v / r2v 三种模式，每段 3–15 秒。MiniMax 还支持背景音乐生成（music 子命令）。
 metadata:
   openclaw:
     emoji: 🎞️
@@ -78,9 +78,9 @@ Agent 读到此报错后的处理流程：
 
 | 模式 | 触发条件 | 百炼 happyhorse-1.1 上限 | 火山 doubao-seedance 上限 | MiniMax Hailuo 上限 |
 |------|---------|---------|---------|---------|
-| t2v（文生视频） | 无 `--image`/`--ref-image`/`--ref-video` | 3–15s | 2–15s | 3–15s |
-| i2v（图生视频） | `--image`（首帧） | 3–15s | 2–15s | 3–15s |
-| r2v（参考生视频） | `--ref-image`（用户提供参考图） | 3–15s | 2–15s | 3–15s |
+| t2v（文生视频） | 无 `--image`/`--ref-image`/`--ref-video` | 3–15s | 2–15s | 4–15s |
+| i2v（图生视频） | `--image`（首帧） | 3–15s | 2–15s | 4–15s |
+| r2v（参考生视频） | `--ref-image`（用户提供参考图） | 3–15s | 2–15s | 4–15s |
 
 **脚本规划规则**（调用方约定，本脚本不强制）：
 - 每个片段时长 **不得超过 15 秒**

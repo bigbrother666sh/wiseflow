@@ -1,6 +1,6 @@
 ---
 name: wechat-channels-publish
-description: 通过 camoufox-cli 挰久化 session wechat-channel 发布视频到微信视频号。处理 wujie shadow DOM（snapshot 穿透），支持视频上传、标题描述填写、即时发布。
+description: 通过 camoufox-cli 持久化 session wechat-channel 发布视频到微信视频号，支持视频上传、标题描述填写、即时发布。
 metadata:
   openclaw:
     emoji: 📺

@@ -25,7 +25,11 @@ metadata:
 | MiniMax Hailuo | `MINIMAX_API_KEY` | `MiniMax-H3` | `music-3.0` |
 
 - 三个平台的上述视频模型**均支持声画同出**（t2v / i2v / r2v 三种模式）。
-- **平台自动判断写在 `gen.py` 里**：有 `MODELSTUDIO_API_KEY` 走百炼，否则有 `AWK_GEN_KEY` 走火山，否则有 `MINIMAX_API_KEY` 走 MiniMax，三者皆无则输出提示让 Agent 改用 `pexels-footage` / `pixabay-footage`（退出码 2）。
+- **平台自动判断写在 `aigc-video-gen.sh` 里**：argv 含 `--platform <value>` 时转发到对应供应商脚本（剔除 `--platform` 参数）；无 `--platform` 时按 env 自动判——有 `MINIMAX_API_KEY` 走 MiniMax，否则有 `AWK_GEN_KEY` 走火山，否则有 `MODELSTUDIO_API_KEY`/`DASHSCOPE_API_KEY` 走百炼，三者皆无则输出提示让 Agent 改用 `pexels-footage` / `pixabay-footage`（退出码 2）。
+- **三供应商脚本拆分**（共享逻辑在 `skills/_shared/aigc_common.py`）：
+  - `scripts/gen_minimax.py` — MiniMax Hailuo 视频生成（含 `--ref-audio` 多模态参考）+ `music` 子命令
+  - `scripts/gen_volc.py` — 火山引擎 Seedance 视频生成
+  - `scripts/gen_dashscope.py` — 阿里云百炼 HappyHorse / Wan2.7 视频生成
 - **MiniMax 音乐生成是独立能力**，通过 `music` 子命令调用，仅 MiniMax 平台支持（需 `MINIMAX_API_KEY`）。
 
 ### ⚠️ MINIMAX_API_KEY 缺失处理
@@ -73,6 +77,26 @@ Agent 读到此报错后的处理流程：
 - 鉴权：HTTP header `Authorization: Bearer ${MINIMAX_API_KEY}`。
 - MiniMax 视频生成走 **V2 异步任务模型**：`POST /v2/video_generation` 创建任务 → `GET /v2/query/video_generation/{task_id}` 轮询 `task.status` → 成功时 `task.content.url` 即成片下载地址（无需 file_id / files/retrieve 换链）。
 - 请求体用 `content[]` 多模态数组：每个元素 `type`（text/image_url/video_url/audio_url）+ `role`（first_frame/last_frame/reference_image/reference_video/reference_audio）。
+
+#### H3 多模态参考约束（官方文档）
+
+`content[]` 支持的输入组合（对应不同生成场景）：
+
+| 场景 | content 组合 |
+|------|-------------|
+| 文生视频 | 仅一个 `text` |
+| 图生视频-首帧 | `text` + 1 `image_url`（`role=first_frame` 或不填） |
+| 图生视频-尾帧 | `text` + 1 `image_url`（`role=last_frame`） |
+| 图生视频-首尾帧 | `text` + 2 `image_url`（`role` 分别 `first_frame`/`last_frame`） |
+| 多模态参考生视频 | `text` + `reference_image`/`reference_video`/`reference_audio` 组合 |
+
+**互斥约束**：图生视频（`first_frame`/`last_frame`）与多模态参考（`reference_*`）不可混用——`content` 中出现 `reference_*` 任一 role，就不能再有 `first_frame`/`last_frame`，反之亦然。
+
+**仅音频不可**：多模态参考不可仅输入 `reference_audio`，须至少包含 1 个 `reference_video` 或 `reference_image`。
+
+脚本侧 `gen_minimax.py` 的 `cmd_video` 入口已校验上述两条约束，违反即 `die`：
+- `--image`/`--last-frame` 与 `--ref-image`/`--ref-video`/`--ref-audio` 同时出现 → 互斥报错
+- 仅 `--ref-audio` 无 `--ref-image`/`--ref-video` → "不可仅输入音频"报错
 
 ### 模式与时长上限
 
@@ -140,10 +164,11 @@ aigc-video-gen music \
 | `--prev-segment` | — | 上一段视频本地路径：脚本自动抽取其末帧作为本段首帧（人物故事首尾帧对齐，与 `--image` 互斥） |
 | `--ref-image` | — | 用户参考图路径（r2v 模式） |
 | `--ref-video` | — | 参考视频路径（如有） |
+| `--ref-audio` | — | 参考音频 URL（多模态参考，须同时有 `--ref-image` 或 `--ref-video`；仅 MiniMax H3 支持） |
 | `--no-audio` | off | 关闭声画同出（默认开启）；col-broll 拼贴动画等要抽无声交付时用 |
 | `--platform` | auto | 覆盖平台自动检测：`volcengine` / `dashscope` / `minimax`；不指定则按 env 自动判 |
 | `--model` | auto | 显式指定模型 ID（关闭候选链 fallback）；不指定则按模式走首选 + 候选链 |
-| `--output` | required | 输出 MP4 路径（必须在 `output_videos/` 下，gen.py 内部 `ensure_safe_output` 校验） |
+| `--output` | required | 输出 MP4 路径（必须在 `output_videos/` 下，供应商脚本内部 `ensure_safe_output` 校验） |
 
 ### 背景音乐生成参数（music 子命令）
 

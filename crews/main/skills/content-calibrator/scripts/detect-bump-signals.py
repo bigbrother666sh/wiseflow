@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""detect-bump-signals.py — 结构化 bump 信号检测
+"""detect-bump-signals.py — 结构化 bump 信号检测（纯 DB）
 
-扫描所有已复盘作品（有 retro.md），比较 rubric 预测分 vs 实际互动表现，
-按维度统计同向偏差。≥3 次同向 → bump 信号。
+从 published_track.db 读取所有 cal_enabled=1 的记录，对未评估的记录
+（cal_bump_evaluated=0）计算偏差信号并写回 cal_bias_signals，
+然后聚合全量信号按维度统计同向偏差。≥3 次同向 → bump 信号。
 
-归一化方案：各平台互动总量（reads+likes+comments+shares+favorites+plays+views）
-经 log 桶映射到 0-5 actual_score，与 dimension score（0-5）同量纲比较。
+数据全部来自 DB：cal_score_*（盲打分）+ 互动指标（实测）。
+偏差信号 = 纯数学：log 桶归一化 actual → 与 dim score 比较。
 
 Usage:
     python3 detect-bump-signals.py                # 默认阈值 3
@@ -15,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import sqlite3
 import sys
@@ -25,12 +25,11 @@ from pathlib import Path
 
 ROOT = Path(
     os.environ.get(
-        "CALIBRATOR_ROOT",
+        "PUBLISHED_TRACK_ROOT",
         Path(__file__).resolve().parent.parent.parent.parent,  # scripts/ → skill/ → skills/ → crew root
     )
 ).expanduser()
 DB = ROOT / "db" / "published_track.db"
-CALIBRATION_DIR = ROOT / "calibration"
 
 # ── 常量 ─────────────────────────────────────────────────────────────────────
 
@@ -76,92 +75,8 @@ def engagement_to_score(total: int) -> int:
         return 5
 
 
-# ── 数据采集 ──────────────────────────────────────────────────────────────────
-
-def find_retroed_works() -> list[dict]:
-    """扫描所有有 retro.md 的作品，返回 [{work_dir, source_folder, score_json}]。"""
-    works = []
-    for kind in ("output_articles", "output_videos"):
-        base = ROOT / kind
-        if not base.exists():
-            continue
-        for score_json in base.rglob("calibration/score.json"):
-            cal_dir = score_json.parent
-            retro_path = cal_dir / "retro.md"
-            if not retro_path.exists():
-                continue
-            work_dir = cal_dir.parent
-            source_folder = str(work_dir.relative_to(ROOT))
-            try:
-                scores = json.loads(score_json.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
-                continue
-            works.append({
-                "source_folder": source_folder,
-                "score_json": scores,
-                "retro_path": str(retro_path),
-            })
-    return works
-
-
-def get_platform_metrics(source_folder: str) -> dict[str, dict]:
-    """从 DB 查该 work 在各平台的互动指标。返回 {platform: {metric: value}}。"""
-    if not DB.exists():
-        return {}
-    conn = sqlite3.connect(str(DB))
-    conn.row_factory = sqlite3.Row
-    try:
-        tables = [
-            row[0] for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'pub_%'"
-            )
-        ]
-        result = {}
-        for table in tables:
-            platform = table.removeprefix("pub_")
-            # 动态获取列名
-            cols = [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
-            metric_cols = sorted(METRIC_COLUMNS & set(cols))
-            if not metric_cols:
-                continue
-            col_list = ", ".join(f"COALESCE({c}, 0) AS {c}" for c in metric_cols)
-            cur = conn.execute(
-                f"SELECT id, {col_list} FROM {table} WHERE source_folder = ?",
-                (source_folder,),
-            )
-            rows = cur.fetchall()
-            if not rows:
-                continue
-            # 取所有行的指标求和（同 work 在同平台可能有多条记录）
-            metrics = {c: 0 for c in metric_cols}
-            for row in rows:
-                for c in metric_cols:
-                    metrics[c] += row[c] or 0
-            result[platform] = metrics
-        return result
-    finally:
-        conn.close()
-
-
-def get_dimension_scores(score_json: dict) -> dict[str, int]:
-    """从 score.json 提取 7 维分。
-
-    score.json 格式：{"scores": {"ER": 3, "HP": 4, ...}, "composite": 6.71, ...}
-    """
-    raw = score_json.get("scores", score_json)  # 兼容扁平结构
-    scores = {}
-    for dim in DIMENSIONS:
-        upper = dim.upper()
-        val = raw.get(upper) or raw.get(dim) or raw.get(f"cal_score_{dim}")
-        if val is not None:
-            scores[dim] = int(val)
-    return scores
-
-
-# ── 偏差检测 ──────────────────────────────────────────────────────────────────
-
 def detect_bias(dim_scores: dict[str, int], actual_score: int) -> list[dict]:
-    """比较单组维度分 vs 实际表现，返回偏差信号列表。
+    """比较维度分 vs 实际表现，返回偏差信号列表。
 
     高估：维度分 ≥3 但实际 ≤2
     低估：维度分 ≤2 但实际 ≥3
@@ -169,70 +84,155 @@ def detect_bias(dim_scores: dict[str, int], actual_score: int) -> list[dict]:
     signals = []
     for dim, score in dim_scores.items():
         if score >= SCORE_HIGH and actual_score <= ACTUAL_LOW:
-            signals.append({"dimension": dim, "direction": "overestimate", "dim_score": score, "actual_score": actual_score})
+            signals.append({"dim": dim, "dir": "overestimate", "dim_score": score, "actual_score": actual_score})
         elif score <= SCORE_LOW and actual_score >= ACTUAL_HIGH:
-            signals.append({"dimension": dim, "direction": "underestimate", "dim_score": score, "actual_score": actual_score})
+            signals.append({"dim": dim, "dir": "underestimate", "dim_score": score, "actual_score": actual_score})
     return signals
 
 
-def analyze(threshold: int) -> dict:
-    """主分析：扫描所有已复盘作品，检测 bump 信号。"""
-    works = find_retroed_works()
-    if not works:
-        return {"analyzed": 0, "data_points": 0, "signals": [], "recommend_bump": False}
+# ── DB 操作 ──────────────────────────────────────────────────────────────────
 
-    # 收集所有偏差信号（per work × platform）
-    all_biases = []  # [{dimension, direction, work, platform, dim_score, actual_score, total_engagement}]
-    data_points = 0
+def get_all_platform_tables(conn: sqlite3.Connection) -> list[str]:
+    """返回所有 pub_* 表名。"""
+    return [r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'pub_%'"
+    )]
 
-    for work in works:
-        dim_scores = get_dimension_scores(work["score_json"])
-        if not dim_scores:
+
+def get_metric_columns(conn: sqlite3.Connection, table: str) -> list[str]:
+    """获取该表的互动指标列名。"""
+    cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
+    return sorted(METRIC_COLUMNS & set(cols))
+
+
+def process_new_records(conn: sqlite3.Connection) -> int:
+    """处理所有 cal_bump_evaluated=0 的记录：算偏差信号 → 写回 DB。
+
+    返回处理的记录数。
+    """
+    tables = get_all_platform_tables(conn)
+    processed = 0
+
+    for table in tables:
+        platform = table.removeprefix("pub_")
+        metric_cols = get_metric_columns(conn, table)
+        if not metric_cols:
             continue
-        composite = work["score_json"].get("composite")
 
-        platform_metrics = get_platform_metrics(work["source_folder"])
-        for platform, metrics in platform_metrics.items():
-            total_engagement = sum(v for v in metrics.values() if v and v > 0)
+        # 无分数的记录直接标记已评估（避免重复查询）
+        conn.execute(
+            f"UPDATE {table} SET cal_bump_evaluated = 1 "
+            f"WHERE cal_enabled = 1 AND cal_bump_evaluated = 0 AND cal_score_er IS NULL"
+        )
+
+        # 查未评估且有分数的记录
+        col_select = ", ".join(f"COALESCE({c}, 0) AS {c}" for c in metric_cols)
+        rows = conn.execute(
+            f"""SELECT id, source_folder, cal_score_er, cal_score_hp, cal_score_sr,
+                       cal_score_ql, cal_score_na, cal_score_ab, cal_score_pv,
+                       cal_composite, {col_select}
+                FROM {table}
+                WHERE cal_enabled = 1
+                  AND cal_bump_evaluated = 0
+                  AND cal_score_er IS NOT NULL"""
+        ).fetchall()
+
+        for row in row_to_dict(conn, table, metric_cols, rows):
+            dim_scores = {}
+            for dim in DIMENSIONS:
+                val = row.get(f"cal_score_{dim}")
+                if val is not None:
+                    dim_scores[dim] = int(val)
+            if not dim_scores:
+                continue
+
+            total_engagement = sum(row.get(c, 0) or 0 for c in metric_cols)
             actual_score = engagement_to_score(total_engagement)
-            data_points += 1
-
             biases = detect_bias(dim_scores, actual_score)
-            for b in biases:
-                all_biases.append({
-                    **b,
-                    "work": work["source_folder"],
+
+            signals_json = json.dumps(biases, ensure_ascii=False) if biases else None
+            conn.execute(
+                f"UPDATE {table} SET cal_bias_signals = ?, cal_bump_evaluated = 1 WHERE id = ?",
+                (signals_json, row["id"]),
+            )
+            processed += 1
+
+    conn.commit()
+    return processed
+
+
+def row_to_dict(conn, table, metric_cols, rows):
+    """将 sqlite3.Row 列表转为 dict 列表。"""
+    result = []
+    for row in rows:
+        d = dict(row)
+        result.append(d)
+    return result
+
+
+def aggregate_signals(conn: sqlite3.Connection, threshold: int) -> dict:
+    """聚合所有 cal_bias_signals IS NOT NULL 的记录，按维度+方向统计。"""
+    tables = get_all_platform_tables(conn)
+    all_signals = []  # [{dim, dir, dim_score, actual_score, platform, source_folder, composite}]
+
+    for table in tables:
+        platform = table.removeprefix("pub_")
+        rows = conn.execute(
+            f"""SELECT source_folder, cal_composite, cal_bias_signals
+                FROM {table}
+                WHERE cal_bias_signals IS NOT NULL"""
+        ).fetchall()
+        for row in rows:
+            try:
+                signals = json.loads(row[2])  # row[2] = cal_bias_signals
+            except (json.JSONDecodeError, TypeError):
+                continue
+            for s in signals:
+                all_signals.append({
+                    "dim": s["dim"],
+                    "dir": s["dir"],
+                    "dim_score": s["dim_score"],
+                    "actual_score": s["actual_score"],
                     "platform": platform,
-                    "total_engagement": total_engagement,
-                    "composite": composite,
+                    "source_folder": row[0],  # row[0] = source_folder
+                    "composite": row[1],      # row[1] = cal_composite
                 })
 
-    # 聚合：按 dimension + direction 统计
+    if not all_signals:
+        return {"data_points": 0, "signals": [], "triggered_signals": [], "recommend_bump": False}
+
+    # 聚合：按 dim + dir 统计
     signal_map: dict[str, dict] = {}
-    for b in all_biases:
-        key = f"{b['dimension']}:{b['direction']}"
+    for s in all_signals:
+        key = f"{s['dim']}:{s['dir']}"
         if key not in signal_map:
             signal_map[key] = {
-                "dimension": b["dimension"],
-                "dimension_label": DIMENSION_LABELS.get(b["dimension"], b["dimension"]),
-                "direction": b["direction"],
+                "dimension": s["dim"],
+                "dimension_label": DIMENSION_LABELS.get(s["dim"], s["dim"]),
+                "direction": s["dir"],
                 "count": 0,
+                "platforms": {},
                 "examples": [],
             }
         sig = signal_map[key]
         sig["count"] += 1
-        if len(sig["examples"]) < 10:  # 最多保留 10 个例子
+
+        # 平台分布
+        p = s["platform"]
+        sig["platforms"][p] = sig["platforms"].get(p, 0) + 1
+
+        # 例子（最多 10 个）
+        if len(sig["examples"]) < 10:
             sig["examples"].append({
-                "work": b["work"],
-                "platform": b["platform"],
-                "dim_score": b["dim_score"],
-                "actual_score": b["actual_score"],
-                "total_engagement": b["total_engagement"],
-                "composite": b["composite"],
+                "work": s["source_folder"],
+                "platform": p,
+                "dim_score": s["dim_score"],
+                "actual_score": s["actual_score"],
+                "composite": s["composite"],
             })
 
-    # 标记触发的信号
-    signals = sorted(signal_map.values(), key=lambda s: s["count"], reverse=True)
+    # 标记触发
+    signals = sorted(signal_map.values(), key=lambda x: x["count"], reverse=True)
     triggered = []
     for sig in signals:
         sig["threshold"] = threshold
@@ -241,8 +241,7 @@ def analyze(threshold: int) -> dict:
             triggered.append(sig)
 
     return {
-        "analyzed": len(works),
-        "data_points": data_points,
+        "data_points": len(all_signals),
         "signals": signals,
         "triggered_signals": triggered,
         "recommend_bump": len(triggered) > 0,
@@ -254,15 +253,27 @@ def analyze(threshold: int) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(
         prog="detect-bump-signals",
-        description="结构化 bump 信号检测",
+        description="结构化 bump 信号检测（纯 DB）",
     )
     parser.add_argument("--threshold", type=int, default=3, help="同向偏差触发阈值（默认 3）")
     args = parser.parse_args()
 
-    result = analyze(args.threshold)
-    json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
-    sys.stdout.write("\n")
-    return 0
+    if not DB.exists():
+        json.dump({"error": f"DB not found: {DB}"}, sys.stdout, ensure_ascii=False)
+        sys.stdout.write("\n")
+        return 1
+
+    conn = sqlite3.connect(str(DB))
+    conn.row_factory = sqlite3.Row
+    try:
+        processed = process_new_records(conn)
+        result = aggregate_signals(conn, args.threshold)
+        result["newly_processed"] = processed
+        json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+        return 0
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

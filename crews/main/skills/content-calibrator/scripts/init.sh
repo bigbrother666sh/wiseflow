@@ -107,7 +107,6 @@ if [[ ! -f "$CAL_ROOT/.cheat-state.json" ]]; then
   "mode": "cold-start",
   "calibration_samples": 0,
   "retro_window_days": 3,
-  "consecutive_directional_errors": [],
   "last_bump_at": null,
   "last_bump_self_audited": null,
   "calibration_samples_at_last_bump": 0,

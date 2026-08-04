@@ -58,6 +58,8 @@ metadata:
 | `cal_composite` | 综合分（0-10） |
 | `cal_rubric_version` | 打分时 rubric 版本 |
 | `cal_scored_at` | 打分时间 |
+| `cal_bias_signals` | bump 检测偏差信号（JSON 数组，由 `detect-bump-signals.sh` 写入；NULL=未算/bump 后已清） |
+| `cal_bump_evaluated` | 是否已被 bump 检测处理过（0/1，防止重复计入） |
 
 > 打分/预测按作品归集（per-work）：同一作品发到多个平台，各平台记录的 `cal_*` 分数值相同（取自 `<work>/calibration/score.json`）。rubric 全平台统一。
 

@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS pub_wx_mp (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -65,6 +67,8 @@ CREATE TABLE IF NOT EXISTS pub_zhihu (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -98,6 +102,8 @@ CREATE TABLE IF NOT EXISTS pub_bilibili (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -129,6 +135,8 @@ CREATE TABLE IF NOT EXISTS pub_douyin (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -159,6 +167,8 @@ CREATE TABLE IF NOT EXISTS pub_kuaishou (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -190,6 +200,8 @@ CREATE TABLE IF NOT EXISTS pub_xhs (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -220,6 +232,8 @@ CREATE TABLE IF NOT EXISTS pub_toutiao (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -250,6 +264,8 @@ CREATE TABLE IF NOT EXISTS pub_juejin (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -280,6 +296,8 @@ CREATE TABLE IF NOT EXISTS pub_twitter (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -309,6 +327,8 @@ CREATE TABLE IF NOT EXISTS pub_facebook (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -339,6 +359,8 @@ CREATE TABLE IF NOT EXISTS pub_instagram (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -370,6 +392,8 @@ CREATE TABLE IF NOT EXISTS pub_tiktok (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -399,6 +423,8 @@ CREATE TABLE IF NOT EXISTS pub_youtube (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -427,6 +453,8 @@ CREATE TABLE IF NOT EXISTS pub_pinterest (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -456,6 +484,8 @@ CREATE TABLE IF NOT EXISTS pub_threads (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
@@ -487,10 +517,25 @@ CREATE TABLE IF NOT EXISTS pub_wx_channel (
   cal_composite REAL,
   cal_rubric_version TEXT,
   cal_scored_at TEXT,
+  cal_bias_signals TEXT,
+  cal_bump_evaluated INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime')),
   updated_at TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now','localtime'))
 );
 
 SQL
 
-echo '{"ok":true,"message":"published_track.db initialized (with cal_ score columns)"}'
+# ── 迁移：为已有表补 cal_bias_signals / cal_bump_evaluated 列 ──────────────
+# CREATE TABLE IF NOT EXISTS 不会给已存在的表加列，需显式 ALTER。
+for table in $(sqlite3 "$DB" "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'pub_%'"); do
+  has_col=$(sqlite3 "$DB" "SELECT count(*) FROM pragma_table_info('$table') WHERE name='cal_bias_signals'")
+  if [ "$has_col" = "0" ]; then
+    sqlite3 "$DB" "ALTER TABLE $table ADD COLUMN cal_bias_signals TEXT;"
+  fi
+  has_col=$(sqlite3 "$DB" "SELECT count(*) FROM pragma_table_info('$table') WHERE name='cal_bump_evaluated'")
+  if [ "$has_col" = "0" ]; then
+    sqlite3 "$DB" "ALTER TABLE $table ADD COLUMN cal_bump_evaluated INTEGER DEFAULT 0;"
+  fi
+done
+
+echo '{"ok":true,"message":"published_track.db initialized (with cal_ score + bias signal columns)"}'

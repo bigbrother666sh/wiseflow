@@ -134,10 +134,12 @@
 ./skills/content-calibrator/scripts/detect-bump-signals.sh
 ```
 
-返回 JSON：`{analyzed, data_points, signals: [{dimension, direction, count, threshold, triggered, examples}], recommend_bump}`
+返回 JSON：`{newly_processed, data_points, signals: [{dimension, direction, count, threshold, triggered, platforms, examples}], recommend_bump}`
+
+脚本纯 DB 操作：从 `cal_score_*` + 互动指标算偏差信号，写回 `cal_bias_signals` 列。每条记录只处理一次（`cal_bump_evaluated` 标记），信号跨轮次累积。`platforms` 字段给出各信号的平台分布。
 
 - `recommend_bump=false` → 本轮无 bump，复盘结束
-- `recommend_bump=true` → Agent 检查 `triggered_signals` 里各信号的 `examples`（work/platform 分布），**评估混杂因素**（同账号/同平台集中 → 可能非 rubric 问题）→ 结论写入 `rubric-memo.md` → 如混杂因素已排除则进入 Bump 升级流程（见 content-calibrator SKILL.md Bump 段）
+- `recommend_bump=true` → Agent 检查 `triggered_signals` 里各信号的 `platforms` 分布 + `examples`（work 分布），**评估混杂因素**（同账号/同平台集中 → 可能非 rubric 问题）→ 结论写入 `rubric-memo.md` → 如混杂因素已排除则进入 Bump 升级流程（见 content-calibrator SKILL.md Bump 段）
 
 **Step 2 取数失败时复盘不跳过**：若某条记录 Step 2 取数失败但 DB 里已有历史互动数据（reads/likes/plays 等 > 0），复盘**必须用已有数据做**，不得因 re-fetch 失败就跳过复盘。只有 DB 里完全没有数据（全 0）且取数也失败时才跳过。
 

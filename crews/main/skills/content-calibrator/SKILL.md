@@ -28,7 +28,7 @@ metadata:
 |------|---------|------|
 | rubric 公式 | **统一** | `calibration/rubric_notes.md` |
 | rubric 观察 memo | **统一** | `calibration/rubric-memo.md` |
-| rubric 循环状态（mode/samples/bump/**threshold**） | **统一** | `calibration/.cheat-state.json` |
+| rubric 循环状态（mode/samples/rubric_version/**threshold**） | **统一** | `calibration/.cheat-state.json` |
 | 打分（7 维 + composite） | **per-work** | `<work>/calibration/score.json` |
 | 预测 | **per-work** | `<work>/calibration/prediction.md` |
 | 复盘（含多平台分析） | **per-work** | `<work>/calibration/retro.md` |
@@ -283,26 +283,34 @@ Agent 在复盘或发布时，发现对应平台未启用 calibration，**不得
 ./skills/content-calibrator/scripts/detect-bump-signals.sh
 ```
 
+**纯 DB 操作**，数据全部来自 `published_track.db`（`cal_score_*` 盲打分 + 互动指标实测），不扫文件系统。
+
 脚本逻辑：
-1. 扫描所有已复盘作品（有 `retro.md` 的 work）
-2. 从 `score.json` 读 7 维分，从 published-track DB 读各平台实际互动总量
-3. **归一化**：互动总量经 log 桶映射到 0-5 `actual_score`（0→0, 1-10→1, 11-50→2, 51-200→3, 201-1000→4, 1000+→5）
-4. **偏差检测**（per work × platform）：维度分 ≥3 但 actual ≤2 = 高估信号；维度分 ≤2 但 actual ≥3 = 低估信号
-5. **聚合**：按维度 + 方向统计，≥3 次同向 → bump 信号触发
+1. 查所有 `cal_enabled=1 AND cal_bump_evaluated=0` 的记录
+2. 对每条：`cal_score_*` + 互动指标 → log 桶归一化到 0-5 `actual_score`（0→0, 1-10→1, 11-50→2, 51-200→3, 201-1000→4, 1000+→5）
+3. **偏差检测**（per record = per work × platform）：维度分 ≥3 但 actual ≤2 = 高估；维度分 ≤2 但 actual ≥3 = 低估
+4. 偏差信号写回该记录的 `cal_bias_signals` 列，`cal_bump_evaluated` 置 1
+5. **聚合**：查所有 `cal_bias_signals IS NOT NULL` 的记录，按维度 + 方向统计 count，≥3 → bump 信号触发
+
+每条记录只处理一次（`cal_bump_evaluated` 标记），信号持久存在 DB 里，跨轮次累积。
 
 返回 JSON：
 
 ```json
 {
-  "analyzed": 7,
-  "data_points": 11,
+  "newly_processed": 20,
+  "data_points": 112,
   "signals": [
-    {"dimension": "pv", "direction": "overestimate", "count": 9, "threshold": 3, "triggered": true, "examples": [...]}
+    {"dimension": "pv", "direction": "overestimate", "count": 17, "threshold": 3, "triggered": true,
+     "platforms": {"xhs": 13, "wx_mp": 1, "douyin": 1, "youtube": 1, "wx_channel": 1},
+     "examples": [...]}
   ],
   "triggered_signals": [...],
   "recommend_bump": true
 }
 ```
+
+`platforms` 字段给出该信号的各平台分布，供 Agent 一眼判断混杂因素（如 13/17 来自 xhs → 同平台集中）。
 
 Agent 拿到后：
 - `recommend_bump=false` → 本轮无 bump，复盘结束
@@ -334,10 +342,10 @@ Agent 拿到后：
 
 ### 混杂因素评估（Agent 判断，脚本不代劳）
 
-脚本报 `pv overestimate count=9` 不等于"PV 维度公式有问题"。Agent 必须检查 `examples` 里的 work/platform 分布：
+脚本报 `pv overestimate count=17, platforms={xhs:13, wx_mp:1, ...}` 不等于"PV 维度公式有问题"。Agent 必须检查 `platforms` 分布 + `examples` 里的 work 分布：
 
 - **同账号混杂**：全部样本来自同一新号 → 可能是冷启动惩罚而非维度失准（新号全平台低量是正常的，不归因于 rubric）
-- **同平台混杂**：偏差集中在单一平台 → 可能是该平台 baseline 偏移而非 rubric 问题
+- **同平台混杂**：偏差集中在单一平台（如 13/17 来自 xhs）→ 可能是该平台 baseline 偏移而非 rubric 问题
 - **跨平台一致**：多平台多账号同向偏差 → rubric 维度失准证据强，可进入升级流程
 
 评估结论写入 `rubric-memo.md`，再决定是否升级。
@@ -350,7 +358,8 @@ Agent 拿到后：
 4. 计算排序一致性（新公式排序 vs 实际排序，阈值 4/5）
 5. 落地 + cleanup pass（删被推翻/吸收的观察）
 6. 更新所有校准样本的 Re-scored 标记
-7. 更新 `calibration/rubric_notes.md` 版本速查 + `calibration/.cheat-state.json` 的 `rubric_version`/`last_bump_at`
+7. **清空旧偏差信号**：`UPDATE pub_* SET cal_bias_signals=NULL, cal_bump_evaluated=1 WHERE cal_bias_signals IS NOT NULL`（旧观察基于旧公式已失效；`cal_bump_evaluated=1` 防止旧记录重算）
+8. 更新 `calibration/rubric_notes.md` 版本速查 + `calibration/.cheat-state.json` 的 `rubric_version`/`last_bump_at`
 
 ---
 
@@ -472,7 +481,7 @@ blind subagent 出分 + 预测草稿后，主 agent 调 `commit-prediction.sh` �
 ./skills/content-calibrator/scripts/detect-bump-signals.sh --threshold 5  # 改阈值
 ```
 
-扫描所有已复盘作品（有 `retro.md`），比较 rubric 维度分 vs 实际互动表现（log 桶归一化到 0-5），按维度统计同向偏差。≥3 次同向 → bump 信号。返回结构化 JSON（见 Retro Step 3b）。
+纯 DB 操作：查 `cal_enabled=1 AND cal_bump_evaluated=0` 的记录 → 从 `cal_score_*` + 互动指标算偏差信号 → 写回 `cal_bias_signals` + `cal_bump_evaluated=1` → 聚合全量信号按维度统计同向偏差。≥3 次同向 → bump 信号。返回结构化 JSON（含每信号的 platform 分布）。
 
 ### 导入追爆报告
 

@@ -26,7 +26,7 @@ metadata:
 
 - 三个平台的上述视频模型**均支持声画同出**（t2v / i2v / r2v 三种模式）。
 - **平台自动判断写在 `aigc-video-gen.sh` 里**：argv 含 `--platform <value>` 时转发到对应供应商脚本（剔除 `--platform` 参数）；无 `--platform` 时按 env 自动判——有 `MINIMAX_API_KEY` 走 MiniMax，否则有 `AWK_GEN_KEY` 走火山，否则有 `MODELSTUDIO_API_KEY`/`DASHSCOPE_API_KEY` 走百炼，三者皆无则输出提示让 Agent 改用 `pexels-footage` / `pixabay-footage`（退出码 2）。
-- **三供应商脚本拆分**（共享逻辑在 `skills/_shared/aigc_common.py`）：
+- **三供应商脚本拆分**（共享逻辑在 `scripts/aigc_common.py`，与三脚本同目录）：
   - `scripts/gen_minimax.py` — MiniMax Hailuo 视频生成（含 `--ref-audio` 多模态参考）+ `music` 子命令
   - `scripts/gen_volc.py` — 火山引擎 Seedance 视频生成
   - `scripts/gen_dashscope.py` — 阿里云百炼 HappyHorse / Wan2.7 视频生成

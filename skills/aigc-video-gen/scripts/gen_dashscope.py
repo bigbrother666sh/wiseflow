@@ -26,8 +26,8 @@ import sys
 import time
 from pathlib import Path
 
-# _shared/aigc_common.py 在 skills/_shared/，本脚本在 skills/aigc-video-gen/scripts/
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared"))
+# aigc_common.py 与本脚本同目录（skills/aigc-video-gen/scripts/）
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from aigc_common import (  # noqa: E402
     TaskFailed,
     die,

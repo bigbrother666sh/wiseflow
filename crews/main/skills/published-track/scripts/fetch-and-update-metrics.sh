@@ -70,8 +70,9 @@ COOKIE_PLATFORMS="xhs douyin kuaishou"
 
 # 只能手动提供数据的平台
 # Phase 4.6：wx_mp 已接入 wx-mp-engagement skill 自动抓取，移出手动列表
-# wx_channel（视频号）暂未接入，保留 manual
-MANUAL_PLATFORMS="wx_channel"
+# Phase 4.7：wx_channel 已接入 wx-channel-engagement skill 自动抓取，移出手动列表
+# 当前无 manual 平台，保留变量供未来扩展
+MANUAL_PLATFORMS=""
 
 # ─── 参数解析 ──────────────────────────────────────────────────────────────
 
@@ -125,6 +126,15 @@ esac
 # 见 crews/main/HEARTBEAT.md Step 2 与 wx-mp-engagement/SKILL.md。
 if [ "$PLATFORM" = "wx_mp" ]; then
   echo "{\"ok\":false,\"error\":\"WX_MP_NOT_SUPPORTED_HERE\",\"platform\":\"wx_mp\",\"hint\":\"微信公众号不走 fetch-and-update-metrics.sh。请直调 wx-mp-engagement 技能：wx-mp-engagement fetch --row-id <rowid>（camoufox 抓创作者中心方案，与纯 HTTP+cookie 平台不同）\"}"
+  exit 1
+fi
+
+# wx_channel（微信视频号）**不走本脚本**——它走 camoufox 抓视频号助手后台的方案，
+# 与 xhs/bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
+# 由 wx-channel-engagement 技能独立承担（agent 直调 wx-channel-engagement wrapper）。
+# 见 crews/main/HEARTBEAT.md Step 2 与 wx-channel-engagement/SKILL.md。
+if [ "$PLATFORM" = "wx_channel" ]; then
+  echo "{\"ok\":false,\"error\":\"WX_CHANNEL_NOT_SUPPORTED_HERE\",\"platform\":\"wx_channel\",\"hint\":\"微信视频号不走 fetch-and-update-metrics.sh。请直调 wx-channel-engagement 技能：wx-channel-engagement fetch --row-id <rowid>（camoufox 抓视频号助手后台方案，与纯 HTTP+cookie 平台不同）\"}"
   exit 1
 fi
 

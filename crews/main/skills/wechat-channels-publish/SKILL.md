@@ -140,6 +140,18 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 ---
 
+## Session 共享约束（与 wx-channel-engagement 共管）
+
+本 skill 与 `wx-channel-engagement` **共用同一个 `wechat-channel` 持久化 session**，靠 session 名字符串约定共享同一 profile 目录与登录态——任一技能登录后另一个不需重登，反之亦然。单一 session、单一 IP、单一 profile，避免多 session 多 IP 的风控风险。
+
+- **fail-first 队列**：同 session 已有命令在跑时，新命令直接 fail。读到 `session wechat-channel 正忙` → exit 3，调用方（agent）等待当前操作完成后再试，不自动排队、不自动 close 正在跑的 session。
+- **登录态闭环**：不导出 cookie/UA/token——登录态在 `wechat-channel` session profile 里就位即可。失效时走本 skill 前置条件的无头截图扫码重登流，或由 `wx-channel-engagement` 自己的重登流触发。
+- **与 login-manager 完全无关**：本 skill 自管 `wechat-channel` session 的探活 + 登录 + 重登。`wx-channel-engagement` 同理自管，不调 login-manager。
+
+> 参考：`twitter-post` + `twitter-interact` 的 session 共享模式（靠 session 名字符串约定共享同一 profile 目录与登录态）。
+
+---
+
 ## Pitfalls
 
 ### pitfall: wujie_shadow_dom

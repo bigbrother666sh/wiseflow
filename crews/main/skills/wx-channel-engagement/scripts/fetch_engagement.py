@@ -550,6 +550,17 @@ def _within_days(row_date: str, target_date: str, days: int) -> bool:
     return abs((rd - td).days) <= days
 
 
+def _extract_metrics(row: dict) -> dict:
+    """从解析后的 post dict 中提取 metrics 字段（JS 解析结果是顶层字段，不是嵌套在 metrics key 下）"""
+    return {
+        "plays": row.get("plays", 0),
+        "likes": row.get("likes", 0),
+        "comments": row.get("comments", 0),
+        "shares": row.get("shares", 0),
+        "favorites": row.get("favorites", 0),
+    }
+
+
 def match_post(rows: list[dict], target_desc: str, target_date: str | None = None) -> dict | None:
     """按描述文案在后台列表里找最匹配的行，返回 {desc, metrics}
 
@@ -570,12 +581,12 @@ def match_post(rows: list[dict], target_desc: str, target_date: str | None = Non
         # 精确：前 60 字归一化相等
         for row in pool:
             if _row_norm(row) == norm_target:
-                return {"desc": row.get("desc", ""), "metrics": row.get("metrics", {})}
+                return {"desc": row.get("desc", ""), "metrics": _extract_metrics(row)}
         # 模糊：归一化包含
         for row in pool:
             nt = _row_norm(row)
             if nt and (norm_target in nt or nt in norm_target):
-                return {"desc": row.get("desc", ""), "metrics": row.get("metrics", {})}
+                return {"desc": row.get("desc", ""), "metrics": _extract_metrics(row)}
         return None
 
     # 1. 发布日期±1天筛

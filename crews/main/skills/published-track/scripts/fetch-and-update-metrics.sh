@@ -70,8 +70,9 @@ COOKIE_PLATFORMS="xhs douyin kuaishou"
 
 # 只能手动提供数据的平台
 # Phase 4.6：wx_mp 已接入 wx-mp-engagement skill 自动抓取，移出手动列表
-# wx_channel（视频号）暂未接入，保留 manual
-MANUAL_PLATFORMS="wx_channel"
+# Phase 4.7：wx_channel 已接入 wx-channel-engagement skill 自动抓取，移出手动列表
+# 当前无 manual 平台，保留变量供未来扩展
+MANUAL_PLATFORMS=""
 
 # ─── 参数解析 ──────────────────────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ ROW_ID=""
 CONTENT_ID=""
 XSEC_TOKEN=""
 XSEC_SOURCE=""
+TITLE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -90,6 +92,7 @@ while [[ $# -gt 0 ]]; do
     --content-id)     CONTENT_ID="$2"; shift 2 ;;
     --xsec-token)     XSEC_TOKEN="$2"; shift 2 ;;
     --xsec-source)    XSEC_SOURCE="$2"; shift 2 ;;
+    --title)          TITLE="$2"; shift 2 ;;
     *) echo "{\"ok\":false,\"error\":\"unknown arg: $1\"}"; exit 1 ;;
   esac
 done
@@ -123,6 +126,15 @@ esac
 # 见 crews/main/HEARTBEAT.md Step 2 与 wx-mp-engagement/SKILL.md。
 if [ "$PLATFORM" = "wx_mp" ]; then
   echo "{\"ok\":false,\"error\":\"WX_MP_NOT_SUPPORTED_HERE\",\"platform\":\"wx_mp\",\"hint\":\"微信公众号不走 fetch-and-update-metrics.sh。请直调 wx-mp-engagement 技能：wx-mp-engagement fetch --row-id <rowid>（camoufox 抓创作者中心方案，与纯 HTTP+cookie 平台不同）\"}"
+  exit 1
+fi
+
+# wx_channel（微信视频号）**不走本脚本**——它走 camoufox 抓视频号助手后台的方案，
+# 与 xhs/bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
+# 由 wx-channel-engagement 技能独立承担（agent 直调 wx-channel-engagement wrapper）。
+# 见 crews/main/HEARTBEAT.md Step 2 与 wx-channel-engagement/SKILL.md。
+if [ "$PLATFORM" = "wx_channel" ]; then
+  echo "{\"ok\":false,\"error\":\"WX_CHANNEL_NOT_SUPPORTED_HERE\",\"platform\":\"wx_channel\",\"hint\":\"微信视频号不走 fetch-and-update-metrics.sh。请直调 wx-channel-engagement 技能：wx-channel-engagement fetch --row-id <rowid>（camoufox 抓视频号助手后台方案，与纯 HTTP+cookie 平台不同）\"}"
   exit 1
 fi
 
@@ -261,6 +273,16 @@ if [ -z "$CONTENT_ID" ]; then
       XSEC_SOURCE="pc_feed"
     fi
   fi
+
+  # xhs：带上该行 title——2026-07-25 起 xhs profile 页 SSR 的 note id 置空，
+  # 无 token 时 fetch-retro-data 的 profile 映射只能按 title 匹配拿 xsec_token
+  if [ "$PLATFORM" = "xhs" ] && [ -z "$TITLE" ]; then
+    if [ -n "$ROW_ID" ]; then
+      TITLE=$(sqlite3 "$DB" "SELECT title FROM $TABLE WHERE id=${ROW_ID};" 2>/dev/null)
+    elif [ -n "$SOURCE_FOLDER" ]; then
+      TITLE=$(sqlite3 "$DB" "SELECT title FROM $TABLE WHERE source_folder='${SOURCE_FOLDER//\'/\'\'}' ORDER BY cal_enabled DESC, publish_date DESC, id DESC LIMIT 1;" 2>/dev/null)
+    fi
+  fi
 fi
 
 # Step 3: 调 fetch-retro-data.ts
@@ -277,6 +299,9 @@ FETCH_ARGS=(--platform "$PLATFORM" --content-id "$CONTENT_ID")
 if [ -n "$XSEC_TOKEN" ]; then
   FETCH_ARGS+=(--xsec-token "$XSEC_TOKEN")
   [ -n "$XSEC_SOURCE" ] && FETCH_ARGS+=(--xsec-source "$XSEC_SOURCE")
+fi
+if [ -n "$TITLE" ]; then
+  FETCH_ARGS+=(--title "$TITLE")
 fi
 FETCH_OUTPUT=$(node --experimental-strip-types "$FETCH_SCRIPT" "${FETCH_ARGS[@]}" 2>/dev/null) || FETCH_EXIT=$?
 FETCH_EXIT=${FETCH_EXIT:-0}

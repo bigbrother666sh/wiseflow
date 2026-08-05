@@ -29,8 +29,8 @@ Use Manim for technical explainers where motion, structure, and clarity matter m
 
 - `manim` CLI for scene rendering
 - `ffmpeg` for post-processing if needed
-- `fragment-assembly` for combining rendered video with TTS audio
-- `siliconflow-tts` for voiceover generation
+- `video-edit assemble` for combining rendered video with TTS audio
+- `awk-tts` for voiceover generation
 
 ## Default Output
 
@@ -74,13 +74,13 @@ For social-graph and network-optimization explainers:
 
 ```bash
 # 冒烟测试（低质量，优先用此验证构图）
-./skills/manim-explainer/scripts/render-manim.sh <scene_file>.py <ClassName> low ./output
+manim-explainer <scene_file>.py <ClassName> low ./output
 
 # 中等质量预览
-./skills/manim-explainer/scripts/render-manim.sh <scene_file>.py <ClassName> medium ./output
+manim-explainer <scene_file>.py <ClassName> medium ./output
 
 # 正式输出（高质量）
-./skills/manim-explainer/scripts/render-manim.sh <scene_file>.py <ClassName> high ./output
+manim-explainer <scene_file>.py <ClassName> high ./output
 ```
 
 脚本自动完成：渲染 → 定位 MP4 → 导出第 2 秒封面帧，最后输出 JSON：
@@ -95,7 +95,7 @@ Use [assets/network_graph_scene.py](assets/network_graph_scene.py) as a starting
 Example smoke test:
 
 ```bash
-./skills/manim-explainer/scripts/render-manim.sh assets/network_graph_scene.py NetworkGraphExplainer low ./output
+manim-explainer assets/network_graph_scene.py NetworkGraphExplainer low ./output
 ```
 
 ## Output Format
@@ -110,6 +110,6 @@ Return:
 
 ## Related Skills
 
-- `fragment-assembly` for combining rendered video with TTS audio
-- `siliconflow-tts` for voiceover generation
+- `video-edit assemble` for combining rendered video with TTS audio
+- `awk-tts` for voiceover generation
 - `content-check` for verifying output quality and duration

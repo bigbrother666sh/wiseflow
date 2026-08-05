@@ -141,7 +141,7 @@ async function main(): Promise<void> {
 
   process.stderr.write(`[fetch-xhs] 探活 xhs-browse session...\n`)
   camoufox(["--session", SESSION, "--persistent", "--json", "open", PLATFORM_HOME])
-  await sleep(3)
+  await sleep(3000)
   const snap = camoufox(["--session", SESSION, "--json", "snapshot"])
   camoufox(["--session", SESSION, "--json", "close"])
   // snapshot 输出含登录标志 = 失效（跳登录页 / 出登录按钮 / 「请登录」文案）
@@ -175,7 +175,7 @@ async function main(): Promise<void> {
   // 5. navigate profile 页 + eval flatten JS 拿映射（滚动 3 屏补齐）
   process.stderr.write(`[fetch-xhs] open profile 页取 note_id→xsec_token 映射...\n`)
   camoufox(["--session", SESSION, "--persistent", "--json", "open", `${PROFILE_BASE}${userId}`])
-  await sleep(3)
+  await sleep(3000)
 
   let mapping: Record<string, { xsec_token: string; xsec_source: string }> = {}
   for (let screen = 0; screen < 3; screen++) {
@@ -193,7 +193,7 @@ async function main(): Promise<void> {
     if (mapping[noteId]) break
     // 向下滚动加载更多
     camoufox(["--session", SESSION, "--json", "eval", "window.scrollTo(0, document.body.scrollHeight)"])
-    await sleep(2)
+    await sleep(2000)
   }
   camoufox(["--session", SESSION, "--json", "close"])
 

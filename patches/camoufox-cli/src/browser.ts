@@ -1,8 +1,9 @@
 /** Browser manager: launches and manages Camoufox instance. */
 
-import { execFileSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import { Camoufox, launchOptions } from "camoufox-js";
+import { camoufoxPath } from "camoufox-js/dist/pkgman.js";
 import { firefox, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { ensureMmdb } from "./install.js";
 import { loadOrCreate, toLaunchOptions } from "./identity.js";
@@ -12,8 +13,22 @@ import { RefRegistry } from "./refs.js";
 const MAX_HISTORY = 200;
 
 function ensureBrowserInstalled(): void {
+  // Check the launcher binary exists on disk via the packaged camoufox-js module.
+  // The old `npx camoufox-js path` probe was triple-broken: npx resolved
+  // camoufox-js from the caller's cwd (possibly downloading a different
+  // version), it needed network at browser-launch time, and it hung forever in
+  // a non-TTY daemon. (cherrypick from upstream #17 1a6c5e2)
   try {
-    execFileSync("npx", ["camoufox-js", "path"], { stdio: "pipe" });
+    const dir = camoufoxPath(false).toString();
+    const launcher =
+      process.platform === "darwin"
+        ? join(dir, "Camoufox.app", "Contents", "MacOS", "camoufox")
+        : process.platform === "win32"
+        ? join(dir, "camoufox.exe")
+        : join(dir, "camoufox-bin");
+    if (!existsSync(launcher)) {
+      throw new Error("launcher missing");
+    }
   } catch {
     throw new Error(
       "Browser not found. Run `camoufox-cli install` to download it."

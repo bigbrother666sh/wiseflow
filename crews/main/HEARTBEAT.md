@@ -78,36 +78,78 @@
    wx-mp-engagement fetch --row-id <rowid>
    ```
 
-   内部流程：wx-mp-hunter check 探活 wx_mp session → camoufox 抓创作者中心发表记录页 → 解析 innerText 按标题匹配 → update-metrics.sh 写 pub_wx_mp。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。
+   内部流程：camoufox 打开创作者中心首页看 redirect URL 判登录态（跳 `/cgi-bin/home?token=xxx` = 就位，跳 `login`/`scanloginqrcode` = 失效）→ 从 redirect URL 提 token 拼「发表记录」页 URL → camoufox 抓发表记录页 → 解析 innerText 按标题匹配 → update-metrics.sh 写 pub_wx_mp。不导出 cookie/UA/token——登录态在 `wx_mp` session profile 里就位即可。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。
 
    > ⚠️ 不要调 `fetch-and-update-metrics.sh --platform wx_mp`——该脚本对 wx_mp 直接 exit 1 报错提示走 wx-mp-engagement。两条链路独立维护，避免机制错配。
 
-3. **其他平台** —— 使用平台对应的持久化 session 通过 `camoufox-cli` 打开平台创作者中心，读取已发布文章的互动数据再写库。
+3. **微信视频号 (wx_channel)** —— **走 `wx-channel-engagement` 技能**，camoufox 抓视频号助手后台方案，与 wx_mp 同源（camoufox + 解析 innerText）、与第 1 条四个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
 
-   > 这条路效果一般，**尽力而为即可，不要硬弄**——拿不到就跳过，切勿反复操作以免引发风控。后面会持续更新。
+   ```bash
+   wx-channel-engagement fetch --row-id <rowid>
+   ```
+
+   内部流程：camoufox 打开视频号助手后台首页看 redirect URL 判登录态（跳 `/platform/home` 等后台路径 = 就位，跳 `login`/扫码页 = 失效）→ 打开作品管理页（`channels.weixin.qq.com/platform/post/list`）→ 解析 wujie shadow DOM innerText 按标题匹配 → update-metrics.sh 写 pub_wx_channel。不导出 cookie/UA/token——登录态在 `wechat-channel` session profile 里就位即可。**与 `wechat-channels-publish` 共管 `wechat-channel` session**（靠 session 名字符串约定共享登录态）。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。
+
+   > ⚠️ 不要调 `fetch-and-update-metrics.sh --platform wx_channel`——该脚本对 wx_channel 直接 exit 1 报错提示走 wx-channel-engagement。两条链路独立维护，避免机制错配。
+
+**其他平台** —— 除 douyin / xhs / kuaishou / bilibili / wx_mp / wx_channel 外，其他平台暂不支持自动取数，直接跳过。
+
+##### 取数时效窗口
+
+**发布超过 30 天的内容不再每天抓取互动数据**——数据已稳定，边际变化可忽略，反复抓只浪费配额/增加风控暴露。按平台类型：
+
+- **浏览器方案**（wx_mp / wx_channel）：列表页/创作者中心天然只展示近期内容，无需额外过滤——老内容不在列表里自然抓不到，**这是设计不是 bug**，不要加翻页去补抓老内容。
+- **接口方案**（xhs / bilibili / douyin / kuaishou）：Step 1 查询时加 `publish_date >= date('now', '-30 days')` 过滤，超过 30 天的行直接跳过不调 `fetch-and-update-metrics.sh`。
+
+**复盘（Step 3）不受此限**——复盘按 T+3d 窗口 + 有 `prediction.md` 无 `retro.md` 判断，可能涉及发布较早但尚未复盘的内容。Step 2 没抓到新数据时，复盘用 DB 里已有的历史数据。
 
 ##### 通用规则
 
 - **必须传 `--id <rowid>`**（脚本类平台）：`<rowid>` 取自 Step 1 查询结果里的 `id` 字段。同一 `source_folder` 可能对应多条记录（同内容重复发布到不同帖子），按 `--id` 逐条抓取/写库才能让每次发布各自独立统计；若只传 `--source-folder`，脚本会只抓一行指标却批量写进所有同 folder 行，造成重复发布之间互相污染。
 - **SESSION_EXPIRED**：脚本返回 `ok=false, error=SESSION_EXPIRED`（exit 2）时，**跳过该平台**本轮取数，记入 `EXPIRED_PLATFORMS`，Step 5 统一汇报，由用户白天用 login-manager 重新登录。**凌晨不唤醒用户、不扫码登录、不私拉会话**（见约束 4/5）。
 - **xhs 风控显著高于其他平台**：xhs 任何登录失效迹象 → 立刻整段跳过 xhs，不尝试任何恢复。取数只走 `xhs-browse`，**禁止**探测/使用 `xhs-publish` creator 域 cookie。
+- **⛔ 取数失败时必须原样报告脚本 stderr + exit code，禁止自行归因**：脚本的 stderr 是排查的唯一可靠依据。Agent 不得根据 DB 字段（如 `publish_url` 是否为空）脑补错误原因、不得改写/概括 stderr 成自己的话。例：`wx-mp-engagement fetch` exit 1 stderr=`error: 发表记录页未找到标题匹配的 row id=3`，就报这个原文，不要脑补成 "publish_url 无效"。错误归因错误会误导排查方向。
 
 ---
 
 #### Step 3: content-calibrator 复盘
 
-对每个已启用 content-calibrator 的平台，检查是否满足复盘条件：
+一键扫描待复盘作品 + 带出互动数据（有 `prediction.md` 无 `retro.md` + 过 T+3d 窗口的 `cal_enabled=1` 记录）：
 
-1. 从 published-track DB 读取该平台所有 `cal_enabled=1` 的记录
-2. 检查 `calibration/<platform>/predictions/` 中是否有对应的预测日志
-3. 统计**有实际互动数据但尚未复盘**的记录数
-4. 如果积累了 **≥5 个新数据点** → 执行复盘流程
+```bash
+./skills/published-track/scripts/query-retro-pending.sh --days 3
+```
 
-复盘流程（由 Agent 执行）：
-- 从 published-track DB 读互动数据
-- 对比预测 vs 实际
-- 提炼观察 → 写入 `calibration/<platform>/rubric-memo.md`
-- 检测是否触发 bump（≥3 次同向偏差）
+返回 JSON：`{total, pending: [{source_folder, title, prediction_path, publish_date, cal_scores, platforms: {<platform>: {id, metrics}}}]}`
+- `total = 0` → 无待复盘作品，跳过
+- `total >= 1` → 进入 Step 3a
+
+##### Step 3a: 单篇复盘（批量）
+
+对 `pending` 数组里**每个作品依次**执行：
+- 读 `prediction_path` 拿预测（路径已在 JSON 里，无需自己拼）
+- 对比预测 vs `platforms` 里各平台的实际 `metrics`（数据已在 JSON 里，无需再查 DB）
+- 写 `<source_folder>/calibration/retro.md`（T+3d 写一次，immutable，含多平台实绩对比）
+- 提炼本篇观察 → 追加写入**统一** `calibration/rubric-memo.md`（根级，非平台目录；见 content-calibrator SKILL.md 归集表）
+
+**所有作品全部写完 retro.md + rubric-memo.md 后，才进入 Step 3b。** 不在单篇之间插 bump 检测。
+
+##### Step 3b: 综合评估（一次性）
+
+全部单篇复盘完成后，调脚本一次性检测偏差信号并做综合评估：
+
+```bash
+./skills/content-calibrator/scripts/detect-bump-signals.sh
+```
+
+返回 JSON：`{newly_processed, data_points, signals: [{dimension, direction, count, threshold, triggered, platforms, examples}], recommend_bump}`
+
+脚本纯 DB 操作：从 `cal_score_*` + 互动指标算偏差信号，写回 `cal_bias_signals` 列，**触发 bump 时自动清空**（未触发时保留，跨轮累积直到达标）。每条记录只处理一次（`cal_bump_evaluated` 标记）。`platforms` 字段给出各信号的平台分布。
+
+- `recommend_bump=false` → 本轮无系统性偏差，复盘结束
+- `recommend_bump=true` → **混杂因素评估**：检查 `triggered_signals` 的 `platforms` 分布 + `examples` 的 work 分布——同账号集中 → 可能冷启动惩罚；同平台集中 → 可能该平台 baseline 偏移；跨平台多账号一致 → rubric 维度失准证据强 → 评估结论写入 `calibration/rubric-memo.md` → 在 Step 5 汇总中告知用户 + 建议（是否升级 rubric / 是否调整发布阈值）。**Agent 不得自动升级 rubric 或改阈值。**
+
+**Step 2 取数失败时复盘不跳过**：若某条记录 Step 2 取数失败但 DB 里已有历史互动数据（reads/likes/plays 等 > 0），复盘**必须用已有数据做**，不得因 re-fetch 失败就跳过复盘。只有 DB 里完全没有数据（全 0）且取数也失败时才跳过。
 
 **如果某平台未启用 content-calibrator，跳过此步骤。Agent 不得自动启用。**
 
@@ -138,13 +180,15 @@
    > ⚠️ 以下**取数端**Cookie 已失效，数据未能更新。请白天使用 login-manager 技能重新登录：
    > - douyin（抖音）
    > - xhs-browse（小红书浏览端）
+   > - wechat-channel（微信视频号）
    >
    > 列出的名字即 `login-manager login <name>` 要用的平台名（非 published-track 的 `xhs`）。
    >
    > **只报告取数端 cookie**。**不要报告、也不要探测 `xhs-publish`（小红书发布端 / creator.xiaohongshu.com）**：
    > 复盘/取数完全不依赖发布端 cookie，探测它只会给 creator 域增加风控概率且结论与取数无关。
    > 发布端失效由发布任务（xhs-publish 技能）自己管，不在本复盘心跳职责内。
-3. content-calibrator 复盘结果摘要（如有）
-4. 用户咨询回复摘要。
+3. content-calibrator 复盘结果摘要（如有）：列出本轮复盘的**每个作品**（`source_folder` / 标题）+ 预测 vs 实际对比简述；Step 3b 综合评估结果（`detect-bump-signals.sh` 输出的 `recommend_bump` + 触发的维度/方向/count + 混杂因素评估结论）
+4. **综合评估建议（如有）**：Step 3b `recommend_bump=true` 时，Agent 输出评估结论——包含触发的维度/方向/count、证据（`examples` 里的 work/platform/dim_score/actual_score）、混杂因素评估结果、是否建议升级 rubric / 调整发布阈值。**Agent 不得自动执行升级或改阈值**。用户白天确认后，由用户发起 Rubric 升级流程（生成新公式 → 盲重打 10 篇 → `validate-rubric.sh` 验证 → pass=true 落地 / pass=false 重试最多 3 轮）。
+5. 用户咨询回复摘要。
 
 发送后本次定时任务结束。

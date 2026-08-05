@@ -15,7 +15,7 @@ metadata:
 
 > **三条不可妥协原则**：
 > 1. **盲预测**：预测必须在看到实际数据之前写完，写完即 immutable
-> 2. **升级 = 全量重打**：rubric 升级时校准池所有样本必须重打分
+> 2. **升级需盲重打验证**：新公式必须盲重打 10 篇 + `validate-rubric.sh` 降幅达标才落地，Agent 不得自动升级
 > 3. **rubric 是工作台不是博物馆**：被推翻/吸收的观察删掉，git history 是档案
 
 ---
@@ -28,7 +28,7 @@ metadata:
 |------|---------|------|
 | rubric 公式 | **统一** | `calibration/rubric_notes.md` |
 | rubric 观察 memo | **统一** | `calibration/rubric-memo.md` |
-| rubric 循环状态（mode/samples/bump/**threshold**） | **统一** | `calibration/.cheat-state.json` |
+| rubric 循环状态（mode/samples/rubric_version/**threshold**） | **统一** | `calibration/.cheat-state.json` |
 | 打分（7 维 + composite） | **per-work** | `<work>/calibration/score.json` |
 | 预测 | **per-work** | `<work>/calibration/prediction.md` |
 | 复盘（含多平台分析） | **per-work** | `<work>/calibration/retro.md` |
@@ -42,10 +42,25 @@ metadata:
 ## 核心闭环
 
 ```
-📊 打分+盲预测 → 🚀 发布 → 📝 记录(1B) → 📈 T+3d 复盘(per-work) → 🧬 进化 rubric
+📊 打分+盲预测 → 🚀 发布 → 📝 记录(1B) → 📈 T+3d 复盘 → 🧬 进化 rubric
+                                    │
+                                    ├─ 3a: 单篇复盘批量（retro.md + rubric-memo.md）
+                                    └─ 3b: 综合评估（detect-bump-signals.sh + 混杂因素 + 建议）
 ```
 
-打分与盲预测在**同一次 blind sub-agent 调用**内完成（合并理由：subagent 已读稿件、已出分值，顺手出预测；且合并后 Predict 不再是可被跳过的独立软步骤，闭环天然不断）。
+打分与盲预测**同一次出分**内完成（合并理由：已读稿件、已出分值，顺手出预测；
+复盘拆两步：先批量写完所有单篇 retro.md + 观察进 rubric-memo.md（3a），再做跨作品综合评估（3b）——综合评估需本批全部观察落盘后才有效。
+
+### 派发策略：blind sub-agent 是条件派发，不是强制
+
+blind sub-agent 的隔离价值在于"主对话已看过用户对话/实绩/复盘历史，inline 打分会污染"。**这一前提只在交互式会话成立。** 发布常走定时任务 + isolatedSession，此时主 agent 本就是全新对话、无上下文，再套一层隔离 subagent 买不到隔离收益，反而 subagent 经 `sessions_yield` 回包会让 isolated 主 agent 误判本轮结束、截断后续发布动作（见 gotcha：心跳 isolated session 交互死锁）。
+
+| 会话场景 | 打分方式 | 理由 |
+|---------|---------|------|
+| **交互式会话**（主 agent 有对话/复盘上下文） | `sessions_spawn` blind sub-agent | 主对话被污染，需 spawn 硬隔离 |
+| **定时 / isolatedSession**（发布 cron、heartbeat 触发） | **主 agent inline 打分**，不派 subagent | 全新对话无上下文，盲条件由"发布前=无实际数据"天然满足；避免 sessions_yield 截断发布流 |
+
+**inline 打分时必须遵守的隔离纪律**（用文字约束替代 spawn 硬隔离，弱一档但可接受）：打分前**只读**稿件 + `calibration/rubric_notes.md`；**不要读** `rubric-memo.md`、`.cheat-state.json`、其他 work 的 `calibration/`、`audience.md`、`benchmark.md`。读完即出分 + 预测，不翻历史。
 
 ---
 
@@ -55,9 +70,12 @@ metadata:
 
 ### 流程 1A·打分+盲预测（发布前自检）
 
-发布前对稿件做盲打分 + 盲预测 + 阈值门，**避免主 agent 自创自评**。
+发布前对稿件做盲打分 + 盲预测 + 阈值门，**避免自创自评**。派发方式按上方"派发策略"表，依会话场景选 inline 或 blind sub-agent。
 
-1. **主 agent `sessions_spawn` 一个 blind sub-agent**，只喂 `script_path`（稿件/视频定稿）+ `calibration/rubric_notes.md`。sub-agent 硬禁读 `.cheat-state.json`/各 work 的 `calibration/`/`rubric-memo.md`/`audience.md`/`benchmark.md`/对话历史，输出严格 JSON：
+1. **出分+出预测**（inline 或 blind sub-agent 二选一，见派发策略表）：
+   - **交互式会话**：主 agent `sessions_spawn` 一个 blind sub-agent，只喂 `script_path`（稿件/视频定稿）+ `calibration/rubric_notes.md`。sub-agent 硬禁读 `.cheat-state.json`/各 work 的 `calibration/`/`rubric-memo.md`/`audience.md`/`benchmark.md`/对话历史。
+   - **定时 / isolatedSession**：主 agent 自己 inline 打分，只读稿件 + `calibration/rubric_notes.md`，不读上述禁读文件，不翻对话历史。
+   - 两种方式输出同一份严格 JSON：
    - 7 维分（ER/HP/SR/QL/NA/AB/PV，各 0-5）+ per-dim confidence
    - **盲预测草稿**：cold-start 期（前 5 个作品）= 一句话 bet；过 cold-start = 每目标平台的 bucket + 概率分布 + 中枢 + 反事实场景 + 关键校准假设
 2. 主 agent 拿分调 `score-only.sh` 校验 + 算 composite + 判阈值门：
@@ -75,7 +93,7 @@ metadata:
      --prediction-file /tmp/prediction-draft.md
    ```
    写 `score.json` + `prediction.md`。**同 work 重复打分直接覆盖**（用户有意见/未过阈值 → 改稿重打，新结果覆盖旧的）。
-4. **阈值门**：`passed=false` → 主 agent 据 `failing_dims` 改稿 → 重新 spawn blind sub-agent 打分+预测 → 再判门。**最多 2 轮**，仍不达标 → 暂停发布、上报用户裁定。
+4. **阈值门**：`passed=false` → 主 agent 据 `failing_dims` 改稿 → 按派发策略重新出分+预测 → 再判门。**最多 2 轮**，仍不达标 → 暂停发布、上报用户裁定。
 5. `passed=true` → 放行，进入发布技能。
 6. **平台未启用 calibration**（`calibration/<platform>/.platform-state.json` 不存在或 `enabled=false`）→ 跳过 1A，直接发布。
 
@@ -105,8 +123,8 @@ metadata:
 |--------|------|----------|
 | "初始化校准 [--platform xxx]" | Init | 首次使用 |
 | "打分这篇 [path] --platform xxx" / "打分+预测" | Score+Predict | rubric_notes.md 存在 |
-| "复盘 [work] --platform xxx" / "T+3d 数据来了" | Retro | 有预测 + 已发布 + 过时间窗口 |
-| "升级公式" / "bump rubric" | Bump | 校准池 ≥ MIN_SAMPLES |
+| "复盘 [work] --platform xxx" / "T+3d 数据来了" | Retro (Step 3a 单篇 + 3b 综合评估) | 有预测 + 已发布 + 过时间窗口 |
+| "升级公式" / "bump rubric" | Rubric 升级（用户发起） | 综合评估已完成 + 用户确认 |
 | "导入对标 --platform xxx" / "learn from" | LearnFrom | 有 viral-chaser 报告或用户提供对标数据 |
 | "校准状态 [--platform xxx]" / "calibration status" | Status | 任意时刻 |
 | "加维度 XX" | 维度变更 | **必须用户确认** |
@@ -190,15 +208,15 @@ Agent 在复盘或发布时，发现对应平台未启用 calibration，**不得
 
 ## Score+Predict — 打分+盲预测（合并）
 
-给单篇稿子打 rubric 分 + 出盲预测，在发布前作为自检门（流程见上方"流程 1A"）。**脚本不做 LLM 打分/预测**；打分+预测由主 agent `sessions_spawn` 的 blind sub-agent 一次完成，脚本只做算术、门禁、落盘。
+给单篇稿子打 rubric 分 + 出盲预测，在发布前作为自检门（流程见上方"流程 1A"）。**脚本不做 LLM 打分/预测**；打分+预测由主 agent 出（inline 或 blind sub-agent，按上方"派发策略"表选），脚本只做算术、门禁、落盘。
 
-**blind sub-agent 隔离规则**（主对话已看过用户对话/实绩/复盘历史，inline 打分会污染，故必须 delegate）：
+**隔离规则**（无论 inline 还是 subagent，白名单/禁读清单相同；区别只是 inline 靠文字自律、subagent 靠 spawn 硬隔离）：
 
 - **白名单只读**：稿件（`script.md`/`article.md`/`post.md`）+ `calibration/rubric_notes.md`
-- **rubric 路径**：统一 rubric 只在根级 `calibration/rubric_notes.md`。`calibration/<platform>/` 下**没有独立 rubric**，只有 `audience.md`/`benchmark.md`/`.platform-state.json`（平台目录里的 `rubric_notes.md` 是指向根级的软链，读它等于读根级）。主 agent spawn 时应把根级 rubric 路径或内容显式喂给 subagent，不要让 subagent 自己去平台目录找。
+- **rubric 路径**：统一 rubric 只在根级 `calibration/rubric_notes.md`。`calibration/<platform>/` 下**没有独立 rubric**，只有 `audience.md`/`benchmark.md`/`.platform-state.json`（平台目录里的 `rubric_notes.md` 是指向根级的软链，读它等于读根级）。派发 subagent 时应把根级 rubric 路径或内容显式喂给 subagent，不要让 subagent 自己去平台目录找。
 - **硬禁读**：`rubric-memo.md`、`.cheat-state.json`、各 `<work>/calibration/`、`audience.md`、`benchmark.md`、对话历史
 - **输出**：严格 JSON = 7 维分（各 0-5）+ per-dim confidence + 盲预测草稿
-- 校准池重打分**强制** blind sub-agent，不接受 fallback
+- 校准池重打分（Rubric 升级）**强制** blind sub-agent，不接受 inline fallback——升级是交互式深度操作，主 agent 必有上下文，且盲重打需要严格隔离保证验证有效
 
 ### 盲预测的"盲"与落盘分工
 
@@ -228,18 +246,17 @@ Agent 在复盘或发布时，发现对应平台未启用 calibration，**不得
 
 ---
 
-## Retro — 复盘（per-work）
+## Retro — 复盘
 
-T+N 天后从 published-track DB 读实际数据 → 对比预测 → 提炼观察。**一个作品一个复盘文件** `<work>/calibration/retro.md`，内含该作品在各平台的实绩对比与假设验证。
+复盘分两步：**先批量做完所有单篇复盘，再一次性检测 bump 信号**。不在单篇复盘中途插 bump 检测——bump 是跨作品统计判断，需要本批全部观察落盘后才有效。
 
 ### 两个入口
 
 #### 入口 1：凌晨 HEARTBEAT 自动复盘
 
 心跳巡检时：
-- 从 published-track DB 查所有 `cal_enabled=1` 且过 T+3d 窗口的记录
-- 按 `source_folder`（work）聚合 → 找出 `<work>/calibration/retro.md` 不存在的 work
-- 如积累 **≥5 个新数据点**（有实际互动数据但尚未复盘的 work）→ 自动执行复盘流程
+- 调 `query-retro-pending.sh` 一键拿待复盘作品列表 + 互动数据
+- 按 Step 3a → Step 3b 顺序执行（见下方流程）
 
 #### 入口 2：用户导入对标
 
@@ -247,53 +264,92 @@ T+N 天后从 published-track DB 读实际数据 → 对比预测 → 提炼观�
 
 > **复盘的本质**：复盘是"拿实际数据验证预测，提炼观察，可能触发 rubric 升级"。导入对标是"从外部信号校准 rubric 的初始假设"。两者互补：复盘是内源校准，对标是外源校准。
 
-### 数据来源（全部从 published-track DB）
+### Step 3a·单篇复盘（批量）
 
-复盘时**只从 published-track DB 读取数据**，不另行抓取：
+对 `query-retro-pending.sh` 返回的每个待复盘作品，**依次**执行：
 
-```bash
-# 读取某 work 在各平台的记录（按 source_folder 聚合）
-./skills/published-track/scripts/query.sh --platform wx_mp --limit 10
+1. 读 `prediction_path` 拿盲预测（路径已在 JSON 里，无需自己拼）
+2. 对比预测 vs `platforms` 里各平台的实际 `metrics`（数据已在 JSON 里，无需再查 DB）
+3. 写 `<source_folder>/calibration/retro.md`（T+3d 写一次，immutable，含多平台实绩对比 + 假设验证/推翻）
+4. 提炼本篇观察 → 追加写入**统一** `calibration/rubric-memo.md`（根级，非平台目录）
+5. 更新 `calibration/.cheat-state.json` 的 `calibration_samples`
 
-# 或直接 SQL
-sqlite3 db/published_track.db "SELECT * FROM pub_wx_mp WHERE source_folder='output_articles/xxx'"
-```
+**所有待复盘作品全部写完 retro.md + rubric-memo.md 后，才进入 Step 3b。** 不在单篇之间插 bump 检测。
 
-### 复盘流程
+### Step 3b·综合评估（一次性）
 
-1. 校验时间窗口（默认 T+3d）
-2. 读 `<work>/calibration/prediction.md`（盲预测）
-3. 从 published-track DB 读该 work 在各平台的互动数据
-4. 写 `<work>/calibration/retro.md`：写实绩段（多平台）+ top 评论关键词聚类（如有）+ 验证/推翻预测各假设
-5. 提炼新观察 → 写入统一 `calibration/rubric-memo.md`
-6. 更新 `calibration/.cheat-state.json` 的 `calibration_samples`
-7. 检测是否触发 bump（≥3 次同向偏差）
-
-### 阈值推荐（复盘副产物）
-
-复盘积累数据后，Agent 可评估全局 `score_threshold` 是否合理：观察各维度分与实际互动的相关性，若某维度低分内容普遍表现差，可建议提高阈值。**Agent 不得自动改阈值**，需向用户给出建议值与依据，经用户确认后执行：
+全部单篇复盘完成后，调脚本一次性检测偏差信号并做综合评估：
 
 ```bash
-./skills/content-calibrator/scripts/cal-toggle.sh --set-threshold <N>
+./skills/content-calibrator/scripts/detect-bump-signals.sh
 ```
 
-起步期阈值默认 0（不拦截），待累积足够复盘样本后再收紧。
+**纯 DB 操作**，数据全部来自 `published_track.db`（`cal_score_*` 盲打分 + 互动指标实测），不扫文件系统。
+
+脚本逻辑：
+1. 查所有 `cal_enabled=1 AND cal_bump_evaluated=0` 的记录
+2. 对每条：`cal_score_*` + 互动指标 → log 桶归一化到 0-5 `actual_score`（0→0, 1-10→1, 11-50→2, 51-200→3, 201-1000→4, 1000+→5）
+3. **偏差检测**（per record = per work × platform）：维度分 ≥3 但 actual ≤2 = 高估；维度分 ≤2 但 actual ≥3 = 低估
+4. 偏差信号写回该记录的 `cal_bias_signals` 列，`cal_bump_evaluated` 置 1
+5. **聚合**：查所有 `cal_bias_signals IS NOT NULL` 的记录，按维度 + 方向统计 count，≥3 → bump 信号触发
+6. **触发时自动清信号**：`recommend_bump=true` 时清空 `cal_bias_signals`（信号已达阈值被消费）；未触发时保留，跨轮累积直到达标
+
+每条记录只处理一次（`cal_bump_evaluated` 标记）。未达阈值的信号保留在 DB 里，下一轮新记录的信号会叠加到聚合计数上，直到某维度+方向累计 ≥3 触发 bump。触发后清空，下轮从零开始。
+
+返回 JSON：
+
+```json
+{
+  "newly_processed": 20,
+  "data_points": 112,
+  "signals": [
+    {"dimension": "pv", "direction": "overestimate", "count": 17, "threshold": 3, "triggered": true,
+     "platforms": {"xhs": 13, "wx_mp": 1, "douyin": 1, "youtube": 1, "wx_channel": 1},
+     "examples": [...]}
+  ],
+  "triggered_signals": [...],
+  "recommend_bump": true
+}
+```
+
+`platforms` 字段给出该信号的各平台分布，供 Agent 一眼判断混杂因素。
+
+Agent 拿到后：
+- `recommend_bump=false` → 本轮无系统性偏差，复盘结束
+- `recommend_bump=true` → **混杂因素评估**（Agent 判断，脚本不代劳）：检查 `triggered_signals` 的 `platforms` 分布 + `examples` 的 work 分布：
+  - **同账号混杂**：全部样本来自同一新号 → 可能冷启动惩罚，非 rubric 问题
+  - **同平台混杂**：偏差集中在单一平台（如 13/17 来自 xhs）→ 可能该平台 baseline 偏移
+  - **跨平台一致**：多平台多账号同向偏差 → rubric 维度失准证据强
+  → 评估结论写入 `calibration/rubric-memo.md` → 在 Heartbeat 汇总中告知用户评估结论 + 建议（是否升级 rubric / 是否调整发布阈值）。**Agent 不得自动升级 rubric 或改阈值。**
+
+用户不确认 → 流程到此结束，新作品继续积累新信号，同样模式再现会再触发评估。
+
+#### 数据来源（全部从 published-track DB）
+
+复盘时**只从 published-track DB 读取数据**，不另行抓取。`query-retro-pending.sh` 已把待复盘作品的互动数据带出，Agent 无需再查 DB 或 ls 目录。
 
 ---
 
-## Bump — Rubric 升级（统一）
+## Bump — Rubric 升级（用户发起）
 
-系统性偏差信号 → 校准池全量重打 → 排序一致性校验 → 落地新公式。**影响全局 rubric**（统一 rubric，一次升级对所有平台生效）。
+`rubric_notes.md` 只能由用户发起修改，Agent 只能建议。**前置**：用户在看到 Step 3b 综合评估结论后明确同意升级。
 
-### 流程
+1. **生成新公式**：Agent 综合读 `rubric-memo.md` 积累的历史观察 + 评估结论，写出新打分公式（新 `rubric_notes.md` 草稿）
+2. **批量盲重打**：Agent 派 blind sub-agent 对**最新发布且有数据的 10 篇**作品用新公式重打分（不足 10 篇则用全部，最少 3 篇才做验证）
+3. **脚本验证**：
+   ```bash
+   ./skills/content-calibrator/scripts/validate-rubric.sh --new-scores /tmp/new-scores.json
+   ```
+   脚本复用 `detect-bump-signals` 的归一化 + 偏差检测逻辑，对这 10 篇的新分数 vs 实际数据算偏差信号。**降幅 = (旧信号数 - 新信号数) / 旧信号数 ≥ 30%（默认阈值）** → `pass=true`；否则 → `pass=false`。`--reduction-threshold` 可调阈值。旧信号数=0 时直接 fail（旧公式本无偏差，无升级必要）。
+4. **pass=false** → 回到第 1 步重新生成公式，**最多 3 轮**。3 轮仍 false → 报用户"自动验证未通过，建议人工介入"
+5. **pass=true → 落地**：
+   - 正式写入 `calibration/rubric_notes.md`
+   - 10 篇重打作品的新分数写回 DB（`cal_score_*` + `cal_rubric_version`）
+   - 重打作品的 `cal_bump_evaluated` 重置为 0（新公式下应重新参与未来 bump 检测）
+   - 归档 `calibration/rubric-memo.md` → `rubric-memo-v<旧版本>-<日期>.md`，按模板重置 `rubric-memo.md`
+   - 更新 `.cheat-state.json` 的 `rubric_version` + `last_bump_at`
 
-1. 前置门槛检查（校准池样本数 + 观察强度）
-2. 写出新公式完整方程
-3. 校准池全量重打分（blind sub-agent 隔离）
-4. 计算排序一致性（新公式排序 vs 实际排序，阈值 4/5）
-5. 落地 + cleanup pass（删被推翻/吸收的观察）
-6. 更新所有校准样本的 Re-scored 标记
-7. 更新 `calibration/rubric_notes.md` 版本速查 + `calibration/.cheat-state.json` 的 `rubric_version`/`last_bump_at`
+> 不做全量重打——老作品保留旧分数（历史数据），新作品按新公式打分。验证只用最新 10 篇，够代表性且成本低。
 
 ---
 
@@ -301,11 +357,10 @@ sqlite3 db/published_track.db "SELECT * FROM pub_wx_mp WHERE source_folder='outp
 
 **维度和权重可以被修改，但必须满足以下条件之一**：
 1. **用户主动要求** — "加个 XX 维度" / "把 SR 权重调到 2.0"
-2. **Agent 提议 + 用户确认** — Agent 在 Bump 流程中检测到系统性偏差后提议变更，**必须等待用户明确同意才生效**
+2. **Agent 提议 + 用户确认** — Agent 在综合评估中检测到系统性偏差后提议变更，**必须等待用户明确同意才生效**
 
 变更流程：
-- 变更维度（增/删/替换）→ 走 Bump 全量重打 + 排序一致性校验
-- 变更权重 → 走 Bump 流程
+- 变更维度（增/删/替换）或权重 → 走 Rubric 升级流程（生成新公式 → 盲重打 → validate-rubric.sh 验证）
 - 变更被拒绝 → rubric 不动，观察记入 `rubric-memo.md`
 
 ---
@@ -407,6 +462,23 @@ blind subagent 出分 + 预测草稿后，主 agent 调 `commit-prediction.sh` �
 ```
 
 从 published-track DB + 各 work 的 `calibration/score.json` 构建全局校准池（per-work 归集）。
+
+### Bump 信号检测
+
+```bash
+./skills/content-calibrator/scripts/detect-bump-signals.sh                # 默认阈值 3
+./skills/content-calibrator/scripts/detect-bump-signals.sh --threshold 5  # 改阈值
+```
+
+纯 DB 操作：查 `cal_enabled=1 AND cal_bump_evaluated=0` 的记录 → 从 `cal_score_*` + 互动指标算偏差信号 → 写回 `cal_bias_signals` + `cal_bump_evaluated=1` → 聚合全量信号按维度统计同向偏差 → **触发 bump 时自动清空 `cal_bias_signals`**（未触发时保留，跨轮累积）。≥3 次同向 → bump 信号。返回结构化 JSON（含每信号的 platform 分布）。
+
+### Rubric 升级验证（Rubric 升级流程用）
+
+```bash
+./skills/content-calibrator/scripts/validate-rubric.sh --new-scores /tmp/new-scores.json
+```
+
+`--new-scores` 指向 blind sub-agent 用新公式重打分的 JSON 文件（格式见脚本头注释）。脚本复用 `detect-bump-signals` 的 log 桶归一化 + 偏差检测逻辑，对同一批作品对比新旧公式的偏差信号数。**降幅 = (旧 - 新) / 旧 ≥ 30%（默认）** → `pass=true`；`--reduction-threshold` 可调。返回 JSON：`{pass, sample_size, old_signals, new_signals, reduction, reduction_ratio, reduction_threshold, reason}`。exit code：0=pass，1=fail。
 
 ### 导入追爆报告
 

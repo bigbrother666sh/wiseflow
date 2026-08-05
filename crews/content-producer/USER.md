@@ -9,8 +9,6 @@
 ## What They Expect
 
 - **质量**：成品可直接发布，不需要二次剪辑/返工
-- **脚本由调用方提供**：content-producer 不负责创作脚本，脚本由 main agent 或用户提供
-- **产出汇报**：最终的回馈必须是成片/成稿的完整绝对路径
 
 ## Communication Guidelines
 

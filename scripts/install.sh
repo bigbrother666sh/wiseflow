@@ -11,7 +11,7 @@
 # 执行流程：
 #   1. 检测 OS + arch → 选 tarball asset（linux-x64 / mac-arm64 / mac-x64 / win-x64）
 #   2. bootstrap gum UI（TTY 才有，非 TTY 静默跳过）
-#   3. 解析最新 release tag（GitHub API，或 XIAOBEI_MIRROR env 指向自建镜像）
+#   3. 解析最新 release tag（GitHub API，回退 gh CLI）
 #   4. 下载 xiaobei-{ver}-{plat}.{tar.zst|tar.gz} → 临时文件（linux 用 zst，mac/win 用 gzip，bsdtar 原生支持）
 #   5. 解压到 WISEFLOW_ROOT（默认 ~/xiaobei，程序目录）：openclaw/ + tools/node + tools/pnpm + bin/openclaw + crews/ + skills/ + scripts/ + camoufox-cli/ + awada/
 #   6. pnpm install --prod --frozen-lockfile（用 ship 的 portable node + pnpm，在 openclaw/ 下；只拉依赖不编译，无 OOM，native 自动按平台）
@@ -39,21 +39,9 @@ WISEFLOW_REPO="${XIAOBEI_REPO:-TeamWiseFlow/xiaobei}"
 # 与运行数据目录 OPENCLAW_HOME（~/.openclaw：openclaw.json + daemon.env + workspace-*）分离。
 # 不隐藏：用户能直接 ls 看到，符合"小白友好"。
 WISEFLOW_ROOT_DEFAULT="${XIAOBEI_HOME:-$HOME/xiaobei}"
-# 资产 URL 构造为 $XIAOBEI_MIRROR/releases/download/{tag}/xiaobei-{tag}-{plat}.{tar.zst|tar.gz}
-# atomgit 国内镜像（--atomgit / XIAOBEI_SOURCE=atomgit 切入）：
-#   - tarball 直链 host = atomgit.com（redirect 到 file-cdn.gitcode.com 签名 CDN，匿名 GET 可下，~140MB）
-#   - 解 latest tag 走 api.atomgit.com/api/v5/repos/{o}/{r}/releases/latest（NOT Gitea v1，host/版本都不同）
-#   - 单文件 raw 走 api.atomgit.com/api/v5/repos/{o}/{r}/contents/{path}?ref={branch}（返 JSON base64，非直链；
-#     atomgit 的 /raw/branch/... 路由返 SPA HTML 不可用）。本脚本本体一旦跑起来不依赖 raw——首装命令那条
-#     `curl | bash` 要单独走 contents API + base64 解码（见 scripts/README.md 首装命令段）。
-# GitHub 默认（--github 或不传）：raw = raw.githubusercontent.com，API = api.github.com，直链 = github.com/.../releases/download/...
-XIAOBEI_ATOMGIT_MIRROR="https://atomgit.com/wiseflow/xiaobei"
-XIAOBEI_ATOMGIT_API="https://api.atomgit.com/api/v5/repos/wiseflow/xiaobei"
-if [[ "${XIAOBEI_SOURCE:-}" == "atomgit" ]]; then
-    XIAOBEI_MIRROR="${XIAOBEI_MIRROR:-$XIAOBEI_ATOMGIT_MIRROR}"
-else
-    XIAOBEI_MIRROR="${XIAOBEI_MIRROR:-}"
-fi
+# 资产 URL 构造为 https://github.com/{repo}/releases/download/{tag}/xiaobei-{tag}-{plat}.{tar.zst|tar.gz}
+# GitHub 专线：raw = raw.githubusercontent.com，API = api.github.com，直链 = github.com/.../releases/download/...
+# 国内用户改用 install-atomgit.sh（atomgit 镜像专线），不在本脚本线路切换。
 # tarball 内 ship 的 portable Node / pnpm 入口（相对 WISEFLOW_ROOT）
 PORTABLE_NODE="tools/node/bin/node"
 PORTABLE_PNPM="tools/pnpm/bin/pnpm.mjs"
@@ -351,46 +339,12 @@ detect_platform_asset() {
     ui_success "Platform asset: $PLAT"
 }
 
-# 解析最新 release tag + 版本号
-# atomgit：走 api.atomgit.com/api/v5（非 Gitea v1，host/版本都不同，每 release JSON 含 tag_name）
-# 自定义镜像：从 mirror URL 推导 Gitea v1 API（host + owner/repo）
-# GitHub / fallback：api.github.com，再回退 gh CLI
+# 解析最新 release tag + 版本号（GitHub API 专线，回退 gh CLI）
 resolve_latest_version() {
     if [[ -n "${XIAOBEI_TAG:-}" ]]; then
         XIAOBEI_VER="${XIAOBEI_TAG#v}"
         ui_success "Using pinned tag: $XIAOBEI_TAG"
         return 0
-    fi
-    # atomgit 官方镜像：走预定义 v5 API（host = api.atomgit.com，非 mirror URL 推导）
-    if [[ "${XIAOBEI_SOURCE:-}" == "atomgit" && -n "${XIAOBEI_ATOMGIT_API:-}" ]]; then
-        local resp
-        resp="$(curl -fsSL "$XIAOBEI_ATOMGIT_API/releases/latest" 2>/dev/null || true)"
-        XIAOBEI_TAG="$(printf '%s' "$resp" | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"v[^"]+"' | head -1 | sed -E 's/.*"v([^"]+)".*/v\1/')"
-        if [[ -n "$XIAOBEI_TAG" ]]; then
-            XIAOBEI_VER="${XIAOBEI_TAG#v}"
-            ui_success "Latest release (via atomgit v5 API): $XIAOBEI_TAG"
-            return 0
-        fi
-        ui_warn "atomgit v5 API 未取到 tag，回退 GitHub API"
-    fi
-    # 自定义 Gitea 镜像：从 mirror URL 推导 Gitea v1 API（host + owner/repo）
-    if [[ -n "${XIAOBEI_MIRROR:-}" && "${XIAOBEI_SOURCE:-}" != "atomgit" ]]; then
-        local m="${XIAOBEI_MIRROR%/}"
-        m="${m#https://}"; m="${m#http://}"
-        local host="${m%%/*}"
-        local repo_path="${m#*/}"
-        if [[ -n "$host" && -n "$repo_path" ]]; then
-            local api="https://$host/api/v1/repos/$repo_path/releases/latest"
-            local resp
-            resp="$(curl -fsSL "$api" 2>/dev/null || true)"
-            XIAOBEI_TAG="$(printf '%s' "$resp" | grep -oE '"tag_name"[[:space:]]*:[[:space:]]*"v[^"]+"' | head -1 | sed -E 's/.*"v([^"]+)".*/v\1/')"
-            if [[ -n "$XIAOBEI_TAG" ]]; then
-                XIAOBEI_VER="${XIAOBEI_TAG#v}"
-                ui_success "Latest release (via $host): $XIAOBEI_TAG"
-                return 0
-            fi
-            ui_warn "镜像 Gitea API 未取到 tag，回退 GitHub API"
-        fi
     fi
     local api="https://api.github.com/repos/$WISEFLOW_REPO/releases/latest"
     local resp
@@ -409,14 +363,10 @@ resolve_latest_version() {
     ui_success "Latest release: $XIAOBEI_TAG"
 }
 
-# 构造 tarball 下载 URL（XIAOBEI_MIRROR 优先）
+# 构造 tarball 下载 URL（GitHub release 专线）
 tarball_url() {
     local asset="xiaobei-${XIAOBEI_TAG}-${PLAT}.${TAR_EXT}"
-    if [[ -n "$XIAOBEI_MIRROR" ]]; then
-        echo "$XIAOBEI_MIRROR/releases/download/$XIAOBEI_TAG/$asset"
-    else
-        echo "https://github.com/$WISEFLOW_REPO/releases/download/$XIAOBEI_TAG/$asset"
-    fi
+    echo "https://github.com/$WISEFLOW_REPO/releases/download/$XIAOBEI_TAG/$asset"
 }
 
 download_and_extract_tarball() {
@@ -1276,27 +1226,6 @@ parse_args() {
                 FORCE_RUNTIME=true
                 shift
                 ;;
-            --github)
-                # 走 GitHub release（现已默认；保留 flag 向后兼容）
-                XIAOBEI_SOURCE=github
-                XIAOBEI_MIRROR=""
-                shift
-                ;;
-            --atomgit)
-                # 切到 atomgit 国内镜像（tarball 走 atomgit.com → file-cdn.gitcode.com 签名 CDN；
-                # tag 解析走 api.atomgit.com/api/v5，非 Gitea v1）
-                XIAOBEI_SOURCE=atomgit
-                XIAOBEI_MIRROR="$XIAOBEI_ATOMGIT_MIRROR"
-                shift
-                ;;
-            --mirror)
-                if [[ $# -lt 2 || "${2:-}" == --* ]]; then
-                    ui_error "Missing value for $1"
-                    exit 2
-                fi
-                XIAOBEI_MIRROR="$2"
-                shift 2
-                ;;
             --use-local)
                 # 复用 WISEFLOW_ROOT 已有的本地 wiseflow checkout，跳 clone/fetch，保本地改动
                 # 主要给开发/调试场景：在仓内跑 install.sh 验流程，不想被 fetch+reset 盖掉改动
@@ -1322,7 +1251,7 @@ parse_args() {
                 shift 2
                 ;;
             --)
-                # 选项/位置参数分隔符（README 的 `bash -c "..." -s -- --github` 会把 -- 透传进来）
+                # 选项/位置参数分隔符（README 的 `bash -c "..." -s -- --verbose` 会把 -- 透传进来）
                 shift
                 ;;
             --help|-h)
@@ -1335,9 +1264,6 @@ Usage:
 
 Options:
   --root <dir>       Program install directory (default: ~/xiaobei; runtime data stays in ~/.openclaw)
-  --github           Use GitHub releases (default)
-  --atomgit          Use atomgit 国内镜像（tarball 走 atomgit.com → GitCode CDN；tag 走 api.atomgit.com v5）
-  --mirror <url>     Custom mirror root (overrides default GitHub)
   --force            Overwrite existing runtime data (~/.openclaw); default preserves it on re-install
   --skip-bind        Skip the WeChat QR binding at the end (CI/automation)
   --skip-browser     Skip camoufox-cli browser binary install (smoke/CI, saves ~557MB Firefox)
@@ -1347,8 +1273,6 @@ Options:
 
 Env:
   XIAOBEI_REPO       GitHub 仓（owner/repo，默认 TeamWiseFlow/xiaobei；测试可指 bigbrother666sh/wiseflow）
-  XIAOBEI_SOURCE     设为 atomgit 切到 atomgit 国内镜像（tarball 走 atomgit.com CDN，tag 走 api.atomgit.com v5）；github 切回 GitHub release
-  XIAOBEI_MIRROR     镜像站根（atomgit 默认 https://atomgit.com/wiseflow/xiaobei；自定义 Gitea 镜像走 /api/v1 推导）
   XIAOBEI_TAG        指定版本 tag（默认拉最新 release；自定义镜像建议配此项）
   XIAOBEI_TARBALL    本地已下好的 tarball 路径；设了就跳过下载直接用它（网络差时手工下好塞进来）
   XIAOBEI_HOME       程序目录覆盖（默认 ~/xiaobei）
@@ -1438,8 +1362,7 @@ main() {
     ui_kv "OS" "$OS"
     ui_kv "Program dir" "$WISEFLOW_ROOT"
     ui_kv "Runtime dir" "$OPENCLAW_HOME"
-    ui_kv "Repo" "$WISEFLOW_REPO"
-    [[ -n "$XIAOBEI_MIRROR" ]] && ui_kv "Mirror" "$XIAOBEI_MIRROR"
+    ui_kv "Repo" "$WISEFLOW_REPO (GitHub)"
     echo ""
 
     # ─── 检测是否已装（决定走 update 还是 fresh install）──────
@@ -1699,31 +1622,47 @@ stop_gateway_if_running() {
 }
 
 # 更新路线用：不问 AWK_API_KEY、不 daemon install，只幂等刷 gateway env 路径
-# （PATH + XIAOBEI_HOME）+ restart gateway 让新 program 生效。
+# （PATH + XIAOBEI_HOME/OPENCLAW_STATE_DIR 走 .env 业务变量）+ restart gateway 让新 program 生效。
+# env 分工对齐首装：业务变量在 .env，daemon.env 只放 3 固定值 + OPENCLAW_STATE_DIR + PATH。
 refresh_gateway_env_only() {
     local claw_cmd="$WISEFLOW_ROOT/bin/openclaw"
     local node_bin_dir; node_bin_dir="$(dirname "$WISEFLOW_ROOT/$PORTABLE_NODE")"
     local oc_bin_dir="$WISEFLOW_ROOT/bin"
+    local dot_env="$OPENCLAW_HOME/.env"
     local systemd_env="$OPENCLAW_HOME/daemon.env"
     local macos_env="$OPENCLAW_HOME/service-env/ai.openclaw.gateway.env"
 
-    if [ "$(uname -s)" = "Linux" ] && [ -f "$systemd_env" ]; then
-        ensure_env_path "$systemd_env" "$node_bin_dir" "$oc_bin_dir"
-        ensure_env_xiaobei_home "$systemd_env" kv
-        ensure_env_state_dir "$systemd_env" kv
-        load_env_vars_for_cli "$systemd_env"
-        if command -v systemctl >/dev/null 2>&1; then
+    # 刷 .env 业务变量（XIAOBEI_HOME / OPENCLAW_STATE_DIR），幂等
+    if [ -f "$dot_env" ]; then
+        grep -vE "^export (XIAOBEI_HOME|OPENCLAW_STATE_DIR)=" "$dot_env" 2>/dev/null > "${dot_env}.new" || true
+        mv "${dot_env}.new" "$dot_env"
+        {
+            printf "export XIAOBEI_HOME='%s'\n" "${WISEFLOW_ROOT//\'/\'\\\'\'}"
+            printf "export OPENCLAW_STATE_DIR='%s'\n" "${OPENCLAW_HOME//\'/\'\\\'\'}"
+        } >> "$dot_env"
+        chmod 600 "$dot_env"
+        load_env_vars_for_cli "$dot_env"
+        ui_success ".env business vars refreshed"
+    else
+        ui_warn ".env 不存在（跳过业务变量刷）"
+    fi
+
+    # daemon.env 只刷 PATH + OPENCLAW_STATE_DIR（固定值不变），幂等
+    local daemon_env_file
+    if [ "$(uname -s)" = "Darwin" ]; then daemon_env_file="$macos_env"; else daemon_env_file="$systemd_env"; fi
+    if [ -f "$daemon_env_file" ]; then
+        ensure_env_path "$daemon_env_file" "$node_bin_dir" "$oc_bin_dir"
+        grep -vE "^OPENCLAW_STATE_DIR=" "$daemon_env_file" 2>/dev/null > "${daemon_env_file}.new" || true
+        mv "${daemon_env_file}.new" "$daemon_env_file"
+        printf 'OPENCLAW_STATE_DIR=%s\n' "$OPENCLAW_HOME" >> "$daemon_env_file"
+        if [ "$(uname -s)" = "Linux" ] && command -v systemctl >/dev/null 2>&1; then
             systemctl --user daemon-reload 2>/dev/null || true
             systemctl --user restart "openclaw-gateway.service" 2>/dev/null && ui_success "Restarted gateway"
+        elif [ "$(uname -s)" = "Darwin" ]; then
+            "$claw_cmd" gateway restart 2>/dev/null && ui_success "Restarted gateway"
         fi
-    elif [ "$(uname -s)" = "Darwin" ] && [ -f "$macos_env" ]; then
-        ensure_env_path "$macos_env" "$node_bin_dir" "$oc_bin_dir"
-        ensure_env_xiaobei_home "$macos_env" export
-        ensure_env_state_dir "$macos_env" export
-        load_env_vars_for_cli "$macos_env"
-        "$claw_cmd" gateway restart 2>/dev/null && ui_success "Restarted gateway"
     else
-        ui_info "无 gateway env 文件或平台不支持自动 restart；可手动：$claw_cmd gateway restart"
+        ui_info "无 daemon.env 或平台不支持自动 restart；可手动：$claw_cmd gateway restart"
     fi
     ui_success "Gateway env refreshed"
 }
@@ -1732,30 +1671,83 @@ install_gateway_and_env() {
     local claw_cmd="$WISEFLOW_ROOT/bin/openclaw"
     local node_bin_dir; node_bin_dir="$(dirname "$WISEFLOW_ROOT/$PORTABLE_NODE")"
     local oc_bin_dir="$WISEFLOW_ROOT/bin"
-    # gateway env 文件属运行数据，落 OPENCLAW_HOME（非程序目录 WISEFLOW_ROOT）
+    # env 分工（对齐 ps1 + 上游踩坑经验）：
+    #   ~/.openclaw/.env        ← 业务变量（AWK_API_KEY/XIAOBEI_HOME/OPENCLAW_STATE_DIR），CLI 裸跑用
+    #   ~/.openclaw/daemon.env  ← gateway service 用，只放 3 固定值 + OPENCLAW_STATE_DIR
+    # 原因：Linux systemd EnvironmentFile= 对含特殊字符的业务变量（PATH 带分号、AWK 带连字符）
+    # 有踩坑历史，业务变量挪 .env 让 systemd 只加载稳的固定值。daemon.env 仍走 systemd drop-in。
+    # macOS launchd wrapper 走 `. env_file` source，没这个坑，但为风格统一照此分工（业务变量也在 .env）。
+    local dot_env="$OPENCLAW_HOME/.env"
     local systemd_env="$OPENCLAW_HOME/daemon.env"
     local macos_env="$OPENCLAW_HOME/service-env/ai.openclaw.gateway.env"
+
+    # ─── 检测/清掉错误的 OPENCLAW_HOME 用户环境变量 ─────────────
+    # 引擎 resolveStateDir 把 OPENCLAW_HOME 当 homedir 再 append /.openclaw（见
+    # openclaw/src/config/paths.ts），故若 OPENCLAW_HOME 已被设成 ~/.openclaw，会产出嵌套路径。
+    if [ -n "${OPENCLAW_HOME:-}" ] && [ "$(cd "${OPENCLAW_HOME}" && pwd)" = "$(cd "$HOME/.openclaw" && pwd)" ]; then
+        ui_warn "检测到 OPENCLAW_HOME=$OPENCLAW_HOME 已设成 state dir 路径"
+        ui_warn "  这会让引擎嵌套 append /.openclaw → ~/.openclaw/.openclaw/，config 全落错位置"
+        ui_warn "  正解：清掉 OPENCLAW_HOME，改用 OPENCLAW_STATE_DIR 显式指定 state dir"
+        unset OPENCLAW_HOME
+    fi
 
     # redirect stdin from /dev/tty so interactive read 工作于 curl|bash
     if is_promptable; then exec </dev/tty; fi
 
-    if [ "$(uname -s)" = "Linux" ]; then
-        # --- Linux: 先写 daemon.env + drop-in，再 daemon install（避免首次启动 StartLimitBurst）---
-        mkdir -p "$(dirname "$systemd_env")"
-        [ -f "$systemd_env" ] || touch "$systemd_env"
-        chmod 600 "$systemd_env"
-        write_missing_env "$systemd_env" kv
-        ensure_env_path "$systemd_env" "$node_bin_dir" "$oc_bin_dir"
-        ensure_env_xiaobei_home "$systemd_env" kv
-        ensure_env_state_dir "$systemd_env" kv
-        # WSL2 GUI 显示变量
-        if grep -qi microsoft /proc/version 2>/dev/null; then
-            {
-                grep -vE "^(DISPLAY|WAYLAND_DISPLAY|XDG_RUNTIME_DIR)=" "$systemd_env" 2>/dev/null || true
-                printf 'DISPLAY=:0\nWAYLAND_DISPLAY=wayland-0\nXDG_RUNTIME_DIR=/mnt/wslg/runtime-dir\n'
-            } > "${systemd_env}.new"
-            mv "${systemd_env}.new" "$systemd_env"; chmod 600 "$systemd_env"
+    # ─── 写 .env（业务变量，export 格式，CLI 裸跑用）──────────
+    # 幂等：先剥同 key 旧行再追加。AWK_API_KEY 是 secret，单引号裹 + '\'' 转义内置单引号。
+    mkdir -p "$(dirname "$dot_env")"
+    [ -f "$dot_env" ] || touch "$dot_env"
+    chmod 600 "$dot_env"
+    grep -vE "^export (AWK_API_KEY|XIAOBEI_HOME|OPENCLAW_STATE_DIR)=" "$dot_env" 2>/dev/null > "${dot_env}.new" || true
+    mv "${dot_env}.new" "$dot_env"
+    {
+        if [ -n "${AWK_API_KEY:-}" ] || is_promptable; then
+            local _awk="${AWK_API_KEY:-}"
+            if [ -z "$_awk" ] && is_promptable; then
+                _awk="$(prompt_env_value AWK_API_KEY "" "")"
+            fi
+            _awk="$(printf '%s' "$_awk" | tr -d '[:space:]')"
+            if [ -n "$_awk" ]; then
+                printf "export AWK_API_KEY='%s'\n" "${_awk//\'/\'\\\'\'}"
+            fi
         fi
+        printf "export XIAOBEI_HOME='%s'\n" "${WISEFLOW_ROOT//\'/\'\\\'\'}"
+        printf "export OPENCLAW_STATE_DIR='%s'\n" "${OPENCLAW_HOME//\'/\'\\\'\'}"
+    } >> "$dot_env"
+    chmod 600 "$dot_env"
+    ui_success ".env written (业务变量，CLI 裸跑用)"
+
+    # ─── 写 daemon.env（gateway service 用，只放 3 固定值 + OPENCLAW_STATE_DIR）──
+    # Linux 走 systemd EnvironmentFile=，只放 systemd 加载稳的固定值。
+    # macOS 走 launchd wrapper `. env_file` source，没格式坑，但为风格统一照此分工。
+    local daemon_env_file
+    if [ "$(uname -s)" = "Darwin" ]; then
+        daemon_env_file="$macos_env"
+        mkdir -p "$(dirname "$daemon_env_file")"
+    else
+        daemon_env_file="$systemd_env"
+        mkdir -p "$(dirname "$daemon_env_file")"
+    fi
+    [ -f "$daemon_env_file" ] || touch "$daemon_env_file"
+    chmod 600 "$daemon_env_file"
+    grep -vE "^(OPENCLAW_BROWSER_TIMEOUT_MS|OPENCLAW_DISABLE_BONJOUR|PATH|OPENCLAW_STATE_DIR)=" "$daemon_env_file" 2>/dev/null > "${daemon_env_file}.new" || true
+    mv "${daemon_env_file}.new" "$daemon_env_file"
+    {
+        printf 'OPENCLAW_BROWSER_TIMEOUT_MS=90000\n'
+        printf 'OPENCLAW_DISABLE_BONJOUR=true\n'
+        printf 'OPENCLAW_STATE_DIR=%s\n' "$OPENCLAW_HOME"
+    } >> "$daemon_env_file"
+    chmod 600 "$daemon_env_file"
+    ensure_env_path "$daemon_env_file" "$node_bin_dir" "$oc_bin_dir"
+    ui_success "daemon.env written (gateway service 用，3 固定值 + PATH + OPENCLAW_STATE_DIR)"
+
+    # 把 .env 业务变量加载进当前 install shell，让后续 daemon install / gateway restart / channels login
+    # 校验 config 时能解析到 AWK_API_KEY / XIAOBEI_HOME（CLI 裸跑本会 . .env，install shell 也得有）
+    load_env_vars_for_cli "$dot_env"
+
+    # ─── daemon install（平台分支）─────────────────────────
+    if [ "$(uname -s)" = "Linux" ]; then
         # systemd drop-in 引用 daemon.env（必须在 daemon install 之前）
         if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
             local svc="openclaw-gateway"
@@ -1764,8 +1756,6 @@ install_gateway_and_env() {
             printf '[Service]\nEnvironmentFile=-%s\n' "$systemd_env" > "${dropin_dir}/10-env-file.conf"
             ui_success "systemd drop-in created (will reload after daemon install)"
         fi
-        # 把 AWK_API_KEY / XIAOBEI_HOME 加载进 install shell，让 daemon install 校验 config 不误报
-        load_env_vars_for_cli "$systemd_env"
         ui_info "Installing gateway daemon service"
         "$claw_cmd" daemon uninstall 2>/dev/null || true
         "$claw_cmd" daemon install || { ui_warn "daemon install failed; run later: $claw_cmd daemon install"; return 0; }
@@ -1779,20 +1769,8 @@ install_gateway_and_env() {
         ui_info "Installing gateway daemon service"
         "$claw_cmd" daemon uninstall 2>/dev/null || true
         "$claw_cmd" daemon install || { ui_warn "daemon install failed; run later: $claw_cmd daemon install"; return 0; }
-        if [ -f "$macos_env" ]; then
-            write_missing_env "$macos_env" export
-            ensure_env_path "$macos_env" "$node_bin_dir" "$oc_bin_dir"
-            ensure_env_xiaobei_home "$macos_env" export
-            ensure_env_state_dir "$macos_env" export
-            chmod 600 "$macos_env"
-            # 加载进 install shell，让后续 gateway restart / channels login 校验 config 不误报
-            load_env_vars_for_cli "$macos_env"
-            "$claw_cmd" gateway restart 2>/dev/null || true
-            ui_success "Restarted gateway with macos env"
-        else
-            ui_warn "macOS gateway env file not found at $macos_env"
-            ui_info "Ensure gateway installed: $claw_cmd daemon install; then edit $macos_env"
-        fi
+        "$claw_cmd" gateway restart 2>/dev/null || true
+        ui_success "Restarted gateway with macos env"
     else
         ui_warn "Unsupported platform for daemon install; run manually: $claw_cmd daemon install"
     fi

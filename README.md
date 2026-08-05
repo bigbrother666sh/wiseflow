@@ -37,7 +37,7 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 - 产品重大重构,更简洁、更易上手、更精炼！
 - **重新认识你的 main agent——小贝**：这一版的小贝不再是单一职能的运营助手，而是把此前分散的几个 agent 融合成了一个——
   - **三角色一体**：新媒体运营（self-media-operator）+ 商务拓展（BD, business-developer）+ 投资人关系（IR, investor-relations）合体，外加 sales-cs 生命周期管理。一个微信入口，从内容产出、找客户、到融资材料全包。
-  - **新媒体运营面**：多平台发布（公众号/小红书/视频号/抖音/微博/知乎/Twitter/YouTube）、`viral-chaser` 追爆仿写、`content-calibrator` 盲打分+预测、`published-track` 数据复盘、`video-product` 短视频全流程……
+  - **新媒体运营面**：多平台发布（公众号/小红书/视频号/抖音/微博/知乎/Twitter/YouTube）、`viral-chaser` 追爆仿写、`content-calibrator` 盲打分+预测、`published-track` 数据复盘、`video-edit` 素材剪辑/拼接、`talking-head-cut` 口播轻剪辑……
   - **商务拓展面**：`lead-hunting` 潜客探索、`comment-engagement` 评论区拓展、`intel-gathering` 情报采集，配 `bd-record`/`info-record` 数据层。
   - **投资人关系面**：`business-model-polish` 商业模式打磨、`project-application` 项目申报（含软著 `swcr-register`）、`investor-pipeline` 投资人发掘与跟进，配 `ir-record` 数据层。
   - **本轮新增起号知识库**：内置 `channels-account-launch-expert`，覆盖抖音、Twitter/X、微信视频号、微信公众号、小红书 5 个平台从 0 起号的运营思路与账号对标技能——没账号、思路乱，先问小贝。
@@ -72,26 +72,28 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 **macOS / Linux（bash，一行命令）：**
 
 ```bash
-# macOS / Linux（默认走 GitHub release，国内用户加 --atomgit 切国内镜像）
+# GitHub 线路（适合能正常访问 GitHub 的网络环境）
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/install.sh)"
-# 国内镜像（atomgit → GitCode CDN，全程国内直连，脚本也从 atomgit 拉取）
-bash -c "$(curl -fsSL 'https://api.atomgit.com/api/v5/repos/wiseflow/xiaobei/raw/scripts/install.sh?ref=master')" -s -- --atomgit
+# 国内 atomgit 线路（tarball 走 atomgit.com → GitCode CDN，全程国内直连，脚本也从 raw.atomgit.com 拉取）
+bash -c "$(curl -fsSL https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.sh)"
 ```
 
 **Windows（PowerShell）：**
 
 ```powershell
-# Windows（PowerShell，需 Git Bash 或 WSL）
+# GitHub 线路（适合能正常访问 GitHub 的网络环境）
 irm https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/install.ps1 | iex
-# 国内镜像（脚本和 tarball 全程走 atomgit，不经 GitHub；iex 不支持传参，需用 scriptblock 形式）
-& ([scriptblock]::Create((irm "https://api.atomgit.com/api/v5/repos/wiseflow/xiaobei/raw/scripts/install.ps1?ref=master"))) -Atomgit
+# 国内 atomgit 线路（tarball 走 atomgit.com → GitCode CDN，全程国内直连，脚本也从 raw.atomgit.com 拉取）
+irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.ps1 | iex
 ```
 
-> install.sh / install.ps1 默认走 GitHub release 取最新 tag + 下载 tarball。指定版本：`export XIAOBEI_TAG=v5.6.0`（PowerShell：`$env:XIAOBEI_TAG="v5.6.0"`）。自定义镜像：`--mirror <url>` 或 `XIAOBEI_MIRROR=<url>`（自定义镜像请配 `XIAOBEI_TAG` 指定版本）。
+> 按网络环境选一条命令即可：能正常访问 GitHub 走 GitHub 线路（脚本 `install.sh` / `install.ps1`）；国内网络走 atomgit 线路（脚本 `install-atomgit.sh` / `install-atomgit.ps1`，全程不经 GitHub）。两条线路安装产物完全一致，只是下载源不同。
 
-> 💡 **下载中断 / 安装失败？多试几次就好。** tarball 体积较大（~140MB），首装还要下 Firefox 反指纹浏览器（~557MB），网络偶发中断属正常。脚本幂等，重跑会续上已下的部分；实在卡可换 `XIAOBEI_MIRROR=<url>` 换镜像。**国内用户**：可加 `--atomgit` 全程atomgit 国内路线
+> install 脚本默认拉最新 release tag + 下载 tarball。指定版本：`export XIAOBEI_TAG=v5.6.0`（PowerShell：`$env:XIAOBEI_TAG="v5.6.0"`）。
 
-> ⚠️ **Windows 必须装 bash**（Git Bash 或 WSL）。install.ps1 用 `tar`（Win10 1803+ 自带）解压 tarball，但 `setup-crew.sh` 是 bash 脚本，部署 crew workspace 离不开 bash。无 bash 时脚本会跳过 crew 模板部署并提示手动补跑——此时小贝团队起不来。装 Git Bash：https://git-scm.com （安装时勾选 "Add to PATH"）。
+> 💡 **下载中断 / 安装失败？多试几次就好。** tarball 体积较大（~140MB），首装还要下 Firefox 反指纹浏览器（~557MB），网络偶发中断属正常。脚本幂等，重跑会续上已下的部分。
+
+> ⚠️ **Windows 必须装 bash**（Git Bash 或 WSL）。install.ps1 / install-atomgit.ps1 用 `tar`（Win10 1803+ 自带）解压 tarball，但 `setup-crew.sh` 是 bash 脚本，部署 crew workspace 离不开 bash。无 bash 时脚本会跳过 crew 模板部署并提示手动补跑——此时小贝团队起不来。装 Git Bash：https://git-scm.com （安装时勾选 "Add to PATH"）。
 
 > 完整步骤：先装 Git Bash（安装时勾选 "Add to PATH"，让 bash 进 PowerShell 的 PATH）→ 再在 PowerShell 跑上面那条 `irm | iex`。
 
@@ -152,10 +154,14 @@ rm -rf ~/.openclaw/openclaw-weixin/
 **已装用户重跑 install 脚本即升级**：脚本检测到 `~/.openclaw/openclaw.json` 已存在时自动走更新路线——只刷新程序目录 `~/xiaobei/`（拉新 tarball + `pnpm install --prod` 重建依赖 + 幂等刷 camoufox/weixin/awada）+ restart gateway，**不碰运行数据**（openclaw.json / workspace / daemon.env 已有 key 全保留）。要强覆盖运行数据加 `--force`（会备份旧 openclaw.json）。
 
 ```bash
-# macOS / Linux
+# macOS / Linux（GitHub 线路）
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/install.sh)"
-# Windows (PowerShell)
+# macOS / Linux（atomgit 线路，国内）
+bash -c "$(curl -fsSL https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.sh)"
+# Windows (PowerShell，GitHub 线路)
 irm https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/install.ps1 | iex
+# Windows (PowerShell，atomgit 线路，国内)
+irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.ps1 | iex
 ```
 
 > 已手动 `git clone` 仓做开发的用户仍可用 `scripts/update.sh` 走 fetch + rebuild 路线（不重装依赖、不卸 daemon）。普通用户用上面的 install 脚本即可。
@@ -186,14 +192,14 @@ irm https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/instal
 
 > **🎬 视频生成模型配置**
 >
-> 短视频制作（`video-product`）需额外开通视频生成模型，并把对应 key 配置到 `daemon.env`（任选其一，百炼优先）：
+> AI 视频生成（`aigc-video-gen`，短视频制作与素材补充都会用到）需额外开通视频生成模型，并把对应 key 配置到 `daemon.env`（任选其一，百炼优先）：
 >
 > | 平台 | 环境变量 | 模型 |
 > |------|---------|------|
 > | 阿里云百炼（优先） | `MODELSTUDIO_API_KEY`（或 `DASHSCOPE_API_KEY`） | `happyhorse-1.1-i2v` / `happyhorse-1.1-t2v` / `happyhorse-1.1-r2v` |
 > | 火山引擎方舟 | `AWK_GEN_KEY` | `doubao-seedance-2-0-fast-260128` / `doubao-seedance-2-0-260128` / `doubao-seedance-2-0-mini-260615` |
 >
-> 两个 key 都配了走百炼，只配 `AWK_GEN_KEY` 走火山，都没配则 `video-product` 自动降级为 pexels/pixabay 免费素材模式（也得注册才能获得key，只不过是免费）。注意 `AWK_GEN_KEY` 与主力模型的 `AWK_API_KEY` 是一个 key，但必须在环境变量中以不同变量名称赋值，火山视频生成只认 `AWK_GEN_KEY`。申请成功后可以让小贝喊系统内置的IT Engineer帮你完成配置。
+> 两个 key 都配了走百炼，只配 `AWK_GEN_KEY` 走火山，都没配则自动降级为 pexels/pixabay 免费素材模式（也得注册才能获得key，只不过是免费）。注意 `AWK_GEN_KEY` 与主力模型的 `AWK_API_KEY` 是一个 key，但必须在环境变量中以不同变量名称赋值，火山视频生成只认 `AWK_GEN_KEY`。申请成功后可以让小贝喊系统内置的IT Engineer帮你完成配置。
 
 > **🧠 进阶：记忆增强与 dream（可选）**
 >
@@ -316,8 +322,10 @@ wiseflow/
 │   └── openclaw-aihubmix.json  # AiHubMix 海外模型备选模板
 ├── scripts/               # 工具脚本（详见 scripts/README.md）
 │   ├── lib/               # 脚本共享工具（agent-skills.sh 等）
-│   ├── install.sh         # 一键安装 + 升级（预构建 tarball 路线，macOS + Linux；重跑即升级，保留 ~/.openclaw）
-│   ├── install.ps1        # 一键安装 + 升级（Windows，tarball 路线；需 Git Bash/WSL）
+│   ├── install.sh         # 一键安装 + 升级（预构建 tarball 路线，macOS + Linux，GitHub 线路；重跑即升级，保留 ~/.openclaw）
+│   ├── install-atomgit.sh # 一键安装 + 升级（macOS + Linux，atomgit 国内线路；全程不经 GitHub）
+│   ├── install.ps1        # 一键安装 + 升级（Windows，tarball 路线，GitHub 线路；需 Git Bash/WSL）
+│   ├── install-atomgit.ps1 # 一键安装 + 升级（Windows，atomgit 国内线路；需 Git Bash/WSL，全程不经 GitHub）
 │   ├── update.sh          # 已 git clone 开发用户的升级路线（fetch + rebuild，不重装依赖）
 │   ├── dev.sh             # 开发模式启动（前台运行 gateway）
 │   ├── setup-crew.sh      # 多 crew 系统安装（同步 markdown + 注入规范，幂等）
@@ -350,8 +358,12 @@ wiseflow/
 - 文颜(Markdown文章排版美化工具，支持微信公众号、今日头条、知乎等平台。) https://github.com/caol64/wenyan
 - Everything Claude Code（Claude Code 全局 skill / rule / agent 集合，wiseflow 的 complex-task 等编排 skill 借鉴了其 blueprint 和 gan-style-harness 的设计思路） https://github.com/affaan-m/everything-claude-code
 - awesome-design-md（A curated collection of design systems in markdown format — Designer 内置设计系统库参考了此项目的设计系统结构） https://github.com/VoltAgent/awesome-design-md
-- videocut-skills（视频去口误/精剪技能集 — `de-mouth` 技能原汁原味借鉴其口误检测与剪映草稿生成能力） https://github.com/Ceeon/videocut-skills
 - cheat-on-content（自媒体打分算法借鉴） https://github.com/XBuilderLAB/cheat-on-content
+- AutoClip（AI 视频智能切片系统 — `talking-head-cut` 技能的高光剪辑算法与工作流借鉴自此；`video-producer` 的 Stage 13b motion-audit 镜头抽帧打分思路亦借鉴其高光判定） https://github.com/zhouxiaoka/autoclip
+- HyperFrames（HeyGen 开源的 AI 视频生成编排框架 — `video-producer` 的脚本→分镜→渲染链式工作流与两道闸门审批节奏借鉴自此） https://github.com/heygen-com/hyperframes
+- html-video（nexu-io 的 HTML 视频渲染方案 — `video-producer` 的 Stage 10 静帧→成片渲染思路与素材组装约定参考自此） https://github.com/nexu-io/html-video
+- ViMax（HKUDS 的视频生成框架 — `video-producer` 的机位一致性约束与素材 slot 规划借鉴其镜头规划策略） https://github.com/HKUDS/ViMax
+- OpenMontage（calesthio 的开源蒙太奇剪辑方案 — `video-producer` 的 Stage 12 拼接成片+转场工作流借鉴其片段组装与节奏控制思路） https://github.com/calesthio/OpenMontage
 - agent-skills-launch-pack_（起号方法论知识来源） https://github.com/chenjin-cmd/agent-skills-launch-pack_
 
 ## Citation

@@ -12,7 +12,7 @@
 
 | 工作条块 | 定位 | 入口 |
 |----------|------|------|
-| **新媒体运营** | 内容产出、多平台发布、数据复盘 | 各发布技能、`published-track`、`content-calibrator`、`video-product` 等 |
+| **新媒体运营** | 内容产出、多平台发布、数据复盘 | 各发布技能、`published-track`、`content-calibrator`、`video-edit` 等 |
 | **商务拓展（BD, Business Developer）** | 找客户、评论区拓展、商业情报采集  | `lead-hunting` / `comment-engagement` / `intel-gathering` + `bd-record` / `info-record` |
 | **投资人关系（IR, Investor Relations）** | 商业模式打磨、项目申报、投资人发掘与跟进 | `business-model-polish` / `project-application` / `investor-pipeline` + `ir-record` 等 |
 | **crew 管理** | 启用/停用/调整其他 crew（content-producer / sales-cs） | 注：it-engineer 是全局支撑crew，其生命周期不受你管理，你仅可spawn它作为subagent协助你处理技术问题以及系统排障等。具体见下文「crew 管理」段 |
@@ -92,7 +92,7 @@ output_articles/
 1. **问是否打分**。
   - 用户说**要打分** → 对 `article.md` 执行**打分+盲预测**：主 agent `sessions_spawn` blind sub-agent（只喂 `article.md` + `calibration/rubric_notes.md`，一次输出 7 维分 + 盲预测草稿）→ 使用 `score-only.sh` 校验 + 判阈值门 → 使用 `commit-prediction.sh` 把 score+预测落盘到 `<article-english-title>/calibration/`（`score.json` + `prediction.md`，同 work 重打覆盖）。平台未启用 calibration → 跳过打分并告知用户。
 
-     ⚠️ **spawn blind sub-agent 时，prompt 里必须强制要求**：「你最后一步的 reply 正文里**必须**包含一个 JSON 代码块（装着 7 维分 + 预测）；不要只 tool-call 后 stop，不要只用 thinking 代替最终文本输出。」不照此要求会导致某些模型路由下（如 awk/glm-latest）提前 stop 不输出文本，主 agent 拿不到打分结果。本要求同样适用于`video-product` 等所有 spawn blind sub-agent 做打分的场景。
+     ⚠️ **spawn blind sub-agent 时，prompt 里必须强制要求**：「你最后一步的 reply 正文里**必须**包含一个 JSON 代码块（装着 7 维分 + 预测）；不要只 tool-call 后 stop，不要只用 thinking 代替最终文本输出。」不照此要求会导致某些模型路由下（如 awk/glm-latest）提前 stop 不输出文本，主 agent 拿不到打分结果。本要求同样适用于所有 spawn blind sub-agent 做打分的场景。
      - 每轮打分后，**询问用户是否发布**。
      - 用户有意见，则按用户意见修改之后再次执行打分+预测流程（覆盖上一次落盘），直到用户确认可发布。
      - 用户说**发布** → 调对应发布技能发布 → 用 `record.sh` 记录（`--source-folder output_articles/<article-english-title>`，record.sh 自动从 `<work>/calibration/score.json` 读分；缺 score.json/prediction.md 则报错，提示先补跑 1A）。
@@ -102,19 +102,19 @@ output_articles/
 
 ### 视频生产
 
-**视频制作统一使用 `video-product` 技能**,它包含了素材获取、脚本编写、用户确认、合成组装、封面图制作等全套流程，必须严格遵守。
+你只做**基于已有素材的轻加工**，三类活对应三个技能：
 
-支持按如下四种输入制作视频:
-1. 文章链接(网页URL、本地文件、微信公众号文章)
-2. 追爆分析(使用 `viral-chaser` 技能获取追爆报告,再进入 `video-product` 流程)
-3. 文字主题(用户直接给出主题或写作思路)
-4. 用户已有素材(视频文件、图片参考)
+1. 素材加工与拼接（抽段合并、补片头片尾、加 BGM/旁白/字幕、画面精彩集锦、按需经 AIGC/免费素材库补充素材）→ `video-edit`
+2. 口播/演讲/访谈类视频去口气词、按发言内容剪高光 → `talking-head-cut`
+3. 录制产品操作视频 → `ui-demo`
+
+从零生产完整视频（出脚本、规划分镜、端到端制作）一律委托 content-producer；用户有脚本或需要探讨脚本也直接找 content-producer。`viral-chaser` 产出追爆脚本后，制作同样交 content-producer。
 
 ### 视频发布流程
 
-> 打分+预测脚本与盲打分规范来自 `content-calibrator` 技能，发布记录脚本（`record.sh`）来自 `published-track` 技能，发布则依据各个平台发布技能。视频的打分+预测锚在脚本定稿（`script.md`）阶段，由 `video-product` 技能 Step 2.4 完成，落盘到 `output_videos/<name>/calibration/`。
+> 打分+预测脚本与盲打分规范来自 `content-calibrator` 技能，发布记录脚本（`record.sh`）来自 `published-track` 技能，发布则依据各个平台发布技能。视频若走打分流程，参照"按需写作"一节的打分环节执行，落盘到 `output_videos/<name>/calibration/`；未打分的视频发布后记录时显式 `--no-cal`。
 
-当用户确认视频制作内容后。先参考 `output_videos/<video-name>/scripts.md` 草拟视频发布的题目和简介以及hashtag。视频简介中应提及提及我们的产品或业务，但不要有明显引流信息，更加禁止放二维码、联系方式等，可以引导用户在平台内外进行主动搜索或者点头像看主页详情等。
+当用户确认成片后，先根据成片内容与用户诉求草拟视频发布的题目和简介以及hashtag。视频简介中应提及提及我们的产品或业务，但不要有明显引流信息，更加禁止放二维码、联系方式等，可以引导用户在平台内外进行主动搜索或者点头像看主页详情等。
 
 拟好后分别创建subagent（self-spawn）按用户指定发布的平台调用对应技能进行发布。但是对于使用浏览器自动化进行发布的技能（`twitter-post`, `wechat-channels-publish`，`douyin-publish`)不可并行进行，避免浏览器资源竞态。
 
@@ -128,6 +128,8 @@ output_articles/
 
 - Step 2.4 已落盘 `score.json`+`prediction.md` → record.sh 读分、`cal_enabled=1` + 算 composite。
 - 若 Step 2.4 跳过（无任何已启用视频平台 / 用户不打分）→ calibration 目录不存在 → 显式传 `--no-cal` 记录（`cal_enabled=0`）；不传 `--no-cal` 则因 score.json 缺失报错，提示先补跑 Step 2.4。
+
+> **视频号（`--platform wx_channel`）特例**：视频号作品没有「标题」概念，后台展示与 `wx-channel-engagement` 抓取匹配用的都是**描述文案（desc）**。故 `record.sh --title` 必须传**完整描述文案**（即 `wechat-channels-publish` Step 6 填的描述，含 hashtag，最长约 300 字），**不要传 Step 5 的短标题**。这样 `pub_wx_channel.title` 列存的就是完整 desc，`wx-channel-engagement fetch` 按它匹配后台作品管理页才能成功。
 
 ### 发布记录管理与复盘
 

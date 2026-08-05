@@ -1,10 +1,20 @@
-﻿# install.ps1 - wiseflow 一键首装脚本（Windows，预构建 tarball 路线）
+﻿# install.ps1 - wiseflow 一键首装脚本（Windows，预构建 tarball 路线，GitHub 专线）
 #
-# 用法（PowerShell）：
-#   $env:XIAOBEI_REPO = "TeamWiseFlow/xiaobei"   # 默认即此；国内可指 atomgit 镜像
+# 与 install-atomgit.ps1 区别：本脚本走 GitHub release（tarball + tag API 都不经镜像），适合能正常访问 GitHub 的网络环境。
+#   国内用户请改用 install-atomgit.ps1（atomgit 镜像专线）。
+#   为对 `irm | iex` 友好（小白一条命令跑通），去掉 [CmdletBinding]param() 头，
+#   所有可选参数走环境变量（=1 启用行为开关）：
+#     $env:XIAOBEI_REPO        GitHub 仓（owner/repo，默认 TeamWiseFlow/xiaobei；测试可指 bigbrother666sh/wiseflow）
+#     $env:XIAOBEI_HOME        程序目录覆盖（默认 ~\xiaobei）
+#     $env:XIAOBEI_TAG         指定 release tag（默认拉最新）
+#     $env:XIAOBEI_TARBALL     本地已下好的 tarball 路径，跳过下载
+#     $env:XIAOBEI_FORCE       =1 强覆盖已有运行数据（~\.openclaw）
+#     $env:XIAOBEI_SKIP_BIND   =1 跳过末尾微信扫码绑定
+#     $env:XIAOBEI_SKIP_BROWSER=1 跳过 camoufox-cli 浏览器二进制（冒烟/CI）
+#     $env:XIAOBEI_NO_PROMPT   =1 跳过所有交互提示（CI/自动化）
+#
+# 用法（PowerShell，需 Git Bash 或 WSL）：
 #   irm https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/install.ps1 | iex
-#   # 国内镜像（iex 不支持传参，带 -Atomgit 需用 scriptblock 形式；脚本走 atomgit v5 raw API 拉取）：
-#   & ([scriptblock]::Create((irm "https://api.atomgit.com/api/v5/repos/wiseflow/xiaobei/raw/scripts/install.ps1?ref=master"))) -Atomgit
 #   # 或本地：
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 #
@@ -12,57 +22,40 @@
 #   ANSI 代码页（中文系统 GBK）解析，中文字符串会乱码并产生解析错误，脚本无法运行。
 #
 # 与 install.sh 同构（方案 B 瘦 tarball）：
-#   1. 拉 xiaobei-{tag}-win-x64.tar.gz（Windows bsdtar 原生支持 gzip，免装 zstd）
+#   1. 拉 xiaobei-{tag}-win-x64.tar.gz（GitHub release，Windows bsdtar 原生支持 gzip，免装 zstd）
 #   2. 解压到 $XIAOBEI_HOME（默认 $env:USERPROFILE\xiaobei，程序目录）
 #   3. portable node + pnpm install --prod --frozen-lockfile（在 openclaw\ 下）
 #   4. pip install --user（skills 的 python deps，有 python 才跑）
 #   5. 放 config-templates\openclaw.json → $OPENCLAW_HOME\openclaw.json + 预填微信 binding
 #   6. setup-crew.sh（需 bash：Git Bash 或 WSL；无则警告并跳过，用户后续手动跑）
-#   7. camoufox-cli：npm install -g 本地 fork + camoufox-cli install 下 Firefox
+#   7. camoufox-cli：.cmd shim + camoufox-cli install 下 Firefox
 #   8. openclaw-weixin 插件：openclaw plugins install ... --pin（npmmirror）
 #   9. 交互问 AWK_API_KEY → 写 daemon.env + setx 用户环境变量 → 尝试 openclaw daemon install
 #
 # 目录职责：$XIAOBEI_HOME（~\xiaobei）= 程序；$OPENCLAW_HOME（~\.openclaw）= 运行数据。
 # Windows 原生 wrapper：$XIAOBEI_HOME\bin\openclaw.cmd（WSL/Git Bash 用户也可用 bin\openclaw）。
 
-[CmdletBinding()]
-param(
-    [string]$Root = "",                 # 程序目录覆盖（默认 ~\xiaobei）
-    [string]$Tag = "",                  # 指定 release tag
-    [string]$Tarball = "",              # 本地已下好的 tarball 路径，跳过下载
-    [string]$Mirror = "",               # 自定义镜像站根（覆盖默认 GitHub）
-    [switch]$GitHub,                    # 走 GitHub release（现已默认；保留向后兼容）
-    [switch]$Atomgit,                   # 切到 atomgit 国内镜像（tarball 走 atomgit.com CDN，tag 走 api.atomgit.com v5）
-    [switch]$Force,                     # 强覆盖已有运行数据（~\.openclaw）
-    [switch]$SkipBind,                  # 跳过末尾微信扫码绑定
-    [switch]$SkipBrowser,               # 跳过 camoufox-cli 浏览器二进制（冒烟/CI）
-    [switch]$NoPrompt
-)
-
 $ErrorActionPreference = "Stop"
 
-# ─── 常量 / 目录 ───────────────────────────────────────────────
+# ─── 常量 / 目录（GitHub 专线）───────────────────────────────
+# 可选参数走环境变量（为 `irm | iex` 友好，去掉 [CmdletBinding]param() 头）：
+#   $env:XIAOBEI_REPO        GitHub 仓（owner/repo，默认 TeamWiseFlow/xiaobei；测试可指 bigbrother666sh/wiseflow）
+#   $env:XIAOBEI_HOME        程序目录覆盖（默认 ~\xiaobei）
+#   $env:XIAOBEI_TAG         指定 release tag（默认拉最新）
+#   $env:XIAOBEI_TARBALL     本地已下好的 tarball 路径，跳过下载
+#   $env:XIAOBEI_FORCE       =1 强覆盖已有运行数据（~\.openclaw）
+#   $env:XIAOBEI_SKIP_BIND   =1 跳过末尾微信扫码绑定
+#   $env:XIAOBEI_SKIP_BROWSER=1 跳过 camoufox-cli 浏览器二进制（冒烟/CI）
+#   $env:XIAOBEI_NO_PROMPT   =1 跳过所有交互提示（CI/自动化）
 $Repo = if ($env:XIAOBEI_REPO) { $env:XIAOBEI_REPO } else { "TeamWiseFlow/xiaobei" }
-if (-not $Root) {
-    $Root = if ($env:XIAOBEI_HOME) { $env:XIAOBEI_HOME } else { Join-Path $env:USERPROFILE "xiaobei" }
-}
+$Root = if ($env:XIAOBEI_HOME) { $env:XIAOBEI_HOME } else { Join-Path $env:USERPROFILE "xiaobei" }
 $OpenclawHome = if ($env:OPENCLAW_HOME) { $env:OPENCLAW_HOME } else { Join-Path $env:USERPROFILE ".openclaw" }
-# -Atomgit / XIAOBEI_SOURCE=atomgit 切到 atomgit 国内镜像：
-#   tarball 走 atomgit.com → GitCode CDN（带签名 auth_key，匿名 GET 可下）；
-#   tag 解析走 api.atomgit.com/api/v5（非 Gitea v1，host/版本都不同）。
-$AtomgitMirror = "https://atomgit.com/wiseflow/xiaobei"
-$AtomgitApi = "https://api.atomgit.com/api/v5/repos/wiseflow/xiaobei"
-if (-not $Mirror) {
-    if ($Atomgit -or $env:XIAOBEI_SOURCE -eq "atomgit") {
-        $env:XIAOBEI_MIRROR = if ($env:XIAOBEI_MIRROR) { $env:XIAOBEI_MIRROR } else { $AtomgitMirror }
-    } else {
-        $env:XIAOBEI_MIRROR = ""
-    }
-} else {
-    $env:XIAOBEI_MIRROR = $Mirror
-}
-if ($Tag) { $env:XIAOBEI_TAG = $Tag }
-if ($Tarball) { $env:XIAOBEI_TARBALL = $Tarball }
+
+# 行为开关（环境变量，=1 启用）
+$Force        = ($env:XIAOBEI_FORCE         -eq "1" -or $env:XIAOBEI_FORCE         -eq "true")
+$SkipBind     = ($env:XIAOBEI_SKIP_BIND    -eq "1" -or $env:XIAOBEI_SKIP_BIND    -eq "true")
+$SkipBrowser  = ($env:XIAOBEI_SKIP_BROWSER -eq "1" -or $env:XIAOBEI_SKIP_BROWSER -eq "true")
+$NoPrompt     = ($env:XIAOBEI_NO_PROMPT   -eq "1" -or $env:XIAOBEI_NO_PROMPT   -eq "true")
 
 $NodeExe   = Join-Path $Root "tools\node\node.exe"
 $NpmCmd    = Join-Path $Root "tools\node\npm.cmd"
@@ -95,35 +88,15 @@ function Capture-Streamed([scriptblock]$sb) {
     finally { $ErrorActionPreference = $prev }
 }
 
-# ─── 1. 解析最新 release tag ───────────────────────────────────
+# ─── 1. 解析最新 release tag（GitHub API）──────────────────────
 function Resolve-Tag {
     if ($env:XIAOBEI_TAG) { return $env:XIAOBEI_TAG }
-    # atomgit 官方镜像：走预定义 v5 API（host = api.atomgit.com，非 mirror URL 推导）
-    if ($Atomgit -or $env:XIAOBEI_SOURCE -eq "atomgit") {
-        try {
-            $rel = Invoke-RestMethod "$AtomgitApi/releases/latest" -Headers @{ "User-Agent" = "xiaobei-install" }
-            if ($rel.tag_name) { return $rel.tag_name }
-        } catch { Write-Warn "atomgit v5 API 拉取失败，回退 GitHub API" }
-    }
-    # 自定义 Gitea 镜像：从 mirror URL 推导 /api/v1/repos/<o>/<r>/releases/latest
-    if ($env:XIAOBEI_MIRROR -and -not ($Atomgit -or $env:XIAOBEI_SOURCE -eq "atomgit")) {
-        try {
-            $u = ($env:XIAOBEI_MIRROR.TrimEnd('/') -replace '^https?://', '')
-            $slash = $u.IndexOf('/')
-            if ($slash -gt 0) {
-                $gh = $u.Substring(0, $slash)
-                $rp = $u.Substring($slash + 1)
-                $rel = Invoke-RestMethod "https://$gh/api/v1/repos/$rp/releases/latest" -Headers @{ "User-Agent" = "xiaobei-install" }
-                if ($rel.tag_name) { return $rel.tag_name }
-            }
-        } catch { Write-Warn "镜像 Gitea API 拉取失败，回退 GitHub API" }
-    }
     $api = "https://api.github.com/repos/$Repo/releases/latest"
     $rel = Invoke-RestMethod $api -Headers @{ "User-Agent" = "xiaobei-install" }
     return $rel.tag_name
 }
 
-# ─── 2. 下载 tarball ───────────────────────────────────────────
+# ─── 2. 下载 tarball（GitHub release）──────────────────────────
 function Download-Tarball([string]$tag) {
     $asset = "xiaobei-$tag-win-x64.tar.gz"
     if ($env:XIAOBEI_TARBALL -and (Test-Path $env:XIAOBEI_TARBALL)) {
@@ -131,11 +104,7 @@ function Download-Tarball([string]$tag) {
         return $env:XIAOBEI_TARBALL
     }
     $tmp = New-TemporaryFile
-    if ($env:XIAOBEI_MIRROR) {
-        $url = "$env:XIAOBEI_MIRROR/releases/download/$tag/$asset"
-    } else {
-        $url = "https://github.com/$Repo/releases/download/$tag/$asset"
-    }
+    $url = "https://github.com/$Repo/releases/download/$tag/$asset"
     Write-Host "  下载 $url"
     Invoke-WebRequest -Uri $url -OutFile $tmp -Headers @{ "User-Agent" = "xiaobei-install" }
     return $tmp.FullName
@@ -208,7 +177,7 @@ function Place-Config {
 
     $needPlace = $false; $reason = ""
     if (-not (Test-Path $cfg)) { $needPlace = $true; $reason = "不存在" }
-    elseif ($Force) { $needPlace = $true; $reason = "-Force" }
+    elseif ($Force) { $needPlace = $true; $reason = "XIAOBEI_FORCE=1" }
     else {
         try {
             # 必须显式按 UTF-8 读：openclaw 写的 config 是 UTF-8 无 BOM，PS 5.1 的
@@ -283,7 +252,11 @@ function Run-SetupCrew {
     }
     Write-Host "  bash: $bashExe"
     # bash 不认反斜杠（会被当转义），传正斜杠路径给 setup-crew.sh
-    $env:OPENCLAW_HOME   = ($OpenclawHome -replace '\\', '/')
+    # ⚠️ 用 OPENCLAW_STATE_DIR 而非 OPENCLAW_HOME：引擎 resolveStateDir 把 OPENCLAW_HOME 当 homedir
+    # 再 append /.openclaw（见 openclaw/src/config/paths.ts），若设 OPENCLAW_HOME=~/.openclaw 会产出
+    # ~/.openclaw/.openclaw 嵌套层——后续 weixin/gateway CLI 调用都把 config/npm/openclaw.sqlite 写嵌套层，
+    # 外层正解路径反而空（本机实测真 bug）。OPENCLAW_STATE_DIR 引擎当直接 state dir、不 append。
+    $env:OPENCLAW_STATE_DIR = ($OpenclawHome -replace '\\', '/')
     $env:XIAOBEI_BIN_DIR = ((Join-Path $Root "bin") -replace '\\', '/')
     Invoke-Streamed { & $bashExe ($sh -replace '\\', '/') }
     if ($LASTEXITCODE -ne 0) { Write-Warn "setup-crew.sh 非零退出（可后续手动 --force 修复）" }
@@ -293,7 +266,7 @@ function Run-SetupCrew {
 # ─── 8. camoufox-cli ───────────────────────────────────────────
 function Install-CamoufoxCli {
     if ($SkipBrowser) {
-        Write-Host "  [i]  跳过 camoufox-cli 浏览器二进制（-SkipBrowser）；后续手动：camoufox-cli install" -ForegroundColor Yellow
+        Write-Host "  [i]  跳过 camoufox-cli 浏览器二进制（XIAOBEI_SKIP_BROWSER=1）；后续手动：camoufox-cli install" -ForegroundColor Yellow
         return
     }
     Write-Stage "Installing camoufox-cli browser"
@@ -402,30 +375,78 @@ function Repair-GatewayCmd {
 }
 
 # ─── 11. 交互收 AWK_API_KEY + 起 gateway ──────────────────────
+# env 分工（对齐 install.sh / 上游踩坑经验）：
+#   ~/.openclaw/.env        ← 业务变量（AWK_API_KEY/XIAOBEI_HOME/OPENCLAW_STATE_DIR），openclaw CLI 裸跑用
+#   ~/.openclaw/daemon.env  ← gateway service 用，只放 3 个固定值（OPENCLAW_BROWSER_TIMEOUT_MS/
+#                              OPENCLAW_DISABLE_BONJOUR/PATH）+ OPENCLAW_STATE_DIR
+# 原因：Linux systemd 那套 EnvironmentFile= 加载器对含特殊字符的业务变量（PATH 带分号、
+# AWK_API_KEY 带连字符）有踩坑历史，业务变量挪 .env 让 systemd 只加载稳的固定值。
+# Windows 不走 systemd，gateway.cmd 的 `call daemon.env` 没这个坑，但为风格统一照此分工。
 function Install-GatewayAndEnv {
     Write-Stage "Configuring API key and gateway"
     New-Item -ItemType Directory -Force -Path $OpenclawHome | Out-Null
-    $envFile = Join-Path $OpenclawHome "daemon.env"
+    $dotEnv    = Join-Path $OpenclawHome ".env"
+    $daemonEnv = Join-Path $OpenclawHome "daemon.env"
 
+    # ─── 检测/清掉错误的 OPENCLAW_HOME 用户环境变量 ───────────────
+    # 引擎 resolveStateDir 把 OPENCLAW_HOME 当 homedir 再 append /.openclaw（见
+    # openclaw/src/config/paths.ts），故若 OPENCLAW_HOME 已被设成 ~/.openclaw，会产出
+    # ~/.openclaw/.openclaw 嵌套路径——openclaw.json、daemon.env、lastTouch 全落嵌套层，
+    # 外层正解路径反而空（本机实测过的真 bug）。state dir 应该用 OPENCLAW_STATE_DIR 显式
+    # 覆盖（引擎把它当直接 state dir、不 append），OPENCLAW_HOME 不该在用户环境里设。
+    $badHome = $env:OPENCLAW_HOME
+    if ($badHome -and ($badHome.TrimEnd('\').ToLower() -eq $OpenclawHome.TrimEnd('\').ToLower())) {
+        Write-Warn "检测到 OPENCLAW_HOME=$badHome 已设成 state dir 路径"
+        Write-Warn "  这会让引擎嵌套 append /.openclaw → ~/.openclaw/.openclaw/，config 全落错位置"
+        Write-Warn "  正解：清掉 OPENCLAW_HOME，改用 OPENCLAW_STATE_DIR 显式指定 state dir"
+        try {
+            [Environment]::SetEnvironmentVariable("OPENCLAW_HOME", $null, "User")
+            [Environment]::SetEnvironmentVariable("OPENCLAW_HOME", $null, "Process")
+            Remove-Item Env:OPENCLAW_HOME -ErrorAction SilentlyContinue
+            Write-Ok "已从用户环境变量清掉 OPENCLAW_HOME（新终端生效)"
+        } catch { Write-Warn "清 OPENCLAW_HOME 失败，请手动删：[Environment]::SetEnvironmentVariable('OPENCLAW_HOME', `$null, 'User')" }
+    }
+
+    # ─── 交互收 AWK_API_KEY ───────────────────────────────────
     $awkKey = $env:AWK_API_KEY
     if (-not $NoPrompt -and -not $awkKey) {
         $awkKey = Read-Host "Enter AWK_API_KEY (Volces ARK API key)"
     }
-    # 写 daemon.env（KEY=value 格式，幂等）
-    $lines = @()
-    if (Test-Path $envFile) { $lines = Get-Content $envFile }
-    $lines = $lines | Where-Object { $_ -notmatch "^AWK_API_KEY=" -and $_ -notmatch "^OPENCLAW_BROWSER_TIMEOUT_MS=" -and $_ -notmatch "^OPENCLAW_DISABLE_BONJOUR=" -and $_ -notmatch "^XIAOBEI_HOME=" }
-    if ($awkKey) { $lines += "AWK_API_KEY=$awkKey" }
-    $lines += "OPENCLAW_BROWSER_TIMEOUT_MS=90000"
-    $lines += "OPENCLAW_DISABLE_BONJOUR=true"
-    # XIAOBEI_HOME 让 openclaw.json 里 ${XIAOBEI_HOME}/awada env ref 解析到程序目录
-    $lines += "XIAOBEI_HOME=$Root"
-    # PATH 注入 program bin + node bin
+
+    # ─── 写 .env（业务变量，export 格式给 bash/sh source 用，CLI 裸跑读这个）────
+    # 幂等：先剥同 key 旧行再追加。AWK_API_KEY 是 secret，单引号裹 + '\'' 转义内置单引号。
+    $exportLines = @()
+    if (Test-Path $dotEnv) { $exportLines = Get-Content $dotEnv }
+    $exportLines = $exportLines | Where-Object { $_ -notmatch "^export AWK_API_KEY=" -and $_ -notmatch "^export XIAOBEI_HOME=" -and $_ -notmatch "^export OPENCLAW_STATE_DIR=" }
+    if ($awkKey) {
+        $awkEsc = $awkKey -replace "'", "'\''"
+        $exportLines += "export AWK_API_KEY='$awkEsc'"
+    }
+    $rootEsc = $Root -replace "'", "'\''"
+    $exportLines += "export XIAOBEI_HOME='$rootEsc'"
+    $homeEsc = $OpenclawHome -replace "'", "'\''"
+    $exportLines += "export OPENCLAW_STATE_DIR='$homeEsc'"
+    Set-Content -Path $dotEnv -Value $exportLines -Encoding UTF8
+    Write-Ok ".env written (业务变量，CLI 裸跑用)"
+
+    # ─── 写 daemon.env（gateway service 用，KEY=value 格式给 gateway.cmd call 用）──
+    # 只放 3 个固定值 + OPENCLAW_STATE_DIR（gateway 子进程需要 state dir 消歧嵌套）。
+    $daemonLines = @()
+    if (Test-Path $daemonEnv) { $daemonLines = Get-Content $daemonEnv }
+    $daemonLines = $daemonLines | Where-Object { $_ -notmatch "^OPENCLAW_BROWSER_TIMEOUT_MS=" -and $_ -notmatch "^OPENCLAW_DISABLE_BONJOUR=" -and $_ -notmatch "^PATH=" -and $_ -notmatch "^OPENCLAW_STATE_DIR=" }
+    $daemonLines += "OPENCLAW_BROWSER_TIMEOUT_MS=90000"
+    $daemonLines += "OPENCLAW_DISABLE_BONJOUR=true"
+    $daemonLines += "OPENCLAW_STATE_DIR=$OpenclawHome"
     $pathLine = "PATH=$(Join-Path $Root 'bin');$(Split-Path $NodeExe);$env:PATH"
-    $lines = $lines | Where-Object { $_ -notmatch "^PATH=" }
-    $lines += $pathLine
-    Set-Content -Path $envFile -Value $lines -Encoding UTF8
-    Write-Ok "daemon.env written"
+    $daemonLines += $pathLine
+    Set-Content -Path $daemonEnv -Value $daemonLines -Encoding UTF8
+    Write-Ok "daemon.env written (gateway service 用，3 固定值 + PATH + OPENCLAW_STATE_DIR)"
+
+    # 把 .env 业务变量加载进当前 install shell，让后续 daemon install / gateway restart / channels login
+    # 校验 config 时能解析到 AWK_API_KEY / XIAOBEI_HOME（CLI 裸跑本会 . .env，install shell 也得有）
+    if ($awkKey) { $env:AWK_API_KEY = $awkKey }
+    $env:XIAOBEI_HOME = $Root
+    $env:OPENCLAW_STATE_DIR = $OpenclawHome
 
     # setx 用户环境变量（让新终端 / gateway 子进程继承 AWK_API_KEY）
     if ($awkKey) {
@@ -460,7 +481,7 @@ function Test-WeixinBound {
 
 function Bind-WeixinChannel {
     if ($SkipBind -or $NoPrompt) {
-        Write-Host "  [i]  跳过微信扫码绑定（-SkipBind / -NoPrompt）；后续手动跑：openclaw channels login --channel openclaw-weixin" -ForegroundColor Yellow
+        Write-Host "  [i]  跳过微信扫码绑定（XIAOBEI_SKIP_BIND / XIAOBEI_NO_PROMPT=1）；后续手动跑：openclaw channels login --channel openclaw-weixin" -ForegroundColor Yellow
         return
     }
     if (Test-WeixinBound) { Write-Ok "检测到微信账号已绑定，跳过扫码"; return }
@@ -479,16 +500,16 @@ function Bind-WeixinChannel {
 
 # ─── main ─────────────────────────────────────────────────────
 function Main {
-    Write-Host "wiseflow installer (Windows) — 预构建 tarball 路线" -ForegroundColor Magenta
+    Write-Host "wiseflow installer (Windows, GitHub) — 预构建 tarball 路线" -ForegroundColor Magenta
     Write-Host "  Program dir : $Root"
     Write-Host "  Runtime dir : $OpenclawHome"
-    Write-Host "  Repo        : $Repo"
+    Write-Host "  Repo        : $Repo (GitHub)"
 
     # 检测是否已装（决定走 update 还是 fresh install）
     $cfgExisting = Join-Path $OpenclawHome "openclaw.json"
     $isUpdate = (Test-Path $cfgExisting) -and -not $Force
     if ($isUpdate) {
-        Write-Warn "检测到已有安装（$cfgExisting）→ 走更新路线，保留运行数据（-Force 可强覆盖）"
+        Write-Warn "检测到已有安装（$cfgExisting）→ 走更新路线，保留运行数据（XIAOBEI_FORCE=1 可强覆盖）"
         # 先停 gateway（对齐 install.sh stop_gateway_if_running）：否则 tar 覆盖
         # tools\node\node.exe、pnpm 重写 node_modules 会撞运行中 gateway 的文件锁
         # （"Can't unlink already-existing object: Permission denied"，本机实测）
@@ -499,7 +520,7 @@ function Main {
             Stop-Process -Force -ErrorAction SilentlyContinue
     }
 
-    Write-Stage "Resolving latest release"
+    Write-Stage "Resolving latest release (GitHub API)"
     $tag = Resolve-Tag
     Write-Ok "tag = $tag"
 

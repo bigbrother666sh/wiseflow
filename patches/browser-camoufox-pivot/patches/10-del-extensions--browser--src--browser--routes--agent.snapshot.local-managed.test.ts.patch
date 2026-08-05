@@ -1,9 +1,9 @@
 diff --git a/extensions/browser/src/browser/routes/agent.snapshot.local-managed.test.ts b/extensions/browser/src/browser/routes/agent.snapshot.local-managed.test.ts
 deleted file mode 100644
-index 9bd068972d..0000000000
+index 3f7445bd96..0000000000
 --- a/extensions/browser/src/browser/routes/agent.snapshot.local-managed.test.ts
 +++ /dev/null
-@@ -1,155 +0,0 @@
+@@ -1,158 +0,0 @@
 -// Browser tests cover agent.snapshot.local managed plugin behavior.
 -import { beforeEach, describe, expect, it, vi } from "vitest";
 -import { createBrowserRouteApp, createBrowserRouteResponse } from "./test-helpers.js";
@@ -107,6 +107,7 @@ index 9bd068972d..0000000000
 -  registerBrowserAgentSnapshotRoutes(app, {
 -    state: () => ({
 -      resolved: {
+-        actionTimeoutMs: 60_000,
 -        extraArgs: [],
 -        ssrfPolicy: { dangerouslyAllowPrivateNetwork: false },
 -      },
@@ -136,6 +137,8 @@ index 9bd068972d..0000000000
 -    expect(response.body).toEqual({ error: "browser navigation blocked by policy" });
 -    expect(routeState.profileCtx.ensureTabAvailable).toHaveBeenCalledWith(undefined, {
 -      allowPlaywrightFallback: false,
+-      signal: undefined,
+-      timeoutMs: undefined,
 -    });
 -    expect(navigationGuardMocks.assertBrowserNavigationResultAllowed).toHaveBeenCalledWith({
 -      url: "http://127.0.0.1:8080/admin",

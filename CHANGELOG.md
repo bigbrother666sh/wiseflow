@@ -1,3 +1,31 @@
+# v5.6.1 (2026-07-31)
+
+### content-producer 视频能力四方向重构
+
+- **公共底座换火山**：`skills/siliconflow-tts` → `skills/awk-tts`（火山方舟豆包语音合成 2.0 / seed-tts-2.0 字符版，NDJSON 流式响应 + X-Api-* 鉴权 + speaker 路由 + 火山 ASR 自检复用 viral-chaser 凭据池）
+- **新建 `video-producer`**：端到端主技能，17 个子脚本骨架覆盖 Stage 0–14 全链 + 两道闸门 GATE A/B + 产物文件即 checkpoint 不引状态机；意图路由三档脚本模板中文化为故事讲述型 / 纔画面动效型 / 蒙太奇剪接型（非专业用户一眼能懂）
+- **新建 `design-full`**：整合 design-system-picker + init-workspace + AGENTS.md 工作模式 2，含 14 套设计系统库 + 三条子工作流 A/B/C
+- **`collage-broll` 清洗**：Gate 3 + Phase 3 生成部分改直接调公共 `aigc-video-gen` wrapper 不裸引用其下 scripts/gen.py；删"由 gbro-collage-broll 适配而来"出处日志段 + 原模对比表 + 配置指南段 + 底部"没吸收的 gbro 原膜能力"段；`run_gate3.py` 同步走 wrapper（`shutil.which` 拿 PATH 化路径）
+- **`manim-explainer` 清洗**：Render Conventions + Reusable Starter 两处命令示例改调 `manim-explainer` wrapper，不再裸引用 `scripts/render-manim.sh`
+- **`aigc-video-gen` Flag 肄清**：删 6 个 agent 用不到的 Flag（`--ref-audio` / `--negative-prompt` / `--no-prompt-extend` / `--seed` / `--poll-interval` / `--timeout`），对应 payload 注入逻辑 + poll 函数形参一并收口改内部固定常量；SKILL.md Parameters 段补 3 个有用 Flag（`--prev-segment` / `--no-audio` / `--platform`）；两平台 submit payload 默认均带 `watermark=false`
+- **CP 定义文档同步**：AGENTS.md 重构为四能力方向路由表（185→27 行），SOUL/IDENTITY/MEMORY/BUILTIN_SKILLS 同步，scripts/README.md 与 normalize.py 清出处词，openclaw_setting_sample.json 旧技能字样清
+- **README �借鉴出处段订正**：补 video-producer 借鉴的四个开源项目 HyperFrames / html-video / ViMax / OpenMontage（§5 禁词原则只约束技能内 SKILL.md / 脚本注释，README 是产品门面例外可列）；AutoClip 措辞补 motion-audit �借鉴点
+- **删开发计划文档**：`docs/cp-refactor-dev-plan-2026-07-27.md`（落地完毕）
+- 共 5 个 commit 推送到 origin/master，HEAD 落在 255fd39
+
+### openclaw 上游同步至 v2026.7.1
+
+- 从 v2026.6.11 升级到 v2026.7.1（merge-base 起 3368 commits；7.1 是 2026-07 最新稳定版，7.2 仍 beta）。openclaw release tag 是同级 release 分支（非线性累积），6.11 不是 7.1 的祖先；6.11 release-branch 独有的 28 commit 多为 CI/release/QA 收尾，关键代码修复 `fix(agents): preserve absent embedded session keys` 已经通过主线合入 7.1（`31a65e0647`），未丢失。
+- **6 个 browser-camoufox-pivot per-file patch 按 7.1 上游漂移重新生成**（原 patch `git apply --3way` 冲突，patch 集合不变，仅刷新内容）：
+  - `01` docs/tools/browser.md、`05` extensions/browser/src/browser-tool.ts、`09` extensions/browser/src/browser/profile-capabilities.ts、`11` src/agents/agent-tools.ts（mod patch，按 7.1 新结构 re-port）
+  - `10` / `17`（del patch，目标测试文件在 7.1 内容漂移，按 7.1 当前内容重新生成删除补丁）
+  - 7.1 新增 `local-extension` profile 模式（Chrome 扩展 relay 驱动），`09` re-port **保留该新模式**、仅移除 `local-managed`（camoufox 接管）
+  - `05` re-port 顺带修一个 latent 类型错误：`resolvedTarget` 未排除 `"camoufox"`，传给只接受 `"host"` 的 `resolveBrowserBaseUrl` 报 TS2322（原 patch 因 build 走 tsdown/esbuild 不做类型检查而一直未暴露，tsgo 现捕获）。修法 `target === "node" || target === "camoufox" ? undefined : target`，运行时等价（camoufox 必先早返回）
+- 保留 patch 002 / 007 + 其余 29 个 pivot per-file patch（均 `git apply --3way` 通过）
+- **验证**：全量 37 patch 顺序 apply 0 失败；tsgo 类型检查 `browser-tool.ts` / `profile-capabilities.ts` / `agent-tools.ts` / `camoufox-cli.adapter.ts` 均通过（无关报错均来自 6.11 node_modules 与 7.1 源码错配，非本仓改动）
+- **openclaw-weixin 无新发行版**：`@tencent-weixin/openclaw-weixin` 2.4.6 / `openclaw-weixin-cli` 2.1.4 / `@wecom/wecom-openclaw-cli` 1.1.0 均已是 npm 最新，`openclaw-weixin.version.json` 不变
+- `overrides.sh` 已与版本无关（浏览器转向后去掉 patchright 注入，仅注入 `OPENCLAW_DISABLE_WEB_SEARCH`），7.1 `package.json` 无 `pnpm.overrides`，兼容
+
 # v5.6.0 (2026-07-12)
 
 ### 浏览器栈整体替换（双线栈，spec `docs/browser-stack-replacement-spec-2026-07.md`）

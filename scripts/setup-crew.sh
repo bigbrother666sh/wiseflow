@@ -287,7 +287,7 @@ for agent_dir in "$CREWS_DIR"/*/; do
     inject_file_edit_guide "$dest/TOOLS.md"
     inject_exec_guide "$dest/TOOLS.md" "$dest"
     inject_agents_md_sections "$dest/AGENTS.md"
-    inject_feishu_media_guide "$dest/USER.md"
+    inject_media_send_guide "$dest/USER.md"
     continue
   fi
 
@@ -299,10 +299,23 @@ for agent_dir in "$CREWS_DIR"/*/; do
   inject_file_edit_guide "$dest/TOOLS.md"
   inject_exec_guide "$dest/TOOLS.md" "$dest"
   inject_agents_md_sections "$dest/AGENTS.md"
-  inject_feishu_media_guide "$dest/USER.md"
+  inject_media_send_guide "$dest/USER.md"
 done
 
-# 注：原 §2/§3（shared 协议 / crew_templates / hrbp_templates 模板库同步）已移除。
+# ─── 1.5 业务知识软链：非 main crew 共享 main 的 business_knowledge（目录+md）──
+# sales-cs / content-producer 等需要业务上下文的 crew 通过软链读 main 的业务知识。
+# 原 sales-cs 走 sales-cs-enablement 技能手动建；此处统一幂等建好，新 crew 自动获得。
+MAIN_WS="$OPENCLAW_HOME/workspace-main"
+if [ -e "$MAIN_WS/business_knowledge" ]; then
+  for ws in "$OPENCLAW_HOME"/workspace-*/; do
+    [ -d "$ws" ] || continue
+    [ "$(basename "$ws")" = "workspace-main" ] && continue
+    ln -sfn "$MAIN_WS/business_knowledge" "$ws/business_knowledge" 2>/dev/null
+    if [ -e "$MAIN_WS/business_knowledge.md" ]; then
+      ln -sfn "$MAIN_WS/business_knowledge.md" "$ws/business_knowledge.md" 2>/dev/null
+    fi
+  done
+fi
 # D8 扁平化 + 去 hrbp 化后 crews/shared/ 不存在、无 agent 消费 crew_templates/，
 # 对外 crew 的 channel reply rules 注入改在 §4 对 workspace 直接做（见 inject_channel_reply_rules 调用）。
 
@@ -547,7 +560,11 @@ if [ -f "$CONFIG_PATH" ]; then
     else
       while IFS= read -r line; do
         [[ "$line" =~ ^\+ ]] || continue
-        grep -qxF "$line" "$workspace_ac" || echo "$line" >> "$workspace_ac"
+        # 幂等检查：用 bash 内置逐行比，不调 grep（MSYS2 grep 对含全角括号的中文路径
+        # workspace 文件 open() 时字节解错码，会卡死扫不进——setup-crew 实测卡 30min+ 元凶）
+        _found=0
+        while IFS= read -r _existing; do [[ "$_existing" == "$line" ]] && _found=1 && break; done < "$workspace_ac"
+        [[ "$_found" == "1" ]] || echo "$line" >> "$workspace_ac"
       done < "$template_ac"
     fi
   done < <(list_agent_workspaces)
@@ -591,10 +608,17 @@ if [ -f "$CONFIG_PATH" ]; then
       [ -n "$entry" ] || continue
       # 幂等追加：已有 +entry 则跳过；若有同名 -entry 否决条目也跳过
       entry_cmd="${entry#+}"
-      if grep -qxF "$entry" "$local_ac" 2>/dev/null; then
+      # 用 bash 内置逐行比，不调 grep（MSYS2 grep 对含全角括号的中文 workspace 路径 open()
+      # 字节解错码卡死——setup-crew 实测卡 30min+ 元凶；bash 自己的 read 不经 MSYS2 grep）
+      _has_pos=0 _has_neg=0
+      while IFS= read -r _existing; do
+        [[ "$_existing" == "$entry" ]] && _has_pos=1
+        [[ "$_existing" == "-${entry_cmd}" ]] && _has_neg=1
+      done < "$local_ac"
+      if [[ "$_has_pos" == "1" ]]; then
         continue
       fi
-      if grep -qxF "-${entry_cmd}" "$local_ac" 2>/dev/null; then
+      if [[ "$_has_neg" == "1" ]]; then
         continue
       fi
       printf '%s\n' "$entry" >> "$local_ac"
@@ -627,7 +651,7 @@ if [ -f "$CONFIG_PATH" ]; then
     [ -n "$a_id" ] || continue
     [ -f "$a_ws/AGENTS.md" ] || continue
     inject_agents_md_sections "$a_ws/AGENTS.md"
-    inject_feishu_media_guide "$a_ws/USER.md"
+    inject_media_send_guide "$a_ws/USER.md"
     inject_file_edit_guide "$a_ws/TOOLS.md"
     inject_exec_guide "$a_ws/TOOLS.md" "$a_ws"
   done < <(list_agent_workspaces)

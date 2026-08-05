@@ -49,6 +49,8 @@ metadata:
 
 每张表共享通用字段：`id`（自增主键）、`title`、`content_type`（article/video/post）、`source_folder`（原始文件夹，如 `output_articles/xxx`，**不做唯一约束，同内容可同平台多次发布**）、`publish_url`、`publish_date`（YYYY-MM-DD）、`distribute_status`（0=待分发，1=无需分发，2=已分发）、`notes`、`created_at`、`updated_at`。各平台特有互动指标默认 0，另有 `top_comment`（主要留言摘要）。
 
+> **视频号（`pub_wx_channel`）特例**：视频号作品没有「标题」概念，只有描述文案——`title` 列存的是**完整描述文案**（含 hashtag，最长约 300 字），即 `wechat-channels-publish` Step 6 填的描述。`wx-channel-engagement` 抓取按它匹配后台作品管理页。调用方调 `record.sh --platform wx_channel --title` 必须传完整描述，不要传短标题。
+
 ### content-calibrator 打分字段
 
 | 字段 | 说明 |
@@ -58,6 +60,8 @@ metadata:
 | `cal_composite` | 综合分（0-10） |
 | `cal_rubric_version` | 打分时 rubric 版本 |
 | `cal_scored_at` | 打分时间 |
+| `cal_bias_signals` | bump 检测偏差信号（JSON 数组，由 `detect-bump-signals.sh` 写入；NULL=未算/bump 后已清） |
+| `cal_bump_evaluated` | 是否已被 bump 检测处理过（0/1，防止重复计入） |
 
 > 打分/预测按作品归集（per-work）：同一作品发到多个平台，各平台记录的 `cal_*` 分数值相同（取自 `<work>/calibration/score.json`）。rubric 全平台统一。
 
@@ -67,7 +71,7 @@ metadata:
 
 ## 块一·与发布技能结合
 
-本块描述发布记录脚本的用法与编排意图。**实际编排由 `AGENTS.md`（"按需写作 / 发布记录管理与复盘"）与执行流类技能（`gaoqian-article`、`video-product`）承担**；各发布技能本身只管发布，不提及打分与记录。流程顺序为 **打分+预测(1A) → 发布 → 记录(1B)**。
+本块描述发布记录脚本的用法与编排意图。**实际编排由 `AGENTS.md`（"按需写作 / 发布记录管理与复盘"）与执行流类技能（`gaoqian-article` 等）承担**；各发布技能本身只管发布，不提及打分与记录。流程顺序为 **打分+预测(1A) → 发布 → 记录(1B)**。
 
 ### 流程 1A·打分+盲预测（发布前自检）
 
@@ -134,12 +138,12 @@ metadata:
 |------|---------|
 | 脚本获取成功 | `{"ok":true,"method":"script","platform":"bilibili","content_id":"BVxxx","metrics_params":"..."}` |
 | Cookie 失效 | `{"ok":false,"error":"SESSION_EXPIRED","platform":"xhs","method":"script","hint":"..."}` |
-| 需浏览器获取 | `{"ok":false,"method":"browser","platform":"twitter","hint":"使用 twitter-interact 技能..."}` |
-| 需手动提供 | `{"ok":false,"method":"manual","platform":"wx_channel","hint":"该平台互动数据无法自动获取..."}` |
+| 需浏览器获取 | `{"ok":false,"method":"browser","platform":"wx_channel","hint":"使用 wx-channel-engagement 技能..."}` |
+| 需手动提供 | `{"ok":false,"method":"manual","platform":"twitter","hint":"该平台互动数据无法自动获取..."}` |
 
 Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSION_EXPIRED。
 
-- **脚本支持**：xhs、bilibili、douyin、kuaishou（走 `fetch-retro-data.ts` 纯 HTTP + cookie + UA）；wx_mp（走同目录下的 `wx-mp-engagement` skill
+- **脚本支持**：xhs、bilibili、douyin、kuaishou（走 `fetch-retro-data.ts` 纯 HTTP + cookie + UA）；wx_mp（走同目录下的 `wx-mp-engagement` skill, wx_channel（走同目录下的 `wx-channel-engagement` skill）。其他平台暂不支持自动抓取互动数据。
 - **xhs 取数路线**：走 `get_note_by_id_from_html`——GET 笔记详情页 HTML 解析 `window.__INITIAL_STATE__` 拿互动计数，**不走** `/api/sns/web/v1/feed`（feed 需 xsec_token 且极易触发滑块/500）。仅需 cookie + 浏览器头，无需 relay 签名、无需 camoufox。
 - **xsec_token 获取**：feed/HTML 路线均强制要 xsec_token，而 `publish_url` 不带、发布响应也不返，唯一来源是 profile 页 note 列表。`fetch-retro-data.ts` 在未传 `--xsec-token` 时，**纯 HTTP** GET 自己 profile 页（`/user/profile/{user_id}`，user_id 取 `xhs-user-id.cache`）解析 `user.notes` 建 note_id→xsec_token 映射（仅近期 ~20 条可见），查到目标 note 的 token 后再 GET 笔记详情页。`fetch-and-update-metrics.sh` 也会从 `publish_url` query 抽 xsec_token 透传（未来发布侧落 token 时直接生效）。笔记不在 profile 首页范围 → `NOTE_NOT_IN_PROFILE`。
 - **xhs headers**：按 UA 家族区分 sec-ch-ua（camoufox=Firefox 不发 brand 列表，Chrome 发完整 sec-ch-ua），避免指纹破绽；sec-fetch 用 document/navigate（真实页面导航）。评论内容（`top_comment`）暂不抓（comment API 同样依赖 xsec_token，待发布侧落 token 后再补）。
@@ -211,6 +215,15 @@ Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSI
 ./skills/published-track/scripts/check-published.sh \
   --platform zhihu --source-folder "output_articles/xxx"              # 是否已发布
 ```
+
+### 流程 3D·查询待复盘作品（凌晨 heartbeat Step 3 用）
+
+```bash
+# 一键扫描待复盘作品 + 带出互动数据（有 prediction.md 无 retro.md + 过 T+Nd 窗口）
+./skills/published-track/scripts/query-retro-pending.sh --days 3
+```
+
+返回 JSON：`{total, pending: [{source_folder, title, prediction_path, publish_date, cal_scores, platforms: {<platform>: {id, metrics}}}]}`。Agent 拿到后直接对比预测 vs 实际写 retro.md，无需再查 DB 或 ls 目录。
 
 ---
 

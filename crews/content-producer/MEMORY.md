@@ -1,13 +1,10 @@
 # content-producer — Memory
 
-## 用户偏好与设置
+## 产品/服务
 
-（首次使用后由 content-producer 在此记录用户的偏好设置）
+见 workspace 下的 `business_knowledge.md`
 
-- 默认语言：（待记录）
-- 默认视频风格：（待记录）
-- 默认时长目标：（待记录）
-- 常用发布平台：（待记录）
+> Workspace下`business_knowledge.md`为软链接，注意使用 `find` 命令查询时要加 `-L`
 
 ## 已制作视频记录
 

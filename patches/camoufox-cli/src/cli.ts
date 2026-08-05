@@ -133,16 +133,40 @@ function recoverOrphanBrowser(persistent: string): { recovered: boolean; reason?
     ppid = parseInt(stat.split(" ")[3], 10);
   } catch { /* /proc 不可读（非 Linux）→ 只杀 bin 自己 */ }
   const killTargets = ppid > 1 ? [ppid, binPid] : [binPid];
+  // SIGTERM first (graceful): Firefox catches it, flushes GPU fences/WebRender
+  // state, exits cleanly. Direct SIGKILL on a WebRender-active Firefox dangles
+  // amdgpu fences and can hard-lock the box (2026-08-01 Vega iGPU freeze, mem 48).
+  for (const pid of killTargets) {
+    try { process.kill(-pid, "SIGTERM"); } catch { try { process.kill(pid, "SIGTERM"); } catch {} }
+  }
+  // Wait up to 3s for Firefox + content procs to follow the graceful exit.
+  for (let i = 0; i < 30; i++) {
+    try { process.kill(binPid, 0); } catch { break; }
+    const start = Date.now(); while (Date.now() - start < 100) { /* sync spin */ }
+  }
+  // Still alive after 3s — SIGKILL the whole group as last resort.
   for (const pid of killTargets) {
     try { process.kill(-pid, "SIGKILL"); } catch { try { process.kill(pid, "SIGKILL"); } catch {} }
   }
-  // SIGKILL 不可拦，但 Firefox content procs 需一点时间跟随退出。最多等 ~2s。
   for (let i = 0; i < 20; i++) {
     try { process.kill(binPid, 0); } catch { break; }
     const start = Date.now(); while (Date.now() - start < 100) { /* sync spin */ }
   }
   for (const p of [lockPath, parentLockPath]) { try { fs.unlinkSync(p); } catch {} }
   return { recovered: true };
+}
+
+/** SIGTERM the process group (graceful — Firefox catches SIGTERM, flushes GPU
+ * fences/WebRender state, exits cleanly), wait ~3s, then SIGKILL if still
+ * alive. Direct SIGKILL on a WebRender-active Firefox dangles amdgpu fences
+ * and can hard-lock the box (2026-08-01 Vega iGPU freeze, memory 48). */
+async function termThenKill(pid: number): Promise<void> {
+  try { process.kill(-pid, "SIGTERM"); } catch { try { process.kill(pid, "SIGTERM"); } catch {} }
+  for (let i = 0; i < 30; i++) {
+    try { process.kill(pid, 0); } catch { return; }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  try { process.kill(-pid, "SIGKILL"); } catch { try { process.kill(pid, "SIGKILL"); } catch {} }
 }
 
 /** Tear down a live daemon so a fresh one can take its socket — used when the
@@ -167,12 +191,13 @@ async function killDaemon(session: string): Promise<void> {
   // Kill the whole process GROUP (-pid): daemon.js is spawned detached:true so
   // it's its own pgid leader, and camoufox-bin + content procs are its children.
   // Killing only the daemon pid leaves camoufox-bin orphaned holding the profile
-  // lock + RAM. Fall back to plain pid if the group kill misses (ESRCH).
+  // lock + RAM. SIGTERM first (graceful) so Firefox flushes GPU state; SIGKILL
+  // only if it doesn't exit in 3s (see termThenKill / memory 48).
   if (fs.existsSync(pidPath)) {
     try {
       const pid = parseInt(fs.readFileSync(pidPath, "utf-8").trim(), 10);
       if (pid) {
-        try { process.kill(-pid, "SIGKILL"); } catch { try { process.kill(pid, "SIGKILL"); } catch {} }
+        await termThenKill(pid);
       }
     } catch {}
   }
@@ -543,7 +568,7 @@ const APT_DEPS = [
   "libatk1.0-0", "libcairo-gobject2", "libcairo2", "libgdk-pixbuf-2.0-0",
   "libxrender1", "libfreetype6", "libfontconfig1", "libdbus-1-3",
   "libnss3", "libnspr4", "libatk-bridge2.0-0", "libdrm2", "libxkbcommon0",
-  "libatspi2.0-0", "libcups2", "libxshmfence1", "libgbm1",
+  "libatspi2.0-0", "libcups2", "libxshmfence1", "libgbm1", "libasound2",
 ];
 
 const DNF_DEPS = [
@@ -559,12 +584,44 @@ const YUM_DEPS = [
   "alsa-lib", "libxkbcommon",
 ];
 
-function resolveAptLibasound(): string {
+/** Run a command as root: directly when already root (e.g. Docker/CI containers
+ * that don't ship sudo), otherwise via sudo. Hardcoded `sudo` fails in root
+ * containers where sudo isn't installed - a common Docker setup.
+ * (cherrypick from upstream #19 c0ed8ad) */
+function runAsRoot(argv: string[]): void {
+  if (typeof process.getuid === "function" && process.getuid() === 0) {
+    execFileSync(argv[0], argv.slice(1), { stdio: "inherit" });
+    return;
+  }
+  execFileSync("sudo", argv, { stdio: "inherit" });
+}
+
+/** Probe whether apt can install a single package (dry-run, no mutation). */
+function aptInstallable(dep: string): boolean {
   try {
-    execFileSync("dpkg", ["-l", "libasound2t64"], { stdio: "pipe" });
-    return "libasound2t64";
+    execFileSync("apt-get", ["install", "-s", "-y", dep], { stdio: "pipe" });
+    return true;
   } catch {
-    return "libasound2";
+    return false;
+  }
+}
+
+/** Resolve apt deps across Ubuntu 24.04's 64-bit time_t transition: many
+ * runtime libs were renamed with a `t64` suffix (libasound2 -> libasound2t64,
+ * libgtk-3-0 -> libgtk-3-0t64, ...) without Provides for the old names, so
+ * installing the old name fails. Fast-path: if the whole group installs clean
+ * (dry-run), use as-is; otherwise probe each dep and prefer <name>t64 when the
+ * original isn't installable. MUST run after `apt-get update` so the cache is
+ * current. (cherrypick from upstream #17 1a6c5e2 - replaces resolveAptLibasound
+ * which only handled the single libasound2 case.) */
+function resolveAptDeps(deps: string[]): string[] {
+  try {
+    execFileSync("apt-get", ["install", "-s", "-y", ...deps], { stdio: "pipe" });
+    return deps;
+  } catch {
+    return deps.map((dep) =>
+      aptInstallable(dep) ? dep : aptInstallable(`${dep}t64`) ? `${dep}t64` : dep,
+    );
   }
 }
 
@@ -577,13 +634,14 @@ function installSystemDeps(): void {
   process.stderr.write("[camoufox-cli] Installing system dependencies...\n");
 
   if (fs.existsSync("/usr/bin/apt-get")) {
-    const deps = [...APT_DEPS, resolveAptLibasound()];
-    execFileSync("sudo", ["apt-get", "update", "-y"], { stdio: "inherit" });
-    execFileSync("sudo", ["apt-get", "install", "-y", ...deps], { stdio: "inherit" });
+    runAsRoot(["apt-get", "update", "-y"]);
+    // resolveAptDeps dry-runs against the apt cache, so it must run AFTER update.
+    const deps = resolveAptDeps(APT_DEPS);
+    runAsRoot(["apt-get", "install", "-y", ...deps]);
   } else if (fs.existsSync("/usr/bin/dnf")) {
-    execFileSync("sudo", ["dnf", "install", "-y", ...DNF_DEPS], { stdio: "inherit" });
+    runAsRoot(["dnf", "install", "-y", ...DNF_DEPS]);
   } else if (fs.existsSync("/usr/bin/yum")) {
-    execFileSync("sudo", ["yum", "install", "-y", ...YUM_DEPS], { stdio: "inherit" });
+    runAsRoot(["yum", "install", "-y", ...YUM_DEPS]);
   } else {
     process.stderr.write("[camoufox-cli] Could not detect a supported package manager (apt-get, dnf, yum).\n");
     process.exit(1);
@@ -597,6 +655,17 @@ function installSystemDeps(): void {
 // ---------------------------------------------------------------------------
 
 async function main() {
+  // Node 20.10 floor: camoufox-js's dependency chain uses JSON import attributes
+  // (`with { type: "json" }`), which need Node 20.10+. Fail fast with a clear
+  // message instead of a cryptic SyntaxError later. (cherrypick from upstream #17)
+  const [nodeMajor, nodeMinor] = process.versions.node.split(".").map(Number);
+  if (nodeMajor < 20 || (nodeMajor === 20 && nodeMinor < 10)) {
+    process.stderr.write(
+      `[camoufox-cli] Error: requires Node.js 20.10 or newer (found ${process.versions.node}).\n`,
+    );
+    process.exit(1);
+  }
+
   const argv = process.argv.slice(2);
   const { flags, command } = parseArgs(argv);
 

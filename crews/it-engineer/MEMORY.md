@@ -62,6 +62,7 @@
 如下`openclaw.json`中的项目严格禁止更改，如果如果用户明确要求更改，你也应向他解释理由，并再三征得确认：
 
 - browser模块：本系统已经对浏览器的使用做过优化，默认会使用camoufox-cli，Browser tool是作为托底手段去处理反爬特别严格的站点，openclaw.json中整个browser部分的配置已经是针对这种场景下的最佳配置。
+- **channel 字段层位（易手撸出错，重点遵守）**：`channel` 只允许出现在两个层位——`bindings[].match.channel`（路由层）和 `channels.<name>`（通道配置层）。**禁止在任何 agent 顶层对象（`agents.list[]` 内某个 crew 的对象）上添加 `channel` 字段**。这一条覆盖全部 crew：把 `sales-cs` / `content-producer` 等 crew 加入 `agents.list` 时，对象里只有 `id` / `name` / `subagents` / `heartbeat` / `tools` 等来自各自 sample 的字段，**绝不写 `"channel": "wecom"` / `"feishu"` / `"awada"`**。绑 channel 一律走对应 skill 的 apply 脚本（`awada-channel-setup` / `work-channel-binding`），它会把 channel 写进正确的 `bindings` + `channels` + `plugins` 三处；不得手贴 agent 块。
 
 ### LLM 模型参数约束(火山方舟 awk provider)
 

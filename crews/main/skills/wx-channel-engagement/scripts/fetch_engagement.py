@@ -304,18 +304,10 @@ def cmd_login_confirm(args) -> None:
         )
         sys.exit(2)
 
-    # 验登录就位：open 后台首页看是否跳 /platform/home 等后台路径
-    # 等页面稳定（扫码后跳转可能需要几秒）
-    time.sleep(3)
-    camoufox_open(SESSION_NAME, CREATOR_CENTER_URL)
-    time.sleep(5)  # 等 redirect 完成
-    final_url = camoufox_get_url(SESSION_NAME)
-    if not final_url or "/platform/" not in final_url or "login" in final_url:
-        camoufox_close(SESSION_NAME)
-        sys.stderr.write(
-            f"error: 登录未就位（后台首页跳到: {final_url[:120] if final_url else 'empty'}）\n"
-        )
-        sys.exit(2)
+    # 已从轮询 URL 拿到登录就位信号（URL 含 /platform/ 且不含 login），证明登录态已就位——
+    # 不再重 open 后台首页验登录：重 open 会起新 daemon 抢同 session profile，与 login 那次
+    # open 的旧 daemon 互杀（SIGKILL），正在跑的 daemon 被杀导致 confirm 异常退出。
+    # 登录态已在 profile 里就位，直接 close session 收尾即可。
 
     # 登录态在 profile 里就位，close session 不影响 profile 持久化
     camoufox_close(SESSION_NAME)

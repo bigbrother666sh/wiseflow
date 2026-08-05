@@ -291,13 +291,10 @@ def cmd_login_confirm(args) -> None:
         sys.stderr.write("error: 登录超时或未就位，请重新调 login 生成新二维码\n")
         sys.exit(2)
 
-    # 验登录就位：open 首页看是否跳 /cgi-bin/home（带 token）
-    camoufox_open(SESSION_NAME, CREATOR_CENTER_URL)
-    final_url = camoufox_get_url(SESSION_NAME)
-    if not final_url or "/cgi-bin/home" not in final_url:
-        camoufox_close(SESSION_NAME)
-        sys.stderr.write("error: 登录未就位（首页未跳 /cgi-bin/home）\n")
-        sys.exit(2)
+    # token 已从 redirect URL 拿到，证明登录就位——不再重 open 首页验登录：
+    # 重 open 会起新 daemon 抢同 session profile，与 login 那次 open 的旧 daemon
+    # 互杀（SIGKILL），正在跑的 daemon 被杀导致 confirm 异常退出。
+    # 登录态已在 profile 里就位，直接 close session 收尾即可。
 
     # 登录态在 profile 里就位，close session 不影响 profile 持久化
     camoufox_close(SESSION_NAME)
@@ -381,7 +378,7 @@ _LIST_PARSE_JS = r"""
           title: title,
           type: type,
           metrics: {
-            // 页面真实列顺序（标签锚实证）：阅读 / 点赞 / 分享 / 推荐(收藏) / 留言(评论) / 划线 / 投票
+            // 页面真实列顺序（标签锚实证）：阅读 / 点赞 / 分享 / 喜欢(爱心icon,favorites列) / 留言(评论) / 划线 / 投票
             // 脚本旧版误把 nums[2] 当 comments、nums[3] 当 shares、nums[4] 当 favorites，已校正
             reads: nums[0] || 0,
             likes: nums[1] || 0,

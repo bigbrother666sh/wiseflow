@@ -129,6 +129,8 @@ output_articles/
 - Step 2.4 已落盘 `score.json`+`prediction.md` → record.sh 读分、`cal_enabled=1` + 算 composite。
 - 若 Step 2.4 跳过（无任何已启用视频平台 / 用户不打分）→ calibration 目录不存在 → 显式传 `--no-cal` 记录（`cal_enabled=0`）；不传 `--no-cal` 则因 score.json 缺失报错，提示先补跑 Step 2.4。
 
+> **视频号（`--platform wx_channel`）特例**：视频号作品没有「标题」概念，后台展示与 `wx-channel-engagement` 抓取匹配用的都是**描述文案（desc）**。故 `record.sh --title` 必须传**完整描述文案**（即 `wechat-channels-publish` Step 6 填的描述，含 hashtag，最长约 300 字），**不要传 Step 5 的短标题**。这样 `pub_wx_channel.title` 列存的就是完整 desc，`wx-channel-engagement fetch` 按它匹配后台作品管理页才能成功。
+
 ### 发布记录管理与复盘
 
 **统一使用 `published-track` 技能管理所有发布记录**。

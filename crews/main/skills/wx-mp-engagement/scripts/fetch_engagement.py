@@ -381,11 +381,13 @@ _LIST_PARSE_JS = r"""
           title: title,
           type: type,
           metrics: {
+            // 页面真实列顺序（标签锚实证）：阅读 / 点赞 / 分享 / 推荐(收藏) / 留言(评论) / 划线 / 投票
+            // 脚本旧版误把 nums[2] 当 comments、nums[3] 当 shares、nums[4] 当 favorites，已校正
             reads: nums[0] || 0,
             likes: nums[1] || 0,
-            comments: nums[2] || 0,
-            shares: nums[3] || 0,
-            favorites: nums[4] || 0,
+            shares: nums[2] || 0,
+            favorites: nums[3] || 0,
+            comments: nums[4] || 0,
           },
           extra_nums: nums.slice(5),
         });

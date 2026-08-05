@@ -190,3 +190,13 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 | 发表按钮 disabled | 检查必填字段是否已填写（视频是否上传完成） |
 | shadow DOM 元素找不到 | 等待更长时间让 wujie 初始化，或刷新页面 |
 | session 正忙（fail-first） | 等当前操作完成再重试，不要盲试 |
+
+---
+
+## 发布后入库约束（record.sh）
+
+本技能只管发布到视频号后台，**不调 `record.sh`**——入库走 main crew 工作流（`AGENTS.md` 的「发布后数据记录流程」段）。但调用方需注意：
+
+> **`record.sh --platform wx_channel --title` 必须传 Step 6 填的完整描述文案**（含 hashtag，最长约 300 字），**不要传 Step 5 的短标题**。
+
+原因：视频号作品没有「标题」概念，作品管理页展示与 `wx-channel-engagement` 抓取匹配用的都是描述文案。`pub_wx_channel.title` 列存的就是完整 desc，`wx-channel-engagement fetch` 按它匹配后台才能成功。传短标题会导致抓取匹配全部失败。

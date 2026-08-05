@@ -480,7 +480,7 @@ _LIST_PARSE_JS = r"""
     }
     // 找到下一条作品描述或结尾
     posts.push({
-      desc: desc.slice(0, 200),
+      desc: desc,
       published_at: lines[j],
       plays: nums[0] || '',
       likes: nums[1] || '',
@@ -511,7 +511,9 @@ def fetch_post_list(session: str) -> list[dict]:
     try:
         data = json.loads(raw)
         if isinstance(data, str):
-            return json.loads(data)
+            data = json.loads(data)
+        if isinstance(data, dict):
+            return data.get("posts", [])
         return data if isinstance(data, list) else []
     except json.JSONDecodeError:
         return []
@@ -522,21 +524,75 @@ def normalize_title(s: str) -> str:
     return re.sub(r"\s+", "", s).strip("·*- ").lower()
 
 
-def match_post(rows: list[dict], target_title: str) -> dict | None:
-    """按标题在列表里找最匹配的行，返回 {title, metrics}"""
-    norm_target = normalize_title(target_title)
+# 后台行 published_at 形如「2026年08月03日 12:06」→ 解析成 ISO 日期「2026-08-03」
+_BACKEND_DATE_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
+
+
+def _parse_backend_date(s: str) -> str | None:
+    """后台 published_at 字符串 → ISO 日期 YYYY-MM-DD（解析失败返回 None）"""
+    m = _BACKEND_DATE_RE.search(s or "")
+    if not m:
+        return None
+    y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    try:
+        return datetime(y, mo, d).strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _within_days(row_date: str, target_date: str, days: int) -> bool:
+    """row_date 是否落在 target_date ± days 天内（ISO 日期字符串）"""
+    try:
+        rd = datetime.strptime(row_date, "%Y-%m-%d").date()
+        td = datetime.strptime(target_date, "%Y-%m-%d").date()
+    except ValueError:
+        return False
+    return abs((rd - td).days) <= days
+
+
+def match_post(rows: list[dict], target_desc: str, target_date: str | None = None) -> dict | None:
+    """按描述文案在后台列表里找最匹配的行，返回 {desc, metrics}
+
+    视频号作品管理页展示的是描述文案（desc），不是短标题——DB 里 title 列存的
+    也应是完整 desc（见 main AGENTS.md 发布工作流）。匹配策略（小贝建议）：
+    1. 用发布日期±1天筛同日候选（后台行 published_at 形如「2026年08月03日 12:06」）
+    2. 拿 desc 前 60 字归一化包含匹配——避开 hashtag 噪声，够区分
+    3. 兜底：不按日期筛，全列表前 60 字归一化包含
+    """
+    norm_target = normalize_title(target_desc[:60])
     if not norm_target:
         return None
-    # 精确匹配
-    for row in rows:
-        if normalize_title(row.get("title", "")) == norm_target:
-            return {"title": row["title"], "metrics": row.get("metrics", {})}
-    # 模糊包含
-    for row in rows:
-        nt = normalize_title(row.get("title", ""))
-        if nt and (norm_target in nt or nt in norm_target):
-            return {"title": row["title"], "metrics": row.get("metrics", {})}
-    return None
+
+    def _row_norm(row: dict) -> str:
+        return normalize_title((row.get("desc") or "")[:60])
+
+    def _try_match(pool: list[dict]) -> dict | None:
+        # 精确：前 60 字归一化相等
+        for row in pool:
+            if _row_norm(row) == norm_target:
+                return {"desc": row.get("desc", ""), "metrics": row.get("metrics", {})}
+        # 模糊：归一化包含
+        for row in pool:
+            nt = _row_norm(row)
+            if nt and (norm_target in nt or nt in norm_target):
+                return {"desc": row.get("desc", ""), "metrics": row.get("metrics", {})}
+        return None
+
+    # 1. 发布日期±1天筛
+    if target_date:
+        for row in rows:
+            row["_date"] = _parse_backend_date(row.get("published_at", ""))
+        same_day = [
+            r for r in rows
+            if r.get("_date") and _within_days(r["_date"], target_date, 1)
+        ]
+        if same_day:
+            m = _try_match(same_day)
+            if m:
+                return m
+
+    # 2. 兜底：全列表
+    return _try_match(rows)
 
 
 # ── CLI 子命令 ──────────────────────────────────────────────────────────────
@@ -661,11 +717,11 @@ def cmd_fetch(args) -> None:
     session = _prepare_session()
     try:
         rows = fetch_post_list(session)
-        matched = match_post(rows, row["title"] or "")
+        matched = match_post(rows, row["title"] or "", row.get("publish_date"))
         if matched is None:
             sys.stderr.write(
-                f"error: 作品管理页未找到标题匹配的 row id={row['id']} title={row['title']!r}\n"
-                f"hint: 跑 probe 子命令检查页面是否正常加载\n"
+                f"error: 作品管理页未找到描述匹配的 row id={row['id']} title={row['title']!r}\n"
+                f"hint: 跑 probe 子命令检查页面是否正常加载；确认 DB title 存的是完整 desc\n"
             )
             sys.exit(1)
         metrics = matched["metrics"]
@@ -674,7 +730,7 @@ def cmd_fetch(args) -> None:
             "ok": True,
             "row_id": row["id"],
             "title": row["title"],
-            "matched_title": matched["title"],
+            "matched_desc": matched["desc"],
             "publish_url": row["publish_url"],
             "session": session,
             "metrics": metrics,
@@ -707,9 +763,9 @@ def cmd_fetch_all(args) -> None:
             if row is None:
                 results.append({"row_id": rid, "ok": False, "error": "row not found"})
                 continue
-            matched = match_post(rows, row["title"] or "")
+            matched = match_post(rows, row["title"] or "", row.get("publish_date"))
             if matched is None:
-                results.append({"row_id": rid, "ok": False, "error": "title not matched in list"})
+                results.append({"row_id": rid, "ok": False, "error": "desc not matched in list"})
                 continue
             upd = update_metrics_row(rid, matched["metrics"])
             results.append({"row_id": rid, "ok": upd.get("ok", True), "metrics": matched["metrics"]})

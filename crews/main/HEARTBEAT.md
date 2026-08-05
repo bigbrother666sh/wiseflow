@@ -82,11 +82,7 @@
 
    > ⚠️ 不要调 `fetch-and-update-metrics.sh --platform wx_mp`——该脚本对 wx_mp 直接 exit 1 报错提示走 wx-mp-engagement。两条链路独立维护，避免机制错配。
 
-3. **其他平台** —— 使用平台对应的持久化 session 通过 `camoufox-cli` 打开平台创作者中心，读取已发布文章的互动数据再写库。
-
-   > 这条路效果一般，**尽力而为即可，不要硬弄**——拿不到就跳过，切勿反复操作以免引发风控。后面会持续更新。
-
-4. **微信视频号 (wx_channel)** —— **走 `wx-channel-engagement` 技能**，camoufox 抓视频号助手后台方案，与 wx_mp 同源（camoufox + 解析 innerText）、与第 1 条四个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
+3. **微信视频号 (wx_channel)** —— **走 `wx-channel-engagement` 技能**，camoufox 抓视频号助手后台方案，与 wx_mp 同源（camoufox + 解析 innerText）、与第 1 条四个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
 
    ```bash
    wx-channel-engagement fetch --row-id <rowid>
@@ -96,11 +92,13 @@
 
    > ⚠️ 不要调 `fetch-and-update-metrics.sh --platform wx_channel`——该脚本对 wx_channel 直接 exit 1 报错提示走 wx-channel-engagement。两条链路独立维护，避免机制错配。
 
+**其他平台** —— 除 douyin / xhs / kuaishou / bilibili / wx_mp / wx_channel 外，其他平台暂不支持自动取数，直接跳过。
+
 ##### 取数时效窗口
 
 **发布超过 30 天的内容不再每天抓取互动数据**——数据已稳定，边际变化可忽略，反复抓只浪费配额/增加风控暴露。按平台类型：
 
-- **浏览器方案**（wx_mp 等）：列表页/创作者中心天然只展示近期内容（wx_mp 发表记录页 `count=20`），无需额外过滤——老内容不在列表里自然抓不到，**这是设计不是 bug**，不要加翻页去补抓老内容。
+- **浏览器方案**（wx_mp / wx_channel）：列表页/创作者中心天然只展示近期内容，无需额外过滤——老内容不在列表里自然抓不到，**这是设计不是 bug**，不要加翻页去补抓老内容。
 - **接口方案**（xhs / bilibili / douyin / kuaishou）：Step 1 查询时加 `publish_date >= date('now', '-30 days')` 过滤，超过 30 天的行直接跳过不调 `fetch-and-update-metrics.sh`。
 
 **复盘（Step 3）不受此限**——复盘按 T+3d 窗口 + 有 `prediction.md` 无 `retro.md` 判断，可能涉及发布较早但尚未复盘的内容。Step 2 没抓到新数据时，复盘用 DB 里已有的历史数据。
@@ -182,15 +180,13 @@
    > ⚠️ 以下**取数端**Cookie 已失效，数据未能更新。请白天使用 login-manager 技能重新登录：
    > - douyin（抖音）
    > - xhs-browse（小红书浏览端）
-   > - wechat-channel（微信视频号，由 wx-channel-engagement 自管 session）
+   > - wechat-channel（微信视频号）
    >
    > 列出的名字即 `login-manager login <name>` 要用的平台名（非 published-track 的 `xhs`）。
    >
    > **只报告取数端 cookie**。**不要报告、也不要探测 `xhs-publish`（小红书发布端 / creator.xiaohongshu.com）**：
    > 复盘/取数完全不依赖发布端 cookie，探测它只会给 creator 域增加风控概率且结论与取数无关。
    > 发布端失效由发布任务（xhs-publish 技能）自己管，不在本复盘心跳职责内。
-   >
-   > ⚠️ **wechat-channel 特殊**：该 session 由 `wx-channel-engagement` + `wechat-channels-publish` 共管，失效时走 `wx-channel-engagement login` + `login-confirm` 重登（不调 login-manager）。
 3. content-calibrator 复盘结果摘要（如有）：列出本轮复盘的**每个作品**（`source_folder` / 标题）+ 预测 vs 实际对比简述；Step 3b 综合评估结果（`detect-bump-signals.sh` 输出的 `recommend_bump` + 触发的维度/方向/count + 混杂因素评估结论）
 4. **综合评估建议（如有）**：Step 3b `recommend_bump=true` 时，Agent 输出评估结论——包含触发的维度/方向/count、证据（`examples` 里的 work/platform/dim_score/actual_score）、混杂因素评估结果、是否建议升级 rubric / 调整发布阈值。**Agent 不得自动执行升级或改阈值**。用户白天确认后，由用户发起 Rubric 升级流程（生成新公式 → 盲重打 10 篇 → `validate-rubric.sh` 验证 → pass=true 落地 / pass=false 重试最多 3 轮）。
 5. 用户咨询回复摘要。

@@ -47,11 +47,11 @@ jobs:
           version: 10.30.2
 
       - name: Clone openclaw at pinned commit
+        # 用完整 clone 而非 --depth=1 浅 clone：apply-addons.sh 跑 git apply --3way
+        # 需从 object store 读补丁头里的 pre-image blob，浅 clone 不拉 blob 会导致补丁全挂。
         run: |
-          git init openclaw
-          git -C openclaw remote add origin https://github.com/openclaw/openclaw.git
-          git -C openclaw fetch --depth=1 origin ${{ steps.pin.outputs.commit }}
-          git -C openclaw checkout FETCH_HEAD
+          git clone https://github.com/openclaw/openclaw.git openclaw
+          git -C openclaw checkout ${{ steps.pin.outputs.commit }}
 
       - name: Apply patches + pnpm install (for build)
         run: bash scripts/apply-addons.sh --no-build --no-restart --skip-crew

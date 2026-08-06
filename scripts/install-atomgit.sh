@@ -389,9 +389,19 @@ download_and_extract_tarball() {
         ui_kv "Asset" "$asset"
         ui_kv "URL" "$url"
         mkdir -p "$cache_dir"
+        # 原子写：先下到 .part 临时文件，成功后 rename 到 cached，
+        # 避免断网留半截损坏文件导致下次重跑命中损坏缓存。
+        local part="$cached.part"
+        rm -f "$part"
         ui_info "Downloading $asset (~120MB, atomgit CDN) → $cached ..."
-        download_file "$url" "$cached"
-        ui_success "Downloaded"
+        if download_file "$url" "$part"; then
+            mv -f "$part" "$cached"
+            ui_success "Downloaded"
+        else
+            rm -f "$part"
+            ui_error "下载失败：$url"
+            exit 1
+        fi
         tmp="$cached"
     fi
 
@@ -466,12 +476,41 @@ install_python_deps() {
     ui_info "Installing python skill deps via $PY_BIN (--user)"
     # --no-warn-script-location 抑制 'script installed in .../bin which is not on PATH'（小白噪音）
     # --disable-pip-version-check 抑制 pip 升级提示
-    printf '%s' "$merged" | sort -u | grep -vE '^\s*#|^\s*$' | \
-        "$PY_BIN" -m pip install --user \
-            --no-warn-script-location --disable-pip-version-check \
-            -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com \
-            -r /dev/stdin || \
+    # PEP 668 兜底：Homebrew/Debian 等 externally-managed 环境下，pip install --user 仍被拒，
+    # 需加 --break-system-packages 才能写用户目录（--user 限目标，不碰系统 site-packages，安全）。
+    local pep668_flag=""
+    local pyver; pyver="$("$PY_BIN" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null || echo "")"
+    if [ -n "$pyver" ]; then
+        local inc_dir
+        inc_dir="$("$PY_BIN" -c 'import sysconfig;print(sysconfig.get_path("include"))' 2>/dev/null || echo "")"
+        local sys_prefix
+        sys_prefix="$("$PY_BIN" -c 'import sys;print(sys.prefix)' 2>/dev/null || echo "")"
+        # EXTERNALLY-MANAGED 标记文件在 stdlib 目录（python3.x/）下
+        if [ -n "$inc_dir" ] && [ -f "$(dirname "$inc_dir")/EXTERNALLY-MANAGED" ]; then
+            pep668_flag="--break-system-packages"
+            ui_info "检测到 PEP 668 externally-managed 环境，加 --break-system-packages"
+        fi
+    fi
+    # 兜底：上面探测失败时，pip 报 externally-managed-environment 退出码 1，重试加 flag
+    local pip_args=(--user --no-warn-script-location --disable-pip-version-check
+        -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com)
+    [ -n "$pep668_flag" ] && pip_args+=("$pep668_flag")
+    if ! printf '%s' "$merged" | sort -u | grep -vE '^\s*#|^\s*$' | \
+        "$PY_BIN" -m pip install "${pip_args[@]}" -r /dev/stdin; then
+        # 首次没加 flag 且报 externally-managed，重试加 flag
+        if [ -z "$pep668_flag" ]; then
+            ui_warn "pip install 失败，尝试加 --break-system-packages 重试..."
+            if printf '%s' "$merged" | sort -u | grep -vE '^\s*#|^\s*$' | \
+                "$PY_BIN" -m pip install --user --break-system-packages \
+                --no-warn-script-location --disable-pip-version-check \
+                -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com \
+                -r /dev/stdin; then
+                ui_success "Python deps done (with --break-system-packages)"
+                return 0
+            fi
+        fi
         ui_warn "pip install 部分失败，可稍后手动补"
+    fi
     ui_success "Python deps done"
 }
 
@@ -1357,14 +1396,16 @@ install_gateway_and_env() {
     local systemd_env="$OPENCLAW_HOME/daemon.env"
     local macos_env="$OPENCLAW_HOME/service-env/ai.openclaw.gateway.env"
 
-    # ─── 检测/清掉错误的 OPENCLAW_HOME 用户环境变量 ─────────────
+    # ─── 提示用户清掉错误的 OPENCLAW_HOME 环境变量 ─────────────
     # 引擎 resolveStateDir 把 OPENCLAW_HOME 当 homedir 再 append /.openclaw（见
-    # openclaw/src/config/paths.ts），故若 OPENCLAW_HOME 已被设成 ~/.openclaw，会产出嵌套路径。
+    # openclaw/src/config/paths.ts），故若用户 shell export 了 OPENCLAW_HOME=~/.openclaw，
+    # 会产出嵌套路径。本脚本顶部已把 OPENCLAW_HOME 设成内部变量且未 export，不会传给引擎子进程，
+    # 所以这里只打 warning 提示用户清理 shell 环境，不能 unset——unset 会误伤脚本内部变量，
+    # 导致后续 ${OPENCLAW_HOME//...} 在 set -u 下报 unbound variable。
     if [ -n "${OPENCLAW_HOME:-}" ] && [ "$(cd "${OPENCLAW_HOME}" && pwd)" = "$(cd "$HOME/.openclaw" && pwd)" ]; then
         ui_warn "检测到 OPENCLAW_HOME=$OPENCLAW_HOME 已设成 state dir 路径"
         ui_warn "  这会让引擎嵌套 append /.openclaw → ~/.openclaw/.openclaw/，config 全落错位置"
         ui_warn "  正解：清掉 OPENCLAW_HOME，改用 OPENCLAW_STATE_DIR 显式指定 state dir"
-        unset OPENCLAW_HOME
     fi
 
     # redirect stdin from /dev/tty so interactive read 工作于 curl|bash

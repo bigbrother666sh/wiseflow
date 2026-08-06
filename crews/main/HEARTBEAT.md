@@ -26,7 +26,7 @@
 
    任何平台的取数端登录失效（`SESSION_EXPIRED` / 探活失败 / 浏览器跳登录页 / `get-xhs-user-id.sh` exit 2 等）时，**必须**：
    - 立即**跳过该平台**本轮取数，不再尝试任何取数动作；
-   - 把平台名记入 `EXPIRED_PLATFORMS`，在 Step 5 统一汇报，由用户**白天**用 login-manager 重新登录；
+   - 把平台名记入 `EXPIRED_PLATFORMS`，在 Step 5 统一汇报，由用户**白天**重新登录；
    - **不得**在凌晨心跳里扫码登录、不得唤醒用户。
 
    **严禁的"硬行恢复"动作**（任一都可能触发平台风控/限流/封号）：
@@ -106,7 +106,7 @@
 ##### 通用规则
 
 - **必须传 `--id <rowid>`**（脚本类平台）：`<rowid>` 取自 Step 1 查询结果里的 `id` 字段。同一 `source_folder` 可能对应多条记录（同内容重复发布到不同帖子），按 `--id` 逐条抓取/写库才能让每次发布各自独立统计；若只传 `--source-folder`，脚本会只抓一行指标却批量写进所有同 folder 行，造成重复发布之间互相污染。
-- **SESSION_EXPIRED**：脚本返回 `ok=false, error=SESSION_EXPIRED`（exit 2）时，**跳过该平台**本轮取数，记入 `EXPIRED_PLATFORMS`，Step 5 统一汇报，由用户白天用 login-manager 重新登录。**凌晨不唤醒用户、不扫码登录、不私拉会话**（见约束 4/5）。
+- **SESSION_EXPIRED**：脚本返回 `ok=false, error=SESSION_EXPIRED`（exit 2）时，**跳过该平台**本轮取数，记入 `EXPIRED_PLATFORMS`，Step 5 统一汇报，由用户白天重新登录。**凌晨不唤醒用户、不扫码登录、不私拉会话**（见约束 4/5）。
 - **xhs 风控显著高于其他平台**：xhs 任何登录失效迹象 → 立刻整段跳过 xhs，不尝试任何恢复。取数只走 `xhs-browse`，**禁止**探测/使用 `xhs-publish` creator 域 cookie。
 - **⛔ 取数失败时必须原样报告脚本 stderr + exit code，禁止自行归因**：脚本的 stderr 是排查的唯一可靠依据。Agent 不得根据 DB 字段（如 `publish_url` 是否为空）脑补错误原因、不得改写/概括 stderr 成自己的话。例：`wx-mp-engagement fetch` exit 1 stderr=`error: 发表记录页未找到标题匹配的 row id=3`，就报这个原文，不要脑补成 "publish_url 无效"。错误归因错误会误导排查方向。
 
@@ -180,9 +180,7 @@
    > ⚠️ 以下**取数端**Cookie 已失效，数据未能更新。请白天使用 login-manager 技能重新登录：
    > - douyin（抖音）
    > - xhs-browse（小红书浏览端）
-   > - wechat-channel（微信视频号）
-   >
-   > 列出的名字即 `login-manager login <name>` 要用的平台名（非 published-track 的 `xhs`）。
+   > - wechat-channel（微信视频号)
    >
    > **只报告取数端 cookie**。**不要报告、也不要探测 `xhs-publish`（小红书发布端 / creator.xiaohongshu.com）**：
    > 复盘/取数完全不依赖发布端 cookie，探测它只会给 creator 域增加风控概率且结论与取数无关。

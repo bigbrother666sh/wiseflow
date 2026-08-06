@@ -314,8 +314,8 @@ wiseflow/
 │   ├── *.patch            # git 补丁（按序号顺序应用到 openclaw/）
 │   └── overrides.sh       # pnpm 依赖覆盖（如替换 playwright → patchright）
 ├── config-templates/      # 配置模板（开箱即用的最佳实践）
-│   ├── openclaw.json      # 默认配置模板（AWK 主力 + fts-only 记忆 + dream 关）
-│   └── openclaw-aihubmix.json  # AiHubMix 海外模型备选模板（已停推，保留历史兼容）
+│   ├── openclaw.json      # 默认配置模板（阿里云百炼主力 + fts-only 记忆 + dream 关）
+│   └── openclaw-awk.json  # 火山引擎方舟 Coding Plan 备选模板（主力 GLM-5.2）
 ├── scripts/               # 工具脚本（详见 scripts/README.md）
 │   ├── lib/               # 脚本共享工具（agent-skills.sh 等）
 │   ├── install.sh         # 一键安装 + 升级（预构建 tarball 路线，macOS + Linux，GitHub 线路；重跑即升级，保留 ~/.openclaw）

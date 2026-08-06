@@ -9,44 +9,68 @@
   "models": {
     "mode": "merge",
     "providers": {
-      "aihubmix": {
+      "awk": {
+        "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
         "api": "openai-completions",
-        "baseUrl": "https://aihubmix.com/v1",
-        "apiKey": "",
+        "apiKey": "${AWK_API_KEY}",
         "models": [
           {
-            "id": "gpt-5.5",
-            "name": "GPT-5.5",
+            "id": "glm-latest",
+            "name": "GLM-5.2",
             "reasoning": true,
             "input": [
-              "text",
-              "image"
+              "text"
             ],
-            "cost": {
-              "input": 10,
-              "output": 30,
-              "cacheRead": 2.5,
-              "cacheWrite": 0
+            "contextWindow": 1024000,
+            "maxTokens": 65536,
+            "compat": {
+              "supportsReasoningEffort": true,
+              "supportsUsageInStreaming": true,
+              "maxTokensField": "max_tokens"
             },
-            "contextWindow": 1000000,
-            "maxTokens": 32768
+            "api": "openai-completions"
           },
           {
-            "id": "qwen3.6-flash",
-            "name": "Qwen3.6 Flash",
+            "id": "deepseek-v4-flash",
+            "name": "DeepSeek V4 Flash",
             "reasoning": true,
+            "input": [
+              "text"
+            ],
+            "contextWindow": 1024000,
+            "maxTokens": 65536,
+            "compat": {
+              "supportsReasoningEffort": true,
+              "supportsUsageInStreaming": true,
+              "maxTokensField": "max_tokens"
+            },
+            "api": "openai-completions"
+          },
+          {
+            "id": "deepseek-v4-pro",
+            "name": "deepseek-v4-pro",
+            "input": [
+              "text"
+            ],
+            "contextWindow": 1024000,
+            "maxTokens": 65536,
+            "compat": {
+              "supportsReasoningEffort": true,
+              "supportsUsageInStreaming": true,
+              "maxTokensField": "max_tokens"
+            },
+            "api": "openai-completions"
+          },
+          {
+            "id": "doubao-seed-2.0-lite",
+            "name": "doubao-seed-2.0-lite",
+            "contextWindow": 256000,
+            "maxTokens": 65536,
             "input": [
               "text",
               "image"
             ],
-            "cost": {
-              "input": 0.05,
-              "output": 0.25,
-              "cacheRead": 0,
-              "cacheWrite": 0
-            },
-            "contextWindow": 128000,
-            "maxTokens": 8192
+            "api": "openai-completions"
           }
         ]
       }
@@ -55,23 +79,30 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "aihubmix/gpt-5.5",
+        "primary": "awk/glm-latest",
         "fallbacks": [
-          "aihubmix/qwen3.6-flash"
+          "awk/deepseek-v4-pro",
+          "awk/deepseek-v4-flash"
         ]
       },
       "imageModel": {
-        "primary": "aihubmix/gpt-5.5"
+        "primary": "awk/doubao-seed-2.0-lite"
       },
       "memorySearch": {
         "provider": "none"
       },
       "models": {
-        "aihubmix/gpt-5.5": {
-          "alias": "default"
+        "awk/glm-latest": {
+          "alias": "awk/glm-5.2"
         },
-        "aihubmix/qwen3.6-flash": {
-          "alias": "fast"
+        "awk/deepseek-v4-flash": {
+          "alias": "awk/ds-v4-flash"
+        },
+        "awk/deepseek-v4-pro": {
+          "alias": "awk/ds-v4-pro"
+        },
+        "awk/doubao-seed-2.0-lite": {
+          "alias": "awk/seed-2-lite"
         }
       },
       "compaction": {
@@ -92,17 +123,17 @@
         "name": "小贝",
         "workspace": "~/.openclaw/workspace-main",
         "skills": [
-          "nano-pdf",
-          "skill-creator",
+          "smart-search",
+          "browser-guide",
+          "email-ops",
+          "council",
           "session-logs",
-          "tmux",
-          "weather",
-          "summarize",
-          "gifgrep"
+          "tmux"
         ],
         "subagents": {
           "allowAgents": [
-            "it-engineer"
+            "it-engineer",
+            "content-producer"
           ]
         },
         "tools": {
@@ -117,35 +148,6 @@
           "target": "none",
           "isolatedSession": true
         },
-        "thinkingDefault": "high",
-        "reasoningDefault": "off"
-      },
-      {
-        "id": "hrbp",
-        "name": "HRBP",
-        "workspace": "~/.openclaw/workspace-hrbp",
-        "skills": [
-          "model-usage",
-          "nano-pdf",
-          "skill-creator",
-          "session-logs",
-          "tmux",
-          "weather",
-          "summarize"
-        ],
-        "subagents": {
-          "allowAgents": [
-            "it-engineer"
-          ]
-        },
-        "tools": {
-          "exec": {
-            "host": "gateway",
-            "security": "full",
-            "ask": "off"
-          }
-        },
-        "thinkingDefault": "high",
         "reasoningDefault": "off"
       },
       {
@@ -175,32 +177,40 @@
         },
         "thinkingDefault": "high",
         "reasoningDefault": "off"
+      },
+      {
+        "id": "content-producer",
+        "name": "producer",
+        "workspace": "~/.openclaw/workspace-content-producer",
+        "skills": [
+          "smart-search",
+          "browser-guide",
+          "session-logs",
+          "tmux"
+        ],
+        "subagents": {
+          "allowAgents": [
+            "it-engineer"
+          ]
+        },
+        "tools": {
+          "exec": {
+            "host": "gateway",
+            "security": "allowlist",
+            "ask": "off"
+          }
+        },
+        "thinkingDefault": "high",
+        "reasoningDefault": "off"
       }
     ]
   },
   "bindings": [
     {
       "agentId": "main",
-      "comment": "main-bot -> Main Agent",
+      "comment": "openclaw-weixin -> Main Agent onboarding entry",
       "match": {
-        "channel": "feishu",
-        "accountId": "main-bot"
-      }
-    },
-    {
-      "agentId": "hrbp",
-      "comment": "hrbp-bot -> HRBP Agent",
-      "match": {
-        "channel": "feishu",
-        "accountId": "hrbp-bot"
-      }
-    },
-    {
-      "agentId": "it-engineer",
-      "comment": "it-engineer-bot -> IT Engineer Agent",
-      "match": {
-        "channel": "feishu",
-        "accountId": "it-engineer-bot"
+        "channel": "openclaw-weixin"
       }
     }
   ],
@@ -240,54 +250,8 @@
     }
   },
   "channels": {
-    "feishu": {
-      "enabled": true,
-      "domain": "feishu",
-      "connectionMode": "websocket",
-      "requireMention": true,
-      "streaming": true,
-      "tools": {
-        "doc": true,
-        "chat": true,
-        "wiki": true,
-        "drive": true,
-        "perm": true
-      },
-      "accounts": {
-        "main-bot": {
-          "name": "Main Bot",
-          "appId": "",
-          "appSecret": "",
-          "dmPolicy": "open",
-          "allowFrom": [
-            "*"
-          ],
-          "groupPolicy": "allowlist"
-        },
-        "hrbp-bot": {
-          "name": "HRBP Bot",
-          "appId": "",
-          "appSecret": "",
-          "dmPolicy": "open",
-          "allowFrom": [
-            "*"
-          ],
-          "groupPolicy": "allowlist"
-        },
-        "it-engineer-bot": {
-          "name": "IT Engineer Bot",
-          "appId": "",
-          "appSecret": "",
-          "dmPolicy": "open",
-          "allowFrom": [
-            "*"
-          ],
-          "groupPolicy": "allowlist"
-        }
-      },
-      "reactionNotifications": "own",
-      "typingIndicator": true,
-      "resolveSenderNames": true
+    "openclaw-weixin": {
+      "enabled": true
     }
   },
   "gateway": {
@@ -382,12 +346,9 @@
   },
   "plugins": {
     "load": {
-      "paths": []
+      "paths": ["${XIAOBEI_HOME}/awada"]
     },
     "entries": {
-      "feishu": {
-        "enabled": true
-      },
       "awada": {
         "enabled": false
       },
@@ -411,7 +372,7 @@
           }
         }
       },
-      "deepseek": {
+      "openclaw-weixin": {
         "enabled": true
       }
     }

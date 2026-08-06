@@ -472,44 +472,17 @@ install_python_deps() {
         ui_warn "$PY_BIN -m pip 不可用，跳过 python 依赖"
         return 0
     fi
-    ui_info "Installing python skill deps via $PY_BIN (--user)"
+    ui_info "Installing python skill deps via $PY_BIN (--user --break-system-packages)"
     # --no-warn-script-location 抑制 'script installed in .../bin which is not on PATH'（小白噪音）
     # --disable-pip-version-check 抑制 pip 升级提示
-    # PEP 668 兜底：Homebrew/Debian 等 externally-managed 环境下，pip install --user 仍被拒，
-    # 需加 --break-system-packages 才能写用户目录（--user 限目标，不碰系统 site-packages，安全）。
-    local pep668_flag=""
-    local pyver; pyver="$("$PY_BIN" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null || echo "")"
-    if [ -n "$pyver" ]; then
-        local inc_dir
-        inc_dir="$("$PY_BIN" -c 'import sysconfig;print(sysconfig.get_path("include"))' 2>/dev/null || echo "")"
-        local sys_prefix
-        sys_prefix="$("$PY_BIN" -c 'import sys;print(sys.prefix)' 2>/dev/null || echo "")"
-        # EXTERNALLY-MANAGED 标记文件在 stdlib 目录（python3.x/）下
-        if [ -n "$inc_dir" ] && [ -f "$(dirname "$inc_dir")/EXTERNALLY-MANAGED" ]; then
-            pep668_flag="--break-system-packages"
-            ui_info "检测到 PEP 668 externally-managed 环境，加 --break-system-packages"
-        fi
-    fi
-    # 兜底：上面探测失败时，pip 报 externally-managed-environment 退出码 1，重试加 flag
-    local pip_args=(--user --no-warn-script-location --disable-pip-version-check
-        -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com)
-    [ -n "$pep668_flag" ] && pip_args+=("$pep668_flag")
-    if ! printf '%s' "$merged" | sort -u | grep -vE '^\s*#|^\s*$' | \
-        "$PY_BIN" -m pip install "${pip_args[@]}" -r /dev/stdin; then
-        # 首次没加 flag 且报 externally-managed，重试加 flag
-        if [ -z "$pep668_flag" ]; then
-            ui_warn "pip install 失败，尝试加 --break-system-packages 重试..."
-            if printf '%s' "$merged" | sort -u | grep -vE '^\s*#|^\s*$' | \
-                "$PY_BIN" -m pip install --user --break-system-packages \
-                --no-warn-script-location --disable-pip-version-check \
-                -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com \
-                -r /dev/stdin; then
-                ui_success "Python deps done (with --break-system-packages)"
-                return 0
-            fi
-        fi
+    # PEP 668：现代系统（Homebrew/Debian/PEP 668）下 pip install --user 仍被拒，
+    # 直接加 --break-system-packages 跨过；--user 限目标目录，不碰系统 site-packages，安全。
+    printf '%s' "$merged" | sort -u | grep -vE '^\s*#|^\s*$' | \
+        "$PY_BIN" -m pip install --user --break-system-packages \
+            --no-warn-script-location --disable-pip-version-check \
+            -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com \
+            -r /dev/stdin || \
         ui_warn "pip install 部分失败，可稍后手动补"
-    fi
     ui_success "Python deps done"
 }
 
@@ -1724,12 +1697,10 @@ install_gateway_and_env() {
     # 引擎 resolveStateDir 把 OPENCLAW_HOME 当 homedir 再 append /.openclaw（见
     # openclaw/src/config/paths.ts），故若用户 shell export 了 OPENCLAW_HOME=~/.openclaw，
     # 会产出嵌套路径。本脚本顶部已把 OPENCLAW_HOME 设成内部变量且未 export，不会传给引擎子进程，
-    # 所以这里只打 warning 提示用户清理 shell 环境，不能 unset——unset 会误伤脚本内部变量，
+    # 所以这里只打 info 提示用户清理 shell 环境变量，不能 unset——unset 会误伤脚本内部变量，
     # 导致后续 ${OPENCLAW_HOME//...} 在 set -u 下报 unbound variable。
     if [ -n "${OPENCLAW_HOME:-}" ] && [ "$(cd "${OPENCLAW_HOME}" && pwd)" = "$(cd "$HOME/.openclaw" && pwd)" ]; then
-        ui_warn "检测到 OPENCLAW_HOME=$OPENCLAW_HOME 已设成 state dir 路径"
-        ui_warn "  这会让引擎嵌套 append /.openclaw → ~/.openclaw/.openclaw/，config 全落错位置"
-        ui_warn "  正解：清掉 OPENCLAW_HOME，改用 OPENCLAW_STATE_DIR 显式指定 state dir"
+        ui_info "检测到 shell 里 export OPENCLAW_HOME=$OPENCLAW_HOME（不影响本次安装，但建议清掉避免引擎嵌套）"
     fi
 
     # redirect stdin from /dev/tty so interactive read 工作于 curl|bash

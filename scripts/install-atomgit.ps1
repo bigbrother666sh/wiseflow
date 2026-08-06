@@ -58,11 +58,15 @@ $AtomgitApi = "https://api.atomgit.com/api/v5/repos/wiseflow/xiaobei"
 $Root = if ($env:XIAOBEI_HOME) { $env:XIAOBEI_HOME } else { Join-Path $env:USERPROFILE "xiaobei" }
 $OpenclawHome = if ($env:OPENCLAW_HOME) { $env:OPENCLAW_HOME } else { Join-Path $env:USERPROFILE ".openclaw" }
 
-# Behavior switches (env vars, =1 to enable)
-$Force        = ($env:XIAOBEI_FORCE         -eq "1" -or $env:XIAOBEI_FORCE         -eq "true")
-$SkipBind     = ($env:XIAOBEI_SKIP_BIND    -eq "1" -or $env:XIAOBEI_SKIP_BIND    -eq "true")
-$SkipBrowser  = ($env:XIAOBEI_SKIP_BROWSER -eq "1" -or $env:XIAOBEI_SKIP_BROWSER -eq "true")
-$NoPrompt     = ($env:XIAOBEI_NO_PROMPT   -eq "1" -or $env:XIAOBEI_NO_PROMPT   -eq "true")
+# Behavior switches (env vars, =1 to enable).
+# IMPORTANT: use $script: scope so these are visible inside functions (Place-Config,
+# Main, etc.). A bare $Force at the top level creates a *script-scope* variable that
+# functions CANNOT see - they'd read a local $null instead, so XIAOBEI_FORCE=1 etc.
+# would silently never take effect (a real bug observed in testing).
+$script:Force       = ($env:XIAOBEI_FORCE         -eq "1" -or $env:XIAOBEI_FORCE         -eq "true")
+$script:SkipBind    = ($env:XIAOBEI_SKIP_BIND    -eq "1" -or $env:XIAOBEI_SKIP_BIND    -eq "true")
+$script:SkipBrowser = ($env:XIAOBEI_SKIP_BROWSER -eq "1" -or $env:XIAOBEI_SKIP_BROWSER -eq "true")
+$script:NoPrompt    = ($env:XIAOBEI_NO_PROMPT   -eq "1" -or $env:XIAOBEI_NO_PROMPT   -eq "true")
 
 $NodeExe   = Join-Path $Root "tools\node\node.exe"
 $NpmCmd    = Join-Path $Root "tools\node\npm.cmd"
@@ -216,7 +220,7 @@ function Place-Config {
 
     $needPlace = $false; $reason = ""
     if (-not (Test-Path $cfg)) { $needPlace = $true; $reason = "not present" }
-    elseif ($Force) { $needPlace = $true; $reason = "XIAOBEI_FORCE=1" }
+    elseif ($script:Force) { $needPlace = $true; $reason = "XIAOBEI_FORCE=1" }
     else {
         try {
             # Must explicitly read as UTF-8: openclaw writes its config as UTF-8 without BOM, while
@@ -318,9 +322,66 @@ function Run-SetupCrew {
     else { Write-Ok "crew templates set up" }
 }
 
+# --- 7b. Expose skill wrappers as .cmd shims into ~\.openclaw\bin ---
+# Mirrors the .sh route's expose_skill_wrappers + ensure_openclaw_bin_in_path
+# (scripts/lib/skill-wrappers.sh). On Windows we cannot rely on symlinks
+# (need admin/Developer Mode), so we generate a <skill>.cmd shim per skill
+# that forwards to the bundled bash + the skill's <skill>.sh wrapper.
+# The shim lives in ~\.openclaw\bin so the agent can call `<skill> <cmd>`
+# from anywhere on PATH.
+function Expose-SkillWrappers {
+    $binDir = Join-Path $OpenclawHome "bin"
+    New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+
+    # The bundled bash shipped in the tarball (Git Bash fallback handled below).
+    $bashExe = $false
+    $bashCandidates = @(
+        (Join-Path $Root "tools\git\bin\bash.exe"),
+        "C:\Program Files\Git\bin\bash.exe",
+        "C:\Program Files\Git\usr\bin\bash.exe"
+    )
+    foreach ($c in $bashCandidates) { if (Test-Path $c) { $bashExe = $c; break } }
+    if (-not $bashExe) { $bashExe = (Get-Command bash.exe -ErrorAction SilentlyContinue).Source }
+    if (-not $bashExe) {
+        Write-Warn "no bash found; cannot expose skill wrappers as .cmd shims"
+        return
+    }
+
+    $exposed = 0
+    foreach ($skillsRoot in @((Join-Path $Root "skills"), (Join-Path $Root "crews\main\skills"))) {
+        if (-not (Test-Path $skillsRoot)) { continue }
+        Get-ChildItem -Path $skillsRoot -Directory | ForEach-Object {
+            $skillName = $_.Name
+            if ($skillName.StartsWith("_")) { return }  # skip _shared etc
+            $wrapper = Join-Path $_.FullName "$skillName.sh"
+            if (-not (Test-Path $wrapper)) { return }
+            $shim = Join-Path $binDir "$skillName.cmd"
+            $wrapperFwd = ($wrapper -replace '\\', '/')
+            $bashFwd = ($bashExe -replace '\\', '/')
+            $body = "@echo off`r`n`"$bashFwd`" `"$wrapperFwd`" %*`r`n"
+            $enc = New-Object System.Text.UTF8Encoding($false)
+            [System.IO.File]::WriteAllText($shim, $body, $enc)
+            $exposed++
+        }
+    }
+
+    if ($exposed -gt 0) {
+        Write-Ok "exposed $exposed skill wrapper(s) -> $binDir"
+        # Inject ~\.openclaw\bin into user PATH (idempotent, safe non-truncating way)
+        $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+        if ($userPath -notlike "*$binDir*") {
+            $newPath = "$binDir;$userPath"
+            [Environment]::SetEnvironmentVariable("PATH", $newPath, "User")
+            Write-Ok "added $binDir to user PATH (takes effect in a new terminal)"
+        }
+    } else {
+        Write-Host "  [i]  no skill wrappers found to expose" -ForegroundColor Yellow
+    }
+}
+
 # --- 8. camoufox-cli ---
 function Install-CamoufoxCli {
-    if ($SkipBrowser) {
+    if ($script:SkipBrowser) {
         Write-Host "  [i]  skipping camoufox-cli browser binary (XIAOBEI_SKIP_BROWSER=1); run manually later: camoufox-cli install" -ForegroundColor Yellow
         return
     }
@@ -475,7 +536,7 @@ function Install-GatewayAndEnv {
 
     # --- Interactive AWK_API_KEY prompt ---
     $awkKey = $env:AWK_API_KEY
-    if (-not $NoPrompt -and -not $awkKey) {
+    if (-not $script:NoPrompt -and -not $awkKey) {
         $awkKey = Read-Host "Enter AWK_API_KEY (Volces ARK API key)"
     }
 
@@ -549,7 +610,7 @@ function Test-WeixinBound {
 }
 
 function Bind-WeixinChannel {
-    if ($SkipBind -or $NoPrompt) {
+    if ($script:SkipBind -or $script:NoPrompt) {
         Write-Host "  [i]  skipping WeChat scan-to-bind (XIAOBEI_SKIP_BIND / XIAOBEI_NO_PROMPT=1); run manually later: openclaw channels login --channel openclaw-weixin" -ForegroundColor Yellow
         return
     }
@@ -576,7 +637,7 @@ function Main {
 
     # Detect whether already installed (decides update vs fresh install)
     $cfgExisting = Join-Path $OpenclawHome "openclaw.json"
-    $isUpdate = (Test-Path $cfgExisting) -and -not $Force
+    $isUpdate = (Test-Path $cfgExisting) -and -not $script:Force
     if ($isUpdate) {
         Write-Warn "detected existing install ($cfgExisting) -> taking the update route, preserving runtime data (XIAOBEI_FORCE=1 to force overwrite)"
         # Stop the gateway first (mirrors install.sh stop_gateway_if_running): otherwise tar
@@ -624,6 +685,7 @@ function Main {
     } else {
         Place-Config
         Run-SetupCrew
+        Expose-SkillWrappers
         Install-GatewayAndEnv
         Bind-WeixinChannel
     }

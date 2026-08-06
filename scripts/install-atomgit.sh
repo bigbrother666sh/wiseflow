@@ -87,7 +87,10 @@ mktempfile() {
 # ═══════════════════════════════════════════════════════════════════
 # gum UI（TTY 才 bootstrap，非 TTY 静默跳过）
 # ═══════════════════════════════════════════════════════════════════
-GUM_VERSION="${OPENCLAW_GUM_VERSION:-0.17.0}"
+# atomgit 国内线路默认不拉 gum bootstrap（charmbracelet/gum 的 release 只在 GitHub，
+# 国内连 GitHub 常超 75s 拖慢安装）。若机器已装 gum（brew install gum）仍会被检测使用；
+# 想强制 bootstrap 走 GitHub 可 export OPENCLAW_GUM_VERSION=0.17.0。
+GUM_VERSION="${OPENCLAW_GUM_VERSION:-}"
 GUM=""
 GUM_STATUS="skipped"
 GUM_REASON=""
@@ -180,6 +183,14 @@ bootstrap_gum_temp() {
         GUM_STATUS="found"
         GUM_REASON="already installed"
         return 0
+    fi
+
+    # atomgit 国内线路默认不 bootstrap gum（GUM_VERSION 置空时跳下载，避免连 GitHub
+    # 超时拖慢安装）。系统已装 gum 在上面 command -v 已命中。用户想强制 bootstrap 可
+    # export OPENCLAW_GUM_VERSION=0.17.0。
+    if [ -z "$GUM_VERSION" ]; then
+        GUM_REASON="gum bootstrap disabled on atomgit route (export OPENCLAW_GUM_VERSION to enable)"
+        return 1
     fi
 
     if ! command -v tar >/dev/null 2>&1; then
@@ -1375,8 +1386,8 @@ install_gateway_and_env() {
     # 会产出嵌套路径。本脚本顶部已把 OPENCLAW_HOME 设成内部变量且未 export，不会传给引擎子进程，
     # 所以这里只打 info 提示用户清理 shell 环境变量，不能 unset——unset 会误伤脚本内部变量，
     # 导致后续 ${OPENCLAW_HOME//...} 在 set -u 下报 unbound variable。
-    if [ -n "${OPENCLAW_HOME:-}" ] && [ "$(cd "${OPENCLAW_HOME}" && pwd)" = "$(cd "$HOME/.openclaw" && pwd)" ]; then
-        ui_info "检测到 shell 里 export OPENCLAW_HOME=$OPENCLAW_HOME（不影响本次安装，但建议清掉避免引擎嵌套）"
+    if [ -n "${OPENCLAW_HOME:-}" ] && [ "$(cd "${OPENCLAW_HOME:-}" && pwd)" = "$(cd "$HOME/.openclaw" && pwd)" ]; then
+        ui_info "检测到 shell 里 export OPENCLAW_HOME=${OPENCLAW_HOME:-}（不影响本次安装，但建议清掉避免引擎嵌套）"
     fi
 
     # redirect stdin from /dev/tty so interactive read 工作于 curl|bash

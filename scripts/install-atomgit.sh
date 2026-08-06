@@ -1373,12 +1373,10 @@ install_gateway_and_env() {
     # 引擎 resolveStateDir 把 OPENCLAW_HOME 当 homedir 再 append /.openclaw（见
     # openclaw/src/config/paths.ts），故若用户 shell export 了 OPENCLAW_HOME=~/.openclaw，
     # 会产出嵌套路径。本脚本顶部已把 OPENCLAW_HOME 设成内部变量且未 export，不会传给引擎子进程，
-    # 所以这里只打 warning 提示用户清理 shell 环境，不能 unset——unset 会误伤脚本内部变量，
+    # 所以这里只打 info 提示用户清理 shell 环境变量，不能 unset——unset 会误伤脚本内部变量，
     # 导致后续 ${OPENCLAW_HOME//...} 在 set -u 下报 unbound variable。
     if [ -n "${OPENCLAW_HOME:-}" ] && [ "$(cd "${OPENCLAW_HOME}" && pwd)" = "$(cd "$HOME/.openclaw" && pwd)" ]; then
-        ui_warn "检测到 OPENCLAW_HOME=$OPENCLAW_HOME 已设成 state dir 路径"
-        ui_warn "  这会让引擎嵌套 append /.openclaw → ~/.openclaw/.openclaw/，config 全落错位置"
-        ui_warn "  正解：清掉 OPENCLAW_HOME，改用 OPENCLAW_STATE_DIR 显式指定 state dir"
+        ui_info "检测到 shell 里 export OPENCLAW_HOME=$OPENCLAW_HOME（不影响本次安装，但建议清掉避免引擎嵌套）"
     fi
 
     # redirect stdin from /dev/tty so interactive read 工作于 curl|bash

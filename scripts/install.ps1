@@ -111,17 +111,39 @@ function Resolve-Tag {
 }
 
 # --- 2. Download tarball (GitHub release) ---
+# Version-level cache: same tag + plat re-uses ~/.xiaobei/cache/<asset>,
+# skipping the 120MB re-download on rerun (incl. failed retry).
+# Atomic write: download to <cached>.part first, then Move-Item -Force to <cached>,
+# so a broken network never leaves a half-written file that the next run would
+# mistake for a complete cache hit.
 function Download-Tarball([string]$tag) {
     $asset = "xiaobei-$tag-win-x64.tar.gz"
     if ($env:XIAOBEI_TARBALL -and (Test-Path $env:XIAOBEI_TARBALL)) {
         Write-Ok "using local tarball: $env:XIAOBEI_TARBALL"
         return $env:XIAOBEI_TARBALL
     }
-    $tmp = New-TemporaryFile
+
+    $cacheDir = if ($env:XIAOBEI_CACHE_DIR) { $env:XIAOBEI_CACHE_DIR } else { Join-Path $env:USERPROFILE ".xiaobei\cache" }
+    $cached = Join-Path $cacheDir $asset
+
+    if (Test-Path $cached -PathType Leaf) {
+        Write-Ok "using cached tarball: $cached"
+        return $cached
+    }
+
     $url = "https://github.com/$Repo/releases/download/$tag/$asset"
     Write-Host "  downloading $url"
-    Invoke-WebRequest -Uri $url -OutFile $tmp -Headers @{ "User-Agent" = "xiaobei-install" }
-    return $tmp.FullName
+    New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+    $part = "$cached.part"
+    if (Test-Path $part) { Remove-Item $part -Force }
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $part -Headers @{ "User-Agent" = "xiaobei-install" }
+        Move-Item -Path $part -Destination $cached -Force
+    } catch {
+        if (Test-Path $part) { Remove-Item $part -Force }
+        throw "download failed: $url`n$($_.Exception.Message)"
+    }
+    return $cached
 }
 
 # --- 3. Extract ---

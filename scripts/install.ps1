@@ -330,13 +330,63 @@ function Run-SetupCrew {
     # to $HOME/.openclaw, and under Git Bash's MSYS path conversion + a Chinese username this yields a
     # bogus path like C:\c\Users\<garbled>\.openclaw (ENOENT).
     $env:OPENCLAW_HOME = ($OpenclawHome -replace '\\', '/')
+    # Git Bash's MSYS2 layer defaults `ln -s` to `cp -r` (real copy), not a true symlink. setup-crew.sh
+    # uses `ln -s` to symlink crew skills into ~/.openclaw/workspace-<id>/skills/, so without this flag
+    # Windows users end up with real folders instead of links (edits in the repo don't propagate, and
+    # re-runs copy over stale copies). MSYS=winsymlinks:nativestrict makes `ln -s` create real NTFS
+    # symlinks (requires Developer Mode on Win10+, or admin). Falls back to copies if neither is
+    # available, which is the previous behavior (no regression).
+    $env:MSYS = "winsymlinks:nativestrict"
     Invoke-Streamed { & $bashExe ($sh -replace '\\', '/') }
     # After setup-crew.sh finishes, clear OPENCLAW_HOME so subsequent install phases (gateway/daemon)
     # do not inherit this value - the engine would treat OPENCLAW_HOME as a homedir and append
     # /.openclaw, producing a nested layer.
     Remove-Item Env:OPENCLAW_HOME -ErrorAction SilentlyContinue
+    Remove-Item Env:MSYS -ErrorAction SilentlyContinue
     if ($LASTEXITCODE -ne 0) { Write-Warn "setup-crew.sh exited non-zero (you can manually re-run with --force later to fix)" }
     else { Write-Ok "crew templates set up" }
+}
+
+# --- 7c. Sync global skills -> ~/.openclaw/skills ---
+# On Linux/macOS this is done by apply-addons.sh (which symlinks the repo's skills/ into
+# ~/.openclaw/skills so the openclaw skill loader picks them up). The Windows route does not run
+# apply-addons.sh, so we mirror that logic here: create a true NTFS symlink ~/.openclaw/skills ->
+# <repo>/skills. Idempotent: if the target is already a symlink pointing to the right repo path,
+# this is a no-op; if it's a stale real directory (from an old copy-based install), we warn and
+# leave it untouched rather than risk deleting user edits.
+function Sync-GlobalSkills {
+    Write-Stage "Syncing global skills -> ~/.openclaw/skills"
+    $src = Join-Path $Root "skills"
+    if (-not (Test-Path $src)) { Write-Ok "no global skills dir in repo, skipping"; return }
+    $dest = Join-Path $OpenclawHome "skills"
+    $srcFwd = ($src -replace '\\', '/')
+
+    if (Test-Path $dest) {
+        $item = Get-Item $dest -Force
+        if ($item.LinkType -eq 'SymbolicLink' -and $item.Target -and (($item.Target -replace '\\', '/') -ieq $srcFwd)) {
+            Write-Ok "global skills symlink already correct"
+            return
+        }
+        if ($item.LinkType -eq 'SymbolicLink') {
+            Remove-Item $dest -Force -Recurse
+        } else {
+            Write-Warn "$dest already exists as a real directory (likely from an old install); leaving untouched to avoid overwriting user edits"
+            Write-Host "    To switch to a symlink: delete $dest, then re-run install" -ForegroundColor Yellow
+            return
+        }
+    }
+
+    try {
+        New-Item -ItemType SymbolicLink -Path $dest -Target $src -ErrorAction Stop | Out-Null
+        Write-Ok "global skills symlinked -> $src"
+    } catch {
+        Write-Warn "failed to create symlink $dest -> $src ($_)"
+        Write-Host "    This usually means Developer Mode is off and the shell is not elevated." -ForegroundColor Yellow
+        Write-Host "    Either enable Windows Developer Mode, or run this shell as Administrator." -ForegroundColor Yellow
+        Write-Host "    Falling back to a copy (skills will not auto-update from the repo until you re-run install)." -ForegroundColor Yellow
+        Copy-Item -Path $src -Destination $dest -Recurse -Force
+        Write-Ok "global skills copied (fallback) -> $dest"
+    }
 }
 
 # --- 7b. Expose skill wrappers as .cmd shims into ~\.openclaw\bin ---
@@ -554,7 +604,7 @@ function Install-GatewayAndEnv {
     # --- Interactive AWK_API_KEY prompt ---
     $awkKey = $env:AWK_API_KEY
     if (-not $script:NoPrompt -and -not $awkKey) {
-        $awkKey = Read-Host "Enter AWK_API_KEY (Volces ARK API key)"
+        $awkKey = Read-Host "Enter AWK_API_KEY (Aliyun Bailian API key)"
     }
 
     # --- Write .env (business vars, export format for bash/sh source, read by the bare CLI) ---
@@ -705,6 +755,7 @@ function Main {
     } else {
         Place-Config
         Run-SetupCrew
+        Sync-GlobalSkills
         Expose-SkillWrappers
         Install-GatewayAndEnv
         Bind-WeixinChannel

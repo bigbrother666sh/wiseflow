@@ -32,7 +32,7 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 
 ---
 
-## 🚀 **v5.6.0 更新**
+## 🚀 **v5.6.3 更新**
 
 - 产品重大重构,更简洁、更易上手、更精炼！
 - **重新认识你的 main agent——小贝**：这一版的小贝不再是单一职能的运营助手，而是把此前分散的几个 agent 融合成了一个——
@@ -46,8 +46,12 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
   - **线 1（日常主力）**：forked [camoufox-cli](https://github.com/daijro/camoufox)（vendor 进 `patches/camoufox-cli/`，基于上游 `camoufox-cli@0.6.2` + 三个新功能：`upload` 命令 / fail-first 队列 / `identity export`）走旁路，反指纹 Firefox + JSON-over-unix-socket，绕开 routes/、pw-session、chrome-mcp。无头胜有头，资源占用更少，速度更快，反侦测能力依然在线。
   - **线 2**：保留openclaw原版 `target=host`（existing-session 真机 Chrome + chrome-mcp relay）+ `target=node`（remote-cdp 远端 Chrome）。
   - **profile 丢失 / 损坏 / 指纹错配 → 重建 + 重登录
-- 适配 openclaw 2026-6-11 版本（近两个月最稳定版本）、openclaw-weixin 2.4.6 版本。
-- 新增一键安装脚本，无需提前配置环境，脚本会搞定一切。
+- **🎬 Content Producer 正式发布，视频制作能力全面进化**：全新 `content-producer` crew 正式上线（此前为预发布），端到端承担内容生产线重活——脚本→素材→TTS→渲染→合成全程贯通，网页/落地页/APP 视觉设计一站搞定。底座换火山方舟豆包语音合成 2.0 / seed-tts-2.0，NDJSON 流式响应 + speaker 路由；`video-producer` 端到端主技能 17 子脚本覆盖 Stage 0–14 全链 + 两道闸门 GATE A/B；视频分发新增微信视频号发布，结合既有小红书/抖音/Twitter/X/B站/快手等平台，实现短视频制作→多平台分发的闭环。
+- **🔄 数据闭环彻底打通，为自我进化奠基**：`content-calibrator`（盍打分+预测）与 `published-track`（数据复盘）机制全面完善，内容产出→发布→数据回流→下一轮策略调优的闭环不再有断点，为后续小贝自主迭代选题与打法提供燃料。
+- **底座升级到 OpenClaw 七（v2026.7.1）**——近两个月最稳定版本，6 个 browser-camoufox-pivot per-file patch 按 7.1 上游漂移重新生成；openclaw-weixin 2.4.6。
+- **安装脚本大幅优化，全面测试 bug 排除**：对比 5.6.0，install.sh / install-atomgit.sh / install.ps1 / install-atomgit.ps1 四脚本修了若干实测踩坑——tarball 下载原子写、Windows `.env`/`daemon.env` 换行与 BOM、技能 wrapper 在 Windows 用 `.cmd` shim 替代软链、`OPENCLAW_HOME` 在 `set -u` 下报 unbound、atomgit 国内线路默认跳过 gum spinner bootstrap 避免连 GitHub 超时、Windows 软链需要开发者模式等，产品稳定性显著提高。
+- **wx-mp-hunter 更新**：原微信公众号素材接口方案因官方接口调整已不可用，本轮按新版接口重写。
+- 推荐大模型切到**阿里云百炼**「AI Superstar」套餐（无月限额、不限购），默认主力 DeepSeek-V4-Flash / fallback GLM-5.2 / 视觉 Qwen3.6-Flash；仍想用火山方舟 Coding Plan 的用户可手动切 `config-templates/openclaw-awk.json`。
 
 详见 [CHANGELOG.md](CHANGELOG.md)
 
@@ -57,17 +61,15 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 
 ### 0. 准备 API Key
 
-推荐注册 [火山引擎方舟 Coding Plan](https://volcengine.com/L/dx-wt80li-I/)（🎁 欢迎使用 xiaobei 邀请链接 / 邀请码 `5Y5A6L86`，订阅叠加 9.5 折，首月尝鲜低至 9.4 元），开通后获得 `AWK_API_KEY`——主力模型 GLM-5.2、视觉与替补模型全部走此通道，**一个 key 即可**。
+推荐开通 [阿里云百炼「AI Superstar」套餐](https://www.aliyun.com/benefit/ai/aistar?clubBiz=subTask..12766005..10274..)——一个套餐覆盖 DeepSeek-V4-Flash、GLM-5.2、Qwen3.6-Flash 等主流模型，**无月限额、不限购**，xiaobei 默认主力模型 DeepSeek-V4-Flash 即走此通道。开通后获得 `AWK_API_KEY`，主力模型、视觉模型、替补模型**一个 key 全覆盖**。
 
-> ⚠️ **火山方舟 Coding Plan 目前限量发售**，额度通常在每天上午放量，**建议在每天 10 点前购买**更容易抢到。
-
-> 如果习惯使用 ChatGPT / Gemini / Claude 等海外模型见下方[模型费用说明](#-模型费用说明)中的 AiHubMix 备选方案。
+> 💡 **套餐选择**：前期熟悉安装可选 **Lite 版 39 元/月**；正常使用建议 **Standard 版 139 元/月**。
 
 > 🎬 **想用视频生成能力？** 需额外开通火山方舟 `doubao-seedance-2.0` 系列或阿里云百炼 `happyhorse-1.1` 系列模型，并把对应 key（`AWK_GEN_KEY` 或 `MODELSTUDIO_API_KEY`）配置到 `daemon.env`。详见下方[视频生成模型配置](#-视频生成模型配置)。
 
 ### 推荐：一键脚本安装（预构建 tarball 路线）
 
-一行命令，全程无需预装 Node / pnpm / git（tarball 自带 portable Node + pnpm）。脚本完成后**唯一人工输入**是填 `AWK_API_KEY`（火山方舟 Coding Plan 的 key）。
+一行命令，全程无需预装 Node / pnpm / git（tarball 自带 portable Node + pnpm）。脚本完成后**唯一人工输入**是填 `AWK_API_KEY`（阿里云百炼「AI Superstar」套餐的 key）。
 
 **macOS / Linux（bash，一行命令）：**
 
@@ -89,13 +91,15 @@ irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.
 
 > 按网络环境选一条命令即可：能正常访问 GitHub 走 GitHub 线路（脚本 `install.sh` / `install.ps1`）；国内网络走 atomgit 线路（脚本 `install-atomgit.sh` / `install-atomgit.ps1`，全程不经 GitHub）。两条线路安装产物完全一致，只是下载源不同。
 
-> install 脚本默认拉最新 release tag + 下载 tarball。指定版本：`export XIAOBEI_TAG=v5.6.0`（PowerShell：`$env:XIAOBEI_TAG="v5.6.0"`）。
+> install 脚本默认拉最新 release tag + 下载 tarball。指定版本：`export XIAOBEI_TAG=v5.6.3`（PowerShell：`$env:XIAOBEI_TAG="v5.6.3"`）。
 
 > 💡 **下载中断 / 安装失败？多试几次就好。** tarball 体积较大（~140MB），首装还要下 Firefox 反指纹浏览器（~557MB），网络偶发中断属正常。脚本幂等，重跑会续上已下的部分。
 
 > ⚠️ **Windows 必须装 bash**（Git Bash 或 WSL）。install.ps1 / install-atomgit.ps1 用 `tar`（Win10 1803+ 自带）解压 tarball，但 `setup-crew.sh` 是 bash 脚本，部署 crew workspace 离不开 bash。无 bash 时脚本会跳过 crew 模板部署并提示手动补跑——此时小贝团队起不来。装 Git Bash：https://git-scm.com （安装时勾选 "Add to PATH"）。
 
 > 完整步骤：先装 Git Bash（安装时勾选 "Add to PATH"，让 bash 进 PowerShell 的 PATH）→ 再在 PowerShell 跑上面那条 `irm | iex`。
+
+> 💡 **Windows 建议打开「开发者模式」**（设置 → 隐私和安全 → 开发者选项 → 开启开发人员模式，Win10 1703+ 支持）。安装脚本会创建两条软链：仓内 `skills/` → `~/.openclaw/skills`、各 crew 的 `skills/` → `~/.openclaw/workspace-<crew>/skills/`，让 openclaw 的 skill loader 拾取技能、且仓内改完即生效无需重跑安装。软链在 Windows 上需要开发者模式（或管理员 PowerShell）；两者都没打开时脚本会自动回退为拷贝——功能正常但技能不会随仓更新自动同步，重跑安装才会刷新。
 
 脚本自动完成（约 5-15 分钟，CI 已预构建引擎，用户侧只 `pnpm install --prod` 拉依赖 + 下 Firefox）：
 
@@ -182,11 +186,9 @@ irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.
 >
 > xiaobei 底层基于 openclaw，建议先准备好大模型 API：
 >
-> - **主力模型（强烈推荐）**：[火山引擎方舟 Coding Plan](https://volcengine.com/L/dx-wt80li-I/) — 一个套餐覆盖 GLM-5.2、Kimi-K2.7、MiniMax-M3、DeepSeek-V4 系列、Doubao-Seed-2.0 系列等主流模型，**工具不限**，xiaobei 默认主力模型 GLM-5.2 即走此通道。需要注册并开通 Coding Plan 获得 `AWK_API_KEY`。
->   > 🎁 **通过 xiaobei 邀请链接** [https://volcengine.com/L/dx-wt80li-I/](https://volcengine.com/L/dx-wt80li-I/) **订阅**（邀请码 `5Y5A6L86`），可叠加 **9.5 折**优惠，首月尝鲜低至 **9.4 元**，订得越多折扣越大。
->   > ⚠️ Coding Plan 目前限量发售，建议每天 10 点前购买。
+> - **主力模型（强烈推荐）**：[阿里云百炼「AI Superstar」套餐](https://www.aliyun.com/benefit/ai/aistar?clubBiz=subTask..12766005..10274..) — 一个套餐覆盖 DeepSeek-V4-Flash、GLM-5.2、Qwen3.6-Flash 等主流模型，**无月限额、不限购**。前期熟悉安装可选 Lite 版 39 元/月，正常使用建议 Standard 版 139 元/月。开通后获得 `AWK_API_KEY`，xiaobei 默认主力模型 DeepSeek-V4-Flash 即走此通道。
 >
-> - **海外模型用户**：如果想使用 ChatGPT / Gemini / Claude 等海外模型，可通过 [AiHubMix](https://aihubmix.com/?aff=Gp54) 统一接入（全兼容 OpenAI 接口，国内直连）。欢迎通过此[邀请链接](https://aihubmix.com/?aff=Gp54)注册。备选配置模板见 `config-templates/openclaw-aihubmix.json`。
+> - **仍想用火山方舟 Coding Plan 的用户**：默认配置模板已切到百炼，但火山 provider 仍保留在 `config-templates/openclaw.json` 的 `models.providers.awk`。如需切回火山，手动把 `agents.defaults.model.primary` 改成 `awk/glm-latest`、fallbacks 改成 `awk/deepseek-v4-pro` 等，然后重新跑 `setup-crew.sh` 即可。
 >
 > 配置模板已预置以上最佳实践，`install.sh` 会自动检测所需环境变量并引导你输入。安装后重启 openclaw gateway 即可生效。
 
@@ -280,7 +282,7 @@ Crew 遇到自己不能解决的问题：
 
 ## 🔧 全新的浏览器栈
 
-v5.6.0中，我们几乎重构了OpenClaw原版的浏览器自动化方案（详见 `docs/browser-stack-replacement-spec-2026-07.md`）：
+v5.6.0 中我们几乎重构了 OpenClaw 原版的浏览器自动化方案（详见 `docs/browser-stack-replacement-spec-2026-07.md`），v5.6.3 沿用此双线栈并按 OpenClaw v2026.7.1 重新对齐 patch：
 
 | 项 | 说明 |
 |----|------|
@@ -318,8 +320,8 @@ wiseflow/
 │   ├── *.patch            # git 补丁（按序号顺序应用到 openclaw/）
 │   └── overrides.sh       # pnpm 依赖覆盖（如替换 playwright → patchright）
 ├── config-templates/      # 配置模板（开箱即用的最佳实践）
-│   ├── openclaw.json      # 默认配置模板（AWK 主力 + fts-only 记忆 + dream 关）
-│   └── openclaw-aihubmix.json  # AiHubMix 海外模型备选模板
+│   ├── openclaw.json      # 默认配置模板（阿里云百炼主力 + fts-only 记忆 + dream 关）
+│   └── openclaw-awk.json  # 火山引擎方舟 Coding Plan 备选模板（主力 GLM-5.2）
 ├── scripts/               # 工具脚本（详见 scripts/README.md）
 │   ├── lib/               # 脚本共享工具（agent-skills.sh 等）
 │   ├── install.sh         # 一键安装 + 升级（预构建 tarball 路线，macOS + Linux，GitHub 线路；重跑即升级，保留 ~/.openclaw）
@@ -379,4 +381,4 @@ https://github.com/TeamWiseFlow/xiaobei
 
 ## 友情链接
 
-[<img src="assets/atomgit.png" alt="atomgit" height="60">](https://gitcode.com/atomgit_atomcode)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[<img src="https://resource.aihubmix.com/logo.png" alt="aihubmix" height="60">](https://aihubmix.com/?aff=Gp54)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[<img src="https://github.com/TeamWiseFlow/xiaobei/raw/4.x/docs/logos/SiliconFlow.png" alt="siliconflow" height="40">](https://cloud.siliconflow.cn/i/WNLYbBpi)
+[<img src="assets/atomgit.png" alt="atomgit" height="60">](https://gitcode.com/atomgit_atomcode)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[<img src="https://github.com/TeamWiseFlow/xiaobei/raw/4.x/docs/logos/SiliconFlow.png" alt="siliconflow" height="40">](https://cloud.siliconflow.cn/i/WNLYbBpi)

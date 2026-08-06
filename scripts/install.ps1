@@ -554,7 +554,7 @@ function Install-GatewayAndEnv {
     # --- Interactive AWK_API_KEY prompt ---
     $awkKey = $env:AWK_API_KEY
     if (-not $script:NoPrompt -and -not $awkKey) {
-        $awkKey = Read-Host "Enter AWK_API_KEY (Volces ARK API key)"
+        $awkKey = Read-Host "Enter AWK_API_KEY (Aliyun Bailian API key)"
     }
 
     # --- Write .env (business vars, export format for bash/sh source, read by the bare CLI) ---

@@ -9,6 +9,43 @@
   "models": {
     "mode": "merge",
     "providers": {
+      "bailian-token-plan": {
+        "baseUrl": "https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic",
+        "apiKey": "${AWK_API_KEY}",
+        "api": "anthropic-messages",
+        "models": [
+          {
+            "id": "deepseek-v4-flash-0731",
+            "name": "deepseek-v4-flash-0731",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 1000000,
+            "maxTokens": 393216,
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "compat": { "thinkingFormat": "openai" }
+          },
+          {
+            "id": "glm-5.2",
+            "name": "glm-5.2",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 1000000,
+            "maxTokens": 16384,
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "compat": { "thinkingFormat": "openai" }
+          },
+          {
+            "id": "qwen3.6-flash",
+            "name": "qwen3.6-flash",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "contextWindow": 1000000,
+            "maxTokens": 32768,
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "compat": { "thinkingFormat": "openai" }
+          }
+        ]
+      },
       "awk": {
         "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
         "api": "openai-completions",
@@ -79,31 +116,21 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "awk/glm-latest",
+        "primary": "bailian-token-plan/deepseek-v4-flash-0731",
         "fallbacks": [
-          "awk/deepseek-v4-pro",
-          "awk/deepseek-v4-flash"
+          "bailian-token-plan/glm-5.2"
         ]
       },
       "imageModel": {
-        "primary": "awk/doubao-seed-2.0-lite"
+        "primary": "bailian-token-plan/qwen3.6-flash"
       },
       "memorySearch": {
         "provider": "none"
       },
       "models": {
-        "awk/glm-latest": {
-          "alias": "awk/glm-5.2"
-        },
-        "awk/deepseek-v4-flash": {
-          "alias": "awk/ds-v4-flash"
-        },
-        "awk/deepseek-v4-pro": {
-          "alias": "awk/ds-v4-pro"
-        },
-        "awk/doubao-seed-2.0-lite": {
-          "alias": "awk/seed-2-lite"
-        }
+        "bailian-token-plan/deepseek-v4-flash-0731": {},
+        "bailian-token-plan/glm-5.2": {},
+        "bailian-token-plan/qwen3.6-flash": {}
       },
       "compaction": {
         "mode": "safeguard"

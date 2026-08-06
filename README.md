@@ -57,11 +57,9 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 
 ### 0. 准备 API Key
 
-推荐注册 [火山引擎方舟 Coding Plan](https://volcengine.com/L/dx-wt80li-I/)（🎁 欢迎使用 xiaobei 邀请链接 / 邀请码 `5Y5A6L86`，订阅叠加 9.5 折，首月尝鲜低至 9.4 元），开通后获得 `AWK_API_KEY`——主力模型 GLM-5.2、视觉与替补模型全部走此通道，**一个 key 即可**。
+推荐开通 [阿里云百炼「AI Superstar」套餐](https://www.aliyun.com/benefit/ai/aistar?clubBiz=subTask..12766005..10274..)——一个套餐覆盖 DeepSeek-V4-Flash、GLM-5.2、Qwen3.6-Flash 等主流模型，**无月限额、不限购**，xiaobei 默认主力模型 DeepSeek-V4-Flash 即走此通道。开通后获得 `AWK_API_KEY`，主力模型、视觉模型、替补模型**一个 key 全覆盖**。
 
-> ⚠️ **火山方舟 Coding Plan 目前限量发售**，额度通常在每天上午放量，**建议在每天 10 点前购买**更容易抢到。
-
-> 如果习惯使用 ChatGPT / Gemini / Claude 等海外模型见下方[模型费用说明](#-模型费用说明)中的 AiHubMix 备选方案。
+> 💡 **套餐选择**：前期熟悉安装可选 **Lite 版 39 元/月**；正常使用建议 **Standard 版 139 元/月**。
 
 > 🎬 **想用视频生成能力？** 需额外开通火山方舟 `doubao-seedance-2.0` 系列或阿里云百炼 `happyhorse-1.1` 系列模型，并把对应 key（`AWK_GEN_KEY` 或 `MODELSTUDIO_API_KEY`）配置到 `daemon.env`。详见下方[视频生成模型配置](#-视频生成模型配置)。
 
@@ -182,11 +180,9 @@ irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.
 >
 > xiaobei 底层基于 openclaw，建议先准备好大模型 API：
 >
-> - **主力模型（强烈推荐）**：[火山引擎方舟 Coding Plan](https://volcengine.com/L/dx-wt80li-I/) — 一个套餐覆盖 GLM-5.2、Kimi-K2.7、MiniMax-M3、DeepSeek-V4 系列、Doubao-Seed-2.0 系列等主流模型，**工具不限**，xiaobei 默认主力模型 GLM-5.2 即走此通道。需要注册并开通 Coding Plan 获得 `AWK_API_KEY`。
->   > 🎁 **通过 xiaobei 邀请链接** [https://volcengine.com/L/dx-wt80li-I/](https://volcengine.com/L/dx-wt80li-I/) **订阅**（邀请码 `5Y5A6L86`），可叠加 **9.5 折**优惠，首月尝鲜低至 **9.4 元**，订得越多折扣越大。
->   > ⚠️ Coding Plan 目前限量发售，建议每天 10 点前购买。
+> - **主力模型（强烈推荐）**：[阿里云百炼「AI Superstar」套餐](https://www.aliyun.com/benefit/ai/aistar?clubBiz=subTask..12766005..10274..) — 一个套餐覆盖 DeepSeek-V4-Flash、GLM-5.2、Qwen3.6-Flash 等主流模型，**无月限额、不限购**。前期熟悉安装可选 Lite 版 39 元/月，正常使用建议 Standard 版 139 元/月。开通后获得 `AWK_API_KEY`，xiaobei 默认主力模型 DeepSeek-V4-Flash 即走此通道。
 >
-> - **海外模型用户**：如果想使用 ChatGPT / Gemini / Claude 等海外模型，可通过 [AiHubMix](https://aihubmix.com/?aff=Gp54) 统一接入（全兼容 OpenAI 接口，国内直连）。欢迎通过此[邀请链接](https://aihubmix.com/?aff=Gp54)注册。备选配置模板见 `config-templates/openclaw-aihubmix.json`。
+> - **仍想用火山方舟 Coding Plan 的用户**：默认配置模板已切到百炼，但火山 provider 仍保留在 `config-templates/openclaw.json` 的 `models.providers.awk`。如需切回火山，手动把 `agents.defaults.model.primary` 改成 `awk/glm-latest`、fallbacks 改成 `awk/deepseek-v4-pro` 等，然后重新跑 `setup-crew.sh` 即可。
 >
 > 配置模板已预置以上最佳实践，`install.sh` 会自动检测所需环境变量并引导你输入。安装后重启 openclaw gateway 即可生效。
 
@@ -319,7 +315,7 @@ wiseflow/
 │   └── overrides.sh       # pnpm 依赖覆盖（如替换 playwright → patchright）
 ├── config-templates/      # 配置模板（开箱即用的最佳实践）
 │   ├── openclaw.json      # 默认配置模板（AWK 主力 + fts-only 记忆 + dream 关）
-│   └── openclaw-aihubmix.json  # AiHubMix 海外模型备选模板
+│   └── openclaw-aihubmix.json  # AiHubMix 海外模型备选模板（已停推，保留历史兼容）
 ├── scripts/               # 工具脚本（详见 scripts/README.md）
 │   ├── lib/               # 脚本共享工具（agent-skills.sh 等）
 │   ├── install.sh         # 一键安装 + 升级（预构建 tarball 路线，macOS + Linux，GitHub 线路；重跑即升级，保留 ~/.openclaw）
@@ -379,4 +375,4 @@ https://github.com/TeamWiseFlow/xiaobei
 
 ## 友情链接
 
-[<img src="assets/atomgit.png" alt="atomgit" height="60">](https://gitcode.com/atomgit_atomcode)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[<img src="https://resource.aihubmix.com/logo.png" alt="aihubmix" height="60">](https://aihubmix.com/?aff=Gp54)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[<img src="https://github.com/TeamWiseFlow/xiaobei/raw/4.x/docs/logos/SiliconFlow.png" alt="siliconflow" height="40">](https://cloud.siliconflow.cn/i/WNLYbBpi)
+[<img src="assets/atomgit.png" alt="atomgit" height="60">](https://gitcode.com/atomgit_atomcode)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[<img src="https://github.com/TeamWiseFlow/xiaobei/raw/4.x/docs/logos/SiliconFlow.png" alt="siliconflow" height="40">](https://cloud.siliconflow.cn/i/WNLYbBpi)

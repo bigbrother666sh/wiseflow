@@ -1,3 +1,53 @@
+# v5.6.3 (2026-08-07)
+
+### 数据闭环彻底打通，为自我进化奠基
+
+- **`content-calibrator` 盍打分+预测机制完善**：内容产出 → 发布 → 数据回流 → 下一轮策略调优的闭环不再有断点。calibrator 拿 published-track 回流的实际数据（阅读/点赞/转发/转化）对照预测打分，自动校准后续选题与打法的权重，为小贝自主迭代提供燃料。
+- **`published-track` 数据复盘机制完善**：18 平台文本/媒体限制规则表与内容校验、twitter 互动操作模式补齐；发布结果数据回流进 calibrator，闭环生效。
+- **`content-producer` crew 正式发布**（此前为预发布）：端到端承担内容生产线重活，脚本→素材→TTS→渲染→合成全程贯通，网页/落地页/APP 视觉设计一站搞定。`video-producer` 端到端主技能 17 子脚本覆盖 Stage 0–14 全链 + 两道闸门 GATE A/B；视频分发新增微信视频号发布（`wechat-channels-publish`，处理 wujie shadow DOM），结合既有小红书/抖音/Twitter/X/B站/快手等平台，实现短视频制作→多平台分发的闭环。
+- **公共底座换火山**：`skills/siliconflow-tts` → `skills/awk-tts`（火山方舟豆包语音合成 2.0 / seed-tts-2.0 字符版，NDJSON 流式响应 + X-Api-* 鉴权 + speaker 路由 + 火山 ASR 自检复用 viral-chaser 凭据池）。
+- **新建 `design-full`**：整合 design-system-picker + init-workspace + AGENTS.md 工作模式 2，含 14 套设计系统库 + 三条子工作流 A/B/C。
+- 两个剪辑辅助技能：`de-mouth`（口播视频去口误，自动识别并删除静音/语气词/卡顿词/重复句/残句，输出干净视频+字幕+剪辑草稿）、`talking-head-cut`（口播轻剪辑，高光剪辑算法与工作流借鉴 AutoClip）。
+
+### wx-mp-hunter 接口重写
+
+- 原微信公众号素材接口方案因官方接口调整已不可用，本轮按新版接口重写 `crews/main/skills/wx-mp-hunter`（cheerio 解析新响应结构）。
+
+### 5.6.2 bug 修复（本轮实测踩坑）
+
+- **install.ps1 / install-atomgit.ps1**：
+  - Bug1 `.env`/`daemon.env` 不换行：新增 `Write-EnvFile` 辅助函数（UTF8 no BOM + 显式 CRLF），`@(...)` 强制数组。
+  - Bug2 技能 wrapper 在 Windows 用 `.cmd` shim 替代软链（Windows 软链需管理员/开发者模式，不靠谱）：新增 `Expose-SkillWrappers` 函数。
+  - Bug3 `$Force`/`$SkipBind`/`$SkipBrowser`/`$NoPrompt` 改为 `$script:` 前缀（PowerShell 函数内默认看不到顶层 bare 变量，读局部 `$null`，是 `XIAOBEI_FORCE=1` 不生效的根因）。
+  - Bug4 `OPENCLAW_HOME` warning 3 行 `ui_warn` 降级为 1 行 `ui_info`（实际安装结构正确，warning 纯噪音吓人）。
+- **install.sh / install-atomgit.sh**：
+  - Bug4 `unset OPENCLAW_HOME` 误伤内部变量：删除 unset，保留 warning→降级为 info。
+  - tarball 下载原子写优化（`.part` → rename）。
+  - pip install 无条件加 `--break-system-packages`（PEP 668，不做探测简化小白体验）。
+  - Bug5 `OPENCLAW_HOME` 在 `set -u` 下报 unbound：`cd "${OPENCLAW_HOME}"` 裸引用补 `${OPENCLAW_HOME:-}` 兜底。
+  - Bug6 atomgit 国内线路默认跳过 gum spinner bootstrap：`GUM_VERSION` 默认置空，`bootstrap_gum_temp` 加空判定短路，避免连 GitHub 超时 75 秒拖慢安装（系统已装 gum 仍会用；想强制走 GitHub 可 `export OPENCLAW_GUM_VERSION=0.17.0`）。
+- **install.ps1 / install-atomgit.ps1 Windows 软链**：
+  - Bug7 `workspace-<crew>/skills` 落真文件夹而非软链：根因是 Git Bash 的 MSYS2 默认把 `ln -s` 当 `cp -r`。`Run-SetupCrew` 调 bash 前导出 `MSYS=winsymlinks:nativestrict` 让 `ln -s` 走真 NTFS 软链。
+  - Bug8 `~/.openclaw/skills` 缺失/真文件夹：根因是 Windows 路线没调 `apply-addons.sh`。新增 `Sync-GlobalSkills` 函数把仓根 `skills/` 软链到 `~/.openclaw/skills`，幂等 + 失败回退 copy。README 安装段补「Windows 建议打开开发者模式」说明。
+- 四脚本语法校验通过（`bash -n` + Python PS1 括号平衡校验）。
+
+### 推荐大模型切到阿里云百炼
+
+- **`config-templates/openclaw.json`**：新增 `bailian-token-plan` provider（baseUrl 走百炼 token-plan 端点，anthropic-messages api，三模型：`deepseek-v4-flash-0731` / `glm-5.2` / `qwen3.6-flash`），主力 `deepseek-v4-flash-0731` / fallback `glm-5.2` / 视觉 `qwen3.6-flash`；删火山 `awk` provider。
+- **新建 `config-templates/openclaw-awk.json`**：火山方舟 Coding Plan 备选模板（主力 `awk/glm-latest` + fallback + 视觉 `awk/doubao-seed-2.0-lite`），结构与百炼版一致。
+- **删 `config-templates/openclaw-aihubmix.json`**：AihubMix 合作到期，不再推。
+- **README**：「准备 API Key」段推荐百炼（附 Lite 39 元/月、Standard 139 元/月）；「模型费用说明」段火山改手动切换说明；友情链接去 AihubMix logo；目录树注释换 `openclaw-awk.json`，完全不出现 AihubMix 字样。
+- **install.ps1 / install-atomgit.ps1**：交互提示文案从 "Volces ARK API key" 改为 "Aliyun Bailian API key"。
+- 环境变量名 `AWK_API_KEY` 不改（跟旧版兼容），百炼 provider 的 `apiKey` 仍引用 `${AWK_API_KEY}`。
+- 切换理由：阿里云百炼无月限额、不限购，比火山方舟 Coding Plan（限量发售、每天 10 点前抢）体验更好。
+
+### 底座升级到 OpenClaw 七（v2026.7.1）
+
+- 从 v2026.6.11 升级到 v2026.7.1（7.1 是 2026-07 最新稳定版，7.2 仍 beta）。6 个 browser-camoufox-pivot per-file patch 按 7.1 上游漂移重新生成。
+- `overrides.sh` 已与版本无关（浏览器转向后去掉 patchright 注入，仅注入 `OPENCLAW_DISABLE_WEB_SEARCH`），7.1 `package.json` 无 `pnpm.overrides`，兼容。
+
+---
+
 # v5.6.1 (2026-07-31)
 
 ### content-producer 视频能力四方向重构

@@ -34,24 +34,18 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 
 ## 🚀 **v5.6.3 更新**
 
-- 产品重大重构,更简洁、更易上手、更精炼！
-- **重新认识你的 main agent——小贝**：这一版的小贝不再是单一职能的运营助手，而是把此前分散的几个 agent 融合成了一个——
-  - **三角色一体**：新媒体运营（self-media-operator）+ 商务拓展（BD, business-developer）+ 投资人关系（IR, investor-relations）合体，外加 sales-cs 生命周期管理。一个微信入口，从内容产出、找客户、到融资材料全包。
-  - **新媒体运营面**：多平台发布（公众号/小红书/视频号/抖音/微博/知乎/Twitter/YouTube）、`viral-chaser` 追爆仿写、`content-calibrator` 盲打分+预测、`published-track` 数据复盘、`video-edit` 素材剪辑/拼接、`talking-head-cut` 口播轻剪辑……
-  - **商务拓展面**：`lead-hunting` 潜客探索、`comment-engagement` 评论区拓展、`intel-gathering` 情报采集，配 `bd-record`/`info-record` 数据层。
-  - **投资人关系面**：`business-model-polish` 商业模式打磨、`project-application` 项目申报（含软著 `swcr-register`）、`investor-pipeline` 投资人发掘与跟进，配 `ir-record` 数据层。
-  - **本轮新增起号知识库**：内置 `channels-account-launch-expert`，覆盖抖音、Twitter/X、微信视频号、微信公众号、小红书 5 个平台从 0 起号的运营思路与账号对标技能——没账号、思路乱，先问小贝。
-  - **自主协作**：遇到自己搞不定的技术问题（token 过期、登录失效、配置缺失）不喊用户、不停活，自主 spawn IT 工程师修完继续干。
-- **浏览器架构重新设计（双线栈）**：
-  - **线 1（日常主力）**：forked [camoufox-cli](https://github.com/daijro/camoufox)（vendor 进 `patches/camoufox-cli/`，基于上游 `camoufox-cli@0.6.2` + 三个新功能：`upload` 命令 / fail-first 队列 / `identity export`）走旁路，反指纹 Firefox + JSON-over-unix-socket，绕开 routes/、pw-session、chrome-mcp。无头胜有头，资源占用更少，速度更快，反侦测能力依然在线。
-  - **线 2**：保留openclaw原版 `target=host`（existing-session 真机 Chrome + chrome-mcp relay）+ `target=node`（remote-cdp 远端 Chrome）。
-  - **profile 丢失 / 损坏 / 指纹错配 → 重建 + 重登录
-- **🎬 Content Producer 正式发布，视频制作能力全面进化**：全新 `content-producer` crew 正式上线（此前为预发布），端到端承担内容生产线重活——脚本→素材→TTS→渲染→合成全程贯通，网页/落地页/APP 视觉设计一站搞定。底座换火山方舟豆包语音合成 2.0 / seed-tts-2.0，NDJSON 流式响应 + speaker 路由；`video-producer` 端到端主技能 17 子脚本覆盖 Stage 0–14 全链 + 两道闸门 GATE A/B；视频分发新增微信视频号发布，结合既有小红书/抖音/Twitter/X/B站/快手等平台，实现短视频制作→多平台分发的闭环。
-- **🔄 数据闭环彻底打通，为自我进化奠基**：`content-calibrator`（盍打分+预测）与 `published-track`（数据复盘）机制全面完善，内容产出→发布→数据回流→下一轮策略调优的闭环不再有断点，为后续小贝自主迭代选题与打法提供燃料。
-- **底座升级到 OpenClaw 七（v2026.7.1）**——近两个月最稳定版本，6 个 browser-camoufox-pivot per-file patch 按 7.1 上游漂移重新生成；openclaw-weixin 2.4.6。
-- **安装脚本大幅优化，全面测试 bug 排除**：对比 5.6.0，install.sh / install-atomgit.sh / install.ps1 / install-atomgit.ps1 四脚本修了若干实测踩坑——tarball 下载原子写、Windows `.env`/`daemon.env` 换行与 BOM、技能 wrapper 在 Windows 用 `.cmd` shim 替代软链、`OPENCLAW_HOME` 在 `set -u` 下报 unbound、atomgit 国内线路默认跳过 gum spinner bootstrap 避免连 GitHub 超时、Windows 软链需要开发者模式等，产品稳定性显著提高。
-- **wx-mp-hunter 更新**：原微信公众号素材接口方案因官方接口调整已不可用，本轮按新版接口重写。
-- 推荐大模型切到**阿里云百炼**「AI Superstar」套餐（无月限额、不限购），默认主力 DeepSeek-V4-Flash / fallback GLM-5.2 / 视觉 Qwen3.6-Flash；仍想用火山方舟 Coding Plan 的用户可手动切 `config-templates/openclaw-awk.json`。
+- **🎬 Content Producer 正式发布**：我们参考了GitHub上几乎所有热门的视频生产项目，并重点解决了纯AIGC模式容易被平台限流，以及难以融合业务素材的问题。xiaobei系统的content-producer就是你目前能够找到的最适合获客内容制作的开源免费方案！
+
+  > ☀️测试阶段，我们应用content-producer制作了xiaobei系统的第一支品牌故事宣传片：
+  >
+  >  - YouTube：https://youtu.be/eK8aWWCNVZQ?si=K-MbWai-j6ydqCdy
+  >  - bilibili：https://www.bilibili.com/video/BV1euMR6PEDh
+
+- **🔄 数据闭环彻底打通，为自我进化奠基**：`content-calibrator`（打分+预测）与 `published-track`（数据复盘）机制全面完善，内容产出→发布→数据回流→下一轮策略调优的闭环不再有断点，为后续小贝自主迭代选题与打法提供燃料。现在主力四平台（微信视频号、微信公众号、小红书、抖音）全系支持内容自动生产、自动发布、自动取数、自动复盘
+- **安装脚本大幅优化**：对比 5.6.0，install.sh / install-atomgit.sh / install.ps1 / install-atomgit.ps1 四脚本修了若干实测踩坑——tarball 下载原子写、Windows `.env`/`daemon.env` 换行与 BOM、技能 wrapper 在 Windows 用 `.cmd` shim 替代软链、`OPENCLAW_HOME` 在 `set -u` 下报 unbound、atomgit 国内线路默认跳过 gum spinner bootstrap 避免连 GitHub 超时、Windows 软链需要开发者模式等，产品稳定性显著提高。
+- **全面测试 bug 排除**：对比5.6.0版本，在过去的三个版本里面，我们累计修复了100余个bug，xiaobei系统现在更稳定、更成熟。
+- **wx-mp-hunter 更新**：原微信公众号素材接口方案因官方调整已不可用，我们更新了微信公众号获取方案
+- **底座升级到 OpenClaw v2026.7.1**
 
 详见 [CHANGELOG.md](CHANGELOG.md)
 
@@ -61,15 +55,17 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 
 ### 0. 准备 API Key
 
-推荐开通 [阿里云百炼「AI Superstar」套餐](https://www.aliyun.com/benefit/ai/aistar?clubBiz=subTask..12766005..10274..)——一个套餐覆盖 DeepSeek-V4-Flash、GLM-5.2、Qwen3.6-Flash 等主流模型，**无月限额、不限购**，xiaobei 默认主力模型 DeepSeek-V4-Flash 即走此通道。开通后获得 `AWK_API_KEY`，主力模型、视觉模型、替补模型**一个 key 全覆盖**。
+推荐开通 [阿里云百炼「Token Plan」套餐](https://www.aliyun.com/benefit/ai/aistar?clubBiz=subTask..12766005..10274..)——一个套餐覆盖 DeepSeek-V4-Flash、GLM-5.2、Qwen3.6-Flash 等主流模型，**无月限额、不限购**，xiaobei 默认主力模型 DeepSeek-V4-Flash 即走此通道。开通后获得 `AWK_API_KEY`，主力模型、视觉模型、替补模型**一个 key 全覆盖**。
 
-> 💡 **套餐选择**：前期熟悉安装可选 **Lite 版 39 元/月**；正常使用建议 **Standard 版 139 元/月**。
+> 💡 **套餐选择**：前期熟悉安装可选 **Lite 版 39 元/月**；正常使用建议 **Standard 版 139 元/月**。想继续使用火山CodePlan见下方 "模型费用说明"
 
-> 🎬 **想用视频生成能力？** 需额外开通火山方舟 `doubao-seedance-2.0` 系列或阿里云百炼 `happyhorse-1.1` 系列模型，并把对应 key（`AWK_GEN_KEY` 或 `MODELSTUDIO_API_KEY`）配置到 `daemon.env`。详见下方[视频生成模型配置](#-视频生成模型配置)。
+> 🎬 **想用视频生成能力？** 开通百炼Token Plan后，会免费获得一定额度的 `happyhorse-1.1` ，只需把对应 key（`MODELSTUDIO_API_KEY`）配置到 `daemon.env`。
+
+> 除了阿里云的`happyhorse`系列，我们现在也支持 minimax 的H3！详见下方[视频生成模型配置](#-视频生成模型配置)
 
 ### 推荐：一键脚本安装（预构建 tarball 路线）
 
-一行命令，全程无需预装 Node / pnpm / git（tarball 自带 portable Node + pnpm）。脚本完成后**唯一人工输入**是填 `AWK_API_KEY`（阿里云百炼「AI Superstar」套餐的 key）。
+一行命令，全程无需预装 Node / pnpm / git（tarball 自带 portable Node + pnpm）。脚本完成后**唯一人工输入**是填 `AWK_API_KEY`（「TOKEN PLAN」套餐的 key）。
 
 **macOS / Linux（bash，一行命令）：**
 
@@ -101,24 +97,7 @@ irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.
 
 > 💡 **Windows 建议打开「开发者模式」**（设置 → 隐私和安全 → 开发者选项 → 开启开发人员模式，Win10 1703+ 支持）。安装脚本会创建两条软链：仓内 `skills/` → `~/.openclaw/skills`、各 crew 的 `skills/` → `~/.openclaw/workspace-<crew>/skills/`，让 openclaw 的 skill loader 拾取技能、且仓内改完即生效无需重跑安装。软链在 Windows 上需要开发者模式（或管理员 PowerShell）；两者都没打开时脚本会自动回退为拷贝——功能正常但技能不会随仓更新自动同步，重跑安装才会刷新。
 
-脚本自动完成（约 5-15 分钟，CI 已预构建引擎，用户侧只 `pnpm install --prod` 拉依赖 + 下 Firefox）：
-
-1. 检测 OS + arch → 选 tarball asset（linux-x64 / mac-arm64 / mac-x64 / win-x64）
-2. 下载预构建 tarball → 解压到 `~/xiaobei/`（程序目录：openclaw 引擎 + crew 模板 + 脚本 + portable Node/pnpm + camoufox-cli fork + `bin/openclaw` wrapper）
-3. `pnpm install --prod --frozen-lockfile`（用自带的 portable Node + pnpm，在 `openclaw/` 下；只拉依赖不编译，native deps 自动按平台）
-4. `pip install --user`（skills 的 Python 依赖）
-5. awada 本地插件 deps（`awada/` 下 `npm install --omit=dev` 装 ws+zod）
-6. `camoufox-cli install`（下 Firefox 反指纹浏览器二进制，约 557MB，仅首装）
-7. `openclaw plugins install @tencent-weixin/openclaw-weixin@<pin> --pin`（微信插件，走 npmmirror）
-8. 放 `config-templates/openclaw.json` → `~/.openclaw/openclaw.json`（已预置微信 channel binding + 插件开关）；若现有 config 被极简化（缺 models/agents.defaults）则自动覆盖自愈
-9. `setup-crew.sh`（部署 crew workspace 到 `~/.openclaw/workspace-*`，注册 agents）
-10. 交互问 `AWK_API_KEY` → 写 `~/.openclaw/daemon.env` → `openclaw daemon install` + restart
-11. 自动出微信绑定二维码（已绑过的机器自动跳过），手机扫码、点确认即用
-
-装好后：
-
-- 脚本最后会自动出微信绑定二维码——用手机微信扫一下、点确认，小贝就能用了。已绑过的机器自动跳过这一步。
-- 访问 dashboard：http://127.0.0.1:18789
+装好后脚本最后会自动出微信绑定二维码——用手机微信扫一下、点确认，小贝就能用了。已绑过的机器自动跳过这一步。
 
 > **目录职责**：`~/xiaobei/` = 程序（引擎 + 模板 + 脚本 + 工具 + wrapper）；`~/.openclaw/` = 运行数据（openclaw.json + daemon.env + workspaces + logs）。两者分开，升级只换 `~/xiaobei/`，用户数据不动。可用 `XIAOBEI_HOME` / `OPENCLAW_HOME` env 覆盖。
 
@@ -186,11 +165,9 @@ irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.
 >
 > xiaobei 底层基于 openclaw，建议先准备好大模型 API：
 >
-> - **主力模型（强烈推荐）**：[阿里云百炼「AI Superstar」套餐](https://www.aliyun.com/benefit/ai/aistar?clubBiz=subTask..12766005..10274..) — 一个套餐覆盖 DeepSeek-V4-Flash、GLM-5.2、Qwen3.6-Flash 等主流模型，**无月限额、不限购**。前期熟悉安装可选 Lite 版 39 元/月，正常使用建议 Standard 版 139 元/月。开通后获得 `AWK_API_KEY`，xiaobei 默认主力模型 DeepSeek-V4-Flash 即走此通道。
+> - **主力模型（强烈推荐）**：[阿里云百炼「Token Plan」套餐](https://www.aliyun.com/benefit/ai/aistar?clubBiz=subTask..12766005..10274..) — 一个套餐覆盖 DeepSeek-V4-Flash、GLM-5.2、Qwen3.6-Flash 等主流模型，**无月限额、不限购**。前期熟悉安装可选 Lite 版 39 元/月，正常使用建议 Standard 版 139 元/月。开通后获得 `AWK_API_KEY`，xiaobei 默认主力模型 DeepSeek-V4-Flash 即走此通道。
 >
-> - **仍想用火山方舟 Coding Plan 的用户**：默认配置模板已切到百炼，但火山 provider 仍保留在 `config-templates/openclaw.json` 的 `models.providers.awk`。如需切回火山，手动把 `agents.defaults.model.primary` 改成 `awk/glm-latest`、fallbacks 改成 `awk/deepseek-v4-pro` 等，然后重新跑 `setup-crew.sh` 即可。
->
-> 配置模板已预置以上最佳实践，`install.sh` 会自动检测所需环境变量并引导你输入。安装后重启 openclaw gateway 即可生效。
+> - **仍想用火山方舟 Coding Plan 的用户**：在默认配置模板基础上参考 [openclaw-awk.json](config-templates/openclaw-awk.json)，手动替换 `provider` 和 `agents.default` 字段即可。
 
 > **🎬 视频生成模型配置**
 >
@@ -200,8 +177,9 @@ irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.
 > |------|---------|------|
 > | 阿里云百炼（优先） | `MODELSTUDIO_API_KEY`（或 `DASHSCOPE_API_KEY`） | `happyhorse-1.1-i2v` / `happyhorse-1.1-t2v` / `happyhorse-1.1-r2v` |
 > | 火山引擎方舟 | `AWK_GEN_KEY` | `doubao-seedance-2-0-fast-260128` / `doubao-seedance-2-0-260128` / `doubao-seedance-2-0-mini-260615` |
+> | minimax海螺 | `MINIMAX_API_KEY` | `minimax-H3` |
 >
-> 两个 key 都配了走百炼，只配 `AWK_GEN_KEY` 走火山，都没配则自动降级为 pexels/pixabay 免费素材模式（也得注册才能获得key，只不过是免费）。注意 `AWK_GEN_KEY` 与主力模型的 `AWK_API_KEY` 是一个 key，但必须在环境变量中以不同变量名称赋值，火山视频生成只认 `AWK_GEN_KEY`。申请成功后可以让小贝喊系统内置的IT Engineer帮你完成配置。
+> 若上述都没配则自动降级为 pexels/pixabay 免费素材模式（也得注册才能获得key，只不过是免费）。注意 `AWK_GEN_KEY` 与主力模型的 `AWK_API_KEY` 是一个 key，但必须在环境变量中以不同变量名称赋值，火山视频生成只认 `AWK_GEN_KEY`。申请成功后可以让小贝喊系统内置的IT Engineer帮你完成配置。
 
 > **🧠 进阶：记忆增强与 dream（可选）**
 >
@@ -235,7 +213,7 @@ irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.
 |------|------|---------|
 | **小贝（main agent）** | AI 搞钱搭子，统筹全局、对接用户、内容选题与发布策略、按需招募/调度其他 crew | 多平台发布（公众号/小红书/视频号/抖音/微博/知乎/Twitter/YouTube）、`viral-chaser` 追爆、`content-calibrator` 打分、`published-track` 复盘、`smart-search` / `lead-hunting` / `intel-gathering` / `market-research` 信息搜集、`rss-reader` 信源监控、投融资与 IR 材料（`pitch-deck` / `investor-*` / `ir-record`）、`swcr-register` 软著、`xianyu-ops` 闲鱼 |
 | **IT 工程师（it-engineer）** | 幕后支撑，被其他 crew spawn 协助 | 系统运维与排障、`openclaw.json` / `daemon.env` / cron 配置、`login-manager` 登录管理、平台绑定、ICP 备案、腾讯云/阿里云 CLI、GitHub/issue 追踪 |
-| **创作者（content-producer）**(预发布) | 专业内容制作者，承担内容生产线重活 | 视频生产（脚本→素材→TTS→渲染→合成）、网页/落地页/APP 视觉设计... |
+| **创作者（content-producer）**| 专业内容制作者，承担内容生产线重活 | 视频生产（脚本→素材→TTS→渲染→合成）、网页/落地页/APP 视觉设计... |
 | **销售型客服（sales-cs）** | AI 客服，可绑企业微信，客户可以直接用个人微信添加 | 售前咨询、销售推进、客户画像维护、投诉/售后分流 |
 
 ### AI 团队的自主协作
@@ -360,7 +338,7 @@ wiseflow/
 - 文颜(Markdown文章排版美化工具，支持微信公众号、今日头条、知乎等平台。) https://github.com/caol64/wenyan
 - Everything Claude Code（Claude Code 全局 skill / rule / agent 集合，wiseflow 的 complex-task 等编排 skill 借鉴了其 blueprint 和 gan-style-harness 的设计思路） https://github.com/affaan-m/everything-claude-code
 - awesome-design-md（A curated collection of design systems in markdown format — Designer 内置设计系统库参考了此项目的设计系统结构） https://github.com/VoltAgent/awesome-design-md
-- cheat-on-content（自媒体打分算法借鉴） https://github.com/XBuilderLAB/cheat-on-content
+- cheat-on-content（自媒体打分算法借鉴、取数方案借鉴） https://github.com/XBuilderLAB/cheat-on-content
 - AutoClip（AI 视频智能切片系统 — `talking-head-cut` 技能的高光剪辑算法与工作流借鉴自此；`video-producer` 的 Stage 13b motion-audit 镜头抽帧打分思路亦借鉴其高光判定） https://github.com/zhouxiaoka/autoclip
 - HyperFrames（HeyGen 开源的 AI 视频生成编排框架 — `video-producer` 的脚本→分镜→渲染链式工作流与两道闸门审批节奏借鉴自此） https://github.com/heygen-com/hyperframes
 - html-video（nexu-io 的 HTML 视频渲染方案 — `video-producer` 的 Stage 10 静帧→成片渲染思路与素材组装约定参考自此） https://github.com/nexu-io/html-video

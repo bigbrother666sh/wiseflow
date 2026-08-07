@@ -2,12 +2,8 @@
 
 ### 数据闭环彻底打通，为自我进化奠基
 
-- **`content-calibrator` 盍打分+预测机制完善**：内容产出 → 发布 → 数据回流 → 下一轮策略调优的闭环不再有断点。calibrator 拿 published-track 回流的实际数据（阅读/点赞/转发/转化）对照预测打分，自动校准后续选题与打法的权重，为小贝自主迭代提供燃料。
-- **`published-track` 数据复盘机制完善**：18 平台文本/媒体限制规则表与内容校验、twitter 互动操作模式补齐；发布结果数据回流进 calibrator，闭环生效。
-- **`content-producer` crew 正式发布**（此前为预发布）：端到端承担内容生产线重活，脚本→素材→TTS→渲染→合成全程贯通，网页/落地页/APP 视觉设计一站搞定。`video-producer` 端到端主技能 17 子脚本覆盖 Stage 0–14 全链 + 两道闸门 GATE A/B；视频分发新增微信视频号发布（`wechat-channels-publish`，处理 wujie shadow DOM），结合既有小红书/抖音/Twitter/X/B站/快手等平台，实现短视频制作→多平台分发的闭环。
-- **公共底座换火山**：`skills/siliconflow-tts` → `skills/awk-tts`（火山方舟豆包语音合成 2.0 / seed-tts-2.0 字符版，NDJSON 流式响应 + X-Api-* 鉴权 + speaker 路由 + 火山 ASR 自检复用 viral-chaser 凭据池）。
-- **新建 `design-full`**：整合 design-system-picker + init-workspace + AGENTS.md 工作模式 2，含 14 套设计系统库 + 三条子工作流 A/B/C。
-- 两个剪辑辅助技能：`de-mouth`（口播视频去口误，自动识别并删除静音/语气词/卡顿词/重复句/残句，输出干净视频+字幕+剪辑草稿）、`talking-head-cut`（口播轻剪辑，高光剪辑算法与工作流借鉴 AutoClip）。
+- **`content-calibrator` 打分+预测机制完善**：内容产出 → 发布 → 数据回流 → 下一轮策略调优的闭环不再有断点。calibrator 拿 published-track 回流的实际数据（阅读/点赞/转发/转化）对照预测打分，自动校准后续选题与打法的权重，为小贝自主迭代提供燃料。
+- **`published-track` 数据复盘机制完善**：新增微信视频号取数支持，现在主力四平台（微信视频号、微信公众号、小红书、抖音）全系支持内容自动生产、自动发布、自动取数、自动复盘；发布结果数据回流进 calibrator，闭环生效。
 
 ### wx-mp-hunter 接口重写
 
@@ -33,19 +29,6 @@
 
 ### 推荐大模型切到阿里云百炼
 
-- **`config-templates/openclaw.json`**：新增 `bailian-token-plan` provider（baseUrl 走百炼 token-plan 端点，anthropic-messages api，三模型：`deepseek-v4-flash-0731` / `glm-5.2` / `qwen3.6-flash`），主力 `deepseek-v4-flash-0731` / fallback `glm-5.2` / 视觉 `qwen3.6-flash`；删火山 `awk` provider。
-- **新建 `config-templates/openclaw-awk.json`**：火山方舟 Coding Plan 备选模板（主力 `awk/glm-latest` + fallback + 视觉 `awk/doubao-seed-2.0-lite`），结构与百炼版一致。
-- **删 `config-templates/openclaw-aihubmix.json`**：AihubMix 合作到期，不再推。
-- **README**：「准备 API Key」段推荐百炼（附 Lite 39 元/月、Standard 139 元/月）；「模型费用说明」段火山改手动切换说明；友情链接去 AihubMix logo；目录树注释换 `openclaw-awk.json`，完全不出现 AihubMix 字样。
-- **install.ps1 / install-atomgit.ps1**：交互提示文案从 "Volces ARK API key" 改为 "Aliyun Bailian API key"。
-- 环境变量名 `AWK_API_KEY` 不改（跟旧版兼容），百炼 provider 的 `apiKey` 仍引用 `${AWK_API_KEY}`。
-- 切换理由：阿里云百炼无月限额、不限购，比火山方舟 Coding Plan（限量发售、每天 10 点前抢）体验更好。
-
-### 底座升级到 OpenClaw 七（v2026.7.1）
-
-- 从 v2026.6.11 升级到 v2026.7.1（7.1 是 2026-07 最新稳定版，7.2 仍 beta）。6 个 browser-camoufox-pivot per-file patch 按 7.1 上游漂移重新生成。
-- `overrides.sh` 已与版本无关（浏览器转向后去掉 patchright 注入，仅注入 `OPENCLAW_DISABLE_WEB_SEARCH`），7.1 `package.json` 无 `pnpm.overrides`，兼容。
-
 ---
 
 # v5.6.1 (2026-07-31)
@@ -59,9 +42,7 @@
 - **`manim-explainer` 清洗**：Render Conventions + Reusable Starter 两处命令示例改调 `manim-explainer` wrapper，不再裸引用 `scripts/render-manim.sh`
 - **`aigc-video-gen` Flag 肄清**：删 6 个 agent 用不到的 Flag（`--ref-audio` / `--negative-prompt` / `--no-prompt-extend` / `--seed` / `--poll-interval` / `--timeout`），对应 payload 注入逻辑 + poll 函数形参一并收口改内部固定常量；SKILL.md Parameters 段补 3 个有用 Flag（`--prev-segment` / `--no-audio` / `--platform`）；两平台 submit payload 默认均带 `watermark=false`
 - **CP 定义文档同步**：AGENTS.md 重构为四能力方向路由表（185→27 行），SOUL/IDENTITY/MEMORY/BUILTIN_SKILLS 同步，scripts/README.md 与 normalize.py 清出处词，openclaw_setting_sample.json 旧技能字样清
-- **README �借鉴出处段订正**：补 video-producer 借鉴的四个开源项目 HyperFrames / html-video / ViMax / OpenMontage（§5 禁词原则只约束技能内 SKILL.md / 脚本注释，README 是产品门面例外可列）；AutoClip 措辞补 motion-audit �借鉴点
-- **删开发计划文档**：`docs/cp-refactor-dev-plan-2026-07-27.md`（落地完毕）
-- 共 5 个 commit 推送到 origin/master，HEAD 落在 255fd39
+- **README 借鉴出处段订正**：补 video-producer 借鉴的四个开源项目 HyperFrames / html-video / ViMax / OpenMontage（§5 禁词原则只约束技能内 SKILL.md / 脚本注释，README 是产品门面例外可列）；AutoClip 措辞补 motion-audit 借鉴点
 
 ### openclaw 上游同步至 v2026.7.1
 

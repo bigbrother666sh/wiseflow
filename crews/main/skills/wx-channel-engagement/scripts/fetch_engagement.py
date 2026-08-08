@@ -352,8 +352,10 @@ def _ensure_login() -> None:
         # 显式跳登录页 → 真失效，不等
         if "login" in current_url or "scanloginqrcode" in current_url:
             break
-        # 跳到后台真路径（排除 login.html 后的 /platform/ 段）= 登录就位
-        if current_url and "/platform/" in current_url and "login" not in current_url:
+        # 跳到后台具体页面（/platform/home 等）= 登录就位
+        # 不再用 "/platform/" in url 判断，因为初始 URL 本身就含 /platform/
+        backend_paths = ("/platform/home", "/platform/post", "/platform/data", "/platform/interaction", "/platform/live")
+        if any(p in current_url for p in backend_paths):
             return
         time.sleep(0.5)
 

@@ -336,7 +336,7 @@ snapshot eval: document.querySelector('[data-testid="icon-verified"]') !== null
 | Character limit exceeded (Premium 25K) | Trim or use thread |
 | Media upload fails | Retry once; check file format and size |
 | Upload strict mode violation (2 elements) | **用 `[data-testid=fileInput] >> nth=0` 消歧**（见 Workflow: Post with Image） |
-| "Something went wrong, but don't fret" after Post | X 服务端瞬时错误。**自动重试**：reload compose 页 → retype → reupload → re-click Post，最多 3 次。3 次仍失败才报告用户。无需等待，立即重试。 |
+| "Something went wrong, but don't fret" after Post | X 服务端瞬时错误。**优先精简正文**——这种情况大概率是字数超限（X 的字符计数规则与前端显示不完全一致，尤其 URL/emoji 计数偏差时实际超限但按钮未变灰）。先缩短正文再重试，而不是原样重发。重试流程：精简正文 → reload compose 页 → retype → reupload → re-click Post，最多 3 次。3 次仍失败才报告用户。 |
 | Rate limit error | **Wait 30 min minimum** (not 15) + check frequency tracker |
 | Post button greyed out | Content is empty or over limit — check before clicking |
 | Frequency tracker warns high-risk | Ask user: continue or defer to tomorrow? |

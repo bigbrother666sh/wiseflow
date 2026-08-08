@@ -1,34 +1,109 @@
 name: xiaobei
 
-# Production compose file. Images are built and published by GitHub Actions;
-# local validation can override IMAGE with `IMAGE=xiaobei:local` after running
-# ./scripts/build-image.sh.
+# 生产 compose 文件。镜像由 AtomGit 流水线构建并推送到阿里云 ACR；
+# 本地验证可用 IMAGE=xiaobei:local 覆盖（先跑 ./scripts/build-image.sh）。
 #
-# Required configuration: copy .env.example to .env and fill in AWK_API_KEY.
-# Docker Compose auto-loads .env from this directory, so `docker compose up|down|logs`
-# work without prefixing env vars on every command.
+# 必填配置：拷 .env.example 到 .env，填 AWK_API_KEY。Docker Compose 自动从本目录
+# 加载 .env，所以 `docker compose up|down|logs` 不必每次前缀 env vars。
+#
+# 网络拓扑：
+#   xiaobei 容器（wiseflow，跑 openclaw gateway + crews + camoufox）
+#   mimicwx-linux 容器（MimicWX，跑微信客户端，登录态持久化在 wechat-data 卷）
+#   两个容器共用 xiaobei-net 网络，xiaobei 容器经 docker exec 进微信容器读消息库
+#   （wx-mp-hunter posts-list 依赖此能力）
+#
+# 端口映射（默认只绑 127.0.0.1，远程访问走 SSH 隧道）：
+#   18789  gateway API
+#   6080   noVNC web client（浏览器开 http://localhost:6080/vnc.html）
+#   5901   VNC raw（可选，不默认暴露）
 services:
   xiaobei:
     image: ${IMAGE:-registry.cn-hangzhou.aliyuncs.com/${ALIYUN_NAME_SPACE:-xiaobei}/xiaobei:latest}
     restart: unless-stopped
     environment:
-      # The only required user-supplied setting. Other skill credentials are
-      # configured later by the running agent in the persistent .env file.
-      # ${AWK_API_KEY:-__FILL_AWK_API_KEY__} lets `compose config|ps|down` succeed
-      # without a .env; the entrypoint refuses placeholder values at runtime.
+      # 唯一必填用户设置。其他 skill 凭据由运行中的 agent 在持久化 .env 里后配。
+      # ${AWK_API_KEY:-__FILL_AWK_API_KEY__} 让 `compose config|ps|down` 在无 .env 时也能
+      # 成功；entrypoint 在运行时拒绝 placeholder 值。
       AWK_API_KEY: ${AWK_API_KEY:-__FILL_AWK_API_KEY__}
+      # wx-mp-hunter posts-list 需 docker exec 进微信客户端容器读 SQLCipher 消息库。
+      # WX_BIZ_CONTAINER = 微信客户端容器名（与 mimicwx service 的 container_name 对齐）
+      # WX_BIZ_USER_DIR  = 容器内微信用户数据根目录
+      # WX_BIZ_KEYS_FILE = 容器内密钥文件路径
+      WX_BIZ_CONTAINER: ${WX_BIZ_CONTAINER:-mimicwx-linux}
+      WX_BIZ_USER_DIR: ${WX_BIZ_USER_DIR:-/home/wechat/.xwechat}
+      WX_BIZ_KEYS_FILE: ${WX_BIZ_KEYS_FILE:-/home/wechat/.xwechat/keys.json}
     ports:
-      # Keep management surfaces local to the Docker host by default. Remote
-      # access should use an SSH tunnel or a deliberately configured proxy.
+      # 管理面默认只绑 Docker host 的 127.0.0.1。远程访问应走 SSH 隧道或显式配置代理。
       - "127.0.0.1:18789:18789"
       - "127.0.0.1:6080:6080"
     cap_add:
-      # Camoufox's Firefox sandbox needs this in the current container model.
+      # Camoufox 的 Firefox sandbox 在当前容器模型下需要这个
       - SYS_ADMIN
+      # wx-mp-hunter posts-list 用 docker exec 进微信容器读消息库（SYS_PTRACE 读进程内存）
+      - SYS_PTRACE
+    security_opt:
+      # 放开 seccomp/apparmor 让 camoufox sandbox + docker exec 都稳跑
+      - seccomp:unconfined
+      - apparmor:unconfined
     volumes:
+      # 两个数据目录外挂——首启从镜像内 runtime-seed 初始化空卷，已有卷绝不覆盖。
+      # 两个目录含 API key 和平台登录态，权限 0700。
       - xiaobei-openclaw:/root/.openclaw
       - xiaobei-camoufox:/root/.camoufox-cli
+      # 挂宿主 docker.sock：wx-mp-hunter posts-list 用 docker exec 进微信容器读消息库
+      # （需求 4：xiaobei 容器需能访问宿主 docker daemon 才能 docker exec）
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - xiaobei-net
+    # camoufox Firefox + 微信容器配合需要共享内存
+    shm_size: '512m'
+    tmpfs:
+      - /tmp
+    depends_on:
+      - mimicwx
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:18789/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # 微信客户端容器（MimicWX-Linux）—— wx-mp-hunter posts-list 的数据源
+  # 参考 MimicWX 项目 Dockerfile，微信 .deb 官方包 + VNC 桌面
+  # 登录态持久化在 wechat-data 卷，重启不丢登录
+  mimicwx:
+    image: ${MIMICWX_IMAGE:-registry.cn-hangzhou.aliyuncs.com/${ALIYUN_NAME_SPACE:-xiaobei}/mimicwx:latest}
+    container_name: mimicwx-linux
+    restart: unless-stopped
+    cap_add:
+      - SYS_ADMIN
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
+    ports:
+      # 微信容器自己的 VNC（可选，调试用；默认不暴露）
+      - "127.0.0.1:5901:5901"
+    volumes:
+      # 微信登录态 + 消息库持久化（wx-mp-hunter posts-list 读这里）
+      - wechat-data:/home/wechat/.xwechat
+    networks:
+      - xiaobei-net
+    shm_size: '512m'
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8899/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+networks:
+  xiaobei-net:
+    driver: bridge
 
 volumes:
   xiaobei-openclaw:
   xiaobei-camoufox:
+  wechat-data:

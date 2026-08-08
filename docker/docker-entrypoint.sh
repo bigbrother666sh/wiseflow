@@ -1,22 +1,37 @@
 #!/usr/bin/env bash
+# xiaobei 容器入口脚本
+#
+# 职责：
+#   1. 首启从镜像内 runtime-seed 初始化空的 /root/.openclaw 和 /root/.camoufox-cli 卷
+#      （已有卷绝不覆盖——升级镜像时登录态和用户配置会保留）
+#   2. 加载持久化 .env / daemon.env，把 AWK_API_KEY 渲染进 openclaw.json 的 apiKey 字段
+#   3. 首启生成随机 OPENCLAW_GATEWAY_TOKEN 写 ~/.openclaw/.env（不进镜像层）
+#   4. 启动显示栈：Xvfb（虚拟显示，camoufox 有头模式跑这里）+ fluxbox + x11vnc + websockify + noVNC
+#      用户浏览器开 http://localhost:6080 操作 VNC 桌面，里面能看到 camoufox 浏览器窗口
+#      过小红书/抖音等平台验证
+#   5. 首启若未绑定微信则打印扫码二维码（weixin-qr.mjs），扫码后绑定态迁到挂载卷根
+#   6. 启动 openclaw gateway（--allow-unconfigured，首启即跑）
 set -euo pipefail
 
 XIAOBEI_ROOT=/opt/xiaobei
-OPENCLAW_HOME=${OPENCLAW_HOME:-/root/.openclaw}
-CAMOUFOX_HOME=${CAMOUFOX_HOME:-/root/.camoufox-cli}
+OPENCLAW_HOME="${OPENCLAW_HOME:-/root/.openclaw}"
+CAMOUFOX_HOME="${CAMOUFOX_HOME:-/root/.camoufox-cli}"
 RUNTIME_SEED=/opt/xiaobei/runtime-seed/openclaw
 DOTENV="$OPENCLAW_HOME/.env"
 DAEMON_ENV="$OPENCLAW_HOME/daemon.env"
+DISPLAY_NUM="${DISPLAY_NUM:-99}"
+export DISPLAY=":${DISPLAY_NUM}"
 
 fail() {
   echo "[xiaobei] ERROR: $*" >&2
   exit 1
 }
 
+# ─── 1. 首启初始化空卷 ──────────────────────────────────────────────
 bootstrap_runtime_state() {
   if [ ! -f "$OPENCLAW_HOME/openclaw.json" ]; then
-    [ -d "$RUNTIME_SEED" ] || fail "runtime seed is missing: $RUNTIME_SEED"
-    echo "[xiaobei] initializing persistent OpenClaw state"
+    [ -d "$RUNTIME_SEED" ] || fail "runtime seed missing: $RUNTIME_SEED"
+    echo "[xiaobei] first launch — initializing persistent OpenClaw state from seed"
     install -d -m 700 "$OPENCLAW_HOME"
     cp -a "$RUNTIME_SEED/." "$OPENCLAW_HOME/"
   fi
@@ -24,10 +39,10 @@ bootstrap_runtime_state() {
   chmod 700 "$OPENCLAW_HOME" "$CAMOUFOX_HOME"
 }
 
+# ─── 2. 加载运行时环境 ─────────────────────────────────────────────
 load_runtime_environment() {
-  # Compose variables take precedence over persisted configuration. The seed
-  # contains placeholders, which must never shadow a supplied AWK_API_KEY.
-  local supplied_awk_api_key=${AWK_API_KEY:-}
+  # Compose 注入的 AWK_API_KEY 优先于持久化 .env 里的值
+  local supplied_awk_api_key="${AWK_API_KEY:-}"
 
   if [ -f "$DAEMON_ENV" ]; then
     set -a
@@ -39,6 +54,7 @@ load_runtime_environment() {
   if [ -f "$DOTENV" ]; then
     local clean_dotenv
     clean_dotenv=$(mktemp)
+    # 过滤 placeholder（__FILL_*__），避免阴影真实 key
     grep -v '__FILL_.*__' "$DOTENV" > "$clean_dotenv" || true
     set -a
     # shellcheck disable=SC1090
@@ -52,6 +68,7 @@ load_runtime_environment() {
   fi
 }
 
+# ─── 3. 首启生成 gateway token ─────────────────────────────────────
 ensure_gateway_token() {
   if [ -z "${OPENCLAW_GATEWAY_TOKEN:-}" ]; then
     umask 077
@@ -63,17 +80,48 @@ ensure_gateway_token() {
   fi
 }
 
+# ─── 4. 显示栈：Xvfb + fluxbox + x11vnc + websockify ───────────────
+# camoufox 有头模式跑在 Xvfb 虚拟显示里，用户经 noVNC（http://localhost:6080）
+# 看到该显示里的浏览器窗口，可操作过小红书/抖音验证。
 start_display_stack() {
-  export DISPLAY=${DISPLAY:-:99}
+  echo "[xiaobei] starting display stack (Xvfb :${DISPLAY_NUM} + fluxbox + x11vnc + websockify)"
+  # Xvfb 虚拟显示（1280x800 分辨率足够浏览器窗口 + 验证码滑块操作）
   Xvfb "$DISPLAY" -screen 0 1280x800x24 -ac >/tmp/xiaobei-xvfb.log 2>&1 &
-  fluxbox >/tmp/xiaobei-fluxbox.log 2>&1 &
-  x11vnc -display "$DISPLAY" -forever -shared -nopw -rfbport 5900 >/tmp/xiaobei-x11vnc.log 2>&1 &
+  # 等显示就绪
+  for i in 1 2 3 4 5; do
+    if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then break; fi
+    sleep 0.5
+  done
+  # fluxbox 极简窗口管理器（看到浏览器窗口标题栏 + 可拖动）
+  DISPLAY="$DISPLAY" fluxbox >/tmp/xiaobei-fluxbox.log 2>&1 &
+  # x11vnc 把 Xvfb 显示暴露成 VNC（5900 内部端口，无密码——容器内只绑 127.0.0.1）
+  x11vnc -display "$DISPLAY" -forever -shared -nopw -rfbport 5900 -localhost >/tmp/xiaobei-x11vnc.log 2>&1 &
+  # websockify 把 VNC 流转成 WebSocket，noVNC web 客户端通过它连
   websockify --web=/usr/share/novnc 6080 localhost:5900 >/tmp/xiaobei-websockify.log 2>&1 &
+  echo "[xiaobei] noVNC web client: http://localhost:6080/vnc.html"
 }
 
-# Flip the openclaw-weixin switches on first launch so the channel comes up
-# alongside the gateway.  The plugin itself is pre-installed in the image by
-# docker-bootstrap.sh → install-weixin-channel.sh --no-enable.
+# ─── 5. 渲染 AWK_API_KEY 进 openclaw.json ───────────────────────────
+# 构建期 AWK_API_KEY 未设故 template 里 apiKey 字段是 ${AWK_API_KEY} placeholder，
+# 不渲染则 gateway 拿空凭据静默回退到 bundled 模型，故这里必须替换成真值。
+render_awk_api_key() {
+  node -e '
+    const fs = require("fs");
+    const p = process.argv[1];
+    const key = process.env.AWK_API_KEY;
+    if (!key) { console.error("[xiaobei] AWK_API_KEY missing — cannot render openclaw.json"); process.exit(1); }
+    let raw = fs.readFileSync(p, "utf8");
+    const before = raw;
+    raw = raw.replace(/\$\{AWK_API_KEY\}/g, key);
+    if (raw !== before) {
+      fs.writeFileSync(p, raw);
+      console.log("[xiaobei] AWK_API_KEY rendered into openclaw.json");
+    }
+  ' "$OPENCLAW_HOME/openclaw.json"
+}
+
+# ─── 6. 启用 weixin channel + 首启扫码绑定 ─────────────────────────
+# 插件本体已在镜像内预装（docker-bootstrap.sh 阞装），这里只翻 enabled 开关 + 扫码绑定。
 enable_weixin_channel() {
   node -e '
     const fs = require("fs");
@@ -89,21 +137,18 @@ enable_weixin_channel() {
   echo "[xiaobei] openclaw-weixin channel enabled"
 }
 
-# First-launch WeChat binding: print the QR code to stdout and poll until the
-# user scans + confirms.  Subsequent launches skip this (binding state persists
-# in /root/.openclaw/openclaw-weixin/accounts.json + accounts/{accountId}.json).
-#
-# 注意:插件 accounts.js 的 resolveStateDir() = OPENCLAW_STATE_DIR || ~/.openclaw
-# 容器里 OPENCLAW_HOME=/root/.openclaw 已写死,但 OPENCLAW_STATE_DIR 未设时插件用
-# os.homedir() 拼 .openclaw —— 即嵌套层 /root/.openclaw/.openclaw/。扫码后绑定态
-# 落到嵌套层 openclaw-weixin/accounts.json。entrypoint 兜底迁移到挂载卷根。
+# 首启微信扫码绑定：打印 QR 到 stdout + 轮询扫码状态 + 写绑定态。
+# 已绑定（accounts.json 存在）则跳过。
+# 注意：插件 accounts.js 的 resolveStateDir() 用 os.homedir() 拼 .openclaw，容器里
+# OPENCLAW_HOME=/root/.openclaw 但 OPENCLAW_STATE_DIR 也设了同名，仍可能嵌套层写绑定态，
+# 扫码后兜底迁移到挂载卷根（与裸机 install.sh bind_weixin 同逻辑）。
 bind_weixin_channel() {
   local nested_dir="$OPENCLAW_HOME/.openclaw/openclaw-weixin"
   local nested_binding="$nested_dir/accounts.json"
   local root_dir="$OPENCLAW_HOME/openclaw-weixin"
   local root_binding="$root_dir/accounts.json"
 
-  # 嵌套层有绑定态 → 迁到挂载卷根(只迁一次,幂等)
+  # 嵌套层有绑定态 → 迁到挂载卷根（幂等）
   if [ -f "$nested_binding" ] && [ ! -f "$root_binding" ]; then
     echo "[xiaobei] migrating weixin binding from nested .openclaw/ to volume root"
     install -d -m 700 "$root_dir"
@@ -118,12 +163,12 @@ bind_weixin_channel() {
 
   echo "[xiaobei] first launch — starting WeChat QR binding"
   echo "[xiaobei] scan the QR code below with WeChat on your phone, then confirm login"
-  node "$XIAOBEI_ROOT/scripts/weixin-qr.mjs" || {
+  node "$XIAOBEI_ROOT/docker/weixin-qr.mjs" || {
     echo "[xiaobei] ⚠️ weixin-qr exited non-zero; gateway will start without weixin binding"
     return 0
   }
 
-  # 扫码成功后绑定态在嵌套层(插件路径决策)——立即迁到挂载卷根
+  # 扫码成功后绑定态可能在嵌套层，立即迁到挂载卷根
   if [ -f "$nested_binding" ] && [ ! -f "$root_binding" ]; then
     install -d -m 700 "$root_dir"
     cp -a "$nested_dir/." "$root_dir/" 2>/dev/null || true
@@ -131,6 +176,7 @@ bind_weixin_channel() {
   fi
 }
 
+# ─── main ──────────────────────────────────────────────────────────
 bootstrap_runtime_state
 load_runtime_environment
 
@@ -139,30 +185,9 @@ if [ -z "${AWK_API_KEY:-}" ] || [[ "$AWK_API_KEY" == __FILL_*__ ]]; then
 fi
 
 ensure_gateway_token
+render_awk_api_key
 start_display_stack
 enable_weixin_channel
-
-# Render ${AWK_API_KEY} placeholder in openclaw.json with the real env value.
-# docker-bootstrap.sh copies config-templates/openclaw.json into the image during
-# build — at build time AWK_API_KEY is unset, so the apiKey 字段 stays a literal
-# "${AWK_API_KEY}" placeholder. Without substitution here, the gateway receives an
-# empty AWK credential and silently falls back to openai/gpt-5.5 (bundled). Only
-# the apiKey 字段 is touched; all other fields already shipped correct from the template.
-# 必须在 bind_weixin_channel 之前:bind 步会前台跑 weixin-qr.mjs 等扫码,render 跑不到。
-node -e '
-  const fs = require("fs");
-  const p = process.argv[1];
-  const key = process.env.AWK_API_KEY;
-  if (!key) { console.error("[xiaobei] AWK_API_KEY missing — cannot render openclaw.json"); process.exit(1); }
-  let raw = fs.readFileSync(p, "utf8");
-  const before = raw;
-  raw = raw.replace(/\$\{AWK_API_KEY\}/g, key);
-  if (raw !== before) {
-    fs.writeFileSync(p, raw);
-    console.log("[xiaobei] AWK_API_KEY rendered into openclaw.json");
-  }
-' "$OPENCLAW_HOME/openclaw.json"
-
 bind_weixin_channel
 
 echo "[xiaobei] starting gateway"

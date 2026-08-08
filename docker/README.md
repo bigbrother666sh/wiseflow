@@ -1,3 +1,118 @@
-Docker方案目前尚在开发中，不要使用。
+# xiaobei Docker 部署（v5.6.3+）
 
-deploy-via-docker cannot work this time, do not use... under developing
+> **开箱即用**：镜像内已装好 openclaw 引擎 + 全部 skills/crews + camoufox-cli + Firefox +
+> openclaw-weixin 插件 + Xvfb/fluxbox/x11vnc/websockify/noVNC 显示栈。
+> 用户拉镜像后只需填 `AWK_API_KEY`，`docker compose up -d` 即可启动。
+
+## 快速开始
+
+```bash
+# 1. 拷贝环境模板
+cp docker/.env.example docker/.env
+
+# 2. 编辑 .env，填入你的 AWK_API_KEY（阿里云百炼 token）
+#    AWK_API_KEY=sk-xxxxxxxxxxxxxxxx
+
+# 3. 启动
+docker compose up -d
+
+# 4. 访问
+#    gateway API:   http://localhost:18789
+#    noVNC web:      http://localhost:6080/vnc.html
+```
+
+首启会打印微信扫码绑定二维码，用手机微信扫码确认登录即可。绑定态持久化在
+`xiaobei-openclaw` 卷，后续重启自动跳过扫码。
+
+## 镜像内容（= 跑完 install.sh 后的状态）
+
+| 层 | 内容 |
+|----|------|
+| openclaw 引擎 | 按 `openclaw.version` pin 的 commit + 全部 patches + 编译后的 dist |
+| awada 插件 | 本地 TS 插件 + ws/zod 运行时依赖 |
+| skills | 公共 skills（`skills/`）+ crew 专属 skills（`crews/*/skills/`）+ python deps |
+| crews workspace | main / content-producer / it-engineer / sales-cs 四套 crew 预初始化 |
+| camoufox-cli | wiseflow fork（反指纹浏览器 CLI）+ Firefox 二进制（~557MB） |
+| openclaw-weixin | 预装微信 channel 插件（首启扫码绑定） |
+| 显示栈 | Xvfb（虚拟显示）+ fluxbox（窗口管理）+ x11vnc + websockify + noVNC |
+
+**不装**：systemd/launchd daemon（容器无服务管理器）、交互式密钥收集（走环境变量）。
+
+## 数据外挂（两个 named volume）
+
+| Volume | 容器路径 | 内容 |
+|--------|---------|------|
+| `xiaobei-openclaw` | `/root/.openclaw` | openclaw.json、`.env`、workspace、会话、微信登录态 |
+| `xiaobei-camoufox` | `/root/.camoufox-cli` | 浏览器 profile、Cookie、指纹缓存 |
+
+**首启行为**：空卷从镜像内 `/opt/xiaobei/runtime-seed/openclaw` 初始化。
+**升级行为**：已有卷**绝不覆盖**，登录态和用户配置保留。
+**备份**：两个卷含 API key 和平台登录态，备份时应限制文件权限。
+**清空**：`docker compose down -v` 删除卷，等同于清空该实例的配置与登录状态。
+
+## noVNC — 浏览器操作容器内桌面
+
+camoufox 有头模式跑在容器内 Xvfb 虚拟显示里。用户浏览器打开
+`http://localhost:6080/vnc.html` 即可看到该显示里的 fluxbox 桌面，里面能看到 camoufox
+浏览器窗口——用于**小红书/抖音等平台登录过验证**的场景。
+
+**端口默认只绑 Docker host 的 `127.0.0.1`**。远程访问应走 SSH 隧道或显式配置代理，
+不要直接把 6080 暴露到公网。
+
+## 微信容器配合（wx-mp-hunter posts-list）
+
+`wx-mp-hunter` skill 的 `posts-list` 子命令依赖一个运行中的微信客户端容器
+（MimicWX-Linux），通过 `docker exec` 进微信容器读 SQLCipher 加密的消息库。
+
+`docker-compose.yml` 已配好两个容器在同一 `xiaobei-net` 网络里：
+
+- `xiaobei` 容器挂载宿主 `/var/run/docker.sock`（只读），用于 `docker exec` 进微信容器
+- `mimicwx` 容器跑微信客户端，登录态持久化在 `wechat-data` 卷
+- 环境变量 `WX_BIZ_CONTAINER` / `WX_BIZ_USER_DIR` / `WX_BIZ_KEYS_FILE` 指向微信容器
+
+**前提**：需要先有 `mimicwx` 镜像。如果只用到 `wx-mp-hunter` 的 `fetch` / `homepage`
+子命令（不依赖微信容器），可以注释掉 `docker-compose.yml` 里的 `mimicwx` service。
+
+## 构建流水线
+
+镜像由 AtomGit 流水线构建并推送到阿里云 ACR，见
+`.atomgit/pipelines/build-docker.yml`。
+
+触发方式：
+1. **手动触发**：在 AtomGit 项目页面手动跑流水线，填入要构建的 tag（如 `v5.6.3`）
+2. **push tag 自动触发**：`git push origin v5.6.3` 会自动触发构建
+
+产物（阿里云 ACR）：
+```
+registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:v5.6.3
+registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:latest
+```
+
+### 前置 Secrets（在 AtomGit 项目设置中配置）
+
+| Secret 名 | 说明 |
+|-----------|------|
+| `ALIYUN_REGISTRY` | 阿里云 ACR 域名（如 `registry.cn-hangzhou.aliyuncs.com`） |
+| `ALIYUN_NAME_SPACE` | ACR 命名空间（如 `xiaobei`） |
+| `ALIYUN_REGISTRY_USER` | ACR 推送账号 |
+| `ALIYUN_REGISTRY_PASSWORD` | ACR 推送账号密码 |
+
+## 本地验证
+
+```bash
+# 本地构建镜像（会先按 openclaw.version 检出 pinned openclaw 源码）
+./scripts/build-image.sh
+
+# 用本地构建的镜像启动
+AWK_API_KEY=<your-key> IMAGE=xiaobei:local docker compose up -d
+```
+
+## 安全边界
+
+- `AWK_API_KEY` 仅从运行环境读取，**不写入镜像层**也不写 `openclaw.json` 的明文。
+- 首启会为 gateway 生成随机 `OPENCLAW_GATEWAY_TOKEN`，以 `0600` 写入持久化 `.env`。
+- Gateway 和 noVNC 在 Compose 中只映射到 `127.0.0.1`。**不要直接把 6080 暴露到公网**。
+- 当前 Camoufox sandbox 需要 `SYS_ADMIN` capability；只运行受信任的官方镜像，并保持
+  Docker daemon 权限最小化。
+- `/var/run/docker.sock` 只读挂载——xiaobei 容器能 `docker exec` 进微信容器读消息库，
+  但无法修改宿主 docker 状态。若需更强隔离，可改用 docker-socket-proxy。

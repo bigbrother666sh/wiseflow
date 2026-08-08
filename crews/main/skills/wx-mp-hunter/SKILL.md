@@ -249,29 +249,6 @@ wx-mp-hunter homepage <url>
 
 ---
 
-## 发布前 Markdown 规范（抓取结果用于发布时）
-
-当抓取/加工的 Markdown 将通过 `wx-mp-publisher` 推送到公众号草稿箱时，必须遵守以下两条；违反会被微信 / relay 拒绝。
-
-### 1. 图片引用必须用纯文件名
-
-图片经 multipart 上传后，relay 按 `originalname`（文件名）存到 per-request 临时目录。Markdown 里的图片引用**只写文件名**，不得带目录前缀或绝对路径。frontmatter 的 `cover` / `image_list` 字段同理。
-
-- ✅ 正例：`![](image11.png)` / `cover: image11.png`
-- ❌ 反例：`![](/campaign_assets/image11.png)` —— 绝对路径，relay 侧 stat 不到 → `ENOENT`
-- ❌ 反例：`![](./images/image11.png)` —— 带目录前缀，同样 `ENOENT`
-
-### 2. frontmatter author 字段不得超长
-
-微信草稿 `author` 字段上限 **8 个汉字 / 24 字节**，超出报 `45110: author size out of limit`。
-
-- ✅ 正例：`author: 某某`
-- ❌ 反例：`author: 一二三四五六七八九十一`（超 8 字）
-
-> `wx-mp-publisher` 脚本会在发布前校验这两条并拦截，但请在产出 Markdown 时就写对，不要依赖脚本兜底。
-
----
-
 ## 错误处理
 
 | Error | 原因 | 处理 |

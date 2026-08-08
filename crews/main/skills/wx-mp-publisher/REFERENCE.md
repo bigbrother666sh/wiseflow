@@ -22,7 +22,7 @@
 
 ## 写入 accounts.json
 
-Agent 收到 AppID + AppSecret 后，写入 `crews/main/skills/wx-mp-publisher/accounts.json`：
+Agent 收到 AppID + AppSecret 后，写入 `~/.openclaw/wx-mp-publisher/accounts.json`（源仓之外的实例态目录，密钥不落源仓）：
 
 ```json
 {
@@ -39,5 +39,5 @@ Agent 收到 AppID + AppSecret 后，写入 `crews/main/skills/wx-mp-publisher/a
 
 ## 安全
 
-- `accounts.json` 已在 `.gitignore` 中，不会进 git
+- `accounts.json` 在源仓之外（`~/.openclaw/wx-mp-publisher/`），不会进 git / tarball / 备份
 - AppSecret 等同于密码，不要贴到聊天群 / issue / 日志里

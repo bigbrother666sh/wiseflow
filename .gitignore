@@ -27,8 +27,7 @@ openclaw/
 # addon crews copied into crews/ at install time — not tracked
 .pnpm-store/
 
-# 本地凭据（relay 无状态多租户改造后，client 自管凭据）
-crews/main/skills/wx-mp-publisher/accounts.json
+# 本地凭据（relay 无状态多租户改造后，client 自管凭据，放源仓外 ~/.openclaw/ 下）
 skills/wxwork-drive/spaces.json
 
 # Claude Code 会话目录

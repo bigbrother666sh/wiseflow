@@ -19,11 +19,11 @@ metadata:
 
 ## 凭据与存储位置
 
-- **公众号凭据**存放在本 skill 目录下的 `accounts.json`（已 gitignore，不进仓）：
+- **公众号凭据**存放在源仓之外的实例态目录（不跟源仓绑，软链 / tarball / 备份都不带密钥）：
   ```
-  crews/main/skills/wx-mp-publisher/accounts.json
+  ~/.openclaw/wx-mp-publisher/accounts.json
   ```
-  结构见 `accounts.example.json`。支持多账号，每条含 `alias` / `appId` / `appSecret`；多账号时 `default` 指向默认 alias。
+  结构见本 skill 同目录 `accounts.example.json`。支持多账号，每条含 `alias` / `appId` / `appSecret`；多账号时 `default` 指向默认 alias。
 - **relay 身份** `OFB_KEY` + `RELAY_BASE_URL` 来自 `daemon.env`（由 entrypoint 注入环境变量）。
 
 ### 凭据缺失时 Agent 行为

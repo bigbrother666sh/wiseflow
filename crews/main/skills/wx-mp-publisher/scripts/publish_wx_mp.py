@@ -24,7 +24,8 @@ import urllib.request
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-ACCOUNTS_FILE = SCRIPT_DIR.parent / "accounts.json"
+# 凭据放在源仓之外（实例态目录），避免软链模式下密钥落进源仓工作树
+ACCOUNTS_FILE = Path.home() / ".openclaw" / "wx-mp-publisher" / "accounts.json"
 SKILL_MD = SCRIPT_DIR.parent / "SKILL.md"
 CREW_WORKSPACE = SCRIPT_DIR.parent.parent.parent  # crews/main
 DEFAULT_RELAY_BASE_URL = "https://relay.openclaw-for-business.com"
@@ -48,8 +49,8 @@ def load_account(alias_arg: str | None) -> tuple[str, str, str]:
     if not ACCOUNTS_FILE.exists():
         die(
             "未找到公众号凭据文件 accounts.json。\n"
-            "  位置：crews/main/skills/wx-mp-publisher/accounts.json\n"
-            "  → 请让 Agent 帮你创建并填入公众号 AppID/AppSecret（获取方式见同目录 REFERENCE.md）"
+            f"  位置：{ACCOUNTS_FILE}\n"
+            "  → 请让 Agent 帮你创建并填入公众号 AppID/AppSecret（获取方式见 wx-mp-publisher SKILL 同目录 REFERENCE.md）"
         )
     try:
         cfg = json.loads(ACCOUNTS_FILE.read_text(encoding="utf-8"))

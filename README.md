@@ -40,6 +40,7 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
   >
   >  - YouTube：https://youtu.be/eK8aWWCNVZQ?si=K-MbWai-j6ydqCdy
   >  - bilibili：https://www.bilibili.com/video/BV1euMR6PEDh
+  >  - 开发与使用心得: https://mp.weixin.qq.com/s/zxvWdCMUd0XquWxujvxkSg 
 
 - **🔄 数据闭环彻底打通，为自我进化奠基**：`content-calibrator`（打分+预测）与 `published-track`（数据复盘）机制全面完善，内容产出→发布→数据回流→下一轮策略调优的闭环不再有断点，为后续小贝自主迭代选题与打法提供燃料。现在主力四平台（微信视频号、微信公众号、小红书、抖音）全系支持内容自动生产、自动发布、自动取数、自动复盘
 - **安装脚本大幅优化**：对比 5.6.0，install.sh / install-atomgit.sh / install.ps1 / install-atomgit.ps1 四脚本修了若干实测踩坑——tarball 下载原子写、Windows `.env`/`daemon.env` 换行与 BOM、技能 wrapper 在 Windows 用 `.cmd` shim 替代软链、`OPENCLAW_HOME` 在 `set -u` 下报 unbound、atomgit 国内线路默认跳过 gum spinner bootstrap 避免连 GitHub 超时、Windows 软链需要开发者模式等，产品稳定性显著提高。

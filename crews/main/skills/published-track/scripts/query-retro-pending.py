@@ -22,14 +22,15 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared"))
+from runtime_root import resolve_runtime_root  # noqa: E402
+
 # ── 路径 ─────────────────────────────────────────────────────────────────────
 
-ROOT = Path(
-    os.environ.get(
-        "PUBLISHED_TRACK_ROOT",
-        Path(__file__).resolve().parent.parent.parent.parent,  # scripts/ → skill/ → skills/ → crew root
-    )
-).expanduser()
+# skills/ 目录是 symlink（workspace-main/skills/<name> -> wiseflow/crews/main/skills/<name>），
+# Path(__file__).resolve() 会跳进源仓，导致 ROOT 指向源仓而非运行时工作区。
+# resolve_runtime_root 按 DB 是否存在判定，映射回 ~/.openclaw/workspace-<crew>。
+ROOT = resolve_runtime_root(Path(__file__).resolve().parent.parent.parent.parent)
 DB = ROOT / "db" / "published_track.db"
 
 # ── 常量 ─────────────────────────────────────────────────────────────────────

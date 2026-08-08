@@ -492,11 +492,14 @@ _LIST_PARSE_JS = r"""
 
 def fetch_post_list(session: str) -> list[dict]:
     """打开作品管理页，eval JS 解析作品列表"""
-    # 1. 打开作品管理页
+    # 1. 先访问后台首页预热 wujie 微前端框架（直接跳作品管理页会导致 wujie-app 未初始化）
+    camoufox_open(session, CREATOR_CENTER_URL)
+    time.sleep(3)
+    # 2. 打开作品管理页
     camoufox_open(session, POST_LIST_URL)
     # 等页面加载（wujie 初始化 + shadow DOM 渲染）
     time.sleep(5)
-    # 2. eval JS 解析 innerText
+    # 3. eval JS 解析 innerText
     raw = camoufox_eval(session, _LIST_PARSE_JS)
     if not raw:
         return []

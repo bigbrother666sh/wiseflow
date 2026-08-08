@@ -227,21 +227,87 @@ def extract_local_images(md_text: str, md_dir: Path) -> list[Path]:
     return out
 
 
-def rewrite_image_refs(md_text: str, local_images: list[Path]) -> str:
-    """把本地图片引用（绝对路径或 `./x` 相对路径）重写为 basename，与 images multipart 文件名对齐。
+def rewrite_image_refs(md_text: str, local_images: list[Path], md_dir: Path) -> str:
+    """把本地图片引用重写为 basename，与 images multipart 文件名对齐。
 
-    relay 端 @wenyan-md/core 渲染时按文件名匹配上传的 images，绝对路径会让 relay 去
-    自己磁盘 stat 报 ENOENT。同时处理 frontmatter 的 `cover` / `image_list` 字段。
+    relay 端 @wenyan-md/core 渲染时按文件名匹配上传的 images，带目录前缀或绝对路径
+    会让 relay 去自己磁盘 stat 报 ENOENT。覆盖 markdown / frontmatter 里可能出现的
+    所有形式：绝对路径、`./name`、`name`、以及相对 md_dir 的子目录路径（如 `images/x.jpg`）。
     """
     if not local_images:
         return md_text
     for img in local_images:
         name = img.name
-        # 把可能出现在 markdown / frontmatter 里的形式都替换为 basename
-        for original in (str(img), f"./{name}", name):
+        candidates = {str(img), f"./{name}", name}
+        try:
+            candidates.add(str(img.relative_to(md_dir)))
+        except ValueError:
+            pass
+        for original in candidates:
             if original != name:
                 md_text = md_text.replace(original, name)
     return md_text
+
+
+# ── 发布前校验 ─────────────────────────────────────────────────────────────
+
+# 微信草稿 author 字段上限：8 个汉字 / 24 字节（errcode 45110: author size out of limit）
+WX_AUTHOR_MAX_BYTES = 24
+
+
+def _parse_frontmatter_author(md_text: str) -> str | None:
+    """从 YAML frontmatter 提取 author 字段值（去首尾引号）；无则返回 None。"""
+    if not md_text.startswith("---"):
+        return None
+    end = md_text.find("\n---", 3)
+    if end < 0:
+        return None
+    for line in md_text[3:end].splitlines():
+        m = re.match(r"^\s*author:\s*(.+?)\s*$", line)
+        if m:
+            val = m.group(1).strip()
+            if (val.startswith('"') and val.endswith('"')) or (
+                val.startswith("'") and val.endswith("'")
+            ):
+                val = val[1:-1]
+            return val
+    return None
+
+
+def validate_for_publish(md_text: str) -> None:
+    """发布前校验，命中违规即 die() 拦截，避免 relay/微信侧报错。
+
+    1. 本地图片引用必须用纯文件名（basename），不得含目录前缀或绝对路径。
+    2. frontmatter author 字段 ≤ 24 字节（8 个汉字）。
+    """
+    # 1. 图片引用：正文 ![]() + frontmatter cover/image_list
+    local_refs = [
+        m.group(1).split()[0] for m in re.finditer(r"!\[[^\]]*\]\(([^)]+)\)", md_text)
+    ]
+    local_refs += _frontmatter_local_refs(md_text)
+    bad_imgs = [
+        ref
+        for ref in local_refs
+        if not ref.startswith(("http://", "https://", "data:"))
+        and ("/" in ref or "\\" in ref or Path(ref).is_absolute())
+    ]
+    if bad_imgs:
+        die(
+            "图片引用必须用纯文件名（与上传时的 originalname 一致），不得带目录前缀或绝对路径。\n"
+            "  relay 把图片按 originalname 存到 per-request 临时目录，带前缀的路径在 relay 侧\n"
+            "  stat 不到会 ENOENT。请改为 basename：\n    "
+            + "\n    ".join(bad_imgs)
+        )
+
+    # 2. author 长度
+    author = _parse_frontmatter_author(md_text)
+    if author is not None:
+        n = len(author.encode("utf-8"))
+        if n > WX_AUTHOR_MAX_BYTES:
+            die(
+                f"frontmatter author 超过微信草稿上限（{WX_AUTHOR_MAX_BYTES} 字节 / 8 个汉字），"
+                f"当前 {n} 字节：{author!r}。请缩短 author 字段。"
+            )
 
 
 # ── 主流程 ───────────────────────────────────────────────────────────────────
@@ -265,7 +331,8 @@ def main() -> None:
 
     md_text = md_path.read_text(encoding="utf-8")
     images = extract_local_images(md_text, md_path.parent)
-    md_text = rewrite_image_refs(md_text, images)
+    md_text = rewrite_image_refs(md_text, images, md_path.parent)
+    validate_for_publish(md_text)
 
     fields = {
         "markdown": md_text,

@@ -48,6 +48,11 @@ wx-channel-engagement login           # camoufox 无头截 QR PNG 落 /tmp/qr-wx
 wx-channel-engagement login-confirm   # 验登录就位 + close session（不导出 cookie/UA/token）
 ```
 
+`login` 返回 `already_logged_in: true` 时无需扫码，直接执行后续命令。扫码失败 / 用错账户后，**不要直接重跑 `login`**——旧 cookie 污染 profile，重跑拿到的 QR 扫了也不生效。先带 `--reset` 清 profile 再重登：
+```bash
+wx-channel-engagement login --reset   # 删 profile 目录 + 重新 open，从干净状态拿 QR
+```
+
 退出码：
 - `0` 成功
 - `1` 通用错误（参数错 / row 找不到 / 标题未匹配）

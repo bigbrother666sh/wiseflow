@@ -72,7 +72,8 @@ RUN test -d /opt/xiaobei/openclaw \
     && test -x /opt/xiaobei/docker/docker-bootstrap.sh \
     && NODE_OPTIONS="--max-old-space-size=4096" /opt/xiaobei/docker/docker-bootstrap.sh \
     && install -d /opt/xiaobei/runtime-seed/openclaw \
-    && cp -a /root/.openclaw/. /opt/xiaobei/runtime-seed/openclaw/
+    && cp -a /root/.openclaw/. /opt/xiaobei/runtime-seed/openclaw/ \
+    || { cat /opt/xiaobei/.bootstrap-log 2>/dev/null; exit 1; }
 
 # ════════════════════════════════════════════════════════════════════
 # Stage 2: runtime（瘦运行镜像，从 build 拷 immutable 层）

@@ -18,7 +18,16 @@
 # 用显式检查 + set -o pipefail 控制致命步。
 set -o pipefail
 
+log() {
+  echo "[bootstrap] $*" >&2
+  echo "[bootstrap] $*" >> /opt/xiaobei/.bootstrap-log
+}
+
 # 首行无条件打印——证明脚本能跑起来（不依赖任何变量）
+# ACR buildkit 不显示 RUN 步骤的 stdout/stderr，诊断标记同时写 /opt/xiaobei/.bootstrap-log
+# 文件——Dockerfile 在 bootstrap RUN 后加独立 cat 步骤显示该文件（cat 步骤的 stdout
+# buildkit 会显示）
+: > /opt/xiaobei/.bootstrap-log 2>/dev/null || true
 log "=== docker-bootstrap.sh started ==="
 log "pwd=$(pwd) HOME=${HOME:-unset}"
 

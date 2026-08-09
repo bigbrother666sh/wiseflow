@@ -70,8 +70,11 @@ RUN test -d /opt/xiaobei/openclaw \
     && test -x /opt/xiaobei/docker/docker-bootstrap.sh \
     && NODE_OPTIONS="--max-old-space-size=4096" /opt/xiaobei/docker/docker-bootstrap.sh \
     && install -d /opt/xiaobei/runtime-seed/openclaw \
-    && cp -a /root/.openclaw/. /opt/xiaobei/runtime-seed/openclaw/ \
-    || { cat /opt/xiaobei/.bootstrap-log 2>/dev/null; exit 1; }
+    && cp -a /root/.openclaw/. /opt/xiaobei/runtime-seed/openclaw/
+
+# 独立 RUN cat 诊断文件——buildkit 不显示同 RUN 步骤 stdout，但显示独立 RUN 步骤的 stdout
+# 这步 cat 出 bootstrap 写的 .bootstrap-log，炸在哪步一目了然（独立 RUN 即使 bootstrap 失败也会跑）
+RUN cat /opt/xiaobei/.bootstrap-log 2>/dev/null || echo "no bootstrap-log written"
 
 # ════════════════════════════════════════════════════════════════════
 # Stage 2: runtime（瘦运行镜像，从 build 拷 immutable 层）

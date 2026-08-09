@@ -56,8 +56,11 @@ camoufox 有头模式跑在容器内 Xvfb 虚拟显示里。用户浏览器打�
 `http://localhost:6080/vnc.html` 即可看到该显示里的 fluxbox 桌面，里面能看到 camoufox
 浏览器窗口——用于**小红书/抖音等平台登录过验证**的场景。
 
+**mimicwx 容器**也有自己的 noVNC web（宿主端口 `6081`）：浏览器开
+`http://localhost:6081/vnc.html` 操作微信客户端扫码登录。
+
 **端口默认只绑 Docker host 的 `127.0.0.1`**。远程访问应走 SSH 隧道或显式配置代理，
-不要直接把 6080 暴露到公网。
+不要直接把 6080 / 6081 暴露到公网。
 
 ## 微信容器配合（wx-mp-hunter posts-list）
 
@@ -73,29 +76,48 @@ camoufox 有头模式跑在容器内 Xvfb 虚拟显示里。用户浏览器打�
 **前提**：需要先有 `mimicwx` 镜像。如果只用到 `wx-mp-hunter` 的 `fetch` / `homepage`
 子命令（不依赖微信容器），可以注释掉 `docker-compose.yml` 里的 `mimicwx` service。
 
-## 构建流水线
+## 构建与分发（GitHub + 阈里云 ACR 直绑）
 
-镜像由 AtomGit 流水线构建并推送到阿里云 ACR，见
-`.atomgit/pipelines/build-docker.yml`。
+镜像由阿里云 ACR 企业版**直绑 GitHub 仓库**自动构建并托管——不走外部流水线，
+push tag 即触发 ACR 构建。
 
-触发方式：
-1. **手动触发**：在 AtomGit 项目页面手动跑流水线，填入要构建的 tag（如 `v5.6.3`）
-2. **push tag 自动触发**：`git push origin v5.6.3` 会自动触发构建
+### 触发方式
 
-产物（阿里云 ACR）：
+1. **手动触发**：在阿里云 ACR 控制台 → `xiaobei` 仓库 → 构建规则 → 点"立即构建"
+2. **push tag 自动触发**：`git push origin v5.6.3` 会自动触发 ACR 构建规则
+
+### ACR 构建规则配置（一次性）
+
+在 ACR 控制台为 `xiaobei` 仓库添加一条构建规则：
+
+| 字段 | 配置 |
+|------|------|
+| 代码源 | GitHub（先在 ACR 绑定 GitHub 个人版账号） |
+| 分支/Tag | 正则 `v(?<imageTag>\w*)` 匹配 `v*` tag |
+| 构建上下文目录 | `/` |
+| Dockerfile 文件名 | `docker/Dockerfile` |
+| 镜像版本 | `${imageTag}` 和 `latest`（加两条镜像版本行，或建两条规则） |
+| 海外机器构建 | 勾选（镜像内要 clone GitHub openclaw、npm 拉海外包，海外构建 + 海外源智能加速更稳） |
+| 构建参数 | `USE_MIRROR=0`（用原始源 + ACR 海外源智能加速，国内镜像源在海外构建机反而绕远路） |
+
+### 产物（阿里云 ACR）
+
 ```
 registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:v5.6.3
 registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:latest
 ```
 
-### 前置 Secrets（在 AtomGit 项目设置中配置）
+### 发放模式
 
-| Secret 名 | 说明 |
-|-----------|------|
-| `ALIYUN_REGISTRY` | 阿里云 ACR 域名（如 `registry.cn-hangzhou.aliyuncs.com`） |
-| `ALIYUN_NAME_SPACE` | ACR 命名空间（如 `xiaobei`） |
-| `ALIYUN_REGISTRY_USER` | ACR 推送账号 |
-| `ALIYUN_REGISTRY_PASSWORD` | ACR 推送账号密码 |
+构建完成后，向符合条件的用户直接发放阿里云的 image 链接：
+
+```bash
+# 用户侧：拉镜像 + 启动
+docker login registry.cn-hangzhou.aliyuncs.com  # 填发放的账号
+docker pull registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:v5.6.3
+cp docker/.env.example docker/.env  # 填 AWK_API_KEY
+AWK_API_KEY=<key> docker compose up -d
+```
 
 ## 本地验证
 

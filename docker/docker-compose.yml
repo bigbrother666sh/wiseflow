@@ -13,9 +13,10 @@ name: xiaobei
 #   （wx-mp-hunter posts-list 依赖此能力）
 #
 # 端口映射（默认只绑 127.0.0.1，远程访问走 SSH 隧道）：
-#   18789  gateway API
-#   6080   noVNC web client（浏览器开 http://localhost:6080/vnc.html）
-#   5901   VNC raw（可选，不默认暴露）
+#   xiaobei 容器 18789 → gateway API
+#   xiaobei 容器 6080  → noVNC web（浏览器开 http://localhost:6080/vnc.html 操作 camoufox 过验证）
+#   mimicwx 容器 6081  → noVNC web（浏览器开 http://localhost:6081/vnc.html 微信扫码登录）
+#   两个容器都开 noVNC web，用不同宿主端口（6080 / 6081）避免冲突
 services:
   xiaobei:
     image: ${IMAGE:-registry.cn-hangzhou.aliyuncs.com/${ALIYUN_NAME_SPACE:-xiaobei}/xiaobei:latest}
@@ -82,8 +83,9 @@ services:
       - seccomp:unconfined
       - apparmor:unconfined
     ports:
-      # 微信容器自己的 VNC（可选，调试用；默认不暴露）
-      - "127.0.0.1:5901:5901"
+      # mimicwx 容器自己的 noVNC web（宿主 6081 → 容器 6080，与 xiaobei 的 6080 分开）
+      # 浏览器开 http://localhost:6081/vnc.html 微信扫码登录
+      - "127.0.0.1:6081:6080"
     volumes:
       # 微信登录态 + 消息库持久化（wx-mp-hunter posts-list 读这里）
       - wechat-data:/home/wechat/.xwechat

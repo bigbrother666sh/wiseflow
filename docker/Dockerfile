@@ -19,7 +19,9 @@
 # ════════════════════════════════════════════════════════════════════
 FROM node:24-bookworm AS xiaobei-build
 
-ARG USE_MIRROR=1
+# USE_MIRROR=1 走国内镜像源（本地构建推荐），USE_MIRROR=0 走原始源
+# 阿里云 ACR 海外构建机推荐 USE_MIRROR=0 + ACR 的"海外源智能加速"——跨境拉 GitHub/npm 更稳
+ARG USE_MIRROR=${USE_MIRROR:-0}
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
@@ -77,7 +79,7 @@ RUN test -d /opt/xiaobei/openclaw \
 # ════════════════════════════════════════════════════════════════════
 FROM node:24-bookworm
 
-ARG USE_MIRROR=1
+ARG USE_MIRROR=${USE_MIRROR:-0}
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \

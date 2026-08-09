@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # xiaobei Docker image — 开箱即用版（v5.6.3+）
 #
 # 三阶段构建：

@@ -394,6 +394,12 @@ def _ensure_login() -> None:
         # 不再用 "/platform/" in url 判断，因为初始 URL 本身就含 /platform/
         if any(p in current_url for p in BACKEND_PATHS):
             return
+        # 登录成功后页面可能停在根路径 /platform/（wujie 已加载但 URL 未跳转）。
+        # 只要 wujie-app 已渲染且 URL 不含 login，即视为登录就位。
+        if "login" not in current_url:
+            probe = camoufox_eval(session, '(() => { try { return !!document.querySelector("wujie-app"); } catch(e) { return false; } })()')
+            if probe in (True, "true", "True"):
+                return
         time.sleep(0.5)
 
     sys.stderr.write(

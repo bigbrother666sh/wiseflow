@@ -16,7 +16,7 @@
 # ════════════════════════════════════════════════════════════════════
 # Stage 1: build（装齐 immutable 应用层 + 显示栈软件）
 # ════════════════════════════════════════════════════════════════════
-FROM registry.cn-hangzhou.aliyuncs.com/library/node:24-bookworm AS xiaobei-build
+FROM node:24-bookworm AS xiaobei-build
 
 # 走国内镜像源（阿里云 APT + npmmirror），与裸机 install.sh 链路完全一致——
 # 阿里云 ACR 构建机选国内部署，拉 npmmirror 最快，不引入 USE_MIRROR 分支复杂度
@@ -73,7 +73,7 @@ RUN test -d /opt/xiaobei/openclaw \
 # ════════════════════════════════════════════════════════════════════
 # Stage 2: runtime（瘦运行镜像，从 build 拷 immutable 层）
 # ════════════════════════════════════════════════════════════════════
-FROM registry.cn-hangzhou.aliyuncs.com/library/node:24-bookworm
+FROM node:24-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \

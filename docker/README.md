@@ -97,7 +97,7 @@ push tag 即触发 ACR 构建。
 | 构建上下文目录 | `/` |
 | Dockerfile 文件名 | `docker/Dockerfile` |
 | 镜像版本 | `${imageTag}` 和 `latest`（加两条镜像版本行，或建两条规则） |
-| 海外机器构建 | 不勾选（阿里云 ACR 构建机选国内部署，走 npmmirror + 阿里云 APT 源，与裸机 install.sh 同源最快） |
+| 海外机器构建 | **勾选**（构建机走海外链路拉 Docker Hub 基础镜像 `node:24-bookworm`，国内 Mirror 链路不稳会超时；Dockerfile 内的 npmmirror + 阿里云 APT 源是另一条链路，不冲突） |
 | 构建参数 | 无（Dockerfile 已写死国内镜像源，不引入 USE_MIRROR 分支复杂度） |
 
 ### 产物（阿里云 ACR）

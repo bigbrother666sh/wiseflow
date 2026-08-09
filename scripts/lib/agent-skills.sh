@@ -563,6 +563,8 @@ python3 /tmp/my_script.py
 ```
 
 临时脚本统一写到 `/tmp/` 下，执行后可删除。
+
+> ⚠️ 部分模型（deepseek-v4-flash 等）在 heredoc / `python3 -c` 里会把 `\n` 序列化成字面量反斜杠+n 而非真换行，触发 `SyntaxError`。heredoc 内 Python 源码一律用真实换行，不在字符串里写 `\n` 转义；文本替换优先 `awk`/`sed`。
 GUIDE
     # sed -i 在 BSD（macOS）会把脚本串当成备份后缀吞掉；-i.bak 两端都支持，再清掉 .bak。
     sed -i.bak "s|@@WS@@|$ws|g" "$tools_md" && rm -f "$tools_md.bak"
@@ -574,6 +576,14 @@ GUIDE
 本 crew 为**对内 crew**，exec **无白名单限制**——管道、`&&`、`||`、`;`、`cd` 前缀、相对路径、`bash`/`sh` 前缀等均不触发 allowlist miss，可直接执行。
 
 脚本调用仍建议用绝对路径（如 `python3 @@WS@@/skills/xxx/scripts/yyy.py`），仅为跨环境/跨 workspace 稳定，非安全约束。
+
+## Python 多行脚本规范
+
+多行 Python **不要**用 `python3 -c '...'` 内联——部分模型（deepseek-v4-flash 等）会把 `\n` 序列化成字面量反斜杠+n 而非真换行，触发 `SyntaxError: unexpected character after line continuation character`。
+
+- ✅ 文本替换用 `awk`/`sed`
+- ✅ 多行 Python 先 `cat > /tmp/script.py << 'PYEOF'`（heredoc 内用真实换行，不在字符串里写 `\n`）再 `python3 /tmp/script.py`
+- ❌ `python3 -c 'import json\nwith open(...) as f:\n    ...'`（`\n` 会被写成字面量）
 GUIDE
     sed -i.bak "s|@@WS@@|$ws|g" "$tools_md" && rm -f "$tools_md.bak"
   fi

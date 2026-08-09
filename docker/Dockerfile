@@ -24,7 +24,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
     OPENCLAW_STATE_DIR=/root/.openclaw \
-    NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+    NPM_CONFIG_REGISTRY=https://registry.npmjs.org
+# APT 源走阿里云（debian 源不论海内外都快），npm 走 npmjs（海外构建机拉海外源最快）
 
 # 阿里云 APT 源加速（与裸机 install.sh 同源）
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
@@ -51,10 +52,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # pnpm via corepack（node:24 带 corepack）
-# corepack prepare 走 npm registry 拉 pnpm 包——npm_config_registry= npmmirror 让它走国内源
-# 避免海外构建机拉 npmjs 超时（与裸机 install.sh 同源）
-RUN npm_config_registry=https://registry.npmmirror.com corepack enable \
-    && npm_config_registry=https://registry.npmmirror.com corepack prepare pnpm@10.30.2 --activate
+# corepack prepare 走 npm registry 拉 pnpm 包——npm_config_registry= npmjs 走海外源
+# （海外构建机拉海外源最快，与 bootstrap 的 npm registry 链路一致）
+RUN npm_config_registry=https://registry.npmjs.org corepack enable \
+    && npm_config_registry=https://registry.npmjs.org corepack prepare pnpm@10.30.2 --activate
 
 WORKDIR /opt/xiaobei
 
@@ -84,7 +85,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     OPENCLAW_STATE_DIR=/root/.openclaw \
     DISPLAY=:99 \
     LANG=C.UTF-8 \
-    NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+    NPM_CONFIG_REGISTRY=https://registry.npmjs.org
+# APT 源走阿里云（debian 源不论海内外都快），npm 走 npmjs（海外构建机拉海外源最快）
 
 # 阿里云 APT 源加速（与裸机 install.sh 同源）
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \

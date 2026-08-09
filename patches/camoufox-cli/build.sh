@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "→ [camoufox-cli fork] installing deps (incl. devDeps for tsc)..."
-npm install --registry=https://registry.npmmirror.com
+npm install --registry=https://registry.npmjs.org
 
 echo "→ [camoufox-cli fork] building dist/..."
 npm run build

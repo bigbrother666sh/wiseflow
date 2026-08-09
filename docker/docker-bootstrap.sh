@@ -14,11 +14,18 @@
 #
 # 诊断：每步打 [bootstrap] STEP N done 标记，ACR 构建失败时精确定位哪步炸。
 # 容错：非致命步骤（camoufox 二进制、weixin 插件）失败不中断构建——首启可手动补。
-set -uo pipefail  # 不用 -e：用显式 || exit 1 控制致命步，非致命步容错
+# 不用 set -u：buildkit 可能吞 stderr，unbound 错误走 stderr 会被吃掉变成静默 exit 1。
+# 用显式检查 + set -o pipefail 控制致命步。
+set -o pipefail
+
+# 首行无条件打印——证明脚本能跑起来（不依赖任何变量）
+echo "[bootstrap] === docker-bootstrap.sh started ==="
+echo "[bootstrap] pwd=$(pwd) HOME=${HOME:-unset} USE_MIRROR=${USE_MIRROR:-unset}"
 
 PROJECT_ROOT="${XIAOBEI_ROOT:-/opt/xiaobei}"
 OPENCLAW_HOME="${OPENCLAW_HOME:-/root/.openclaw}"
 OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_HOME/openclaw.json}"
+echo "[bootstrap] PROJECT_ROOT=$PROJECT_ROOT OPENCLAW_HOME=$OPENCLAW_HOME"
 
 # USE_MIRROR=0（阿里云 ACR 海外构建机）走原始 npmjs + ACR 海外源智能加速
 # USE_MIRROR=1（国内本地构建）走 npmmirror

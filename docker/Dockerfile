@@ -21,12 +21,13 @@ FROM node:24-bookworm AS xiaobei-build
 
 # USE_MIRROR=1 走国内镜像源（本地构建推荐），USE_MIRROR=0 走原始源
 # 阿里云 ACR 海外构建机推荐 USE_MIRROR=0 + ACR 的"海外源智能加速"——跨境拉 GitHub/npm 更稳
-ARG USE_MIRROR=${USE_MIRROR:-0}
+# Dockerfile ARG 只支持 ARG NAME=value（直接值），不支持 shell ${VAR:-default} 语法
+ARG USE_MIRROR=0
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
-    OPENCLAW_STATE_DIR=/root/.openclaw \
-    NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+    OPENCLAW_STATE_DIR=/root/.openclaw
+# NPM_CONFIG_REGISTRY 不写死——由 bootstrap 按 USE_MIRROR 动态设（避免污染 USE_MIRROR=0 分支）
 
 # 国内镜像加速（USE_MIRROR=0 关闭，海外构建用）
 RUN if [ "$USE_MIRROR" = "1" ]; then \
@@ -79,7 +80,7 @@ RUN test -d /opt/xiaobei/openclaw \
 # ════════════════════════════════════════════════════════════════════
 FROM node:24-bookworm
 
-ARG USE_MIRROR=${USE_MIRROR:-0}
+ARG USE_MIRROR=0
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \

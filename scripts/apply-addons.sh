@@ -296,9 +296,7 @@ if [ -d "$AWADA_EXT" ] && [ -f "$AWADA_EXT/package.json" ]; then
   awada_stored="$(cat "$AWADA_PKG_HASH_FILE" 2>/dev/null || echo '')"
   if [ "$awada_hash" != "$awada_stored" ] || [ ! -d "$AWADA_EXT/node_modules" ]; then
     echo "📦 Installing awada plugin dependencies (ws + zod)..."
-    # USE_MIRROR=0（海外构建机）走原始 npmjs，USE_MIRROR=1（国内裸机/本地）走 npmmirror
-    local npm_reg="${NPM_REGISTRY:-https://registry.npmmirror.com}"
-    (cd "$AWADA_EXT" && npm install --omit=dev --no-audit --no-fund --loglevel=warn --registry="$npm_reg") \
+    (cd "$AWADA_EXT" && npm install --omit=dev --no-audit --no-fund --loglevel=warn --registry=https://registry.npmmirror.com) \
       && echo "$awada_hash" > "$AWADA_PKG_HASH_FILE" \
       && echo "✅ awada dependencies installed" \
       || echo "  ⚠️  awada npm install failed (可后续手动 cd $AWADA_EXT && pnpm install --prod)" >&2
@@ -385,7 +383,7 @@ if [ "$current_pkg_hash" != "$stored_pkg_hash" ]; then
     for d in "${skill_pkg_dirs[@]}"; do
       SKILL_PKG_IDX=$((SKILL_PKG_IDX + 1))
       printf "  [%d/%d] %s\n" "$SKILL_PKG_IDX" "$SKILL_PKG_TOTAL" "${d#$PROJECT_ROOT/}"
-      (cd "$d" && npm install --omit=dev --no-audit --no-fund --loglevel=warn --registry="${NPM_REGISTRY:-https://registry.npmmirror.com}") \
+      (cd "$d" && npm install --omit=dev --no-audit --no-fund --loglevel=warn --registry=https://registry.npmmirror.com) \
         || echo "  ⚠️  npm install failed in $d" >&2
     done
     echo "$current_pkg_hash" > "$SKILL_PKG_HASH_FILE"
@@ -526,7 +524,7 @@ if [ "$NEEDS_INSTALL" = "true" ]; then
   fi
   NODE_OPTIONS="--max-old-space-size=8192" \
     pnpm install --no-frozen-lockfile --strict-peer-dependencies=false \
-      --registry="${NPM_REGISTRY:-https://registry.npmmirror.com}" \
+      --registry=https://registry.npmmirror.com \
       --fetch-retries=5 --fetch-timeout=600000 --network-concurrency=8
   cd "$PROJECT_ROOT"
 fi

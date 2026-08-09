@@ -19,21 +19,17 @@
 # ════════════════════════════════════════════════════════════════════
 FROM node:24-bookworm AS xiaobei-build
 
-# USE_MIRROR=1 走国内镜像源（本地构建推荐），USE_MIRROR=0 走原始源
-# 阿里云 ACR 海外构建机推荐 USE_MIRROR=0 + ACR 的"海外源智能加速"——跨境拉 GitHub/npm 更稳
-# Dockerfile ARG 只支持 ARG NAME=value（直接值），不支持 shell ${VAR:-default} 语法
-ARG USE_MIRROR=0
+# 走国内镜像源（阿里云 APT + npmmirror），与裸机 install.sh 链路完全一致——
+# 阿里云 ACR 构建机选国内部署，拉 npmmirror 最快，不引入 USE_MIRROR 分支复杂度
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
-    OPENCLAW_STATE_DIR=/root/.openclaw
-# NPM_CONFIG_REGISTRY 不写死——由 bootstrap 按 USE_MIRROR 动态设（避免污染 USE_MIRROR=0 分支）
+    OPENCLAW_STATE_DIR=/root/.openclaw \
+    NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
 
-# 国内镜像加速（USE_MIRROR=0 关闭，海外构建用）
-RUN if [ "$USE_MIRROR" = "1" ]; then \
-        sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
-        || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
-    fi
+# 阿里云 APT 源加速（与裸机 install.sh 同源）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
+    || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
 
 # 基础工具 + 显示栈（camoufox 有头模式跑 Xvfb，用户经 noVNC 操作浏览器过验证）
 # + 浏览器运行时依赖（gtk/dbus/nss/atspi/cups，camoufox Firefox 需要）
@@ -80,18 +76,17 @@ RUN test -d /opt/xiaobei/openclaw \
 # ════════════════════════════════════════════════════════════════════
 FROM node:24-bookworm
 
-ARG USE_MIRROR=0
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
     OPENCLAW_STATE_DIR=/root/.openclaw \
     DISPLAY=:99 \
-    LANG=C.UTF-8
+    LANG=C.UTF-8 \
+    NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
 
-RUN if [ "$USE_MIRROR" = "1" ]; then \
-        sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
-        || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
-    fi
+# 阿里云 APT 源加速（与裸机 install.sh 同源）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
+    || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
 
 # runtime 只装显示栈 + 浏览器运行时 + docker CLI（不带构建工具链，瘦镜像）
 RUN apt-get update && apt-get install -y --no-install-recommends \

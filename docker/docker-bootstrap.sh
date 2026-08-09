@@ -20,23 +20,17 @@ set -o pipefail
 
 # 首行无条件打印——证明脚本能跑起来（不依赖任何变量）
 echo "[bootstrap] === docker-bootstrap.sh started ==="
-echo "[bootstrap] pwd=$(pwd) HOME=${HOME:-unset} USE_MIRROR=${USE_MIRROR:-unset}"
+echo "[bootstrap] pwd=$(pwd) HOME=${HOME:-unset}"
 
 PROJECT_ROOT="${XIAOBEI_ROOT:-/opt/xiaobei}"
 OPENCLAW_HOME="${OPENCLAW_HOME:-/root/.openclaw}"
 OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_HOME/openclaw.json}"
 echo "[bootstrap] PROJECT_ROOT=$PROJECT_ROOT OPENCLAW_HOME=$OPENCLAW_HOME"
 
-# USE_MIRROR=0（阿里云 ACR 海外构建机）走原始 npmjs + ACR 海外源智能加速
-# USE_MIRROR=1（国内本地构建）走 npmmirror
-if [ "${USE_MIRROR:-1}" = "0" ]; then
-  export NPM_REGISTRY="https://registry.npmjs.org"
-  export npm_config_registry="https://registry.npmjs.org"
-else
-  export NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmmirror.com}"
-  export npm_config_registry="${NPM_REGISTRY}"
-fi
-echo "[bootstrap] NPM_REGISTRY=${NPM_REGISTRY} USE_MIRROR=${USE_MIRROR:-1}"
+# 走 npmmirror（与裸机 install.sh 链路完全一致）——阿里云 ACR 构建机选国内部署，
+# 拉 npmmirror 最快，不引入 USE_MIRROR 分支复杂度
+export npm_config_registry="https://registry.npmmirror.com"
+echo "[bootstrap] npm_config_registry=$npm_config_registry"
 
 # ─── 校验源码树（致命）────────────────────────────────────────────
 [ -d "$PROJECT_ROOT/openclaw/.git" ] || { echo "[bootstrap] ❌ openclaw 源码树缺 .git" >&2; exit 1; }

@@ -51,7 +51,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # pnpm via corepack（node:24 带 corepack）
-RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
+# corepack prepare 走 npm registry 拉 pnpm 包——npm_config_registry= npmmirror 让它走国内源
+# 避免海外构建机拉 npmjs 超时（与裸机 install.sh 同源）
+RUN npm_config_registry=https://registry.npmmirror.com corepack enable \
+    && npm_config_registry=https://registry.npmmirror.com corepack prepare pnpm@10.30.2 --activate
 
 WORKDIR /opt/xiaobei
 

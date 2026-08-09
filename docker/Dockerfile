@@ -51,11 +51,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         sudo procps net-tools \
     && rm -rf /var/lib/apt/lists/*
 
-# pnpm via corepack（node:24 带 corepack）
-# corepack prepare 走 npm registry 拉 pnpm 包——npm_config_registry= npmjs 走海外源
-# （海外构建机拉海外源最快，与 bootstrap 的 npm registry 链路一致）
-RUN npm_config_registry=https://registry.npmjs.org corepack enable \
-    && npm_config_registry=https://registry.npmjs.org corepack prepare pnpm@10.30.2 --activate
+# pnpm via npm install -g（不走 corepack 网络——corepack prepare 拉 pnpm 包跨境抖动）
+# npm install -g 走 npm registry（npm_config_registry env 已设），拉 pnpm 装到 /usr/local/bin
+RUN npm install -g pnpm@10.30.2
 
 WORKDIR /opt/xiaobei
 
@@ -122,7 +120,8 @@ COPY --from=xiaobei-build /usr/local/bin /usr/local/bin.d-build
 RUN cp -a /usr/local/bin.d-build/* /usr/local/bin/ 2>/dev/null || true && rm -rf /usr/local/bin.d-build
 
 # pnpm 在 runtime 也需要（openclaw gateway 用 pnpm openclaw gateway 启动）
-RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
+# 装和 build stage 同版本 pnpm（不走 corepack 网络，绕跨境抖动）
+RUN npm install -g pnpm@10.30.2
 
 # 入口脚本
 COPY docker-entrypoint.sh /usr/local/bin/xiaobei-entrypoint

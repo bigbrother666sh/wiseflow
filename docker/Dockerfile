@@ -65,16 +65,29 @@ COPY . /opt/xiaobei
 # 校验源码树 + 跑 bootstrap 完成"装好后"状态
 # bootstrap 复用裸机安装的 apply-addons.sh / setup-crew.sh / camoufox-cli/build.sh，
 # 但不跑 daemon install / 不交互收密钥 / 不拉远程仓库（源码已 COPY 进来）
-RUN test -d /opt/xiaobei/openclaw \
-    && test -d /opt/xiaobei/openclaw/.git \
-    && test -x /opt/xiaobei/docker/docker-bootstrap.sh \
-    && NODE_OPTIONS="--max-old-space-size=4096" /opt/xiaobei/docker/docker-bootstrap.sh \
-    && install -d /opt/xiaobei/runtime-seed/openclaw \
-    && cp -a /root/.openclaw/. /opt/xiaobei/runtime-seed/openclaw/
+#
+# 诊断设计（穿透 ACR buildkit 吞同 RUN stdout/stderr 的陷阱）：
+#   - 执行步用 { ...; echo "BOOTSTRAP_CHAIN_EXIT=$?"; } 2>>.bootstrap-log 吞掉 exit code
+#     让 buildkit 继续到独立 cat 步骤（否则 && 链 exit 1 后续步骤全跳过——
+#     commit 8ff83f2 的独立 cat 跑不到就是这个原因）
+#   - bootstrap 的 stderr 追加进 .bootstrap-log（脚本内 log() 也写这文件）
+#   - 独立 cat 步骤 stdout 穿透 buildkit 显示诊断内容——无论 bootstrap 炸没炸都能跑
+#   - 显式校验步 grep BOOTSTRAP_CHAIN_EXIT=0 决定是否 fail build
+RUN { \
+        test -d /opt/xiaobei/openclaw \
+        && test -d /opt/xiaobei/openclaw/.git \
+        && test -x /opt/xiaobei/docker/docker-bootstrap.sh \
+        && NODE_OPTIONS="--max-old-space-size=4096" /opt/xiaobei/docker/docker-bootstrap.sh \
+        && install -d /opt/xiaobei/runtime-seed/openclaw \
+        && cp -a /root/.openclaw/. /opt/xiaobei/runtime-seed/openclaw/; \
+        echo "BOOTSTRAP_CHAIN_EXIT=$?" >> /opt/xiaobei/.bootstrap-log; \
+    } 2>>/opt/xiaobei/.bootstrap-log
 
-# 独立 RUN cat 诊断文件——buildkit 不显示同 RUN 步骤 stdout，但显示独立 RUN 步骤的 stdout
-# 这步 cat 出 bootstrap 写的 .bootstrap-log，炸在哪步一目了然（独立 RUN 即使 bootstrap 失败也会跑）
-RUN cat /opt/xiaobei/.bootstrap-log 2>/dev/null || echo "no bootstrap-log written"
+# 独立 cat 诊断——这步 stdout 穿透 buildkit 显示 bootstrap 写的日志
+RUN cat /opt/xiaobei/.bootstrap-log
+
+# 显式 fail build——bootstrap 链炸了（exit code 非 0）就别继续
+RUN grep -q "BOOTSTRAP_CHAIN_EXIT=0" /opt/xiaobei/.bootstrap-log
 
 # ════════════════════════════════════════════════════════════════════
 # Stage 2: runtime（瘦运行镜像，从 build 拷 immutable 层）

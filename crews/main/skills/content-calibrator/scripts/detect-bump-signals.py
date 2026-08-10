@@ -23,14 +23,12 @@ import sqlite3
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared"))
+from runtime_root import resolve_runtime_root  # noqa: E402
+
 # ── 路径 ─────────────────────────────────────────────────────────────────────
 
-ROOT = Path(
-    os.environ.get(
-        "PUBLISHED_TRACK_ROOT",
-        Path(__file__).resolve().parent.parent.parent.parent,  # scripts/ → skill/ → skills/ → crew root
-    )
-).expanduser()
+ROOT = resolve_runtime_root(Path(__file__).resolve().parent.parent.parent.parent)
 DB = ROOT / "db" / "published_track.db"
 
 # ── 常量 ─────────────────────────────────────────────────────────────────────

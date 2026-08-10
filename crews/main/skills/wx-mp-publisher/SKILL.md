@@ -19,11 +19,11 @@ metadata:
 
 ## 凭据与存储位置
 
-- **公众号凭据**存放在本 skill 目录下的 `accounts.json`（已 gitignore，不进仓）：
+- **公众号凭据**存放在源仓之外的实例态目录（不跟源仓绑，软链 / tarball / 备份都不带密钥）：
   ```
-  crews/main/skills/wx-mp-publisher/accounts.json
+  ~/.openclaw/wx-mp-publisher/accounts.json
   ```
-  结构见 `accounts.example.json`。支持多账号，每条含 `alias` / `appId` / `appSecret`；多账号时 `default` 指向默认 alias。
+  结构见本 skill 同目录 `accounts.example.json`。支持多账号，每条含 `alias` / `appId` / `appSecret`；多账号时 `default` 指向默认 alias。
 - **relay 身份** `OFB_KEY` + `RELAY_BASE_URL` 来自 `daemon.env`（由 entrypoint 注入环境变量）。
 
 ### 凭据缺失时 Agent 行为
@@ -55,6 +55,7 @@ wx-mp-publisher <markdown_file> [theme] [--account ALIAS]
 脚本自动：
 - 从 `accounts.json` 取目标账号凭据
 - 从 Markdown 中提取本地图片路径，作为 `images` 字段一并上传（http/https 图片由 relay 自行抓取，不在此列）
+- 发布前校验：图片引用必须纯文件名（不得带目录前缀 / 绝对路径）、frontmatter `author` ≤ 24 字节，违规直接报错退出
 - POST multipart 到 `${RELAY_BASE_URL}/api/v1/wx-mp/publish`，带 `X-OFB-Key`
 - 校验响应包络 `{ success, data, error }`
 
@@ -98,7 +99,7 @@ wx-mp-publisher <markdown_file> [theme] [--account ALIAS]
 ---
 title: 文章标题
 cover: ./cover.jpg           # 可选，缺省自动取正文第一张图
-author: 作者名称              # 可选
+author: 作者名称              # 可选，≤ 8 个汉字 / 24 字节（超长报 45110）
 source_url: https://...      # 可选，原文链接
 need_open_comment: true      # 可选，是否开启评论（默认 false）
 only_fans_can_comment: false # 可选，是否仅粉丝可评论（默认 false）
@@ -139,6 +140,8 @@ image_list:
 | `OFB_KEY 未配置` | 让 IT engineer 在 `daemon.env` 配置 `OFB_KEY` 后重启实例 |
 | `MISSING_APP_ID` / `MISSING_APP_SECRET`（relay 400） | accounts.json 中该账号凭据为空，补全 |
 | `MISSING_MARKDOWN`（relay 400） | 检查 markdown 文件内容非空 |
+| `45110: author size out of limit` | frontmatter `author` 超 8 汉字 / 24 字节，缩短后再发 |
+| 图片 `ENOENT`（relay） | markdown 图片引用带目录前缀 / 绝对路径，改为纯文件名（basename） |
 | relay 502 | relay 调微信失败，检查 AppSecret / IP 白名单（见 `REFERENCE.md`） |
 
 ---

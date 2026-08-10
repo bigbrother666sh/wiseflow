@@ -29,6 +29,7 @@ import os
 import re
 import sqlite3
 import subprocess
+import shutil
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -65,6 +66,14 @@ UPDATE_METRICS_SH = PUBLISHED_TRACK_SCRIPTS / "update-metrics.sh"
 CAMOUFOX_BIN = os.environ.get("CAMOUFOX_CLI", "camoufox-cli")
 FETCH_TIMEOUT_S = 30
 SESSION_CLEANUP_ON_EXIT = True  # 仅 close camoufox session，不动中央存储
+
+# 视频号助手后台真路径（登录成功后 redirect 落点）；裸 /platform/ 是入口 URL，不算就位
+BACKEND_PATHS = (
+    "/platform/home", "/platform/post", "/platform/data",
+    "/platform/interaction", "/platform/live",
+)
+# 持久化 profile 目录（登录态落盘位置）
+PROFILE_DIR = Path.home() / ".camoufox-cli" / "profiles" / SESSION_NAME
 
 # 登录流程常量（本技能自管 wechat-channel session 的扫码登录）
 QR_FILE = "/tmp/qr-wx-channel.png"
@@ -219,18 +228,47 @@ def cmd_login(args) -> None:
 
     agent 拿 QR_FILE 发用户扫码，用户回复「已扫码」后调 login-confirm。
 
-    关键：camoufox-cli ``open`` 是「打开 + 立刻返回」，微信登录页的二维码是 JS
-    动态注入的 ``<img>``（src 是 base64 或 JS 拼的），页面 onload 后才填。
-    若 open 后立刻 screenshot，QR 还没注入完，截图空白。故 open 后先 wait
-    等二维码 ``<img>`` 出现（或兜底等固定时间），再 screenshot。
+    --reset：先 close session + 删 profile 目录再 open，用于上一次扫码污染了
+    cookie（如用错账户扫码）后强制从干净状态重来。不加 --reset 时不碰已有
+    登录态，避免把还有效的 session 清掉。
+
+    open 后先等 redirect 落点：落到后台路径 = 已登录，直接报 already_logged_in
+    不出 QR；落到登录页 = 正常出 QR。
     """
+    # --reset：清掉污染的 profile（close daemon + 删磁盘 profile 目录）
+    if getattr(args, "reset", False):
+        camoufox_close(SESSION_NAME)
+        if PROFILE_DIR.exists():
+            shutil.rmtree(PROFILE_DIR, ignore_errors=True)
+
     # camoufox-cli open 视频号助手后台首页
     camoufox_open(SESSION_NAME, CREATOR_CENTER_URL)
 
-    # 等二维码 <img> 出现：微信登录页 QR 是 JS 动态注入的 <img>，
-    # camoufox-cli open 是「打开 + 立刻返回」，QR 还没注入完就截图会空白。
-    # 不用 selector 锁 QR 元素（微信登录页结构不固定），直接轮询 eval
-    # 验证 <img> 元素已出现 + 有 src，再截图。最多等 10s。
+    # 等 redirect 落点（最多 8s），区分「已登录」vs「需扫码」
+    deadline = time.time() + 8
+    current_url = ""
+    while time.time() < deadline:
+        current_url = camoufox_get_url(SESSION_NAME)
+        if current_url and (
+            any(p in current_url for p in BACKEND_PATHS)
+            or "login" in current_url
+            or "scanloginqrcode" in current_url
+        ):
+            break
+        time.sleep(0.5)
+
+    # 已落到后台路径 = 登录态有效，不出 QR
+    if current_url and any(p in current_url for p in BACKEND_PATHS):
+        camoufox_close(SESSION_NAME)
+        sys.stdout.write(json.dumps({
+            "ok": True,
+            "already_logged_in": True,
+            "message": "登录态有效，无需扫码，可直接执行后续命令",
+        }, ensure_ascii=False, indent=2))
+        sys.stdout.write("\n")
+        return
+
+    # 落到登录页 → 等二维码 <img> 出现再截图
     deadline = time.time() + 10
     qr_ready = False
     while time.time() < deadline:
@@ -352,9 +390,16 @@ def _ensure_login() -> None:
         # 显式跳登录页 → 真失效，不等
         if "login" in current_url or "scanloginqrcode" in current_url:
             break
-        # 跳到后台真路径（排除 login.html 后的 /platform/ 段）= 登录就位
-        if current_url and "/platform/" in current_url and "login" not in current_url:
+        # 跳到后台具体页面（/platform/home 等）= 登录就位
+        # 不再用 "/platform/" in url 判断，因为初始 URL 本身就含 /platform/
+        if any(p in current_url for p in BACKEND_PATHS):
             return
+        # 登录成功后页面可能停在根路径 /platform/（wujie 已加载但 URL 未跳转）。
+        # 只要 wujie-app 已渲染且 URL 不含 login，即视为登录就位。
+        if "login" not in current_url:
+            probe = camoufox_eval(session, '(() => { try { return !!document.querySelector("wujie-app"); } catch(e) { return false; } })()')
+            if probe in (True, "true", "True"):
+                return
         time.sleep(0.5)
 
     sys.stderr.write(
@@ -492,11 +537,14 @@ _LIST_PARSE_JS = r"""
 
 def fetch_post_list(session: str) -> list[dict]:
     """打开作品管理页，eval JS 解析作品列表"""
-    # 1. 打开作品管理页
+    # 1. 先访问后台首页预热 wujie 微前端框架（直接跳作品管理页会导致 wujie-app 未初始化）
+    camoufox_open(session, CREATOR_CENTER_URL)
+    time.sleep(3)
+    # 2. 打开作品管理页
     camoufox_open(session, POST_LIST_URL)
     # 等页面加载（wujie 初始化 + shadow DOM 渲染）
     time.sleep(5)
-    # 2. eval JS 解析 innerText
+    # 3. eval JS 解析 innerText
     raw = camoufox_eval(session, _LIST_PARSE_JS)
     if not raw:
         return []
@@ -794,7 +842,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("probe", help="打开视频号助手后台 dump DOM/截图/innerText").set_defaults(func=cmd_probe)
     sub.add_parser("list", help="列出后台所有视频 + 行内 metrics").set_defaults(func=cmd_list)
 
-    sub.add_parser("login", help="camoufox 无头截 QR PNG").set_defaults(func=cmd_login)
+    p_login = sub.add_parser("login", help="camoufox 无头截 QR PNG")
+    p_login.add_argument("--reset", action="store_true", help="先删 profile 目录再 open（上一次扫码污染 cookie 后强制重来）")
+    p_login.set_defaults(func=cmd_login)
     sub.add_parser("login-confirm", help="确认登录 + close session").set_defaults(func=cmd_login_confirm)
 
     p_fetch = sub.add_parser("fetch", help="抓单篇 engagement（按 title 在作品管理页匹配）")

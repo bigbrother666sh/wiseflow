@@ -24,8 +24,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
     OPENCLAW_STATE_DIR=/root/.openclaw \
-    NPM_CONFIG_REGISTRY=https://registry.npmjs.org
-# APT 源走阿里云（debian 源不论海内外都快），npm 走 npmjs（海外构建机拉海外源最快）
+    NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+# APT 源走阿里云（debian 源不论海内外都快），npm 走 npmmirror 国内镜像（省代理流量）
 
 # 阿里云 APT 源加速（与裸机 install.sh 同源）
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
@@ -98,10 +98,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
     OPENCLAW_STATE_DIR=/root/.openclaw \
+    CAMOUFOX_INSTALL_DIR=/root/.camoufox-cli \
+    WISEFLOW_DOCKER=1 \
     DISPLAY=:99 \
     LANG=C.UTF-8 \
-    NPM_CONFIG_REGISTRY=https://registry.npmjs.org
-# APT 源走阿里云（debian 源不论海内外都快），npm 走 npmjs（海外构建机拉海外源最快）
+    NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+# APT 源走阿里云（debian 源不论海内外都快），npm 走 npmmirror 国内镜像（省代理流量）
 
 # 阿里云 APT 源加速（与裸机 install.sh 同源）
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
@@ -128,7 +130,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=xiaobei-build /opt/xiaobei /opt/xiaobei
 COPY --from=xiaobei-build /root/.openclaw /root/.openclaw
 COPY --from=xiaobei-build /root/.camoufox-cli /root/.camoufox-cli
-COPY --from=xiaobei-build /root/.cargo /root/.cargo
 # camoufox-cli 全局 npm 包（build 阶段 npm install -g 装的）
 COPY --from=xiaobei-build /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=xiaobei-build /usr/local/bin /usr/local/bin.d-build
@@ -139,13 +140,16 @@ RUN cp -a /usr/local/bin.d-build/* /usr/local/bin/ 2>/dev/null || true && rm -rf
 # 装和 build stage 同版本 pnpm（不走 corepack 网络，绕跨境抖动）
 RUN npm install -g pnpm@10.30.2
 
-# 入口脚本
-COPY docker-entrypoint.sh /usr/local/bin/xiaobei-entrypoint
+# 入口脚本（源文件在 docker/ 下，COPY 源路径相对 build context 仓根）
+COPY docker/docker-entrypoint.sh /usr/local/bin/xiaobei-entrypoint
 RUN chmod 0755 /usr/local/bin/xiaobei-entrypoint
 
-# 两个数据目录外挂——首启从镜像内 runtime-seed 初始化空卷，已有卷绝不覆盖
-# 两个目录含 API key 和平台登录态，权限 0700
-VOLUME ["/root/.openclaw", "/root/.camoufox-cli"]
+# /root/.openclaw 外挂持久化（API key + 平台登录态 + workspace + sessions）。
+# 不声明 /root/.camoufox-cli 为 VOLUME——否则 Docker 会自动建匿名 volume 覆盖镜像层里
+# 的 camoufox 浏览器二进制 654MB（immutable 资源应留在镜像层，升级镜像时跟随更新）。
+# 仅 /root/.camoufox-cli/profiles 子目录由 docker-compose.yml 显式挂 named volume
+# 持久化 profile + cookie + 登录态。
+VOLUME ["/root/.openclaw"]
 
 # gateway API + noVNC web
 EXPOSE 18789 6080

@@ -34,11 +34,13 @@ log "pwd=$(pwd) HOME=${HOME:-unset}"
 PROJECT_ROOT="${XIAOBEI_ROOT:-/opt/xiaobei}"
 OPENCLAW_HOME="${OPENCLAW_HOME:-/root/.openclaw}"
 OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_HOME/openclaw.json}"
+# 显式标记 Docker 部署环境——setup-crew.sh 依赖此变量生成正确的 OFB_ENV.md
+# （/.dockerenv 在 build stage 基础镜像里不存在，不可靠）
+export WISEFLOW_DOCKER=1
 log "PROJECT_ROOT=$PROJECT_ROOT OPENCLAW_HOME=$OPENCLAW_HOME"
 
-# 走 npmmirror（与裸机 install.sh 链路完全一致）——阿里云 ACR 构建机选国内部署，
-# 拉 npmmirror 最快，不引入 USE_MIRROR 分支复杂度
-export npm_config_registry="https://registry.npmjs.org"
+# 走 npmmirror 国内镜像（省代理流量，与裸机 install.sh 链路完全一致）
+export npm_config_registry="https://registry.npmmirror.com"
 log "npm_config_registry=$npm_config_registry"
 
 # ─── 校验源码树（致命）────────────────────────────────────────────
@@ -81,7 +83,15 @@ log "STEP 3 done: addons applied + openclaw built"
 
 # ─── camoufox-cli install：拉 Firefox 二进制（非致命，首启可补）────
 # 幂等：已装且版本一致时打印 "already up to date" 并返回
-log "STEP 4: ensuring camoufox Firefox binary..."
+#
+# camoufox-js 的 INSTALL_DIR 默认 ~/.cache/camoufox（Linux XDG 缓存路径）。
+# 这里显式设 CAMOUFOX_INSTALL_DIR=/root/.camoufox-cli，让浏览器二进制装进
+# 与 entrypoint volume 一致的目录——stage-2 COPY 和运行时 volume 都指向这里，
+# 装到别处会导致镜像层拷不出来 + 运行时 volume 找不到浏览器。
+# 先 mkdir -p 确保目录存在（install 失败时 stage-2 COPY 也不会因源缺失炸掉）。
+export CAMOUFOX_INSTALL_DIR="${CAMOUFOX_INSTALL_DIR:-/root/.camoufox-cli}"
+install -d -m 700 "$CAMOUFOX_INSTALL_DIR"
+log "STEP 4: ensuring camoufox Firefox binary (CAMOUFOX_INSTALL_DIR=$CAMOUFOX_INSTALL_DIR)..."
 camoufox-cli install || log "⚠️ camoufox-cli install failed（可后续手动 camoufox-cli install）"
 log "STEP 4 done"
 

@@ -20,17 +20,17 @@ const projectsDirs = [
 // weixin 插件装在 projects/<hash>/node_modules/@tencent-weixin/openclaw-weixin/
 // projects 目录名含哈希，动态扫描
 let weixinDir = null;
-try {
-  for (const dir of projectsDirs) {
+for (const dir of projectsDirs) {
+  try {
     for (const name of readdirSync(dir)) {
       if (name.startsWith('tencent-weixin-openclaw-weixin-')) {
         weixinDir = path.join(dir, name, 'node_modules/@tencent-weixin/openclaw-weixin');
         break;
       }
     }
-    if (weixinDir) break;
-  }
-} catch {}
+  } catch {}  // 目录不存在（ENOENT）就跳过，继续扫下一个兜底路径
+  if (weixinDir) break;
+}
 
 if (!weixinDir) {
   console.error('[weixin-qr] 未找到 openclaw-weixin 插件目录，跳过二维码生成');

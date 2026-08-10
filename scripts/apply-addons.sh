@@ -297,7 +297,7 @@ if [ -d "$AWADA_EXT" ] && [ -f "$AWADA_EXT/package.json" ]; then
   if [ "$awada_hash" != "$awada_stored" ] || [ ! -d "$AWADA_EXT/node_modules" ]; then
     echo "📦 Installing awada plugin dependencies (ws + zod)..."
     # USE_MIRROR=0（海外构建机）走原始 npmjs，USE_MIRROR=1（国内裸机/本地）走 npmmirror
-    local npm_reg="${NPM_REGISTRY:-https://registry.npmmirror.com}"
+    npm_reg="${NPM_REGISTRY:-https://registry.npmmirror.com}"
     (cd "$AWADA_EXT" && npm install --omit=dev --no-audit --no-fund --loglevel=warn --registry="$npm_reg") \
       && echo "$awada_hash" > "$AWADA_PKG_HASH_FILE" \
       && echo "✅ awada dependencies installed" \

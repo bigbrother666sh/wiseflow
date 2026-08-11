@@ -1,7 +1,7 @@
 name: xiaobei
 
-# 生产 compose 文件。镜像由 AtomGit 流水线构建并推送到阿里云 ACR；
-# 本地验证可用 IMAGE=xiaobei:local 覆盖（先跑 docker build -f docker/Dockerfile -t xiaobei:local .）。
+# 生产 compose 文件。镜像由用户本地 build（docker build -f docker/Dockerfile -t xiaobei:local .）；
+# 默认用 xiaobei:local，可用 IMAGE=xxx 覆盖。
 #
 # 必填配置：拷 .env.example 到 .env，填 AWK_API_KEY。Docker Compose 自动从本目录
 # 加载 .env，所以 `docker compose up|down|logs` 不必每次前缀 env vars。
@@ -17,7 +17,7 @@ name: xiaobei
 #   xiaobei 容器 6080  → noVNC web（浏览器开 http://localhost:6080/vnc.html 操作 camoufox 过验证）
 services:
   xiaobei:
-    image: ${IMAGE:-registry.cn-hangzhou.aliyuncs.com/${ALIYUN_NAME_SPACE:-xiaobei}/xiaobei:latest}
+    image: ${IMAGE:-xiaobei:local}
     restart: unless-stopped
     environment:
       # 唯一必填用户设置。其他 skill 凭据由运行中的 agent 在持久化 .env 里后配。

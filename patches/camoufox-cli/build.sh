@@ -10,8 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "→ [camoufox-cli fork] installing deps (incl. devDeps for tsc)..."
-# NPM_REGISTRY 默认 npmmirror（国内裸机/本地），USE_MIRROR=0（海外构建机）走原始 npmjs
-npm install --registry="${NPM_REGISTRY:-https://registry.npmmirror.com}"
+npm install --registry=https://registry.npmmirror.com
 
 echo "→ [camoufox-cli fork] building dist/..."
 npm run build

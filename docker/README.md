@@ -53,28 +53,26 @@ docker compose up -d
 ## noVNC — 浏览器操作容器内桌面
 
 camoufox 有头模式跑在容器内 Xvfb 虚拟显示里。用户浏览器打开
-`http://localhost:6080/vnc.html` 即可看到该显示里的 fluxbox 桌面，里面能看到 camoufox
+`http://localhost:6080/vnc.html` 即可看到该显示里的 fluxbox 柌面，里面能看到 camoufox
 浏览器窗口——用于**小红书/抖音等平台登录过验证**的场景。
 
-**mimicwx 容器**也有自己的 noVNC web（宿主端口 `6081`）：浏览器开
-`http://localhost:6081/vnc.html` 操作微信客户端扫码登录。
-
 **端口默认只绑 Docker host 的 `127.0.0.1`**。远程访问应走 SSH 隧道或显式配置代理，
-不要直接把 6080 / 6081 暴露到公网。
+不要直接把 6080 暴露到公网。
 
 ## 微信容器配合（wx-mp-hunter posts-list）
 
-`wx-mp-hunter` skill 的 `posts-list` 子命令依赖一个运行中的微信客户端容器
-（MimicWX-Linux），通过 `docker exec` 进微信容器读 SQLCipher 加密的消息库。
+`wx-mp-hunter` skill 的 `posts-list` 子命令依赖一个运行中的微信客户端容器，
+通过 `docker exec` 进微信容器读 SQLCipher 加密的消息库。
 
-`docker-compose.yml` 已配好两个容器在同一 `xiaobei-net` 网络里：
+**微信客户端容器不在本公开仓暴露**（知识产权风险），由有权限的用户自行另起
+compose override 引入。`docker-compose.yml` 已为这种场景预留接入点：
 
 - `xiaobei` 容器挂载宿主 `/var/run/docker.sock`（只读），用于 `docker exec` 进微信容器
-- `mimicwx` 容器跑微信客户端，登录态持久化在 `wechat-data` 卷
 - 环境变量 `WX_BIZ_CONTAINER` / `WX_BIZ_USER_DIR` / `WX_BIZ_KEYS_FILE` 指向微信容器
+  （默认值与微信容器约定，用户自行 override）
 
-**前提**：需要先有 `mimicwx` 镜像。如果只用到 `wx-mp-hunter` 的 `fetch` / `homepage`
-子命令（不依赖微信容器），可以注释掉 `docker-compose.yml` 里的 `mimicwx` service。
+如果只用到 `wx-mp-hunter` 的 `fetch` / `homepage` 子命令（不依赖微信容器），
+则无需引入微信容器，`xiaobei` 容器可独立运行。
 
 ## 构建与分发（GitHub + 阈里云 ACR 直绑）
 
@@ -97,8 +95,8 @@ push tag 即触发 ACR 构建。
 | 构建上下文目录 | `/` |
 | Dockerfile 文件名 | `docker/Dockerfile` |
 | 镜像版本 | `${imageTag}` 和 `latest`（加两条镜像版本行，或建两条规则） |
-| 海外机器构建 | 勾选（镜像内要 clone GitHub openclaw、npm 拉海外包，海外构建 + 海外源智能加速更稳） |
-| 构建参数 | `USE_MIRROR=0`（用原始源 + ACR 海外源智能加速，国内镜像源在海外构建机反而绕远路） |
+| 海外机器构建 | **勾选**（构建机走海外链路拉 Docker Hub 基础镜像 `node:24-bookworm` + npm 走 npmjs 海外源；Dockerfile 内只有阿里云 APT 源是另一条链路，debian 源不论海内外都快，不冲突） |
+| 构建参数 | 无（Dockerfile 已写死国内镜像源，不引入 USE_MIRROR 分支复杂度） |
 
 ### 产物（阿里云 ACR）
 
@@ -122,8 +120,8 @@ AWK_API_KEY=<key> docker compose up -d
 ## 本地验证
 
 ```bash
-# 本地构建镜像（会先按 openclaw.version 检出 pinned openclaw 源码）
-./scripts/build-image.sh
+# 本地构建镜像（openclaw 源码需先按 openclaw.version 锁定 commit 检出到仓根 openclaw/）
+docker build -f docker/Dockerfile -t xiaobei:local .
 
 # 用本地构建的镜像启动
 AWK_API_KEY=<your-key> IMAGE=xiaobei:local docker compose up -d

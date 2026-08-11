@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # xiaobei Docker image — 开箱即用版（v5.6.3+）
 #
 # 三阶段构建：
@@ -19,20 +18,18 @@
 # ════════════════════════════════════════════════════════════════════
 FROM node:24-bookworm AS xiaobei-build
 
-# USE_MIRROR=1 走国内镜像源（本地构建推荐），USE_MIRROR=0 走原始源
-# 阿里云 ACR 海外构建机推荐 USE_MIRROR=0 + ACR 的"海外源智能加速"——跨境拉 GitHub/npm 更稳
-ARG USE_MIRROR=${USE_MIRROR:-0}
+# 走国内镜像源（阿里云 APT + npmmirror），与裸机 install.sh 链路完全一致——
+# 阿里云 ACR 构建机选国内部署，拉 npmmirror 最快，不引入 USE_MIRROR 分支复杂度
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
     OPENCLAW_STATE_DIR=/root/.openclaw \
     NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+# APT 源走阿里云（debian 源不论海内外都快），npm 走 npmmirror 国内镜像（省代理流量）
 
-# 国内镜像加速（USE_MIRROR=0 关闭，海外构建用）
-RUN if [ "$USE_MIRROR" = "1" ]; then \
-        sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
-        || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
-    fi
+# 阿里云 APT 源加速（与裸机 install.sh 同源）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
+    || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
 
 # 基础工具 + 显示栈（camoufox 有头模式跑 Xvfb，用户经 noVNC 操作浏览器过验证）
 # + 浏览器运行时依赖（gtk/dbus/nss/atspi/cups，camoufox Firefox 需要）
@@ -54,8 +51,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         sudo procps net-tools \
     && rm -rf /var/lib/apt/lists/*
 
-# pnpm via corepack（node:24 带 corepack）
-RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
+# pnpm via npm install -g（不走 corepack 网络——corepack prepare 拉 pnpm 包跨境抖动）
+# npm install -g 走 npm registry（npm_config_registry env 已设），拉 pnpm 装到 /usr/local/bin
+RUN npm install -g pnpm@10.30.2
 
 WORKDIR /opt/xiaobei
 
@@ -67,30 +65,49 @@ COPY . /opt/xiaobei
 # 校验源码树 + 跑 bootstrap 完成"装好后"状态
 # bootstrap 复用裸机安装的 apply-addons.sh / setup-crew.sh / camoufox-cli/build.sh，
 # 但不跑 daemon install / 不交互收密钥 / 不拉远程仓库（源码已 COPY 进来）
-RUN test -d /opt/xiaobei/openclaw \
-    && test -d /opt/xiaobei/openclaw/.git \
-    && test -x /opt/xiaobei/docker/docker-bootstrap.sh \
-    && NODE_OPTIONS="--max-old-space-size=4096" /opt/xiaobei/docker/docker-bootstrap.sh \
-    && install -d /opt/xiaobei/runtime-seed/openclaw \
-    && cp -a /root/.openclaw/. /opt/xiaobei/runtime-seed/openclaw/
+#
+# 诊断设计（穿透 ACR buildkit 吞同 RUN stdout/stderr 的陷阱）：
+#   - 执行步用 { ...; echo "BOOTSTRAP_CHAIN_EXIT=$?"; } 2>>.bootstrap-log 吞掉 exit code
+#     让 buildkit 继续到独立 cat 步骤（否则 && 链 exit 1 后续步骤全跳过——
+#     commit 8ff83f2 的独立 cat 跑不到就是这个原因）
+#   - bootstrap 的 stderr 追加进 .bootstrap-log（脚本内 log() 也写这文件）
+#   - 独立 cat 步骤 stdout 穿透 buildkit 显示诊断内容——无论 bootstrap 炸没炸都能跑
+#   - 显式校验步 grep BOOTSTRAP_CHAIN_EXIT=0 决定是否 fail build
+RUN { \
+        test -d /opt/xiaobei/openclaw \
+        && test -d /opt/xiaobei/openclaw/.git \
+        && test -x /opt/xiaobei/docker/docker-bootstrap.sh \
+        && NODE_OPTIONS="--max-old-space-size=4096" /opt/xiaobei/docker/docker-bootstrap.sh \
+        && install -d /opt/xiaobei/runtime-seed/openclaw \
+        && cp -a /root/.openclaw/. /opt/xiaobei/runtime-seed/openclaw/; \
+        echo "BOOTSTRAP_CHAIN_EXIT=$?" >> /opt/xiaobei/.bootstrap-log; \
+    } 2>>/opt/xiaobei/.bootstrap-log
+
+# 独立 cat 诊断——这步 stdout 穿透 buildkit 显示 bootstrap 写的日志
+RUN cat /opt/xiaobei/.bootstrap-log
+
+# 显式 fail build——bootstrap 链炸了（exit code 非 0）就别继续
+RUN grep -q "BOOTSTRAP_CHAIN_EXIT=0" /opt/xiaobei/.bootstrap-log
 
 # ════════════════════════════════════════════════════════════════════
 # Stage 2: runtime（瘦运行镜像，从 build 拷 immutable 层）
 # ════════════════════════════════════════════════════════════════════
 FROM node:24-bookworm
 
-ARG USE_MIRROR=${USE_MIRROR:-0}
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
     OPENCLAW_STATE_DIR=/root/.openclaw \
+    CAMOUFOX_INSTALL_DIR=/root/.camoufox-cli \
+    WISEFLOW_DOCKER=1 \
     DISPLAY=:99 \
-    LANG=C.UTF-8
+    LANG=C.UTF-8 \
+    NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+# APT 源走阿里云（debian 源不论海内外都快），npm 走 npmmirror 国内镜像（省代理流量）
 
-RUN if [ "$USE_MIRROR" = "1" ]; then \
-        sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
-        || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
-    fi
+# 阿里云 APT 源加速（与裸机 install.sh 同源）
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
+    || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
 
 # runtime 只装显示栈 + 浏览器运行时 + docker CLI（不带构建工具链，瘦镜像）
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -113,7 +130,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=xiaobei-build /opt/xiaobei /opt/xiaobei
 COPY --from=xiaobei-build /root/.openclaw /root/.openclaw
 COPY --from=xiaobei-build /root/.camoufox-cli /root/.camoufox-cli
-COPY --from=xiaobei-build /root/.cargo /root/.cargo
 # camoufox-cli 全局 npm 包（build 阶段 npm install -g 装的）
 COPY --from=xiaobei-build /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=xiaobei-build /usr/local/bin /usr/local/bin.d-build
@@ -121,15 +137,19 @@ COPY --from=xiaobei-build /usr/local/bin /usr/local/bin.d-build
 RUN cp -a /usr/local/bin.d-build/* /usr/local/bin/ 2>/dev/null || true && rm -rf /usr/local/bin.d-build
 
 # pnpm 在 runtime 也需要（openclaw gateway 用 pnpm openclaw gateway 启动）
-RUN corepack enable && corepack prepare pnpm@10.30.2 --activate
+# 装和 build stage 同版本 pnpm（不走 corepack 网络，绕跨境抖动）
+RUN npm install -g pnpm@10.30.2
 
-# 入口脚本
-COPY docker-entrypoint.sh /usr/local/bin/xiaobei-entrypoint
+# 入口脚本（源文件在 docker/ 下，COPY 源路径相对 build context 仓根）
+COPY docker/docker-entrypoint.sh /usr/local/bin/xiaobei-entrypoint
 RUN chmod 0755 /usr/local/bin/xiaobei-entrypoint
 
-# 两个数据目录外挂——首启从镜像内 runtime-seed 初始化空卷，已有卷绝不覆盖
-# 两个目录含 API key 和平台登录态，权限 0700
-VOLUME ["/root/.openclaw", "/root/.camoufox-cli"]
+# /root/.openclaw 外挂持久化（API key + 平台登录态 + workspace + sessions）。
+# 不声明 /root/.camoufox-cli 为 VOLUME——否则 Docker 会自动建匿名 volume 覆盖镜像层里
+# 的 camoufox 浏览器二进制 654MB（immutable 资源应留在镜像层，升级镜像时跟随更新）。
+# 仅 /root/.camoufox-cli/profiles 子目录由 docker-compose.yml 显式挂 named volume
+# 持久化 profile + cookie + 登录态。
+VOLUME ["/root/.openclaw"]
 
 # gateway API + noVNC web
 EXPOSE 18789 6080

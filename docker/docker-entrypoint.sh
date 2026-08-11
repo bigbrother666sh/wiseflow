@@ -63,7 +63,9 @@ load_runtime_environment() {
     rm -f "$clean_dotenv"
   fi
 
-  if [ -n "$supplied_awk_api_key" ]; then
+  # 仅当 compose 注入的是真值时才覆盖 .env 的值；
+  # 占位符 __FILL_*__ 说明调用方没传 key，应让 .env 里的真值保留
+  if [ -n "$supplied_awk_api_key" ] && [[ "$supplied_awk_api_key" != __FILL_*__ ]]; then
     export AWK_API_KEY="$supplied_awk_api_key"
   fi
 }

@@ -179,38 +179,41 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        # imagetools 命令依赖 buildx，merge-manifest job 也要用，故两个 job 都 setup buildx。
+
       - name: Merge multi-arch manifest for ${{ env.ASSET_TAG }} + latest
-        # ACR 个人版支持 docker manifest create/push（阿里云官方文档《本地构建并推送多架构镜像》明确）。
-        # 把 <tag>-amd64 + <tag>-arm64 合并成 <tag>，latest-amd64 + latest-arm64 合并成 latest。
-        # 用户侧 docker pull xiaobei:<tag> 时自动按宿主架构拉对应镜像。
+        # 用 docker buildx imagetools create 合并 multi-arch manifest——
+        # docker manifest create 拿 buildx push 出的 OCI manifest list 当源会报
+        # "is a manifest list"，buildx imagetools 专门处理这个场景。
+        # imagetools create -t <multi-tag> <src-amd64> <src-arm64> 直接 push 到 registry。
         run: |
           set -euo pipefail
           REPO="$ACR_REGISTRY/$ACR_NAMESPACE/$IMAGE_NAME"
           echo "=== merging manifest for tag $ASSET_TAG ==="
 
-          # 1. 拉两个单架构 tag 的 manifest（不是镜像本体，只是 manifest，省带宽）
+          # 1. 校验两个单架构 tag 都已 push（inspect 只拉 manifest，省带宽）
           docker manifest inspect "$REPO:$ASSET_TAG-amd64" >/dev/null
           docker manifest inspect "$REPO:$ASSET_TAG-arm64" >/dev/null
+          echo "both single-arch tags reachable"
 
-          # 2. create multi-arch manifest list（--amend 让我们有多个 arch 时也 OK）
-          docker manifest create "$REPO:$ASSET_TAG" \
+          # 2. 合并成 multi-arch manifest（imagetools create 直接 push 到 registry）
+          docker buildx imagetools create -t "$REPO:$ASSET_TAG" \
             "$REPO:$ASSET_TAG-amd64" \
             "$REPO:$ASSET_TAG-arm64"
-
-          # 3. push manifest list 到 ACR
-          docker manifest push "$REPO:$ASSET_TAG"
           echo "✅ pushed $REPO:$ASSET_TAG (multi-arch: amd64 + arm64)"
 
-          # 4. latest 同样合并
-          docker manifest create "$REPO:latest" \
+          # 3. latest 同样合并
+          docker buildx imagetools create -t "$REPO:latest" \
             "$REPO:latest-amd64" \
             "$REPO:latest-arm64"
-          docker manifest push "$REPO:latest"
           echo "✅ pushed $REPO:latest (multi-arch: amd64 + arm64)"
 
-          # 5. 校验：inspect multi-arch tag 应看到两个 platform entry
+          # 4. 校验：inspect multi-arch tag 应看到两个 platform entry
           echo "=== verifying multi-arch manifest ==="
-          docker manifest inspect "$REPO:$ASSET_TAG" | jq '.manifests[] | {platform: .platform.os + "/" + .platform.architecture}' || true
+          docker manifest inspect "$REPO:$ASSET_TAG" \
+            | jq '.manifests[] | {platform: (.platform.os + "/" + .platform.architecture)}' || true
           echo "=== done ==="
 
       - name: Summary

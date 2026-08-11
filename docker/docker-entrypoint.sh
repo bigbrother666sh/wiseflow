@@ -104,19 +104,35 @@ start_display_stack() {
 }
 
 # ─── 5. 渲染 AWK_API_KEY 进 openclaw.json ───────────────────────────
-# 构建期 AWK_API_KEY 未设故 template 里 apiKey 字段是 ${AWK_API_KEY} placeholder，
-# 不渲染则 gateway 拿空凭据静默回退到 bundled 模型，故这里必须替换成真值。
+# 每次启动都用当前 AWK_API_KEY 环境变量覆盖 openclaw.json 里的 apiKey 字段。
+#
+# 历史问题：旧版用 raw.replace(/\$\{AWK_API_KEY\}/g, key) 替换 placeholder，
+# 但第一次渲染后 placeholder 就没了，第二次启动找不到 placeholder 就跳过写入——
+# openclaw.json 里永远是第一次的值，后面改环境变量没用。
+#
+# 修复：改成 JSON 解析，直接定位 models.providers["bailian-token-plan"].apiKey，
+# 每次启动用当前 AWK_API_KEY 覆盖。无论 openclaw.json 里是 ${AWK_API_KEY}
+# placeholder 还是已渲染的真值，都能正确更新。
 render_awk_api_key() {
   node -e '
     const fs = require("fs");
     const p = process.argv[1];
     const key = process.env.AWK_API_KEY;
     if (!key) { console.error("[xiaobei] AWK_API_KEY missing — cannot render openclaw.json"); process.exit(1); }
-    let raw = fs.readFileSync(p, "utf8");
-    const before = raw;
-    raw = raw.replace(/\$\{AWK_API_KEY\}/g, key);
-    if (raw !== before) {
-      fs.writeFileSync(p, raw);
+
+    const config = JSON.parse(fs.readFileSync(p, "utf8"));
+    const providers = config?.models?.providers || {};
+    let updated = false;
+
+    for (const [name, provider] of Object.entries(providers)) {
+      if (provider && typeof provider.apiKey === "string" && provider.apiKey !== key) {
+        provider.apiKey = key;
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      fs.writeFileSync(p, JSON.stringify(config, null, 2) + "\n");
       console.log("[xiaobei] AWK_API_KEY rendered into openclaw.json");
     }
   ' "$OPENCLAW_HOME/openclaw.json"

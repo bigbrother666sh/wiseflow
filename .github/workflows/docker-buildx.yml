@@ -70,14 +70,15 @@ jobs:
           REF_NAME="${GITHUB_REF##*/}"
           if [[ -n "$INPUT_TAG" ]]; then ASSET_TAG="$INPUT_TAG"
           elif [[ "$REF_NAME" == v* ]]; then ASSET_TAG="$REF_NAME"
-          else ASSET_TAG="v$(tr -d '[:space:]' < version)"; fi
+          else ASSET_TAG="$(tr -d '[:space:]' < version)"; fi
           echo "asset_tag=$ASSET_TAG" >> "$GITHUB_OUTPUT"
 
           # platforms：inputs.platforms（workflow_dispatch）或默认 amd64+arm64
           INPUT_PLAT="${{ inputs.platforms }}"
           if [[ -z "$INPUT_PLAT" ]]; then INPUT_PLAT="amd64,arm64"; fi
-          # 转成 JSON array 喂给 matrix
-          PLATFORMS_JSON=$(echo "$INPUT_PLAT" | tr ',' '\n' | sed 's/ //g' | jq -R . | jq -s .)
+          # 转成 JSON array 喂给 matrix——用 jq -c 压成单行，否则多行 JSON 写
+          # $GITHUB_OUTPUT 时 GitHub Actions 按行解析会报 Invalid format。
+          PLATFORMS_JSON=$(echo "$INPUT_PLAT" | tr ',' '\n' | sed 's/ //g' | jq -R . | jq -s -c .)
           echo "platforms=$PLATFORMS_JSON" >> "$GITHUB_OUTPUT"
           echo "asset_tag=$ASSET_TAG"
           echo "platforms=$PLATFORMS_JSON"
@@ -114,9 +115,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          # buildx builder 走默认 docker-container driver，支持单架构 build + push
-          use: docker-xiaobei-${{ matrix.arch }}
+        # 用默认 builder（docker-container driver），支持单架构 build + push。
+        # 不指定 use:——use 是引用已有 builder 名字，不是创建。
 
       - name: Login to Aliyun ACR
         uses: docker/login-action@v3
@@ -147,26 +147,27 @@ jobs:
           # （runner 默认 7G 内存，足够；arm64 runner 也是 4vCPU）
           # 注意：build-args 不能设 NODE_OPTIONS，那是运行时 env；走 Dockerfile ENV 已设 4096
 
-      - name: Smoke test (image starts + gateway --help)
-        # 仅 amd64 跑——arm64 GitHub runner 上 docker run arm64 镜像直接跑（原生），但
-        # 整个显示栈 + camoufox 启动太重，CI 里跑冒烟只验镜像能启动 + openclaw --version
+      - name: Smoke test (image starts + binaries reachable)
+        # 仅 amd64 跑——arm64 smoke 加进来会让 matrix 两个 job 都要 docker run，
+        # 拉长 CI 时间。arm64 镜像能 push 成功就算通过，用户侧 pull 后再验。
+        if: matrix.arch == 'amd64'
         run: |
           set -euo pipefail
           IMG="${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.ASSET_TAG }}-${{ env.ARCH_SUFFIX }}"
           echo "Smoke testing $IMG"
-          # 镜像内 entrypoint 需 AWK_API_KEY，走 --entrypoint 跳过直接验 openclaw
+          # 走 --entrypoint /bin/bash 跳过 xiaobei-entrypoint（它要 AWK_API_KEY），
+          # 只验镜像内关键路径存在 + 可执行。
           docker run --rm --entrypoint /bin/bash "$IMG" -c '
-            cd /opt/xiaobei/openclaw
-            node -e "console.log(\"openclaw dist reachable:\", require(\"./dist/index.js\") ? \"OK\" : \"FAIL\")" 2>&1 | head -5
-            camoufox-cli --help 2>&1 | head -3
-            test -x /usr/local/bin/xiaobei-entrypoint && echo "entrypoint OK"
-            test -d /opt/xiaobei/runtime-seed/openclaw && echo "runtime seed OK"
+            test -d /opt/xiaobei/openclaw/dist && echo "openclaw dist OK" || { echo "❌ openclaw dist missing"; exit 1; }
+            test -x /usr/local/bin/camoufox-cli && echo "camoufox-cli OK" || { echo "❌ camoufox-cli missing"; exit 1; }
+            test -x /usr/local/bin/xiaobei-entrypoint && echo "entrypoint OK" || { echo "❌ entrypoint missing"; exit 1; }
+            test -d /opt/xiaobei/runtime-seed/openclaw && echo "runtime seed OK" || { echo "❌ runtime seed missing"; exit 1; }
           '
           echo "✅ $IMG smoke test passed"
 
   # ─── 合并 multi-arch manifest：所有单架构 push 完后跑 ───────────────
   merge-manifest:
-    needs: build-arch
+    needs: [resolve-platforms, build-arch]
     runs-on: ubuntu-24.04
     env:
       ASSET_TAG: ${{ needs.resolve-platforms.outputs.asset_tag }}

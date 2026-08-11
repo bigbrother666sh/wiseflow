@@ -1,6 +1,8 @@
 name: xiaobei
 
-# 生产 compose 文件。镜像由 AtomGit 流水线构建并推送到阿里云 ACR；
+# 生产 compose 文件。镜像由 GitHub Actions buildx matrix 构建（amd64 + arm64
+# 原生 runner），push 到阿里云 ACR 个人版（cr.aliyuncs.com），用 docker manifest
+# 合并出 multi-arch tag，用户 docker pull 自动拉对应架构镜像。
 # 本地验证可用 IMAGE=xiaobei:local 覆盖（先跑 docker build -f docker/Dockerfile -t xiaobei:local .）。
 #
 # 必填配置：拷 .env.example 到 .env，填 AWK_API_KEY。Docker Compose 自动从本目录
@@ -17,7 +19,10 @@ name: xiaobei
 #   xiaobei 容器 6080  → noVNC web（浏览器开 http://localhost:6080/vnc.html 操作 camoufox 过验证）
 services:
   xiaobei:
-    image: ${IMAGE:-registry.cn-hangzhou.aliyuncs.com/${ALIYUN_NAME_SPACE:-xiaobei}/xiaobei:latest}
+    # multi-arch manifest：amd64 + arm64 同一 tag，docker pull 自动选架构
+    # 平台覆盖：linux/amd64（Linux x86 + Windows Docker Desktop WSL2 + Intel Mac）
+    #           linux/arm64（阿里云 ARM ECS + 树莓派 + Apple Silicon Mac）
+    image: ${IMAGE:-crpi-u33rufjvg2spbhyg.cn-shanghai.personal.cr.aliyuncs.com/wiseflow-tech/xiaobei:latest}
     restart: unless-stopped
     environment:
       # 唯一必填用户设置。其他 skill 凭据由运行中的 agent 在持久化 .env 里后配。

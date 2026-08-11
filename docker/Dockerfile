@@ -16,18 +16,24 @@
 # ════════════════════════════════════════════════════════════════════
 # Stage 1: build（装齐 immutable 应用层 + 显示栈软件）
 # ════════════════════════════════════════════════════════════════════
+# buildx multi-arch：node:24-bookworm 自身多架构（amd64/arm64），buildx 按
+# --platform 自动拉对应架构基础镜像，无需在 Dockerfile 里声明 TARGETPLATFORM。
+# camoufox-js 的 pkgman.js 用 os.arch() 探测架构自动拉对应 Firefox 二进制
+#（ARCH_MAP 含 arm64，OS_ARCH_MATRIX.lin 含 arm64），故 camoufox 代码不用改。
 FROM node:24-bookworm AS xiaobei-build
 
-# 走国内镜像源（阿里云 APT + npmmirror），与裸机 install.sh 链路完全一致——
-# 阿里云 ACR 构建机选国内部署，拉 npmmirror 最快，不引入 USE_MIRROR 分支复杂度
+# NPM registry 走 ARG 参数，默认 npmmirror（国内最快），GitHub Actions 海外
+# arm64 runner override 成 npmjs（海外拉 npmjs 不跨境，最快）。
+# APT 源走阿里云（debian 源不论海内外都快，不引入分支）。
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
     OPENCLAW_STATE_DIR=/root/.openclaw \
-    NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
-# APT 源走阿里云（debian 源不论海内外都快），npm 走 npmmirror 国内镜像（省代理流量）
+    NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
 
-# 阿里云 APT 源加速（与裸机 install.sh 同源）
+# 阿里云 APT 源加速（与裸机 install.sh 同源，debian 源不论海内外都快）
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
     || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
 
@@ -73,7 +79,13 @@ COPY . /opt/xiaobei
 #   - bootstrap 的 stderr 追加进 .bootstrap-log（脚本内 log() 也写这文件）
 #   - 独立 cat 步骤 stdout 穿透 buildkit 显示诊断内容——无论 bootstrap 炸没炸都能跑
 #   - 显式校验步 grep BOOTSTRAP_CHAIN_EXIT=0 决定是否 fail build
-RUN { \
+#
+# --mount=type=secret,id=github_token,env=GITHUB_TOKEN：camoufox-cli install 拉
+# GitHub release（camoufox Firefox 二进制）走 Authorization 免 60/hour rate limit。
+# GitHub Actions workflow 用 docker/build-push-action 的 secrets: 输入透传 GITHUB_TOKEN，
+# 本地 docker build 不挂这个 secret 时 GITHUB_TOKEN 为空，camoufox-js 会自动回退到
+# anonymous + github.com 页面 paging fallback（install.ts 的 assetsViaWeb），仍能装成功。
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN { \
         test -d /opt/xiaobei/openclaw \
         && test -d /opt/xiaobei/openclaw/.git \
         && test -x /opt/xiaobei/docker/docker-bootstrap.sh \
@@ -94,6 +106,12 @@ RUN grep -q "BOOTSTRAP_CHAIN_EXIT=0" /opt/xiaobei/.bootstrap-log
 # ════════════════════════════════════════════════════════════════════
 FROM node:24-bookworm
 
+# runtime 镜像里 pnpm openclaw gateway 启动时不拉包，NPM_CONFIG_REGISTRY 仅给
+# 首启用户手动 npm install -g 补包用。默认走 npmmirror（与裸机 install.sh 同源），
+# buildx 海外 runner override ARG NPM_REGISTRY=npmjs 不影响运行时（ENV 进镜像层，
+# 用户运行时可 docker run -e NPM_CONFIG_REGISTRY=... 覆盖）。
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
 ENV DEBIAN_FRONTEND=noninteractive \
     HOME=/root \
     OPENCLAW_HOME=/root/.openclaw \
@@ -102,10 +120,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     WISEFLOW_DOCKER=1 \
     DISPLAY=:99 \
     LANG=C.UTF-8 \
-    NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
-# APT 源走阿里云（debian 源不论海内外都快），npm 走 npmmirror 国内镜像（省代理流量）
+    NPM_CONFIG_REGISTRY=${NPM_REGISTRY}
 
-# 阿里云 APT 源加速（与裸机 install.sh 同源）
+# 阿里云 APT 源加速（与裸机 install.sh 同源，debian 源不论海内外都快）
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
     || sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
 

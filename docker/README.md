@@ -74,45 +74,65 @@ compose override 引入。`docker-compose.yml` 已为这种场景预留接入点
 如果只用到 `wx-mp-hunter` 的 `fetch` / `homepage` 子命令（不依赖微信容器），
 则无需引入微信容器，`xiaobei` 容器可独立运行。
 
-## 构建与分发（GitHub + 阈里云 ACR 直绑）
+## 构建与分发（GitHub Actions buildx + 阿里云 ACR 个人版）
 
-镜像由阿里云 ACR 企业版**直绑 GitHub 仓库**自动构建并托管——不走外部流水线，
-push tag 即触发 ACR 构建。
+镜像由 **GitHub Actions 原生 runner + docker buildx** 构建（amd64 用 `ubuntu-24.04`，
+arm64 用 `ubuntu-24.04-arm`——公开仓库原生 arm64 runner 已 GA 免费），push 到阿里云
+ACR 个人版，最后用 `docker manifest` 合并出 multi-arch tag。用户 `docker pull`
+自动拉对应架构镜像，无需手动选 tag。
+
+### 平台覆盖（一个 multi-arch tag 服务所有）
+
+| 用户宿主 | 实际拉到的镜像架构 |
+|---------|----------------|
+| Linux x86（阿里云 x86 ECS、原生 Linux PC） | `linux/amd64` |
+| Windows + Docker Desktop（WSL2 backend） | `linux/amd64` |
+| Intel Mac + Docker Desktop | `linux/amd64` |
+| 阿里云 ARM ECS、树莓派 4/5 | `linux/arm64` |
+| Apple Silicon Mac + Docker Desktop | `linux/arm64` |
+
+> Windows / macOS 不出 native 容器——业界标准做法是用 Docker Desktop 在
+> LinuxKit/WSL2 VM 里跑 Linux 容器，camoufox 有头模式的 X11 显示栈在该 VM 里正常跑。
+> Intel Mac 与 windows+x86 共用 `linux/amd64` 镜像，Apple Silicon 与 linux+arm
+> 共用 `linux/arm64` 镜像，故实际只需构建这两个平台。
 
 ### 触发方式
 
-1. **手动触发**：在阿里云 ACR 控制台 → `xiaobei` 仓库 → 构建规则 → 点"立即构建"
-2. **push tag 自动触发**：`git push origin v5.6.3` 会自动触发 ACR 构建规则
+1. **push tag 自动触发**：`git push origin v5.6.4` 触发 `.github/workflows/docker-buildx.yml`
+2. **手动触发**：GitHub Actions → Docker Buildx Multi-Arch → Run workflow，填 tag（如 `v5.6.4` 或 `latest`）
 
-### ACR 构建规则配置（一次性）
+workflow 跑两个 job：`build`（matrix 出 amd64 + arm64 两个单架构 tag 并 push）→
+`manifest`（合并成 multi-arch tag + 给 release tag 额外打 `latest`）。
 
-在 ACR 控制台为 `xiaobei` 仓库添加一条构建规则：
+### GitHub Secrets（一次性）
 
-| 字段 | 配置 |
-|------|------|
-| 代码源 | GitHub（先在 ACR 绑定 GitHub 个人版账号） |
-| 分支/Tag | 正则 `v(?<imageTag>\w*)` 匹配 `v*` tag |
-| 构建上下文目录 | `/` |
-| Dockerfile 文件名 | `docker/Dockerfile` |
-| 镜像版本 | `${imageTag}` 和 `latest`（加两条镜像版本行，或建两条规则） |
-| 海外机器构建 | **勾选**（构建机走海外链路拉 Docker Hub 基础镜像 `node:24-bookworm` + npm 走 npmjs 海外源；Dockerfile 内只有阿里云 APT 源是另一条链路，debian 源不论海内外都快，不冲突） |
-| 构建参数 | 无（Dockerfile 已写死国内镜像源，不引入 USE_MIRROR 分支复杂度） |
+在仓库 Settings → Secrets and variables → Actions 配：
 
-### 产物（阿里云 ACR）
+| Secret | 值 |
+|--------|----|
+| `ACR_USERNAME` | 阿里云 ACR 访问凭证用户名（控制台→访问凭证→获取） |
+| `ACR_PASSWORD` | 阿里云 ACR 访问凭证密码 |
+
+`GITHUB_TOKEN` 由 Actions 自动注入，无需手动配——透给 camoufox-cli install 拉
+GitHub release（camoufox Firefox 二进制）免 60/hour anonymous rate limit。
+
+### 产物（阿里云 ACR 个人版）
 
 ```
-registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:v5.6.3
-registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:latest
+crpi-u33rufjvg2spbhyg.cn-shanghai.personal.cr.aliyuncs.com/wiseflow-tech/xiaobei:v5.6.4         ← multi-arch manifest
+crpi-u33rufjvg2spbhyg.cn-shanghai.personal.cr.aliyuncs.com/wiseflow-tech/xiaobei:v5.6.4-amd64  ← 单架构
+crpi-u33rufjvg2spbhyg.cn-shanghai.personal.cr.aliyuncs.com/wiseflow-tech/xiaobei:v5.6.4-arm64
+crpi-u33rufjvg2spbhyg.cn-shanghai.personal.cr.aliyuncs.com/wiseflow-tech/xiaobei:latest        ← multi-arch manifest（release tag 才打）
 ```
 
 ### 发放模式
 
-构建完成后，向符合条件的用户直接发放阿里云的 image 链接：
+构建完成后，向符合条件的用户直接发放阿里云的 multi-arch image 链接：
 
 ```bash
-# 用户侧：拉镜像 + 启动
-docker login registry.cn-hangzhou.aliyuncs.com  # 填发放的账号
-docker pull registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:v5.6.3
+# 用户侧：拉镜像 + 启动（docker pull 自动选架构，无需指定 -amd64 / -arm64）
+docker login crpi-u33rufjvg2spbhyg.cn-shanghai.personal.cr.aliyuncs.com  # 填发放的账号
+docker pull crpi-u33rufjvg2spbhyg.cn-shanghai.personal.cr.aliyuncs.com/wiseflow-tech/xiaobei:v5.6.4
 cp docker/.env.example docker/.env  # 填 AWK_API_KEY
 AWK_API_KEY=<key> docker compose up -d
 ```

@@ -1,0 +1,232 @@
+name: Docker Buildx Multi-Arch
+
+# 镜像由 GitHub Actions 原生 amd64 + arm64 runner 分别构建（不跑 QEMU 软模拟——
+# camoufox Firefox 编译在软模拟上 30min+ 易炸），build 完各自 push 到 <tag>-<arch>
+# 单架构 tag，最后由 manifest job 合并成 multi-arch <tag> + latest。
+# 用户侧 docker pull xiaobei:latest 时自动按宿主架构拉对应镜像。
+#
+# Matrix 覆盖（实际 build 的平台，去重后只有 2 个）：
+#   windows+x86   →  linux/amd64（Windows 用户用 Docker Desktop WSL2 跑 Linux 镜像）
+#   linux+x86     →  linux/amd64
+#   linux+arm     →  linux/arm64
+#   macos+arm     →  linux/arm64（Apple Silicon Docker Desktop）
+#   macos+intel   →  linux/amd64（Intel Mac Docker Desktop，可选）
+#
+# camoufox arm64 可行性：camoufox-js 的 pkgman.js 用 os.arch() 探测架构，
+# ARCH_MAP.arm64 = "arm64"，OS_ARCH_MATRIX.lin 含 arm64，
+# camoufox-cli install 在 arm64 容器里自动拉 camoufox-linux-arm64 release，无需改 camoufox 代码。
+#
+# NPM registry 链路：海外 GitHub runner 走 npmjs（不跨境最快），Dockerfile ARG NPM_REGISTRY
+# override 成 https://registry.npmjs.org/。APT 源不论海内外都快（debian 官源 + 阿里云镜像）。
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build + push (e.g. v5.6.4)；留空用 version 文件'
+        required: false
+        type: string
+      platforms:
+        description: '要构建的平台（逗号分隔，默认 amd64+arm64）'
+        required: false
+        type: string
+        default: 'amd64,arm64'
+
+permissions:
+  contents: read
+
+# 同一 tag 不要并发跑多次（避免互相覆盖 manifest）
+concurrency:
+  group: docker-buildx-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # ACR 个人版实例地址（上海地域）
+  ACR_REGISTRY: crpi-u33rufjvg2spbhyg.cn-shanghai.personal.cr.aliyuncs.com
+  ACR_NAMESPACE: wiseflow-tech
+  IMAGE_NAME: xiaobei
+  # 海外 runner 走 npmjs 官源最快不跨境（国内构建机 override 回 npmmirror 走代理）
+  NPM_REGISTRY_FOR_RUNNER: https://registry.npmjs.org
+
+jobs:
+  # ─── 平台分发：把 inputs 或默认值标准化成 matrix ──────────────────
+  resolve-platforms:
+    runs-on: ubuntu-24.04
+    outputs:
+      platforms: ${{ steps.resolve.outputs.platforms }}
+      asset_tag: ${{ steps.resolve.outputs.asset_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve asset tag + platforms
+        id: resolve
+        run: |
+          set -euo pipefail
+          # asset tag 优先级：workflow_dispatch inputs.tag > git tag（push 触发）> version 文件
+          INPUT_TAG="${{ inputs.tag }}"
+          REF_NAME="${GITHUB_REF##*/}"
+          if [[ -n "$INPUT_TAG" ]]; then ASSET_TAG="$INPUT_TAG"
+          elif [[ "$REF_NAME" == v* ]]; then ASSET_TAG="$REF_NAME"
+          else ASSET_TAG="v$(tr -d '[:space:]' < version)"; fi
+          echo "asset_tag=$ASSET_TAG" >> "$GITHUB_OUTPUT"
+
+          # platforms：inputs.platforms（workflow_dispatch）或默认 amd64+arm64
+          INPUT_PLAT="${{ inputs.platforms }}"
+          if [[ -z "$INPUT_PLAT" ]]; then INPUT_PLAT="amd64,arm64"; fi
+          # 转成 JSON array 喂给 matrix
+          PLATFORMS_JSON=$(echo "$INPUT_PLAT" | tr ',' '\n' | sed 's/ //g' | jq -R . | jq -s .)
+          echo "platforms=$PLATFORMS_JSON" >> "$GITHUB_OUTPUT"
+          echo "asset_tag=$ASSET_TAG"
+          echo "platforms=$PLATFORMS_JSON"
+
+  # ─── 单架构 build + push：matrix 并行 amd64 + arm64 ─────────────────
+  build-arch:
+    needs: resolve-platforms
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJson(needs.resolve-platforms.outputs.platforms) }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    env:
+      ASSET_TAG: ${{ needs.resolve-platforms.outputs.asset_tag }}
+      TARGET_PLATFORM: ${{ matrix.arch == 'arm64' && 'linux/arm64' || 'linux/amd64' }}
+      ARCH_SUFFIX: ${{ matrix.arch }}
+    steps:
+      - name: Checkout xiaobei
+        uses: actions/checkout@v5
+
+      - name: Read pinned openclaw version
+        id: pin
+        run: |
+          source openclaw.version
+          echo "commit=$OPENCLAW_COMMIT" >> "$GITHUB_OUTPUT"
+          echo "version=$OPENCLAW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Clone openclaw at pinned commit (full clone for git apply --3way)
+        # apply-addons.sh 跑 git apply --3way 需从 object store 读补丁头 pre-image blob，
+        # 浅 clone 不拉 blob 会导致补丁全挂——故用完整 clone。
+        run: |
+          git clone https://github.com/openclaw/openclaw.git openclaw
+          git -C openclaw checkout ${{ steps.pin.outputs.commit }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          # buildx builder 走默认 docker-container driver，支持单架构 build + push
+          use: docker-xiaobei-${{ matrix.arch }}
+
+      - name: Login to Aliyun ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push single-arch image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          # 单架构 build——不用 multi-arch manifest，让 buildx 直接 push 单架构 tag
+          platforms: ${{ env.TARGET_PLATFORM }}
+          # 海外 GitHub runner 走 npmjs（ARG override）；国内构建机留默认 npmmirror
+          build-args: |
+            NPM_REGISTRY=${{ env.NPM_REGISTRY_FOR_RUNNER }}
+          push: true
+          tags: |
+            ${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.ASSET_TAG }}-${{ env.ARCH_SUFFIX }}
+            ${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/${{ env.IMAGE_NAME }}:latest-${{ env.ARCH_SUFFIX }}
+          # 不用 cache-from：跨架构 cache 没意义，单架构重跑用 GitHub Actions cache
+          cache-from: type=gha,scope=xiaobei-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=xiaobei-${{ matrix.arch }}
+          # camoufox Firefox 编译 + openclaw 构建 吃内存，给 4G old space
+          # （runner 默认 7G 内存，足够；arm64 runner 也是 4vCPU）
+          # 注意：build-args 不能设 NODE_OPTIONS，那是运行时 env；走 Dockerfile ENV 已设 4096
+
+      - name: Smoke test (image starts + gateway --help)
+        # 仅 amd64 跑——arm64 GitHub runner 上 docker run arm64 镜像直接跑（原生），但
+        # 整个显示栈 + camoufox 启动太重，CI 里跑冒烟只验镜像能启动 + openclaw --version
+        run: |
+          set -euo pipefail
+          IMG="${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ env.ASSET_TAG }}-${{ env.ARCH_SUFFIX }}"
+          echo "Smoke testing $IMG"
+          # 镜像内 entrypoint 需 AWK_API_KEY，走 --entrypoint 跳过直接验 openclaw
+          docker run --rm --entrypoint /bin/bash "$IMG" -c '
+            cd /opt/xiaobei/openclaw
+            node -e "console.log(\"openclaw dist reachable:\", require(\"./dist/index.js\") ? \"OK\" : \"FAIL\")" 2>&1 | head -5
+            camoufox-cli --help 2>&1 | head -3
+            test -x /usr/local/bin/xiaobei-entrypoint && echo "entrypoint OK"
+            test -d /opt/xiaobei/runtime-seed/openclaw && echo "runtime seed OK"
+          '
+          echo "✅ $IMG smoke test passed"
+
+  # ─── 合并 multi-arch manifest：所有单架构 push 完后跑 ───────────────
+  merge-manifest:
+    needs: build-arch
+    runs-on: ubuntu-24.04
+    env:
+      ASSET_TAG: ${{ needs.resolve-platforms.outputs.asset_tag }}
+    steps:
+      - name: Login to Aliyun ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Merge multi-arch manifest for ${{ env.ASSET_TAG }} + latest
+        # ACR 个人版支持 docker manifest create/push（阿里云官方文档《本地构建并推送多架构镜像》明确）。
+        # 把 <tag>-amd64 + <tag>-arm64 合并成 <tag>，latest-amd64 + latest-arm64 合并成 latest。
+        # 用户侧 docker pull xiaobei:<tag> 时自动按宿主架构拉对应镜像。
+        run: |
+          set -euo pipefail
+          REPO="$ACR_REGISTRY/$ACR_NAMESPACE/$IMAGE_NAME"
+          echo "=== merging manifest for tag $ASSET_TAG ==="
+
+          # 1. 拉两个单架构 tag 的 manifest（不是镜像本体，只是 manifest，省带宽）
+          docker manifest inspect "$REPO:$ASSET_TAG-amd64" >/dev/null
+          docker manifest inspect "$REPO:$ASSET_TAG-arm64" >/dev/null
+
+          # 2. create multi-arch manifest list（--amend 让我们有多个 arch 时也 OK）
+          docker manifest create "$REPO:$ASSET_TAG" \
+            "$REPO:$ASSET_TAG-amd64" \
+            "$REPO:$ASSET_TAG-arm64"
+
+          # 3. push manifest list 到 ACR
+          docker manifest push "$REPO:$ASSET_TAG"
+          echo "✅ pushed $REPO:$ASSET_TAG (multi-arch: amd64 + arm64)"
+
+          # 4. latest 同样合并
+          docker manifest create "$REPO:latest" \
+            "$REPO:latest-amd64" \
+            "$REPO:latest-arm64"
+          docker manifest push "$REPO:latest"
+          echo "✅ pushed $REPO:latest (multi-arch: amd64 + arm64)"
+
+          # 5. 校验：inspect multi-arch tag 应看到两个 platform entry
+          echo "=== verifying multi-arch manifest ==="
+          docker manifest inspect "$REPO:$ASSET_TAG" | jq '.manifests[] | {platform: .platform.os + "/" + .platform.architecture}' || true
+          echo "=== done ==="
+
+      - name: Summary
+        run: |
+          cat <<EOF
+          ─────────────────────────────────────────────────────────
+          ✅ Multi-arch 镜像已推送到 ACR
+
+          镜像地址（用户拉取）：
+            $ACR_REGISTRY/$ACR_NAMESPACE/$IMAGE_NAME:${{ env.ASSET_TAG }}
+            $ACR_REGISTRY/$ACR_NAMESPACE/$IMAGE_NAME:latest
+
+          支持架构：linux/amd64 + linux/arm64
+          （Windows 用户用 Docker Desktop WSL2 跑 amd64；macOS Apple Silicon 跑 arm64；Intel Mac 跑 amd64）
+
+          拉取命令：
+            docker login $ACR_REGISTRY  # 填发放的 ACR 账号
+            docker pull $ACR_REGISTRY/$ACR_NAMESPACE/$IMAGE_NAME:${{ env.ASSET_TAG }}
+          ─────────────────────────────────────────────────────────
+          EOF

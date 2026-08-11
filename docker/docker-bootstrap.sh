@@ -39,8 +39,11 @@ OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_HOME/openclaw.json}"
 export WISEFLOW_DOCKER=1
 log "PROJECT_ROOT=$PROJECT_ROOT OPENCLAW_HOME=$OPENCLAW_HOME"
 
-# 走 npmmirror 国内镜像（省代理流量，与裸机 install.sh 链路完全一致）
-export npm_config_registry="https://registry.npmmirror.com"
+# 走镜像源（与裸机 install.sh 链路同源）：registry 由 Dockerfile ARG NPM_REGISTRY
+# 透传进 ENV NPM_CONFIG_REGISTRY，海外 arm64 runner override 成 npmjs 不跨境。
+# bootstrap 内显式 export 让子进程（camoufox-cli/build.sh 的 npm install、
+# apply-addons.sh 的 pnpm install、plugins install）都走同一 registry。
+export npm_config_registry="${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}"
 log "npm_config_registry=$npm_config_registry"
 
 # ─── 校验源码树（致命）────────────────────────────────────────────

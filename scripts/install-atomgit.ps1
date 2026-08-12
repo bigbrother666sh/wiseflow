@@ -735,7 +735,9 @@ function Main {
             $lines = Get-Content $envFile
             $lines = $lines | Where-Object { $_ -notmatch "^XIAOBEI_HOME=" }
             $lines += "XIAOBEI_HOME=$Root"
-            Set-Content -Path $envFile -Value $lines -Encoding UTF8
+            # WriteAllText no-BOM + CRLF（Set-Content -Encoding UTF8 会写 BOM，gateway.cmd call daemon.env 炸）
+            $envFileContent = (($lines | Where-Object { $_ }) -join "`r`n") + "`r`n"
+            [System.IO.File]::WriteAllText($envFile, $envFileContent, (New-Object System.Text.UTF8Encoding($false)))
             Write-Ok "daemon.env XIAOBEI_HOME refreshed"
         }
         Repair-GatewayCmd

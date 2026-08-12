@@ -2,21 +2,24 @@
 
 > **开箱即用**：镜像内已装好 openclaw 引擎 + 全部 skills/crews + camoufox-cli + Firefox +
 > openclaw-weixin 插件 + Xvfb/fluxbox/x11vnc/websockify/noVNC 显示栈。
-> 用户拉镜像后只需填 `AWK_API_KEY`，`docker compose up -d` 即可启动。
+> 用户本地 build 镜像后只需填 `AWK_API_KEY`，`docker compose up -d` 即可启动。
 
 ## 快速开始
 
 ```bash
-# 1. 拷贝环境模板
+# 1. 本地构建镜像（openclaw 源码需先按 openclaw.version 锁定 commit 检出到仓根 openclaw/）
+docker build -f docker/Dockerfile -t xiaobei:local .
+
+# 2. 拷贝环境模板
 cp docker/.env.example docker/.env
 
-# 2. 编辑 .env，填入你的 AWK_API_KEY（阿里云百炼 token）
+# 3. 编辑 .env，填入你的 AWK_API_KEY（阿里云百炼 token）
 #    AWK_API_KEY=sk-xxxxxxxxxxxxxxxx
 
-# 3. 启动
-docker compose up -d
+# 4. 启动
+AWK_API_KEY=<key> docker compose up -d
 
-# 4. 访问
+# 5. 访问
 #    gateway API:   http://localhost:18789
 #    noVNC web:      http://localhost:6080/vnc.html
 ```
@@ -53,80 +56,44 @@ docker compose up -d
 ## noVNC — 浏览器操作容器内桌面
 
 camoufox 有头模式跑在容器内 Xvfb 虚拟显示里。用户浏览器打开
-`http://localhost:6080/vnc.html` 即可看到该显示里的 fluxbox 桌面，里面能看到 camoufox
+`http://localhost:6080/vnc.html` 即可看到该显示里的 fluxbox 柌面，里面能看到 camoufox
 浏览器窗口——用于**小红书/抖音等平台登录过验证**的场景。
 
-**mimicwx 容器**也有自己的 noVNC web（宿主端口 `6081`）：浏览器开
-`http://localhost:6081/vnc.html` 操作微信客户端扫码登录。
-
 **端口默认只绑 Docker host 的 `127.0.0.1`**。远程访问应走 SSH 隧道或显式配置代理，
-不要直接把 6080 / 6081 暴露到公网。
+不要直接把 6080 暴露到公网。
 
 ## 微信容器配合（wx-mp-hunter posts-list）
 
-`wx-mp-hunter` skill 的 `posts-list` 子命令依赖一个运行中的微信客户端容器
-（MimicWX-Linux），通过 `docker exec` 进微信容器读 SQLCipher 加密的消息库。
+`wx-mp-hunter` skill 的 `posts-list` 子命令依赖一个运行中的微信客户端容器，
+通过 `docker exec` 进微信容器读 SQLCipher 加密的消息库。
 
-`docker-compose.yml` 已配好两个容器在同一 `xiaobei-net` 网络里：
+**微信客户端容器不在本公开仓暴露**（知识产权风险），由有权限的用户自行另起
+compose override 引入。`docker-compose.yml` 已为这种场景预留接入点：
 
 - `xiaobei` 容器挂载宿主 `/var/run/docker.sock`（只读），用于 `docker exec` 进微信容器
-- `mimicwx` 容器跑微信客户端，登录态持久化在 `wechat-data` 卷
 - 环境变量 `WX_BIZ_CONTAINER` / `WX_BIZ_USER_DIR` / `WX_BIZ_KEYS_FILE` 指向微信容器
+  （默认值与微信容器约定，用户自行 override）
 
-**前提**：需要先有 `mimicwx` 镜像。如果只用到 `wx-mp-hunter` 的 `fetch` / `homepage`
-子命令（不依赖微信容器），可以注释掉 `docker-compose.yml` 里的 `mimicwx` service。
+如果只用到 `wx-mp-hunter` 的 `fetch` / `homepage` 子命令（不依赖微信容器），
+则无需引入微信容器，`xiaobei` 容器可独立运行。
 
-## 构建与分发（GitHub + 阈里云 ACR 直绑）
+## 本地构建
 
-镜像由阿里云 ACR 企业版**直绑 GitHub 仓库**自动构建并托管——不走外部流水线，
-push tag 即触发 ACR 构建。
-
-### 触发方式
-
-1. **手动触发**：在阿里云 ACR 控制台 → `xiaobei` 仓库 → 构建规则 → 点"立即构建"
-2. **push tag 自动触发**：`git push origin v5.6.3` 会自动触发 ACR 构建规则
-
-### ACR 构建规则配置（一次性）
-
-在 ACR 控制台为 `xiaobei` 仓库添加一条构建规则：
-
-| 字段 | 配置 |
-|------|------|
-| 代码源 | GitHub（先在 ACR 绑定 GitHub 个人版账号） |
-| 分支/Tag | 正则 `v(?<imageTag>\w*)` 匹配 `v*` tag |
-| 构建上下文目录 | `/` |
-| Dockerfile 文件名 | `docker/Dockerfile` |
-| 镜像版本 | `${imageTag}` 和 `latest`（加两条镜像版本行，或建两条规则） |
-| 海外机器构建 | 勾选（镜像内要 clone GitHub openclaw、npm 拉海外包，海外构建 + 海外源智能加速更稳） |
-| 构建参数 | `USE_MIRROR=0`（用原始源 + ACR 海外源智能加速，国内镜像源在海外构建机反而绕远路） |
-
-### 产物（阿里云 ACR）
-
-```
-registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:v5.6.3
-registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:latest
-```
-
-### 发放模式
-
-构建完成后，向符合条件的用户直接发放阿里云的 image 链接：
+镜像默认用 `xiaobei:local`（docker-compose.yml 里 `image: ${IMAGE:-xiaobei:local}`）。
+用户本地 build 镜像后直接 `docker compose up -d` 即可。
 
 ```bash
-# 用户侧：拉镜像 + 启动
-docker login registry.cn-hangzhou.aliyuncs.com  # 填发放的账号
-docker pull registry.cn-hangzhou.aliyuncs.com/<namespace>/xiaobei:v5.6.3
-cp docker/.env.example docker/.env  # 填 AWK_API_KEY
+# 本地构建镜像（openclaw 源码需先按 openclaw.version 锁定 commit 检出到仓根 openclaw/）
+docker build -f docker/Dockerfile -t xiaobei:local .
+
+# 启动
 AWK_API_KEY=<key> docker compose up -d
 ```
 
-## 本地验证
+如需用别的 image tag，可用 `IMAGE=xxx` 覆盖：
 
 ```bash
-# 本地构建镜像（会先按 openclaw.version 检出 pinned openclaw 源码）
-./scripts/build-image.sh
-
-# 用本地构建的镜像启动
-AWK_API_KEY=<your-key> IMAGE=xiaobei:local docker compose up -d
+IMAGE=my-xiaobei:v1 docker compose up -d
 ```
 
 ## 安全边界

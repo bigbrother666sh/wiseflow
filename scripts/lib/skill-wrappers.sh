@@ -42,7 +42,10 @@ expose_skill_wrappers() {
     [ -f "$wrapper" ] || continue
     # wrapper 需可执行：agent 走 PATH exec 调 `<skill> <cmd>`，缺 +x 会「权限不够」。
     chmod +x "$wrapper"
-    ln -sfn "$wrapper" "$OPENCLAW_BIN_DIR/$skill_name"
+    # ln -sfn 在 Windows 非管理员/未开开发者模式时会 "Operation not permitted"。
+    # set -e 下这会让整个 setup-crew.sh 退出，后续 workspace 全建不出来。
+    # wrapper 暴露是辅助功能（PATH 友好），失败不阻塞核心安装。用 || true 吞掉错误。
+    ln -sfn "$wrapper" "$OPENCLAW_BIN_DIR/$skill_name" 2>/dev/null || true
     exposed=$((exposed + 1))
   done
 

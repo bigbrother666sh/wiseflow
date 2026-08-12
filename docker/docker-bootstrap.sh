@@ -14,26 +14,41 @@
 #
 # 诊断：每步打 [bootstrap] STEP N done 标记，ACR 构建失败时精确定位哪步炸。
 # 容错：非致命步骤（camoufox 二进制、weixin 插件）失败不中断构建——首启可手动补。
-set -uo pipefail  # 不用 -e：用显式 || exit 1 控制致命步，非致命步容错
+# 不用 set -u：buildkit 可能吞 stderr，unbound 错误走 stderr 会被吃掉变成静默 exit 1。
+# 用显式检查 + set -o pipefail 控制致命步。
+set -o pipefail
+
+log() {
+  echo "[bootstrap] $*" >&2
+  echo "[bootstrap] $*" >> /opt/xiaobei/.bootstrap-log
+}
+
+# 首行无条件打印——证明脚本能跑起来（不依赖任何变量）
+# ACR buildkit 不显示 RUN 步骤的 stdout/stderr，诊断标记同时写 /opt/xiaobei/.bootstrap-log
+# 文件——Dockerfile 在 bootstrap RUN 后加独立 cat 步骤显示该文件（cat 步骤的 stdout
+# buildkit 会显示）
+: > /opt/xiaobei/.bootstrap-log 2>/dev/null || true
+log "=== docker-bootstrap.sh started ==="
+log "pwd=$(pwd) HOME=${HOME:-unset}"
 
 PROJECT_ROOT="${XIAOBEI_ROOT:-/opt/xiaobei}"
 OPENCLAW_HOME="${OPENCLAW_HOME:-/root/.openclaw}"
 OPENCLAW_CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_HOME/openclaw.json}"
+# 显式标记 Docker 部署环境——setup-crew.sh 依赖此变量生成正确的 OFB_ENV.md
+# （/.dockerenv 在 build stage 基础镜像里不存在，不可靠）
+export WISEFLOW_DOCKER=1
+log "PROJECT_ROOT=$PROJECT_ROOT OPENCLAW_HOME=$OPENCLAW_HOME"
 
-# USE_MIRROR=0（阿里云 ACR 海外构建机）走原始 npmjs + ACR 海外源智能加速
-# USE_MIRROR=1（国内本地构建）走 npmmirror
-if [ "${USE_MIRROR:-1}" = "0" ]; then
-  export NPM_REGISTRY="https://registry.npmjs.org"
-  export npm_config_registry="https://registry.npmjs.org"
-else
-  export NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmmirror.com}"
-  export npm_config_registry="${NPM_REGISTRY}"
-fi
-echo "[bootstrap] NPM_REGISTRY=${NPM_REGISTRY} USE_MIRROR=${USE_MIRROR:-1}"
+# 走镜像源（与裸机 install.sh 链路同源）：registry 由 Dockerfile ARG NPM_REGISTRY
+# 透传进 ENV NPM_CONFIG_REGISTRY，海外 arm64 runner override 成 npmjs 不跨境。
+# bootstrap 内显式 export 让子进程（camoufox-cli/build.sh 的 npm install、
+# apply-addons.sh 的 pnpm install、plugins install）都走同一 registry。
+export npm_config_registry="${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}"
+log "npm_config_registry=$npm_config_registry"
 
 # ─── 校验源码树（致命）────────────────────────────────────────────
-[ -d "$PROJECT_ROOT/openclaw/.git" ] || { echo "[bootstrap] ❌ openclaw 源码树缺 .git" >&2; exit 1; }
-[ -x "$PROJECT_ROOT/scripts/apply-addons.sh" ] || { echo "[bootstrap] ❌ apply-addons.sh 缺失" >&2; exit 1; }
+[ -d "$PROJECT_ROOT/openclaw/.git" ] || { log "❌ openclaw 源码树缺 .git"; exit 1; }
+[ -x "$PROJECT_ROOT/scripts/apply-addons.sh" ] || { log "❌ apply-addons.sh 缺失"; exit 1; }
 
 mkdir -p "$OPENCLAW_HOME"
 
@@ -51,29 +66,37 @@ node -e '
     raw = raw.replace(/\$\{XIAOBEI_HOME\}/g, "/opt/xiaobei");
     fs.writeFileSync(p, raw);
 ' "$OPENCLAW_CONFIG_PATH"
-echo "[bootstrap] STEP 1 done: config template placed"
+log "STEP 1 done: config template placed"
 
 # ─── camoufox-cli fork 构建 + 全局安装（致命：browser-guide 依赖）────
-echo "[bootstrap] STEP 2: building camoufox-cli fork..."
+log "STEP 2: building camoufox-cli fork..."
 if ! "$PROJECT_ROOT/patches/camoufox-cli/build.sh"; then
-  echo "[bootstrap] ❌ camoufox-cli build failed" >&2
+  log "❌ camoufox-cli build failed"
   exit 1
 fi
-echo "[bootstrap] STEP 2 done: camoufox-cli fork built + installed globally"
+log "STEP 2 done: camoufox-cli fork built + installed globally"
 
 # ─── apply-addons：patch + skills + crew + 编译（致命）────────────
-echo "[bootstrap] STEP 3: applying addons (patches + skills + crews + build)..."
+log "STEP 3: applying addons (patches + skills + crews + build)..."
 if ! "$PROJECT_ROOT/scripts/apply-addons.sh" --force --no-restart; then
-  echo "[bootstrap] ❌ apply-addons.sh failed" >&2
+  log "❌ apply-addons.sh failed"
   exit 1
 fi
-echo "[bootstrap] STEP 3 done: addons applied + openclaw built"
+log "STEP 3 done: addons applied + openclaw built"
 
 # ─── camoufox-cli install：拉 Firefox 二进制（非致命，首启可补）────
 # 幂等：已装且版本一致时打印 "already up to date" 并返回
-echo "[bootstrap] STEP 4: ensuring camoufox Firefox binary..."
-camoufox-cli install || echo "[bootstrap] ⚠️ camoufox-cli install failed（可后续手动 camoufox-cli install）"
-echo "[bootstrap] STEP 4 done"
+#
+# camoufox-js 的 INSTALL_DIR 默认 ~/.cache/camoufox（Linux XDG 缓存路径）。
+# 这里显式设 CAMOUFOX_INSTALL_DIR=/root/.camoufox-cli，让浏览器二进制装进
+# 与 entrypoint volume 一致的目录——stage-2 COPY 和运行时 volume 都指向这里，
+# 装到别处会导致镜像层拷不出来 + 运行时 volume 找不到浏览器。
+# 先 mkdir -p 确保目录存在（install 失败时 stage-2 COPY 也不会因源缺失炸掉）。
+export CAMOUFOX_INSTALL_DIR="${CAMOUFOX_INSTALL_DIR:-/root/.camoufox-cli}"
+install -d -m 700 "$CAMOUFOX_INSTALL_DIR"
+log "STEP 4: ensuring camoufox Firefox binary (CAMOUFOX_INSTALL_DIR=$CAMOUFOX_INSTALL_DIR)..."
+camoufox-cli install || log "⚠️ camoufox-cli install failed（可后续手动 camoufox-cli install）"
+log "STEP 4 done"
 
 # ─── 预装 openclaw-weixin 插件（非致命，首启可补）────────────────
 # 与裸机 install.sh 的 install_weixin_plugin() 同源：读 pin 走在线 plugins install
@@ -88,19 +111,19 @@ install_weixin_plugin() {
     ver="${ver:-2.4.6}"
     # 幂等检查
     if (cd "$PROJECT_ROOT/openclaw" && pnpm openclaw plugins list 2>/dev/null | grep -q "openclaw-weixin"); then
-        echo "[bootstrap] openclaw-weixin plugin already installed"
+        log "openclaw-weixin plugin already installed"
         return 0
     fi
-    echo "[bootstrap] installing openclaw-weixin plugin (${pkg}@${ver})"
+    log "installing openclaw-weixin plugin (${pkg}@${ver})"
     if (cd "$PROJECT_ROOT/openclaw" && pnpm openclaw plugins install "${pkg}@${ver}" --pin); then
-        echo "[bootstrap] openclaw-weixin plugin installed"
+        log "openclaw-weixin plugin installed"
     else
-        echo "[bootstrap] ⚠️ openclaw-weixin 插件预装失败；首启可手动：pnpm openclaw plugins install ${pkg}@${ver} --pin"
+        log "⚠️ openclaw-weixin 插件预装失败；首启可手动：pnpm openclaw plugins install ${pkg}@${ver} --pin"
     fi
 }
-echo "[bootstrap] STEP 5: installing openclaw-weixin plugin..."
+log "STEP 5: installing openclaw-weixin plugin..."
 install_weixin_plugin
-echo "[bootstrap] STEP 5 done"
+log "STEP 5 done"
 
 # ─── gateway 配置：bind lan + token mode ─────────────────────────
 # 容器内 gateway 要经 published localhost:18789 端口被宿主访问，故 bind lan
@@ -114,6 +137,6 @@ config.gateway.auth = { ...(config.gateway.auth || {}), mode: 'token' };
 delete config.gateway.auth.token;
 fs.writeFileSync(path, `${JSON.stringify(config, null, 2)}\n`);
 NODE
-echo "[bootstrap] STEP 6 done: gateway config (bind lan + token mode)"
+log "STEP 6 done: gateway config (bind lan + token mode)"
 
-echo "[bootstrap] ✅ immutable application layer prepared"
+log "✅ immutable application layer prepared"

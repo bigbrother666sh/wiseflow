@@ -79,6 +79,9 @@ bash -c "$(curl -fsSL https://raw.atomgit.com/wiseflow/xiaobei/raw/master/script
 
 **Windows（PowerShell）：**
 
+> **Windows 用户请以管理员身份运行 PowerShell 再安装**（右键 PowerShell → "以管理员身份运行"）。
+> 原因：安装过程中创建 NTFS 符号链接需要管理员权限（或开启开发者模式）；非管理员也能装，软链失败会自动回退拷贝。
+
 ```powershell
 # GitHub 线路（适合能正常访问 GitHub 的网络环境）
 irm https://raw.githubusercontent.com/TeamWiseFlow/xiaobei/master/scripts/install.ps1 | iex

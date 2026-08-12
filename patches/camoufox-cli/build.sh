@@ -10,8 +10,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "→ [camoufox-cli fork] installing deps (incl. devDeps for tsc)..."
-# NPM_REGISTRY 默认 npmmirror（国内裸机/本地），USE_MIRROR=0（海外构建机）走原始 npmjs
-npm install --registry="${NPM_REGISTRY:-https://registry.npmmirror.com}"
+# registry 走环境变量（容器构建时由 docker-bootstrap.sh export npm_config_registry 透传，
+# 海外 arm64 runner override 成 npmjs 不跨境；裸机 install.sh 也 export 同名变量走 npmmirror）。
+# 显式 --registry 兜底：npm install 不一定继承 npm_config_registry（npm CLI 版本差异），写死则跨架构炸。
+REG="${npm_config_registry:-https://registry.npmmirror.com}"
+npm install --registry="$REG"
 
 echo "→ [camoufox-cli fork] building dist/..."
 npm run build

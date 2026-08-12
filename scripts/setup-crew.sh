@@ -310,9 +310,9 @@ if [ -e "$MAIN_WS/business_knowledge" ]; then
   for ws in "$OPENCLAW_HOME"/workspace-*/; do
     [ -d "$ws" ] || continue
     [ "$(basename "$ws")" = "workspace-main" ] && continue
-    ln -sfn "$MAIN_WS/business_knowledge" "$ws/business_knowledge" 2>/dev/null
+    ln -sfn "$MAIN_WS/business_knowledge" "$ws/business_knowledge" 2>/dev/null || true
     if [ -e "$MAIN_WS/business_knowledge.md" ]; then
-      ln -sfn "$MAIN_WS/business_knowledge.md" "$ws/business_knowledge.md" 2>/dev/null
+      ln -sfn "$MAIN_WS/business_knowledge.md" "$ws/business_knowledge.md" 2>/dev/null || true
     fi
   done
 fi
@@ -733,9 +733,12 @@ generate_ofb_env_md() {
     # 技能密钥统一进 state-dir dotenv（~/.openclaw/.env），所有 openclaw 进程都加载；
     # 服务 EnvironmentFile 仅放 gateway 运维变量（PATH 等），不放技能密钥。
     # ── 检测部署环境 ──
-    # /.dockerenv 存在 = Docker 容器内；路径固定，不依赖 PROJECT_ROOT/HOME
+    # 三重检测，任一命中即判定 Docker 部署：
+    #   1. WISEFLOW_DOCKER=1 环境变量（docker-bootstrap.sh 显式设置，最可靠）
+    #   2. /.dockerenv 文件存在（docker run 的容器有，但 build stage 基础镜像可能没有）
+    #   3. OPENCLAW_HOME=/root/.openclaw 特征（Docker 镜像内的固定路径）
     local _is_docker=false
-    if [ -f /.dockerenv ]; then
+    if [ "${WISEFLOW_DOCKER:-0}" = "1" ] || [ -f /.dockerenv ] || [ "${OPENCLAW_HOME:-}" = "/root/.openclaw" ]; then
       _is_docker=true
     fi
 
@@ -850,6 +853,62 @@ ENVEOF
 # OFB_ENV.md 仅写入 it-engineer workspace：环境变量 / 路径运维是 IT engineer 职责，
 # main agent 不直接编辑 daemon.env，需要加环境变量时 spawn it-engineer 执行。
 generate_ofb_env_md "$OPENCLAW_HOME/workspace-it-engineer" "it-engineer"
+
+# ─── 5b. Docker 部署时往 it-engineer MEMORY.md 注入容器环境提示 ──────
+# MEMORY.md 里有大量 `systemctl --user restart openclaw` 引用（坑2、定时任务部分），
+# 这些在 Docker 容器里不适用（容器无 systemd）。Docker 部署时在 MEMORY.md 顶部
+# 插入醒目提示，让 it-engineer 优先用 `docker restart <容器名>` 而非 systemctl。
+inject_docker_env_hint() {
+  local memory_file="$OPENCLAW_HOME/workspace-it-engineer/MEMORY.md"
+  [ -f "$memory_file" ] || return 0
+
+  # 幂等：已有标记则跳过
+  if grep -q '<!-- WISEFLOW_DOCKER_ENV_HINT -->' "$memory_file" 2>/dev/null; then
+    return 0
+  fi
+
+  # 用 sed 在首行后插入提示块（不依赖临时文件，原子替换）
+  local hint_block='
+<!-- WISEFLOW_DOCKER_ENV_HINT -->
+## ⚠️ 容器环境提示（Docker 部署）
+
+**本系统运行于 Docker 容器中**，以下命令在容器内**不适用**，需替换为容器等价命令：
+
+| ❌ 容器内不适用 | ✅ Docker 等价命令 |
+|----------------|-------------------|
+| `systemctl --user restart openclaw` | `docker restart <容器名>`（宿主机执行） |
+| `systemctl --user start openclaw` | `docker start <容器名>` |
+| `systemctl --user status openclaw` | `docker ps` / `docker logs <容器名>` |
+| `launchctl kickstart ... ai.openclaw.gateway` | `docker restart <容器名>`（macOS 宿主机） |
+
+**关键差异**：
+1. **容器内无 systemd / launchd**：任何 `systemctl` / `launchctl` 命令都会失败
+2. **重启走宿主机**：`docker restart <容器名>` 在宿主机执行，不是容器内
+3. **gateway 启动**：容器 entrypoint 自动启动 gateway，无需手动 `systemctl start`
+4. **配置热加载**：改 `.env` / `daemon.env` 后需 `docker restart` 生效（gateway 启动时加载）
+
+**容器内可用的运维命令**：
+- 看日志：`docker logs -f <容器名>` 或容器内 `tail -f /tmp/xiaobei-*.log`
+- 进容器调试：`docker exec -it <容器名> bash`
+- 看 gateway 状态：`curl -sf http://localhost:18789/status`
+<!-- /WISEFLOW_DOCKER_ENV_HINT -->
+'
+
+  # 用 perl 原子插入（macOS sed -i '' 和 Linux sed -i 行为不同，perl 跨平台稳）
+  perl -e '
+    my ($file, $hint) = @ARGV;
+    local $/; open my $fh, "<", $file or die $!; my $c = <$fh>; close $fh;
+    $c =~ s/^(# .*\n)/$1$hint/;  # 在首个 "# 标题行" 后插入
+    open my $out, ">", $file or die $!; print $out $c; close $out;
+  ' "$memory_file" "$hint_block"
+
+  echo "  ✅ Docker env hint injected into it-engineer MEMORY.md"
+}
+
+# 仅 Docker 部署时注入（源码部署 MEMORY.md 里的 systemctl 引用是对的）
+if [ "${WISEFLOW_DOCKER:-0}" = "1" ] || [ -f /.dockerenv ] || [ "${OPENCLAW_HOME:-}" = "/root/.openclaw" ]; then
+  inject_docker_env_hint
+fi
 
 # ─── 6. 完成 ──────────────────────────────────────────────────────
 echo ""

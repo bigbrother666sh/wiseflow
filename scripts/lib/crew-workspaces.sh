@@ -58,7 +58,16 @@ sync_crew_skills() {
     case "$skill_name" in _*) is_shared=true;; esac
     if [ -f "${skill_dir}SKILL.md" ] || [ "$is_shared" = true ]; then
       rm -rf "$dest_skills/$skill_name"
-      ln -s "${skill_dir%/}" "$dest_skills/$skill_name"
+      # 优先用软链（skill 在仓里改完即生效），失败则回退拷贝。
+      # Windows 小白用户通常非管理员、未开开发者模式，ln -s 会 "Operation not permitted"。
+      # 若 set -e 下 ln 失败直接退出脚本，导致 main/it-engineer 等 workspace 缺失。
+      # 用 || cp -rf 回退：功能可用，代价是仓库 skill 改动不自动同步到 workspace。
+      if ln -s "${skill_dir%/}" "$dest_skills/$skill_name" 2>/dev/null; then
+        :
+      else
+        cp -rf "${skill_dir%/}" "$dest_skills/$skill_name"
+        echo "  ⚠️  symlink failed for '$skill_name', used copy instead (admin/dev-mode needed for symlinks)" >&2
+      fi
       synced=$((synced + 1))
     fi
   done

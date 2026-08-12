@@ -310,9 +310,9 @@ if [ -e "$MAIN_WS/business_knowledge" ]; then
   for ws in "$OPENCLAW_HOME"/workspace-*/; do
     [ -d "$ws" ] || continue
     [ "$(basename "$ws")" = "workspace-main" ] && continue
-    ln -sfn "$MAIN_WS/business_knowledge" "$ws/business_knowledge" 2>/dev/null
+    ln -sfn "$MAIN_WS/business_knowledge" "$ws/business_knowledge" 2>/dev/null || true
     if [ -e "$MAIN_WS/business_knowledge.md" ]; then
-      ln -sfn "$MAIN_WS/business_knowledge.md" "$ws/business_knowledge.md" 2>/dev/null
+      ln -sfn "$MAIN_WS/business_knowledge.md" "$ws/business_knowledge.md" 2>/dev/null || true
     fi
   done
 fi

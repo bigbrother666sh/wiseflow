@@ -54,6 +54,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         fonts-liberation fonts-noto-cjk fonts-wqy-microhei \
         # 微信容器配合（wx-mp-hunter posts-list 用 docker exec 读消息库）
         docker.io \
+        # 视频处理（video-edit / talking-head-cut / aigc-video-gen / video-review /
+        # viral-chaser / content-producer 等技能依赖；ffmpeg 包含 ffprobe）
+        ffmpeg \
+        # sqlite3 CLI（content-calibrator / published-track / wx-mp-engagement 等 shell 脚本用）
+        sqlite3 \
         # 杂项
         sudo procps net-tools \
     && rm -rf /var/lib/apt/lists/*
@@ -132,6 +137,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgbm1 libpango-1.0-0 libcairo2 libatspi2.0-0 \
         fonts-liberation fonts-noto-cjk fonts-wqy-microhei \
         docker.io \
+        ffmpeg \
+        sqlite3 \
         procps net-tools \
     && rm -rf /var/lib/apt/lists/*
 

@@ -2,7 +2,7 @@
 name: siliconflow-img-gen
 description: Generate or edit images via 火山方舟 (Volcengine Ark) Seedream API.
   Text-to-image default model doubao-seedream-4.5（fallback doubao-seedream-5.0-lite）;
-  image-edit supported via 1-3 reference images. Uses user's AWK_API_KEY
+  image-edit supported via 1-3 reference images. Uses user's AWK_GEN_KEY
   (client-side only, never sent to server).
 metadata:
   openclaw:
@@ -11,14 +11,14 @@ metadata:
       bins:
       - python3
       env:
-      - AWK_API_KEY
-    primaryEnv: AWK_API_KEY
+      - AWK_GEN_KEY
+    primaryEnv: AWK_GEN_KEY
     homepage: https://www.volcengine.com/docs/82379/1541523
 ---
 
 # 火山方舟 Seedream 图像生成
 
-> **凭据**：用户自带 `AWK_API_KEY`（纯客户端，不入 server）。
+> **凭据**：用户自带 `AWK_GEN_KEY`（纯客户端，不入 server）。
 
 Generate or edit images using 火山方舟 (Volcengine Ark) Seedream API.
 
@@ -36,7 +36,7 @@ Two modes:
 
 Note: Image generation can take 10–60 seconds. Set a higher timeout when invoking via exec (e.g., `exec timeout=120`).
 
-**Do NOT set env vars inline** (e.g., `AWK_API_KEY=... python3 ...`). The env var is already in the system environment; inline assignments break the exec permission check.
+**Do NOT set env vars inline** (e.g., `AWK_GEN_KEY=... python3 ...`). The env var is already in the system environment; inline assignments break the exec permission check.
 
 通过 PATH 调用 wrapper，无需拼接脚本路径。
 
@@ -250,7 +250,7 @@ siliconflow-img-gen \
 ### pitfall: API key 错误（401）
 
 - **症状**：`HTTPError 401`
-- **workaround**：检查 `AWK_API_KEY` 环境变量是否设置；火山 Ark 控制台 (`console.volcengine.com/ark`) 验证 key 有效
+- **workaround**：检查 `AWK_GEN_KEY` 环境变量是否设置；火山 Ark 控制台 (`console.volcengine.com/ark`) 验证 key 有效
 
 ### pitfall: size 太小被拒
 

@@ -2,7 +2,7 @@
 """Unit tests for gen.py (Phase 5 火山方舟 Seedream image generation).
 
 Covers:
-- API key env var: AWK_API_KEY (not SILICONFLOW_API_KEY)
+- API key env var: AWK_GEN_KEY (not SILICONFLOW_API_KEY)
 - Endpoint: https://ark.cn-beijing.volces.com/api/v3/images/generations
 - Default model: doubao-seedream-4.5 (fallback doubao-seedream-5.0-lite)
 - size validation (方式 1: 2K/3K/4K; 方式 2: WxH with total pixels + aspect ratio constraints)
@@ -224,31 +224,31 @@ class TestApiRequest(unittest.TestCase):
 
 
 class TestApiKeyEnv(unittest.TestCase):
-    def test_awk_api_key_is_required_env(self):
-        """SKILL.md frontmatter 的 `requires.env` 必须声明 AWK_API_KEY，不再含 SILICONFLOW_API_KEY。"""
+    def test_awk_gen_key_is_required_env(self):
+        """SKILL.md frontmatter 的 `requires.env` 必须声明 AWK_GEN_KEY，不再含 SILICONFLOW_API_KEY。"""
         skill_md = (SCRIPTS_DIR.parent / "SKILL.md").read_text()
         # 抽 frontmatter YAML 块
         import re as _re
         m = _re.search(r"^---\n(.*?)\n---", skill_md, _re.DOTALL | _re.MULTILINE)
         self.assertIsNotNone(m, "SKILL.md 必须以 YAML frontmatter 开头")
         frontmatter = m.group(1)
-        self.assertIn("AWK_API_KEY", frontmatter)
+        self.assertIn("AWK_GEN_KEY", frontmatter)
         # requires.env 段（缩进 2 空格的 env 子段）不含 SILICONFLOW_API_KEY
         env_block = _re.search(r"^\s+env:\n((?:\s+-\s+\S+\n)+)", frontmatter, _re.MULTILINE)
         self.assertIsNotNone(env_block, "frontmatter 应包含 env: 段")
         env_text = env_block.group(1)
         self.assertNotIn("SILICONFLOW_API_KEY", env_text)
 
-    def test_awk_api_key_required_by_script(self):
-        """脚本会显式校验 AWK_API_KEY 不存在时 exit 1。"""
-        with mock.patch.dict(os.environ, {"AWK_API_KEY": ""}, clear=False):
-            # 强制 AWK_API_KEY 为空，看脚本逻辑
+    def test_awk_gen_key_required_by_script(self):
+        """脚本会显式校验 AWK_GEN_KEY 不存在时 exit 1。"""
+        with mock.patch.dict(os.environ, {"AWK_GEN_KEY": ""}, clear=False):
+            # 强制 AWK_GEN_KEY 为空，看脚本逻辑
             args = mock.Mock(prompt="x", model=None, image=None, image2=None, image3=None,
                              image_size=None, seed=None, watermark="false", response_format="url",
                              out_dir=None)
             with self.assertRaises(SystemExit) as ctx:
                 # 模拟 main() 前半段（API key 校验）
-                api_key = os.environ.get("AWK_API_KEY")
+                api_key = os.environ.get("AWK_GEN_KEY")
                 if not api_key:
                     sys.exit(1)
             self.assertEqual(ctx.exception.code, 1)
@@ -268,14 +268,14 @@ class TestIntegrationDryRun(unittest.TestCase):
 
     def test_missing_api_key_exits_1(self):
         import subprocess
-        env = {k: v for k, v in os.environ.items() if k != "AWK_API_KEY"}
+        env = {k: v for k, v in os.environ.items() if k != "AWK_GEN_KEY"}
         result = subprocess.run(
             [sys.executable, str(SCRIPTS_DIR / "gen.py"), "--prompt", "x"],
             capture_output=True, text=True, timeout=10, check=False,
             env=env,
         )
         self.assertEqual(result.returncode, 1)
-        self.assertIn("AWK_API_KEY", result.stderr)
+        self.assertIn("AWK_GEN_KEY", result.stderr)
 
 
 if __name__ == "__main__":

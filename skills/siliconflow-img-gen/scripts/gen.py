@@ -5,7 +5,7 @@
 `/api/v3/images/generations` 端点（不是 `/api/coding/v3`，后者是 LLM 编码
 路径；图像生成走标准推理 `/v3`）。
 
-API key 走用户自带 `AWK_API_KEY` 环境变量（纯客户端，不入 server）。
+API key 走用户自带 `AWK_GEN_KEY` 环境变量（纯客户端，不入 server）。
 
 支持模型：
   - doubao-seedream-4.5（默认，主力）
@@ -243,9 +243,9 @@ def main() -> None:
     parser.add_argument("--out-dir", default=None, dest="out_dir", help="输出目录")
     args = parser.parse_args()
 
-    api_key = os.environ.get("AWK_API_KEY")
+    api_key = os.environ.get("AWK_GEN_KEY")
     if not api_key:
-        print("[error] AWK_API_KEY not set（火山方舟 API Key）", file=sys.stderr)
+        print("[error] AWK_GEN_KEY not set（火山方舟 API Key）", file=sys.stderr)
         sys.exit(1)
 
     # watermark 字段火山期望 bool（JSON），从字符串转

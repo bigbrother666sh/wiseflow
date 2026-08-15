@@ -7,7 +7,7 @@
 #   2. 应用基础补丁（patches/*.patch）+ 依赖覆盖（patches/overrides.sh）
 #   3. 安装默认全局 skills（项目根目录 skills/ → ~/.openclaw/skills/）
 #   4. 注入 awada 扩展路径 + 同步 openclaw.json skills 节点
-#   5. 合并全仓 npm / pip 依赖到 ~/.openclaw/node_modules + ~/.openclaw/lib/python
+#   5. 安装依赖：Node per-skill（node_modules 落仓内技能目录）/ Python 统一 pip install --user
 #   6. 编译 dist + 重启 gateway service
 # Crew 模板安装由 setup-crew.sh 单独负责（扫顶层 crews/）。
 #

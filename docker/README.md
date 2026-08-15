@@ -6,23 +6,49 @@
 
 ## 快速开始
 
+**工作目录前提**：`docker build` 的 build context 是仓库根，必须**在仓库根**执行；
+`docker compose` 的 compose 文件和自动加载的 `.env` 都在 `docker/` 下，必须**在
+`docker/` 下**执行。下文每步会标出当前应在哪个目录。
+
 ```bash
-# 1. 拷贝环境模板
+# ─── 在仓库根执行 ───────────────────────────────────────────
+# 1. 本地构建镜像（openclaw 源码需先按 openclaw.version 锁定 commit 检出到仓根 openclaw/）
+docker build -f docker/Dockerfile -t xiaobei:local .
+
+# 2. 拷贝环境模板到 docker/.env
 cp docker/.env.example docker/.env
 
-# 2. 编辑 .env，填入你的 AWK_API_KEY（阿里云百炼 token）
+# 3. 编辑 docker/.env，填入你的 AWK_API_KEY（阿里云百炼 token）
 #    AWK_API_KEY=sk-xxxxxxxxxxxxxxxx
 
-# 3. 启动
-docker compose up -d
+# ─── 切到 docker/ 下执行（compose 文件 + .env 自动加载都在这）──
+cd docker
 
-# 4. 访问
+# 4. 启动
+AWK_API_KEY=<key> docker compose up -d
+
+# 5. 访问
 #    gateway API:   http://localhost:18789
 #    noVNC web:      http://localhost:6080/vnc.html
 ```
 
 首启会打印微信扫码绑定二维码，用手机微信扫码确认登录即可。绑定态持久化在
 `xiaobei-openclaw` 卷，后续重启自动跳过扫码。
+
+镜像 tag 默认是 `xiaobei:local`（`docker-compose.yml` 里
+`image: ${IMAGE:-xiaobei:local}`）。如需换 tag，build 时改 `-t`，并 `IMAGE=xxx` 覆盖启动：
+
+```bash
+# 在仓库根
+docker build -f docker/Dockerfile -t my-xiaobei:v1 .
+
+# 在 docker/ 下
+IMAGE=my-xiaobei:v1 docker compose up -d
+```
+
+> **注意**：`docker compose` 必须在 `docker/` 目录下执行。若想在别处跑，需用
+> `docker compose -f /path/to/docker/docker-compose.yml …` 显式指定 compose 文件和
+> `.env` 路径，否则 `.env` 不会被自动加载。
 
 ## 镜像内容（= 跑完 install.sh 后的状态）
 

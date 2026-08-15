@@ -84,7 +84,7 @@ output_videos/<topic-en-slug>/
 │   │   └ulti-best.mp4          # 多候选择优胜出（多候选时）
 ├── audio/
 │   ├── narration.mp3           # awk-tts 旁白
-│   ├── bgm.mp3                 # BGM（pexels/pixabay 或素材库）
+│   ├── bgm.mp3                 # BGM（bgm-library 免版税曲库优先 / pexels/pixabay / aigc-video-gen music 生成）
 │   ├── subtitles.srt           # 字幕
 ├── artifacts/                  # Stage 12 按镜顺序的最终段
 │   ├── 01_*.mp4
@@ -123,7 +123,7 @@ Stage 9a slideshow-risk       六维幻灯风险打分（pre-compose 闸门，�
 Stage 9b delivery-promise-lock 交付承诺八类锁定 + motion_ratio 预估
    ────── GATE B：素材闸门（素材齐+计划过审，停，发用户看 contact sheet）──────
 Stage 10 render-shot          按 slot 渲染（AIGC 走 aigc-video-gen i2v 首尾帧插值；静图走 siliconflow-img-gen）
-Stage 11 mix-audio            配音配乐四场景分流（A 人物对话声画同出 / B 旁白一次性 TTS 带字级时间戳 + 对齐 / C BGM 成片后统一生成 / D 用户口播录音 → ASR 时间戳 → 按时间戳补素材）
+Stage 11 mix-audio            配音配乐四场景分流（A 人物对话声画同出 / B 旁白一次性 TTS 带字级时间戳 + 对齐 / C BGM 成片后统一生成（优先 bgm-library 免版税曲库，pexels/pixabay 并列；定制风格用 aigc-video-gen music）/ D 用户口播录音 → ASR 时间戳 → 按时间戳补素材）
 Stage 12 assemble             按序拼接成片（原子工具箱：clip-trim 切段 / audio-mix 混音 / timeline-compose 时间轴合成 / assemble 拼接，agent 按 §Stage 12 工具箱场景化组合，不写死 Workflow）
 Stage 13a video-review        公共 video-review 技术自检（强制闸门）
 Stage 13b motion-audit       CP 侧 motion_led 抽查（兑付 delivery-promise）
@@ -152,7 +152,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 | `slideshow-risk` | storyboard.json + slot-plan.json + asset-resolve.json | `slots/slideshow-risk.json`（六维分） | Stage 9a |
 | `delivery-promise-lock` | storyboard.json + brief.md | `slots/delivery-promise.json`（八类锁） | Stage 9b |
 | `render-shot` | shot_decompose.json + characters/ + slot-picks | `render/shot-NN/` 下产物 | Stage 10（调 aigc-video-gen i2v / siliconflow-img-gen） |
-| `mix-audio` | script.md（delivery_cues） | `audio/` 目录 + `subtitles.srt` 模板 | Stage 11（四场景分流：A 声画同出 / B 旁白一次性 TTS+ASR 对齐 / C BGM 成片后生成 / D 用户口播录音 → ASR 时间戳 → 按时间戳补素材） |
+| `mix-audio` | script.md（delivery_cues） | `audio/` 目录 + `subtitles.srt` 模板 | Stage 11（四场景分流：A 声画同出 / B 旁白一次性 TTS+ASR 对齐 / C BGM 成片后生成（优先 bgm-library 免版税曲库 / pexels/pixabay 并列；定制风格用 aigc-video-gen music）/ D 用户口播录音 → ASR 时间戳 → 按时间戳补素材） |
 | `narration-align` | audio/narration.mp3 + audio/narration.subtitle.json | `audio/narration-segments.json`（统一 segments 格式） | Stage 11b（优先复用 awk-tts --enable-subtitle 落盘的 TTS 原生字级时间戳，缺失时回退火山 ASR 极速版，凭据复用 viral-chaser 同池 `VOLC_ASR_*`） |
 | `assemble` | render/ 顺序 | `video.mp4` | Stage 12（按序拼接 + 可选转场 + 可选分辨率归一化 + 自动补静音/统一音频格式） |
 | `add-silent-audio` | 无音频视频片段 | 含静音音轨的视频 | Stage 12 原子工具：concat 前补齐音轨，保持连续 |
@@ -216,6 +216,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 | 公共 `awk-tts` | skills/ | Stage 11B 旁白一次性 TTS（OpenClaw 内置 TTS 优先 → awk-tts fallback；加 `--enable-subtitle` 让火山单向流式 HTTP 原生返回字级时间戳，落 `narration.subtitle.json`） |
 | 火山 ASR 凭据 `VOLC_ASR_*` | 实例 env | Stage 11b narration-align 回退路径 + Stage 11D 用户口播录音转写拿时间戳（复用 viral-chaser 同池：旧控制台双头 `VOLC_ASR_APP_ID`+`VOLC_ASR_ACCESS_KEY`，或新控制台单头 `VOLC_ASR_APP_KEY`） |
 | 公共 `pexels-footage` / `pixabay-footage` | skills/ | Stage 8 Stock Footage 素材补充 / Stage 11C BGM 搜 |
+| 公共 `bgm-library` | skills/ | Stage 11C BGM 搜（ccMixter 免版税 + 自动 TASL 署名，免 key，商用安全；与 pexels/pixabay 并列，优先用） |
 | 公共 `video-review` | skills/ | Stage 13a 成片技术自检闸门 |
 | `requests` | 仓根 requirements.txt | 各脚本 HTTP 调用 |
 

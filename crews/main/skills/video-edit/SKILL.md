@@ -145,6 +145,12 @@ video-edit audio-mix input.mp4 --narration speech.mp3 --bgm music.mp3 --output o
 2. 内置 TTS 不可用时，使用公共 `awk-tts` 技能（火山方舟豆包语音合成 2.0，要求环境变量已配置 `VOLC_TTS_*` 凭据）
 3. 旁白时长必须与视频时长匹配（TTS 语速可微调以适配），混音前先核对两者时长
 
+BGM（`--bgm` 文件）的来源：
+
+- ✅ **优先公共 `bgm-library` 技能**：ccMixter 免版税曲库（CC BY / CC BY-SA，商用安全），免 key、自动署名。`bgm-library pick "<主题>" --output <project-dir>/audio/` 选曲下载后传给 `--bgm`
+- 需要定制风格 / ccMixter 无匹配时，用公共 `aigc-video-gen music`（MiniMax 生成，需 `MINIMAX_API_KEY`）
+- 用户自带曲目直接用；成片发布时必须把 `bgm-library` 产出的 `ATTRIBUTION.txt` 附到视频简介（CC 协议法律要求）
+
 ## 能力四：字幕烧录（subtitles）
 
 ```bash

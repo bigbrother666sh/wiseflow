@@ -1,3 +1,28 @@
+# v5.6.5 (2026-08-15)
+
+### 安装脚本与镜像运行时 bug 修复
+
+- **install.ps1 Windows 软链**：软链创建失败时回退到拷贝，处理 Windows 用户权限问题，避免技能 wrapper 软链落空致命令找不到。
+- **install.sh 更新路线**：`daemon.env` 也用 no-BOM 写法（与 `.env` 一致），修 README fence 渲染。
+- **install.sh**：`pnpm install` 前置 portable node 到 `PATH`，避免裸机环境 node 版本不足致 pnpm 装包失败。
+- **Docker 镜像**：补装 `ffmpeg` + `sqlite3`，修视频/语音技能与 openclaw 数据库依赖缺失。
+- **siliconflow-img-gen 凭据分离**：图像生成专用 key 从 `AWK_API_KEY` 改为独立的 `AWK_GEN_KEY`（与 LLM 的 `AWK_API_KEY` 解耦），同步 `.env.template` / `docker/.env.example` / SKILL.md / `gen.py` / 测试；移除 `thinkingDefault: high`。
+
+---
+
+# v5.6.4 (2026-08-11)
+
+### Docker 分发方案构建与启动 bug 修复
+
+> 5.6.3 引入开箱即用 Docker 方案后，构建机跨境拉包与镜像 bootstrap 层连环踩坑，本轮全部修平。
+
+- **构建机跨境拉包**：删 Dockerfile `# syntax=docker/dockerfile:1` pin 与 `USE_MIRROR` 分支逻辑，FROM 回滚原始 `node:24-bookworm`，npm registry 走 npmjs、corepack 改 `npm install -g pnpm`（绕开 ACR 构建机 corepack 跨境抖动），NPM registry 参数化支持不同构建机位置；文档改勾海外机器构建。
+- **bootstrap 静默退出**：修 Dockerfile `ARG` 语法错 + `ENV NPM_CONFIG_REGISTRY` 写死致 bootstrap 静默 `exit 1`；补 `log()` 函数定义（首行 `command not found exit 127` 真根因）；诊断输出走 stderr + 独立 `RUN cat` 步骤显示 bootstrap 诊断文件，穿透 buildkit stdout 吞。
+- **AWK_API_KEY 无法更新**：entrypoint 每次启动重新覆盖 `apiKey` 致渲染后无法更新，修。
+- **构建流程收尾**：master 分支改为纯本地 build 流程；完成 Docker 分发方案收尾。
+
+---
+
 # v5.6.3 (2026-08-07)
 
 ### 数据闭环彻底打通，为自我进化奠基

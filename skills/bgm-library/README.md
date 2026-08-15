@@ -1,5 +1,5 @@
-# BGM Library
+# bgm-library
 
-Background music search and download tool for Remotion video projects. Powered by ccMixter's open API.
+ccMixter 免版税背景音乐搜索 / 下载（仅 CC BY / CC BY-SA，商用安全），自动生成 TASL 署名。供 `video-edit` / `video-producer` 配乐环节使用。
 
-See [SKILL.md](./SKILL.md) for complete documentation.
+详见 [SKILL.md](./SKILL.md)。

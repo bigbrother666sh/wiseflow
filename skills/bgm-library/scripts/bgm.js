@@ -151,8 +151,8 @@ function formatSize(bytes) {
 // ─── Commands ────────────────────────────────────────────────────────────────
 
 program
-  .name('bgm')
-  .description('Background music search & download from ccMixter for Remotion videos')
+  .name('bgm-library')
+  .description('Search & download royalty-free background music from ccMixter (CC BY / CC BY-SA only)')
   .version('1.0.0');
 
 // ── search ───────────────────────────────────────────────────────────────────
@@ -222,7 +222,7 @@ program
 
       console.log(
         chalk.dim(
-          `\nUse ${chalk.cyan('bgm download <ID>')} to download a track.`
+          `\nUse ${chalk.cyan('bgm-library download <ID>')} to download a track.`
         )
       );
     } catch (err) {
@@ -434,7 +434,7 @@ program
     }
 
     console.log(
-      chalk.dim(`Use: ${chalk.cyan('bgm search --preset <name>')} to search with a preset.`)
+      chalk.dim(`Use: ${chalk.cyan('bgm-library search --preset <name>')} to search with a preset.`)
     );
   });
 

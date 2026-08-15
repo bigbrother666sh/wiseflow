@@ -1,123 +1,117 @@
 ---
 name: bgm-library
-description: Search, filter, and download royalty-free background music from ccMixter for Remotion videos. Supports keyword search, tag presets, license filtering (CC BY / CC BY-SA only), and auto-generates attribution. Downloads MP3 directly to project directory.
-allowed-tools: Bash(bgm-library:*)
+description: 搜索、筛选并下载 ccMixter 免版税背景音乐（仅 CC BY / CC BY-SA，商用安全），
+  自动生成 TASL 署名。支持关键词搜索、5 套场景预设、按主题自动选曲、按 ID 下载。
+  纯客户端，无需 API key。
+metadata:
+  openclaw:
+    emoji: 🎵
+    requires:
+      bins:
+      - node
+    homepage: https://ccmixter.org
 ---
 
-# BGM Library Skill
+# ccMixter 免版税背景音乐库
 
-Search, filter, and download royalty-free background music from ccMixter for Remotion video projects.
+> **凭据**：无需 API key。ccMixter 是 Creative Commons 创建的社区 remix 站，全部音乐已带 CC 协议。
 
-## Features
+搜索、筛选并下载商用安全的免版税背景音乐，自动生成署名文件。供 `video-edit` / `video-producer` 的配乐环节使用，也可独立调用。
 
-- Search ccMixter by keywords or predefined tag presets
-- License filtering: only CC BY and CC BY-SA (commercially safe)
-- Direct MP3 download with automatic referer handling
-- Auto-generates `music_manifest.json` and `ATTRIBUTION.txt`
-- BPM, duration, and tag metadata for intelligent selection
-- 5 built-in presets: travel, tech, lofi, food, workout
-
-## Quick Start
+通过 PATH 调用 wrapper，无需拼接脚本路径：
 
 ```bash
-# Search for chill background music
-bgm search chill lofi
-
-# Use a preset for travel vlog music
-bgm search --preset travel
-
-# Auto-pick and download the best match for your video theme
-bgm pick "corporate product demo" --output ./public/
-
-# Download a specific track by ID
-bgm download 70473 --output ./public/
-
-# List available presets
-bgm presets
-
-# Get detailed track info
-bgm info 70473
+bgm-library <command> [args]
 ```
 
-## Installation
+## 协议过滤（默认开启）
 
-Before first use, install dependencies in the skill's scripts directory:
+只放行**商用安全**协议，任何含 NonCommercial (NC) 或 NoDerivs (ND) 的协议一律拦截：
 
-```bash
-cd scripts && npm install
-```
+- ✅ 允许：CC BY（署名）、CC BY-SA（署名-相同方式共享）
+- ❌ 拦截：含 NC / ND 的任何协议
+
+`--no-commercial-only` 可放开（不推荐，商用项目会侵权）。
+
+---
 
 ## Commands
 
-### search `[keywords...]`
-Search ccMixter for background music tracks.
-
-Options:
-- `-l, --limit <n>` — Max results (default: 10)
-- `-p, --preset <name>` — Use a predefined tag preset
-- `--commercial-only` / `--no-commercial-only` — License filter (default: on)
-- `--sort <field>` — Sort by: date, name, score (default: score)
+### `search [keywords...]` — 关键词 / 预设搜索
 
 ```bash
-bgm search upbeat corporate --limit 5
-bgm search --preset lofi
+# 关键词搜
+bgm-library search chill lofi --limit 5
+
+# 预设搜
+bgm-library search --preset travel
 ```
 
-### download `<uploadId>`
-Download a track by ccMixter upload ID.
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-l, --limit <n>` | `10` | 最多返回条数 |
+| `-p, --preset <name>` | — | 预设：`travel` / `tech` / `lofi` / `food` / `workout` |
+| `--commercial-only` / `--no-commercial-only` | on | 协议过滤开关 |
+| `--sort <field>` | `score` | `date` / `name` / `score` |
 
-Options:
-- `-o, --output <dir>` — Output directory (default: `./public`)
-- `--force` — Overwrite existing files
+### `pick <theme>` — 按主题自动选曲并下载
+
+按主题关键词搜、评分排序、自动下载最佳匹配。无精确匹配时回退到首关键词广搜。
 
 ```bash
-bgm download 70473 --output ./public/
+bgm-library pick "chill lofi study" --output ./audio/
+bgm-library pick "energetic workout motivation" --output ./audio/
 ```
 
-### pick `<theme>`
-Auto-pick and download the best match for a video theme.
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-o, --output <dir>` | `./public` | 输出目录 |
+| `-l, --limit <n>` | `5` | 候选评估条数 |
+| `--force` | off | 覆盖已存在文件 |
 
-Options:
-- `-o, --output <dir>` — Output directory (default: `./public`)
-- `-l, --limit <n>` — Candidates to evaluate (default: 5)
-- `--force` — Overwrite existing files
+### `download <uploadId>` — 按 ccMixter upload ID 下载
 
 ```bash
-bgm pick "chill lofi study" --output ./public/
-bgm pick "energetic workout motivation" --output ./public/
+bgm-library download 70473 --output ./audio/
 ```
 
-### presets
-List predefined tag presets for common video scenarios.
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-o, --output <dir>` | `./public` | 输出目录 |
+| `--force` | off | 覆盖已存在文件 |
+
+### `presets` — 列出场景预设
 
 ```bash
-bgm presets
+bgm-library presets
 ```
 
-### info `<uploadId>`
-Show detailed info about a track including license, BPM, duration, and files.
+| Preset | 场景 | Tags |
+|--------|------|------|
+| `travel` | 旅行 / Vlog | upbeat, travel, vlog, vacation, summer |
+| `tech` | 科技 / 产品 | corporate, technology, digital, modern |
+| `lofi` | 咖啡馆 / 学习 | lofi, chill, study, cafe, downtempo |
+| `food` | 美食 / 生活 | acoustic, cooking, lifestyle, warm, light |
+| `workout` | 运动 / 健身 | workout, gym, sport, energy, edm |
+
+### `info <uploadId>` — 查看曲目详情（协议 / BPM / 时长 / 文件）
 
 ```bash
-bgm info 70473
+bgm-library info 70473
 ```
 
-## Presets
+---
 
-| Preset   | Name              | Tags                                          |
-|----------|-------------------|-----------------------------------------------|
-| travel   | 旅行/Vlog         | upbeat, travel, vlog, vacation, summer         |
-| tech     | 科技/产品         | corporate, technology, digital, modern         |
-| lofi     | 咖啡馆/学习       | lofi, chill, study, cafe, downtempo            |
-| food     | 美食/生活         | acoustic, cooking, lifestyle, warm, light      |
-| workout  | 运动/健身         | workout, gym, sport, energy, edm               |
+## Output
 
-## Output Files
+下载后落盘到 `--output` 目录：
 
-### Downloaded MP3
-Saved to the specified output directory with the original filename.
+- `*.mp3` — 音频文件（原文件名，非法字符替换为 `_`）
+- `music_manifest.json` — 曲目元数据（供程序化读取）
+- `ATTRIBUTION.txt` — TASL 格式自动署名（Title / Author / Source / License）
 
-### music_manifest.json
-Tracks metadata for programmatic access:
+`music_manifest.json` 示例：
+
 ```json
 {
   "tracks": [
@@ -131,55 +125,56 @@ Tracks metadata for programmatic access:
       "file_name": "Coruscate_-_The_Fade_Out.mp3",
       "bpm": 92,
       "duration": "3:05",
-      "downloaded_at": "2026-02-09T12:00:00.000Z"
+      "downloaded_at": "2026-08-15T12:00:00.000Z"
     }
   ]
 }
 ```
 
-### ATTRIBUTION.txt
-Auto-generated attribution in TASL format (Title/Author/Source/License):
-```
-=== Music Attribution ===
-"The Fade Out" by coruscate
-  Source: https://ccmixter.org/files/Coruscate/70473
-  License: Attribution (3.0) (http://creativecommons.org/licenses/by/3.0/)
-```
+### ⚠️ 发布时必须附带署名
 
-## Remotion Usage
+`ATTRIBUTION.txt` 是 CC 协议的法律要求。成片发布时把该文件内容写到视频描述 / 简介里，**不得省略**。
 
-After downloading a track:
+---
 
-```tsx
-import { Audio } from '@remotion/media';
-import { staticFile } from 'remotion';
+## 在 video-edit / video-producer 中使用
 
-// Use the downloaded BGM in your composition
-<Audio src={staticFile('Coruscate_-_The_Fade_Out.mp3')} volume={0.3} loop />
-```
+配乐环节拿到 `--bgm` 文件的来源之一（与 `aigc-video-gen music` 生成路线并列）：
 
-## License Filtering
-
-By default, only commercially safe licenses are shown:
-- **Allowed**: CC BY (Attribution), CC BY-SA (Attribution-ShareAlike)
-- **Blocked**: Any license with NonCommercial (NC) or NoDerivs (ND)
-
-This ensures all downloaded music can be freely used in commercial video projects.
-
-## Data Source
-
-All music is sourced from [ccMixter](https://ccmixter.org), a community remix site operated by ArtisTech Media, created by Creative Commons.
-
-## Troubleshooting
-
-### "Cannot find module" errors
-Install dependencies first:
 ```bash
-cd scripts && npm install
+# 1. 按视频主题选曲并下载到工程 audio/ 目录
+bgm-library pick "科技产品展示 轻快" --output <project-dir>/audio/
+
+# 2. 交给 video-edit 混音（循环/裁剪到视频时长，默认 0.25 音量垫底）
+video-edit audio-mix input.mp4 --bgm <project-dir>/audio/Coruscate_-_The_Fade_Out.mp3 --output out.mp4
 ```
 
-### 403 Forbidden on download
-The skill automatically handles referer headers. If you still get 403, the track may have been removed from ccMixter.
+选曲策略：
 
-### No results for search
-Try broader keywords, fewer tags, or use a preset. ccMixter's library is smaller than Pixabay but all tracks are properly licensed.
+- ✅ **优先 `bgm-library`**：免 key、免版税、自动署名、商用安全；适合绝大多数配乐场景
+- ✅ **需要定制风格 / 无法在 ccMixter 找到匹配时**：用 `aigc-video-gen music`（MiniMax 生成，需 `MINIMAX_API_KEY`）
+- ❌ **不要**放开 `--no-commercial-only` 下 NC/ND 协议曲目到商用成片
+
+---
+
+## Pitfalls
+
+### pitfall: 403 Forbidden on download
+
+- **症状**：下载返回 403
+- **workaround**：脚本已自动带 referer 头；仍 403 说明曲目已从 ccMixter 下架，换一首
+
+### pitfall: 搜索无结果
+
+- **症状**：`No tracks found matching your query`
+- **workaround**：ccMixter 曲库比 Pixabay 小，换更宽的关键词、减少标签、或用 `--preset`
+
+### pitfall: ccMixter SSL 证书链不全
+
+- **症状**：Node 报 `unable to verify the first certificate`
+- **workaround**：脚本已对 ccMixter 域名放宽 TLS 校验（`rejectUnauthorized: false`），无需手动处理；仅作用于该站点
+
+### pitfall: 依赖未装
+
+- **症状**：`Cannot find module 'commander'` 等
+- **workaround**：依赖由 `apply-addons.sh` 自动安装（skill 目录下 `package.json`）；手动补装可 `cd <skill-dir> && npm install --omit=dev`

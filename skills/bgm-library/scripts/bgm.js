@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * BGM Library - Background Music CLI for Remotion Videos
+ * BGM Library - Background Music CLI for video projects.
  * Search, filter, and download royalty-free music from ccMixter.
+ *
+ * 纯文本输出（无 chalk/ora），agent 友好，无 ANSI 转义码污染 stdout。
  */
 
 import { program } from 'commander';
-import chalk from 'chalk';
-import ora from 'ora';
 import axios from 'axios';
 import https from 'https';
 import {
@@ -21,7 +21,7 @@ import {
 
 // ccMixter's SSL certificate chain is incomplete, causing "unable to verify
 // the first certificate" errors with Node.js default TLS settings.
-// We create a custom HTTPS agent that tolerates this.
+// We create a custom HTTPS agent that tolerates this (scoped to ccMixter only).
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 const api = axios.create({ httpsAgent, timeout: 15000 });
 
@@ -29,7 +29,6 @@ const API_BASE = 'https://ccmixter.org/api/query';
 
 /**
  * Predefined tag presets for common video scenarios.
- * Mapped from the original Pixabay BGM categories.
  */
 const PRESETS = {
   travel: {
@@ -100,7 +99,6 @@ async function queryApi(params) {
 function getBestFile(track) {
   if (!track.files || track.files.length === 0) return null;
 
-  // Prefer "Main Mix" or "mp3" nicname
   const mainMix = track.files.find(
     (f) =>
       f.file_nicname?.toLowerCase().includes('main') ||
@@ -108,35 +106,29 @@ function getBestFile(track) {
   );
   if (mainMix) return mainMix;
 
-  // Fallback: first mp3 file
-  const mp3 = track.files.find((f) =>
-    f.file_format_info?.['default-ext'] === 'mp3'
+  const mp3 = track.files.find(
+    (f) => f.file_format_info?.['default-ext'] === 'mp3'
   );
   return mp3 || track.files[0];
 }
 
 /**
- * Format track info for display.
+ * Format track info for display (plain text).
  */
 function formatTrack(track, index) {
   const file = getBestFile(track);
   const duration = file?.file_format_info?.ps || '?';
   const bpm = track.upload_extra?.bpm || '?';
   const tags =
-    track.upload_extra?.usertags
-      ?.split(',')
-      .slice(0, 5)
-      .join(', ') || '';
+    track.upload_extra?.usertags?.split(',').slice(0, 5).join(', ') || '';
 
-  const lines = [
-    `  ${chalk.cyan(`#${index + 1}`)} ${chalk.bold(track.upload_name)} ${chalk.dim(`(ID: ${track.upload_id})`)}`,
-    `     ${chalk.dim('Artist:')} ${track.user_real_name || track.user_name}`,
-    `     ${chalk.dim('Duration:')} ${duration}  ${chalk.dim('BPM:')} ${bpm}  ${chalk.dim('License:')} ${track.license_name}`,
-    `     ${chalk.dim('Tags:')} ${tags}`,
-    `     ${chalk.dim('URL:')} ${track.file_page_url}`,
-  ];
-
-  return lines.join('\n');
+  return [
+    `  #${index + 1} ${track.upload_name} (ID: ${track.upload_id})`,
+    `     Artist: ${track.user_real_name || track.user_name}`,
+    `     Duration: ${duration}  BPM: ${bpm}  License: ${track.license_name}`,
+    `     Tags: ${tags}`,
+    `     URL: ${track.file_page_url}`,
+  ].join('\n');
 }
 
 /**
@@ -166,67 +158,46 @@ program
   .option('--no-commercial-only', 'Include all licenses')
   .option('--sort <field>', 'Sort by: date, name, score', 'score')
   .action(async (keywords, opts) => {
-    const spinner = ora('Searching ccMixter...').start();
-
     try {
       let tags;
       if (opts.preset) {
         const preset = PRESETS[opts.preset.toLowerCase()];
         if (!preset) {
-          spinner.fail(`Unknown preset: ${opts.preset}`);
-          console.log(chalk.dim(`Available: ${Object.keys(PRESETS).join(', ')}`));
+          console.error(`✗ Unknown preset: ${opts.preset}`);
+          console.error(`Available: ${Object.keys(PRESETS).join(', ')}`);
           process.exit(1);
         }
         tags = preset.tags;
-        spinner.text = `Searching with preset "${opts.preset}" (${preset.name})...`;
+        console.log(`Searching with preset "${opts.preset}" (${preset.name})...`);
       } else if (keywords.length > 0) {
         tags = keywords.join(',');
+        console.log('Searching ccMixter...');
       } else {
-        spinner.fail('Provide keywords or --preset');
+        console.error('✗ Provide keywords or --preset');
         process.exit(1);
       }
 
-      const params = {
-        tags,
-        limit: opts.limit,
-        sort: opts.sort,
-      };
-
-      // Pre-filter with lic=open for commercial-only
-      if (opts.commercialOnly) {
-        params.lic = 'open';
-      }
+      const params = { tags, limit: opts.limit, sort: opts.sort };
+      if (opts.commercialOnly) params.lic = 'open';
 
       const tracks = await queryApi(params);
-
-      // Double-check license filter in code
       const filtered = opts.commercialOnly
         ? tracks.filter((t) => isCommercialSafe(t.license_name))
         : tracks;
 
-      spinner.stop();
-
       if (filtered.length === 0) {
-        console.log(chalk.yellow('No tracks found matching your query.'));
+        console.log('No tracks found matching your query.');
         return;
       }
 
-      console.log(
-        chalk.green(`\nFound ${filtered.length} track(s):\n`)
-      );
-
+      console.log(`\nFound ${filtered.length} track(s):\n`);
       for (let i = 0; i < filtered.length; i++) {
         console.log(formatTrack(filtered[i], i));
         if (i < filtered.length - 1) console.log();
       }
-
-      console.log(
-        chalk.dim(
-          `\nUse ${chalk.cyan('bgm-library download <ID>')} to download a track.`
-        )
-      );
+      console.log(`\nUse: bgm-library download <ID> to download a track.`);
     } catch (err) {
-      spinner.fail(`Search failed: ${err.message}`);
+      console.error(`✗ Search failed: ${err.message}`);
       process.exit(1);
     }
   });
@@ -239,34 +210,31 @@ program
   .option('-o, --output <dir>', 'Output directory', './public')
   .option('--force', 'Overwrite existing files', false)
   .action(async (uploadId, opts) => {
-    const spinner = ora(`Fetching track ${uploadId}...`).start();
-
     try {
-      // Fetch track metadata
+      console.log(`Fetching track ${uploadId}...`);
       const tracks = await queryApi({ ids: uploadId });
 
       if (tracks.length === 0) {
-        spinner.fail(`Track not found: ${uploadId}`);
+        console.error(`✗ Track not found: ${uploadId}`);
         process.exit(1);
       }
 
       const track = tracks[0];
 
-      // License check
       if (!isCommercialSafe(track.license_name)) {
-        spinner.fail(
-          `Track "${track.upload_name}" has license "${track.license_name}" which is NOT commercially safe. Use --force to override.`
+        console.error(
+          `✗ Track "${track.upload_name}" has license "${track.license_name}" which is NOT commercially safe. Use --force to override.`
         );
         if (!opts.force) process.exit(1);
       }
 
       const file = getBestFile(track);
       if (!file) {
-        spinner.fail('No downloadable MP3 file found for this track.');
+        console.error('✗ No downloadable MP3 file found for this track.');
         process.exit(1);
       }
 
-      spinner.text = `Downloading "${track.upload_name}" (${file.file_format_info?.ps || '?'})...`;
+      console.log(`Downloading "${track.upload_name}" (${file.file_format_info?.ps || '?'})...`);
 
       const result = await downloadTrack(
         {
@@ -279,33 +247,25 @@ program
       );
 
       if (result.skipped) {
-        spinner.info(
-          `"${track.upload_name}" already exists at ${result.filePath} (use --force to overwrite)`
+        console.log(
+          `ℹ "${track.upload_name}" already exists at ${result.filePath} (use --force to overwrite)`
         );
       } else {
-        spinner.succeed(
-          `Downloaded "${track.upload_name}" → ${result.filePath} (${formatSize(result.size)})`
+        console.log(
+          `✓ Downloaded "${track.upload_name}" → ${result.filePath} (${formatSize(result.size)})`
         );
       }
 
-      // Update manifest & attribution
       const entry = buildManifestEntry(track, file);
       await updateManifest(opts.output, entry);
       await generateAttribution(opts.output);
 
-      console.log(chalk.dim(`  Manifest: ${opts.output}/music_manifest.json`));
-      console.log(chalk.dim(`  Attribution: ${opts.output}/ATTRIBUTION.txt`));
-      console.log();
-      console.log(
-        chalk.dim('Remotion usage:')
-      );
-      console.log(
-        chalk.cyan(
-          `  <Audio src={staticFile('${file.file_name}')} volume={0.3} loop />`
-        )
-      );
+      console.log(`  Manifest: ${opts.output}/music_manifest.json`);
+      console.log(`  Attribution: ${opts.output}/ATTRIBUTION.txt`);
+      console.log(`\nRemotion usage:`);
+      console.log(`  <Audio src={staticFile('${file.file_name}')} volume={0.3} loop />`);
     } catch (err) {
-      spinner.fail(`Download failed: ${err.message}`);
+      console.error(`✗ Download failed: ${err.message}`);
       process.exit(1);
     }
   });
@@ -319,10 +279,9 @@ program
   .option('-l, --limit <n>', 'Number of candidates to evaluate', '5')
   .option('--force', 'Overwrite existing files', false)
   .action(async (theme, opts) => {
-    const spinner = ora(`Finding best BGM for "${theme}"...`).start();
-
     try {
-      // Map theme keywords to search tags
+      console.log(`Finding best BGM for "${theme}"...`);
+
       const tags = theme
         .toLowerCase()
         .replace(/[^a-z0-9\s]/g, '')
@@ -337,13 +296,11 @@ program
         sort: 'score',
       });
 
-      // Filter for commercial safety
-      const safe = tracks.filter((t) => isCommercialSafe(t.license_name));
+      let safe = tracks.filter((t) => isCommercialSafe(t.license_name));
 
       if (safe.length === 0) {
-        // Fallback: try broader search with just first keyword
         const fallbackTags = tags.split(',')[0];
-        spinner.text = `No exact match, trying broader search: "${fallbackTags}"...`;
+        console.log(`No exact match, trying broader search: "${fallbackTags}"...`);
 
         const fallback = await queryApi({
           tags: fallbackTags,
@@ -351,28 +308,23 @@ program
           limit: opts.limit,
           sort: 'score',
         });
-        const fallbackSafe = fallback.filter((t) =>
-          isCommercialSafe(t.license_name)
-        );
+        safe = fallback.filter((t) => isCommercialSafe(t.license_name));
 
-        if (fallbackSafe.length === 0) {
-          spinner.fail('No commercially safe tracks found for this theme.');
+        if (safe.length === 0) {
+          console.error('✗ No commercially safe tracks found for this theme.');
           process.exit(1);
         }
-
-        safe.push(...fallbackSafe);
       }
 
-      // Pick the top-scored track
       const picked = safe[0];
       const file = getBestFile(picked);
 
       if (!file) {
-        spinner.fail('No downloadable file found.');
+        console.error('✗ No downloadable file found.');
         process.exit(1);
       }
 
-      spinner.text = `Downloading "${picked.upload_name}" by ${picked.user_real_name || picked.user_name}...`;
+      console.log(`Downloading "${picked.upload_name}" by ${picked.user_real_name || picked.user_name}...`);
 
       const result = await downloadTrack(
         {
@@ -386,34 +338,26 @@ program
 
       const entry = buildManifestEntry(picked, file);
       await updateManifest(opts.output, entry);
-      const attribution = await generateAttribution(opts.output);
+      await generateAttribution(opts.output);
 
       if (result.skipped) {
-        spinner.info(`Already downloaded: ${result.filePath}`);
+        console.log(`ℹ Already downloaded: ${result.filePath}`);
       } else {
-        spinner.succeed(
-          `Downloaded "${picked.upload_name}" → ${result.filePath} (${formatSize(result.size)})`
+        console.log(
+          `✓ Downloaded "${picked.upload_name}" → ${result.filePath} (${formatSize(result.size)})`
         );
       }
 
       console.log();
       console.log(formatTrack(picked, 0));
-      console.log();
-      console.log(chalk.dim('Remotion usage:'));
+      console.log(`\nRemotion usage:`);
+      console.log(`  <Audio src={staticFile('${file.file_name}')} volume={0.3} loop />`);
+      console.log(`\nAttribution:`);
       console.log(
-        chalk.cyan(
-          `  <Audio src={staticFile('${file.file_name}')} volume={0.3} loop />`
-        )
-      );
-      console.log();
-      console.log(chalk.dim('Attribution:'));
-      console.log(
-        chalk.dim(
-          `  "${picked.upload_name}" by ${picked.user_real_name || picked.user_name} — ${picked.license_name}`
-        )
+        `  "${picked.upload_name}" by ${picked.user_real_name || picked.user_name} — ${picked.license_name}`
       );
     } catch (err) {
-      spinner.fail(`Pick failed: ${err.message}`);
+      console.error(`✗ Pick failed: ${err.message}`);
       process.exit(1);
     }
   });
@@ -424,18 +368,16 @@ program
   .command('presets')
   .description('List predefined tag presets for common video scenarios')
   .action(() => {
-    console.log(chalk.green('\nAvailable BGM Presets:\n'));
+    console.log('\nAvailable BGM Presets:\n');
 
     for (const [key, preset] of Object.entries(PRESETS)) {
-      console.log(`  ${chalk.cyan.bold(key.padEnd(10))} ${preset.name}`);
-      console.log(`  ${' '.repeat(10)} ${chalk.dim(preset.description)}`);
-      console.log(`  ${' '.repeat(10)} ${chalk.dim(`Tags: ${preset.tags}`)}`);
+      console.log(`  ${key.padEnd(10)} ${preset.name}`);
+      console.log(`  ${' '.repeat(10)} ${preset.description}`);
+      console.log(`  ${' '.repeat(10)} Tags: ${preset.tags}`);
       console.log();
     }
 
-    console.log(
-      chalk.dim(`Use: ${chalk.cyan('bgm-library search --preset <name>')} to search with a preset.`)
-    );
+    console.log(`Use: bgm-library search --preset <name> to search with a preset.`);
   });
 
 // ── info ─────────────────────────────────────────────────────────────────────
@@ -444,51 +386,45 @@ program
   .command('info <uploadId>')
   .description('Show detailed info about a track')
   .action(async (uploadId) => {
-    const spinner = ora(`Fetching track ${uploadId}...`).start();
-
     try {
+      console.log(`Fetching track ${uploadId}...`);
       const tracks = await queryApi({ ids: uploadId });
 
       if (tracks.length === 0) {
-        spinner.fail(`Track not found: ${uploadId}`);
+        console.error(`✗ Track not found: ${uploadId}`);
         process.exit(1);
       }
 
-      spinner.stop();
       const track = tracks[0];
 
       console.log();
-      console.log(chalk.bold.green(track.upload_name));
-      console.log(chalk.dim('─'.repeat(40)));
-      console.log(`${chalk.dim('Artist:')}     ${track.user_real_name || track.user_name}`);
-      console.log(`${chalk.dim('Upload ID:')}  ${track.upload_id}`);
-      console.log(`${chalk.dim('License:')}    ${track.license_name}`);
-      console.log(`${chalk.dim('License URL:')} ${track.license_url}`);
-      console.log(`${chalk.dim('Page:')}       ${track.file_page_url}`);
-      console.log(`${chalk.dim('Artist Page:')} ${track.artist_page_url}`);
-      console.log(`${chalk.dim('BPM:')}        ${track.upload_extra?.bpm || 'N/A'}`);
-      console.log(`${chalk.dim('Date:')}       ${track.upload_date_format}`);
+      console.log(track.upload_name);
+      console.log('─'.repeat(40));
+      console.log(`Artist:       ${track.user_real_name || track.user_name}`);
+      console.log(`Upload ID:    ${track.upload_id}`);
+      console.log(`License:      ${track.license_name}`);
+      console.log(`License URL:  ${track.license_url}`);
+      console.log(`Page:         ${track.file_page_url}`);
+      console.log(`Artist Page:  ${track.artist_page_url}`);
+      console.log(`BPM:          ${track.upload_extra?.bpm || 'N/A'}`);
+      console.log(`Date:         ${track.upload_date_format}`);
 
       const safe = isCommercialSafe(track.license_name);
-      console.log(
-        `${chalk.dim('Commercial:')}  ${safe ? chalk.green('YES (safe)') : chalk.red('NO (restricted)')}`
-      );
+      console.log(`Commercial:   ${safe ? 'YES (safe)' : 'NO (restricted)'}`);
 
       if (track.upload_extra?.usertags) {
-        console.log(`${chalk.dim('Tags:')}       ${track.upload_extra.usertags.replace(/,/g, ', ')}`);
+        console.log(`Tags:         ${track.upload_extra.usertags.replace(/,/g, ', ')}`);
       }
 
       console.log();
-      console.log(chalk.dim('Files:'));
+      console.log('Files:');
       for (const f of track.files || []) {
         const dur = f.file_format_info?.ps || '?';
         const size = f.file_filesize || '?';
-        console.log(
-          `  ${chalk.cyan(f.file_nicname || 'mp3')} — ${dur} ${size} — ${f.file_name}`
-        );
+        console.log(`  ${f.file_nicname || 'mp3'} — ${dur} ${size} — ${f.file_name}`);
       }
     } catch (err) {
-      spinner.fail(`Info failed: ${err.message}`);
+      console.error(`✗ Info failed: ${err.message}`);
       process.exit(1);
     }
   });

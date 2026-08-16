@@ -68,6 +68,11 @@ load_runtime_environment() {
   if [ -n "$supplied_awk_api_key" ] && [[ "$supplied_awk_api_key" != __FILL_*__ ]]; then
     export AWK_API_KEY="$supplied_awk_api_key"
   fi
+
+  # daemon.env 来自持久卷，内容不可控：若其中混入 DISPLAY（如宿主机桌面机的
+  # DISPLAY=:0 被抄进来），会覆盖入口脚本上方 export 的 Xvfb 显示号（:99），
+  # 有头浏览器开去不存在的显示、noVNC 里什么都看不到。这里强制恢复入口设定。
+  export DISPLAY=":${DISPLAY_NUM}"
 }
 
 # ─── 3. 首启生成 gateway token ─────────────────────────────────────

@@ -467,6 +467,16 @@ if [ "$(uname -s)" = "Linux" ] && command -v systemctl >/dev/null 2>&1; then
 [Service]
 EnvironmentFile=-${SYSTEMD_ENV_FILE}
 EOF
+    # 30-wait-display：Linux 桌面机上 gateway 开机即启、早于桌面会话把 DISPLAY
+    # 登记进 user manager 环境 -> agent exec 缺 DISPLAY 误判无头。等 DISPLAY 出现
+    # 再启动（有桌面几秒内等到；无桌面 30s 超时放行）。WSL2 已注 DISPLAY=:0 进
+    # daemon.env（WSLg 恒定 :0），跳过。幂等；openclaw 升级重写主 unit 不清 drop-in。
+    if ! grep -qi microsoft /proc/version 2>/dev/null; then
+      cat > "${_dropin_dir}/30-wait-display.conf" <<'DROPIN_EOF'
+[Service]
+ExecStartPre=/bin/sh -c 'i=0; while [ "$i" -lt 30 ]; do systemctl --user show-environment | grep -q "^DISPLAY=" && exit 0; sleep 1; i=$((i+1)); done; exit 0'
+DROPIN_EOF
+    fi
     # daemon-reload 在 daemon install 之后统一做一次
     echo "  ✅ systemd drop-in created (will reload after daemon install)"
   fi

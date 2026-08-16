@@ -45,17 +45,24 @@ function errExit(msg: string, code = 1): never {
  *  一律带 --headed 与 Agent 的 open 调用对齐（SKILL.md 强制有头登录）——
  *  flag 不一致会触发 camoufox-cli 重启 daemon 切 headless，杀掉浏览器进程丢登录态
  *  （见 memory 24-camoufox-cli-daemon-flag-gotcha）。 */
-async function camoufox(platform: string, args: string[]): Promise<unknown> {
+async function camoufox(platform: string, args: string[]): Promise<any> {
   const { stdout } = await execFileAsync(
     CAMOUFOX_CLI,
     ["--session", platform, "--persistent", "--headed", "--json", ...args],
     { maxBuffer: 64 * 1024 * 1024 },
   );
+  let out: any;
   try {
-    return JSON.parse(stdout);
+    out = JSON.parse(stdout);
   } catch {
     throw new Error(`camoufox-cli 输出解析失败: ${stdout.slice(0, 200)}`);
   }
+  // camoufox-cli 失败时 exit code 可能仍为 0（JSON 内 success=false），必须显式检查，
+  // 否则导出失败会静默吞掉（临时文件不生成 → 后续读 ENOENT，报错晦涩）。
+  if (out && out.success === false) {
+    throw new Error(`camoufox-cli ${args[0]} 失败: ${out.error ?? "unknown"}`);
+  }
+  return out;
 }
 
 async function closeSession(platform: string): Promise<void> {

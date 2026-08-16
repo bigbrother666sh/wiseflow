@@ -1313,6 +1313,28 @@ load_env_vars_for_cli() {
     if [ -n "$_awk" ]; then export AWK_API_KEY="$_awk"; fi
 }
 
+# Linux：确保 30-wait-display.conf drop-in 存在（幂等）。
+# 背景：gateway 随 default.target 开机即启，早于桌面会话把 DISPLAY 登记进 user manager
+# 环境（systemd 不回填已运行服务）-> 重启机器后到下次 gateway 重启之间，整个 gateway
+# 进程树（agent exec、camoufox daemon）都缺 DISPLAY，agent 误判无头环境、有头浏览器
+# 无法启动。drop-in 让 gateway 启动前等 DISPLAY 出现：有桌面几秒内等到（检查本身毫秒级），
+# 无桌面 30s 超时放行（行为与不加一致）。openclaw 升级重写主 unit 不清 drop-in。
+# WSL2 场景不走此 drop-in（WSLg 恒定提供 :0，由使用方直接注 DISPLAY 进 daemon.env）。
+ensure_systemd_wait_display_dropin() {
+    [ "$(uname -s)" = "Linux" ] || return 0
+    command -v systemctl >/dev/null 2>&1 || return 0
+    systemctl --user show-environment >/dev/null 2>&1 || return 0
+    grep -qi microsoft /proc/version 2>/dev/null && return 0
+    local svc="openclaw-gateway"
+    local dropin_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${svc}.service.d"
+    mkdir -p "$dropin_dir"
+    cat > "${dropin_dir}/30-wait-display.conf" <<'DROPIN_EOF'
+[Service]
+ExecStartPre=/bin/sh -c 'i=0; while [ "$i" -lt 30 ]; do systemctl --user show-environment | grep -q "^DISPLAY=" && exit 0; sleep 1; i=$((i+1)); done; exit 0'
+DROPIN_EOF
+    ui_success "systemd wait-display drop-in ensured (${dropin_dir}/30-wait-display.conf)"
+}
+
 # 停掉运行中的 gateway（更新路线开头调，避免 pnpm 重写 node_modules 时文件句柄竞争卡死）。
 # 平台分支：Linux systemctl --user stop；Darwin openclaw gateway stop。无 service / 未运行则静默。
 stop_gateway_if_running() {
@@ -1359,6 +1381,7 @@ refresh_gateway_env_only() {
         mv "${daemon_env_file}.new" "$daemon_env_file"
         printf 'OPENCLAW_STATE_DIR=%s\n' "$OPENCLAW_HOME" >> "$daemon_env_file"
         if [ "$(uname -s)" = "Linux" ] && command -v systemctl >/dev/null 2>&1; then
+            ensure_systemd_wait_display_dropin
             systemctl --user daemon-reload 2>/dev/null || true
             systemctl --user restart "openclaw-gateway.service" 2>/dev/null && ui_success "Restarted gateway"
         elif [ "$(uname -s)" = "Darwin" ]; then
@@ -1461,6 +1484,7 @@ install_gateway_and_env() {
             local dropin_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${svc}.service.d"
             mkdir -p "$dropin_dir"
             printf '[Service]\nEnvironmentFile=-%s\n' "$systemd_env" > "${dropin_dir}/10-env-file.conf"
+            ensure_systemd_wait_display_dropin
             ui_success "systemd drop-in created (will reload after daemon install)"
         fi
         ui_info "Installing gateway daemon service"

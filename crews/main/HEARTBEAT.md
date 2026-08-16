@@ -72,7 +72,7 @@
 
    脚本封装了完整流程，返回统一 JSON 结果。**wx_mp 不走这个脚本**——机制不同，见下方第 2 条。
 
-2. **微信公众号 (wx_mp)** —— **走 `wx-mp-engagement` 技能**，camoufox 抓创作者中心方案，与上面四个平台的纯 HTTP+cookie 链路完全不同，两条路独立、不耦合：
+2. **微信公众号 (wx_mp)** -- **走 `expert-wx-mp` 包内 `wx-mp-engagement` 工具**（PATH wrapper 同名），camoufox 抓创作者中心方案，与上面四个平台的纯 HTTP+cookie 链路完全不同，两条路独立、不耦合：
 
    ```bash
    wx-mp-engagement fetch --row-id <rowid>

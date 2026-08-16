@@ -3,7 +3,6 @@
 # 公共基线（nano-pdf / skill-creator / session-logs / tmux / weather / summarize 不在此重复列。
 
 # ── 新媒体运营：内容生产与发布 ──
-generate-wenyan-theme
 xhs-content-ops
 xhs-publish
 xhs-interact
@@ -11,7 +10,7 @@ douyin-publish
 wechat-channels-publish
 weibo-publish
 zhihu-publish
-wx-mp-publisher
+expert-wx-mp
 wx-mp-hunter
 wxwork-moments
 twitter-post

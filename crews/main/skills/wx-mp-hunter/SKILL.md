@@ -1,6 +1,6 @@
 ---
 name: wx-mp-hunter
-description: 微信公众号内容抓取。如下三个场景必用本技能：(1) 用户提供 mp.weixin.qq.com 文章链接 -> 直接用本技能 fetch 全文（不要用浏览器 或 web_fetch）；(2) 用户提供公众号名称、要求获取该账号过去数小时的发布列表 -> 用本技能 posts-list；(3) 用户提供 mp.weixin.qq.com/mp/homepage 专题页/主题页链接 或 mp.weixin.qq.com/mp/appmsgalbum 合集链接，要求采集该页面全部文章 -> 用本技能 homepage 采集目录链接
+description: 微信公众号内容抓取。如下三个场景必用本技能：(1) 用户提供 mp.weixin.qq.com 文章链接 -> 直接用本技能 fetch 全文（不要用浏览器 或 web_fetch）；(2) 用户提供公众号名称、要求按时间窗口或最近 N 条获取发布列表 -> 用本技能 posts-list；(3) 用户提供 mp.weixin.qq.com/mp/homepage 专题页/主题页链接 或 mp.weixin.qq.com/mp/appmsgalbum 合集链接，要求采集该页面全部文章 -> 用本技能 homepage 采集目录链接
 metadata:
   openclaw:
     emoji: 📰
@@ -35,8 +35,8 @@ Use this skill when:
 流程 1a：直接获取指定文章内容（URL 来源不限）
   └─ fetch <url>             → 微信客户端 UA 直访拿正文
 
-流程 1b：获取指定账号过去数小时的发布列表
-  └─ posts-list [--hours N] [--accounts a,b,c]
+流程 1b：按时间窗口或最近 N 条获取指定账号发布列表
+  └─ posts-list ([--hours N] | --recent N) [--accounts a,b,c]
                               → 扫本机微信客户端容器消息库
                                 （依赖容器环境，使用前检查环境变量）
 
@@ -51,8 +51,9 @@ Use this skill when:
 > （302 → `&nwr_flag=1#wechat_redirect` → 正文），零 cookie / 零 captcha。
 
 > **posts-list 不需要登录态**：直接扫本机微信客户端容器内的消息库
-> （SQLCipher 加密 + Zstd 压缩），按账号白名单过滤、按时间窗口取过去 N 小时
-> 的文章。**仅能拿到容器客户端所登录的微信账号已关注的公众号推送**。
+> （SQLCipher 加密 + Zstd 压缩），按账号白名单过滤；`--hours N` 取过去 N 小时，
+> `--recent N` 取消息库中最新 N 条。**仅能拿到容器客户端所登录的微信账号
+> 已关注的公众号推送**。
 
 > **homepage 不需要登录态**：camoufox-cli 无头打开专题页，完整滚动 +
 > 分类 tab 采集 `mp.weixin.qq.com/s` 文章链接。用临时 session，不绑持久化
@@ -106,21 +107,52 @@ wx-mp-hunter fetch <url> --html --download-images --output-dir ./article-out
 
 ---
 
-## posts-list — 获取指定账号过去数小时的发布列表
+## posts-list - 获取指定账号的发布列表
 
 ```bash
-wx-mp-hunter posts-list [--hours N] [--accounts a,b,c]
+wx-mp-hunter posts-list ([--hours N] | --recent N) [--accounts a,b,c]
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--hours` | 24 | 时间窗口（小时） |
+| `--hours` | 24 | 时间窗口模式：取过去 N 小时；不能与 `--recent` 同用 |
+| `--recent` | - | 最近发布模式：按消息时间倒序取最新 N 条；不能与 `--hours` 同用 |
 | `--accounts` | "" | 公众号名白名单，逗号分隔；不传则返回全部 |
+
+示例：取最近发布的 50 条：
+
+```bash
+wx-mp-hunter posts-list --recent 50
+```
+
+`--recent` 会扫描消息库中全部 49 号文章消息，按消息时间倒序、URL 去重后截取前 N 条；搭配 `--accounts` 时，则在该账号白名单内取最新 N 条。
 
 输出示例：
 ```json
 {
   "ok": true,
+  "mode": "recent",
+  "recent_limit": 50,
+  "total": 3,
+  "posts": [
+    {
+      "title": "文章标题",
+      "url": "https://mp.weixin.qq.com/s/xxxxx",
+      "author": "公众号名称",
+      "publish_time": "2024-03-10",
+      "cover": "https://..."
+    }
+  ],
+  "missing_accounts": ["某未命中公众号"],
+  "hint": "以下账号未出现在最近 50 条文章中（共 1 个）：某未命中公众号。可能是本机微信客户端未关注该公众号、近期未收到推送，或其消息被更新推送挤出前 50 条。"
+}
+```
+
+时间窗口模式输出示例：
+```json
+{
+  "ok": true,
+  "mode": "hours",
   "limit_hours": 24,
   "total": 3,
   "posts": [
@@ -237,6 +269,13 @@ wx-mp-hunter homepage <url>
                               → 扫容器消息库拿过去 24h 该账号的推送
 2. 对感兴趣的文章 fetch <article_link>
                               → 抓全文
+```
+
+**场景 B2：取某账号最近发布的 30 条**
+```
+1. posts-list --recent 30 --accounts "公众号名"
+                              -> 扫容器消息库，按消息时间倒序取该账号最新 30 条
+2. 按需对文章链接 fetch <article_link>
 ```
 
 **场景 C：批量获取专题页文章**

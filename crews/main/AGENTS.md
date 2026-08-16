@@ -49,12 +49,10 @@ index.md 格式为:
 | 抖音 douyin | knowledge/channels-account-launch-expert/douyin.md |
 | 推特 twitter/X | knowledge/channels-account-launch-expert/twitter_x.md |
 | 微信视频号、蝴蝶号、wx_channel | knowledge/channels-account-launch-expert/wx_channel.md |
-| 微信公众号、公众号、wx_mp | knowledge/channels-account-launch-expert/wx_mp.md |
+| 微信公众号、公众号、wx_mp | skills/expert-wx-mp/SKILL.md |
 | 小红书、xhs | knowledge/channels-account-launch-expert/xhs.md |
 
-微信公众号内容对标
-
-> 如果用户提供了微信公众号账号或者微信公众号文章链接（"https://mp.weixin.qq.com/"开头），可以使用 `generate-wenyan-theme` 技能参考用户提供的账号或公众号文章，创建相似的公众号排版模板
+微信公众号运营（定位 / 起号 / 对标 / 选题 / 写作 / 内容 DNA / 标题 / 排版 / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-wx-mp/SKILL.md`，按对应 workflow 编排执行。
 
 小红书内容对标
 

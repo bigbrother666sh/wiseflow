@@ -1,9 +1,8 @@
 ---
 name: wx-mp-engagement
-description: 微信公众号已发布作品数据抓取，写入 published-track的 pub_wx_mp 表。wx_mp session 登录。
+description: 抓取公众号已发布文章的阅读/点赞/评论/分享/收藏数据，写入 published-track 的 pub_wx_mp 表。
 metadata:
   openclaw:
-    emoji: 📈
     requires:
       bins:
       - python3
@@ -11,9 +10,11 @@ metadata:
       - sqlite3
 ---
 
-# 微信公众号 Engagement 抓取
+# wx-mp-engagement — 工具说明
 
-通过 **camoufox-cli + 本技能自管的 wx_mp 持久化 session + 创作者中心列表页爬虫**，从公众号后台「发表记录」页抓已发布文章的阅读/点赞/评论/分享/收藏，写入 published-track 的 `pub_wx_mp` 表。
+> 本文是 `expert-wx-mp` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow 指引调用。
+
+通过 **camoufox-cli + 本工具自管的 wx_mp 持久化 session + 创作者中心列表页爬虫**，从公众号后台「发表记录」页抓已发布文章的阅读/点赞/评论/分享/收藏，写入 published-track 的 `pub_wx_mp` 表。
 
 **思路**：创作者中心后台的「发表记录」页面把每篇已发布文章的阅读/点赞/评论/分享/收藏列在行内，走「发表记录页 → 解析 innerText → 按标题匹配 → 提行内数字」，不需要打开单篇分析页。
 
@@ -23,7 +24,7 @@ metadata:
 
 ## 前置条件
 
-### 1. wx_mp session 登录态（本技能自管）
+### 1. wx_mp session 登录态（本工具自管）
 
 wx-mp-engagement 自管 camoufox 持久化 session `wx_mp`，camoufox-cli 命令统一 `--session wx_mp --persistent`，登录态在 session profile 里已就位即可，**不导出 cookie/UA/token**。
 
@@ -31,7 +32,7 @@ wx-mp-engagement 自管 camoufox 持久化 session `wx_mp`，camoufox-cli 命令
 - 跳到 `/cgi-bin/home?...&token=xxx` = 登录就位
 - 跳到 `login` / `scanloginqrcode` = 失效，需重登
 
-**失效重登流程**（走本技能自己）：
+**失效重登流程**（走本工具自己）：
 ```bash
 wx-mp-engagement login           # camoufox 无头截 QR PNG 落 /tmp/qr-wx-mp.png
 # （发 QR PNG 给用户 -> 用户扫码后 -> 主会话回复"已扫码"）
@@ -47,8 +48,7 @@ wx-mp-engagement login-confirm   # 验登录就位 + close session（不导出 c
 
 ```bash
 ls ~/.openclaw/workspace-main/db/published_track.db
-# 初始化（如未建）
-~/.openclaw/workspace-main/skills/published-track/scripts/init-db.sh
+# 初始化（如未建）：按 published-track 技能的初始化流程处理
 ```
 
 ---
@@ -81,9 +81,9 @@ wx-mp-engagement fetch-all --days 7
    - **必须带 token 参数**，否则显示"请重新登录"
    - **`count=20` 是有意设计，不是 bug**：只抓最近 20 篇的 engagement。发布超过 ~30 天的老文章数据已稳定，每天重抓无收益只增风控暴露。老内容不在列表里自然跳过，**不要加翻页逻辑去补抓**。复盘如需老内容数据，用 DB 里已有的历史值。
 
-2. **Token 来源**：camoufox 打开首页后从 redirect URL 实时提 token（首页自动重定向到 `/cgi-bin/home?...&token=xxx`）。token 与 wx_mp session 同寿命，失效则一并失效（首页跳登录页 → 走本技能重登流）。
+2. **Token 来源**：camoufox 打开首页后从 redirect URL 实时提 token（首页自动重定向到 `/cgi-bin/home?...&token=xxx`）。token 与 wx_mp session 同寿命，失效则一并失效（首页跳登录页 → 走本工具重登流）。
 
-3. **Cookie 导入禁忌**：⚠️ **严禁** `camoufox-cli cookies import` 造会话（浏览器方案严禁 cookie 导入）。本技能自管 `wx_mp` 持久化 session，camoufox-cli 命令统一 `--session wx_mp --persistent`，登录态在 session profile 里已就位，**不开独立 session、不 import cookie**。撞 fail-first 队列（同 session 正被占用）就等占用方完成再串行接力，**不**自动 close 正在跑的 session。
+3. **Cookie 导入禁忌**：⚠️ **严禁** `camoufox-cli cookies import` 造会话（浏览器方案严禁 cookie 导入）。本工具自管 `wx_mp` 持久化 session，camoufox-cli 命令统一 `--session wx_mp --persistent`，登录态在 session profile 里已就位，**不开独立 session、不 import cookie**。撞 fail-first 队列（同 session 正被占用）就等占用方完成再串行接力，**不**自动 close 正在跑的 session。
 
 4. **数据提取方式**：不依赖 selector，直接用 `document.body.innerText` 解析。页面 innerText 结构清晰：
    ```
@@ -98,7 +98,7 @@ wx-mp-engagement fetch-all --days 7
 
 ```
 1. camoufox 打开创作者中心首页
-   ├─ redirect URL 跳 login/scanloginqrcode → exit 2（调用方触发本技能 login + login-confirm）
+   ├─ redirect URL 跳 login/scanloginqrcode → exit 2（调用方触发本工具 login + login-confirm）
    └─ redirect URL 跳 /cgi-bin/home?token=xxx → 继续
 2. lookup_published_row(row_id) -> 拿 title / publish_url
 3. 复用 wx_mp 持久化 session（不开独立 session、不 import cookie）：
@@ -148,7 +148,7 @@ wx-mp-engagement fetch --row-id <rowid>
 1. camoufox 打开创作者中心首页，看 redirect URL 判断登录态（跳登录页 = 失效，exit 2）
 2. 从 redirect URL 提 token，camoufox 抓创作者中心发表记录页
 3. 解析 innerText 按标题匹配拿 metrics
-4. 调 `./skills/published-track/scripts/update-metrics.sh --platform wx_mp --id <rowid> ...` 写 pub_wx_mp
+4. 委托 `published-track` 的 update-metrics 流程，以 `platform=wx_mp`、`id=<rowid>` 写入 `pub_wx_mp`
 
 > `update-metrics.sh` 是 published-track 的纯写库脚本，本 skill 写库就走它（不经过 fetch-and-update-metrics.sh）。`fetch-and-update-metrics.sh` 收到 `--platform wx_mp` 会直接 exit 1 报错提示走本 skill，两条链路独立、不耦合。
 
@@ -157,8 +157,8 @@ wx-mp-engagement fetch --row-id <rowid>
 ## 约束
 
 - **浏览器方案**：camoufox-cli 主推；不 fork；不 bake chromium
-- **并发**：本技能自管 `wx_mp` 持久化 session，fail-first 队列串行接力，不自动 close 正在跑的 session
-- **登录态管理**：不导出 cookie/UA/token——登录态在 wx_mp session profile 里就位即可。失效时走本技能 `login` + `login-confirm` 重登（重登后登录态在 profile 里就位），再 camoufox 打开首页拿新 token 拼列表页 URL
+- **并发**：本工具自管 `wx_mp` 持久化 session，fail-first 队列串行接力，不自动 close 正在跑的 session
+- **登录态管理**：不导出 cookie/UA/token——登录态在 wx_mp session profile 里就位即可。失效时走本工具 `login` + `login-confirm` 重登（重登后登录态在 profile 里就位），再 camoufox 打开首页拿新 token 拼列表页 URL
 - **凭据边界**：本 skill 只用浏览器 session token；**不动** `wx-mp-publisher` 的 AppID/AppSecret
 
 ---
@@ -183,7 +183,7 @@ wx-mp-engagement fetch --row-id <rowid>
 ### pitfall: token 过期
 
 - **症状**：列表页显示"请重新登录"
-- **workaround**：token 与 wx_mp session 同寿命，失效则 camoufox 打开首页跳登录页 → exit 2 → 走本技能 `login` + `login-confirm` 重登流（重登后登录态在 profile 里就位），再用新 token 拼列表页 URL
+- **workaround**：token 与 wx_mp session 同寿命，失效则 camoufox 打开首页跳登录页 → exit 2 → 走本工具 `login` + `login-confirm` 重登流（重登后登录态在 profile 里就位），再用新 token 拼列表页 URL
 
 ### pitfall: 列表页 URL 必须带 token
 
@@ -196,5 +196,5 @@ wx-mp-engagement fetch --row-id <rowid>
 
 - **限频建议**：单公众号每 24h 全量 ≤ 1 次；单篇按需触发
 - **失败兜底**：本 skill 跑不通时回退到 manual update（`update-metrics.sh --reads ... --likes ... --comments ...` 手动填）
-- **camoufox-cli 注意**：本 skill 全部命令统一 `--session wx_mp --persistent`（本技能自管的持久化 session），headless 是默认行为；token 从 session 内 redirect URL 实时拿
+- **camoufox-cli 注意**：本 skill 全部命令统一 `--session wx_mp --persistent`（本工具自管的持久化 session），headless 是默认行为；token 从 session 内 redirect URL 实时拿
 - **报错约束**：调用方（agent）报告失败时必须原样转述脚本 stderr + exit code，禁止根据 DB 字段（如 `publish_url` 是否为空）自行归因。token 从首页 redirect URL 提取，**与 `publish_url` 无关**——`publish_url` 仅用于输出 JSON，不参与抓取逻辑

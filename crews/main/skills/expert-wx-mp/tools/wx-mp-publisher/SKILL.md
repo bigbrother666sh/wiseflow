@@ -1,17 +1,16 @@
 ---
 name: wx-mp-publisher
-description: Render and publish Markdown articles to WeChat Official Account (公众号)
-  draft box via wiseflow-relay. Supports multi-account (alias) and image-only posts
-  (小绿书). Credentials stored locally in accounts.json; relay is stateless.
+description: 通过 relay 将 Markdown 排版并推送到微信公众号草稿箱。支持多账号和小绿书，凭据存在 accounts.json。
 metadata:
   openclaw:
-    emoji: 📤
     requires:
       bins:
       - python3
 ---
 
-# WeChat MP Publisher
+# wx-mp-publisher — 工具说明
+
+> 本文是 `expert-wx-mp` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow 指引调用。
 
 将 Markdown 稿件排版并推送到微信公众号草稿箱（经 relay，凭据按请求透传）。
 
@@ -45,23 +44,25 @@ wx-mp-publisher <markdown_file> [theme] [--account ALIAS]
 - `theme`：渲染主题，三种形态：
   1. **内置 id**（`pie` / `lapis` / `default` / …）——原样作为 `theme` 传给 relay
   2. **本地 `.css` 文件路径**——脚本读出文件内容，作为 `custom_theme` 字段随 multipart 上传 relay
-  3. **SKILL.md 主题表登记的自定义 id**——解析出对应 CSS 路径，同 (2)
-  
+  3. **wenyan-theme/index.json 登记的自定义 id**--从工作区主题注册表解析出对应 CSS 路径，同 (2)
+
   可选，缺省由 relay 默认渲染。
 - `--account ALIAS`：多账号时指定目标公众号；缺省用 `accounts.json` 的 `default`
 
-> **自定义主题不持久化**：relay 是无状态多租户中转，**不存任何用户主题**。CSS 随请求上传，relay 写到 per-request 临时目录、用后即清理，天然按用户隔离。下表的「主题 ID → CSS 文件」映射只存在 client 侧。
+> **自定义主题不持久化到 relay**：relay 是无状态多租户中转，**不存任何用户主题**。CSS 随请求上传，relay 写到 per-request 临时目录、用后即清理，天然按用户隔离。
+>
+> 主题注册表在 client 侧：**工作区 `wenyan-theme/index.json`**。generate-wenyan-theme 生成新主题后写入该文件，发布时从该文件读取。结构固定为 `version: 1` + `themes` 数组；每条记录包含 `id`、`name`、`css`、`source`、`createdAt`。
 
 脚本自动：
 - 从 `accounts.json` 取目标账号凭据
-- 从 Markdown 中提取本地图片路径，作为 `images` 字段一并上传（http/https 图片由 relay 自行抓取，不在此列）
-- 发布前校验：图片引用必须纯文件名（不得带目录前缀 / 绝对路径）、frontmatter `author` ≤ 24 字节，违规直接报错退出
+- 自动收集正文、`cover`、`image_list` 中的本地图片并随稿件一起上传
+- 发布前校验图片引用和 frontmatter `author`；校验失败会直接退出
 - POST multipart 到 `${RELAY_BASE_URL}/api/v1/wx-mp/publish`，带 `X-OFB-Key`
 - 校验响应包络 `{ success, data, error }`
 
 ### 主题选择（未指定时）
 
-> 自定义主题说明：`generate-wenyan-theme` 生成的用户自定义 CSS 会注册到下表。若用户明确指定参考某个自定义主题，必须优先采用该主题；未指定时才按内容在内置主题和已注册自定义主题中匹配。
+> 自定义主题说明：`generate-wenyan-theme` 生成的用户自定义 CSS 登记在 `wenyan-theme/index.json`。若用户明确指定某个自定义主题，必须优先采用；未指定时才按内容在内置主题和已登记自定义主题中匹配。
 
 | 主题 ID | 风格描述 | 适用场景 |
 |---------|---------|---------|
@@ -73,8 +74,6 @@ wx-mp-publisher <markdown_file> [theme] [--account ALIAS]
 | `maize` | 淡雅玉米黄 | 健康生活、美食、户外 |
 | `rainbow` | 多彩活泼 | 亲子、宠物、娱乐 |
 | `phycat` | 薄荷清爽 | 科普、知识型内容 |
-| `<custom-theme>` | 用户自定义主题占位（由 `generate-wenyan-theme` 生成后更新，文件：`<custom-theme>.css`） | 用户明确指定参考该主题时优先采用；相似内容可优先建议 |
-| `waytoagi-theme` | 用户自定义：参考「通往AGI之路」风格--紫色主调(#6c5ce7)、深灰蓝正文、1.85行高、0.5px字间距、圆角引用块+浅灰背景、紫色行内代码高亮、浅灰分割线（文件：`waytoagi-theme.css`） | 用户明确指定参考该主题时优先采用；AI/科技/社区类内容可优先建议 |
 
 **智能选择决策树**（用户未指定主题时）：
 
@@ -98,7 +97,7 @@ wx-mp-publisher <markdown_file> [theme] [--account ALIAS]
 ```yaml
 ---
 title: 文章标题
-cover: ./cover.jpg           # 可选，缺省自动取正文第一张图
+cover: cover.jpg             # 可选，缺省自动取正文第一张图
 author: 作者名称              # 可选，≤ 8 个汉字 / 24 字节（超长报 45110）
 source_url: https://...      # 可选，原文链接
 need_open_comment: true      # 可选，是否开启评论（默认 false）
@@ -114,12 +113,25 @@ only_fans_can_comment: false # 可选，是否仅粉丝可评论（默认 false�
 ---
 title: 文章标题
 image_list:
-  - ./1.jpg
-  - ./2.jpg
+  - 1.jpg
+  - 2.jpg
 ---
 ```
 
 有 `image_list` 时 relay 自动走图片消息接口，忽略主题参数。
+
+### 本地图片准备规则
+
+发布前把本地图片复制到 Markdown 同目录，并按以下规则引用：
+
+1. 正文图片写 `![说明](filename.jpg)`
+2. `cover` 写 `cover: cover.jpg`
+3. `image_list` 写 `- 1.jpg`
+4. 只写纯文件名；不要写 `./filename.jpg`、目录路径或绝对路径
+5. 所有本地图片文件名必须唯一；重名时先重命名再更新 Markdown
+6. `http://` / `https://` 图片保留原 URL，不需要复制到本地
+
+Agent 不需要手动上传图片；脚本会自动收集并上传上述本地图片。
 
 ---
 
@@ -141,7 +153,7 @@ image_list:
 | `MISSING_APP_ID` / `MISSING_APP_SECRET`（relay 400） | accounts.json 中该账号凭据为空，补全 |
 | `MISSING_MARKDOWN`（relay 400） | 检查 markdown 文件内容非空 |
 | `45110: author size out of limit` | frontmatter `author` 超 8 汉字 / 24 字节，缩短后再发 |
-| 图片 `ENOENT`（relay） | markdown 图片引用带目录前缀 / 绝对路径，改为纯文件名（basename） |
+| 图片 `ENOENT` | 将对应图片复制到 Markdown 同目录，改为纯文件名引用，并确认文件存在、文件名唯一 |
 | relay 502 | relay 调微信失败，检查 AppSecret / IP 白名单（见 `REFERENCE.md`） |
 
 ---
@@ -152,3 +164,16 @@ image_list:
 - 本 skill 只负责推送草稿，**正式发布仍需在公众号后台手动操作**
 - relay 已内置 `@wenyan-md/core` 渲染，client 不再需要装 `wenyan-cli`
 - 仅支持文本 + 图片（无视频）
+
+## 发布后publish-track入库流程
+
+wx-mp-publisher 只能把文章发布到微信公众号的后台草稿箱，正式发布必须由用户手动至微信公众号后台操作。
+调用 wx-mp-publisher 成功后，relay 会返回草稿的 `media_id` ，可暂时将`media_id`作为文章的url占位，先完成 `published-track` 入库存储。
+后续用户完成正常发布后，如果向你提供了正式的URL，需要对`published-track`数据库中对应记录进行升级。
+
+## 微信平台硬限制（发布链路通用）
+
+- 标题长度：最多 64 字节（约 21 个中文字符）
+- 本地图片：与 Markdown 放同目录，用唯一纯文件名引用；脚本会自动上传
+- 样式：必须内联（`style="..."`），`<style>` 标签会被过滤
+- access_token 有效期 2 小时，relay 侧自动刷新，client 侧无需处理

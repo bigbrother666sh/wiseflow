@@ -26,8 +26,13 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 # 凭据放在源仓之外（实例态目录），避免软链模式下密钥落进源仓工作树
 ACCOUNTS_FILE = Path.home() / ".openclaw" / "wx-mp-publisher" / "accounts.json"
-SKILL_MD = SCRIPT_DIR.parent / "SKILL.md"
-CREW_WORKSPACE = SCRIPT_DIR.parent.parent.parent  # crews/main
+PUBLISHER_DIR = SCRIPT_DIR.parent
+TOOLS_DIR = PUBLISHER_DIR.parent
+EXPERT_PACK_DIR = TOOLS_DIR.parent
+SKILLS_DIR = EXPERT_PACK_DIR.parent
+CREW_WORKSPACE = SKILLS_DIR.parent
+THEME_ROOT = CREW_WORKSPACE / "wenyan-theme"
+THEME_INDEX = THEME_ROOT / "index.json"
 DEFAULT_RELAY_BASE_URL = "https://relay.openclaw-for-business.com"
 ENDPOINT = "/api/v1/wx-mp/publish"
 TIMEOUT_S = 180
@@ -100,28 +105,41 @@ def relay_env() -> tuple[str, str]:
 # ── 主题解析 ──────────────────────────────────────────────────────────────────
 
 def _resolve_registered_theme_path(theme_id: str) -> Path | None:
-    """从 SKILL.md 主题表查登记的自定义主题 id，返回 CSS 文件路径或 None。
+    """从 wenyan-theme/index.json 查登记的主题 id，返回受控 CSS 路径或 None。
 
-    主题表行形如：
-      | `myt` | 用户自定义：…（文件：`./myt.css`） | … |
-    文件路径若为相对路径，优先按 crew workspace 解析。
+    注册表结构：
+      {"version": 1, "themes": [{"id": "...", "css": "wenyan-theme/....css", ...}]}
     """
-    if not SKILL_MD.exists():
+    if not THEME_INDEX.exists():
         return None
-    pattern = re.compile(rf"^\| `{re.escape(theme_id)}` \|.*用户自定义")
-    for line in SKILL_MD.read_text(encoding="utf-8").splitlines():
-        if not pattern.match(line):
+
+    try:
+        registry = json.loads(THEME_INDEX.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        die(f"主题注册表解析失败: {THEME_INDEX}: {e}")
+
+    themes = registry.get("themes") if isinstance(registry, dict) else None
+    if not isinstance(registry, dict) or registry.get("version") != 1 or not isinstance(themes, list):
+        die(f"主题注册表格式错误: {THEME_INDEX}，需要 version=1 和 themes 数组")
+
+    for theme in themes:
+        if not isinstance(theme, dict) or theme.get("id") != theme_id:
             continue
-        m = re.search(r"文件：`([^`]+)`", line)
-        if not m:
-            return None
-        p = Path(m.group(1))
-        if p.is_file():
-            return p
-        alt = CREW_WORKSPACE / m.group(1)
-        if alt.is_file():
-            return alt
-        return None
+        css = theme.get("css")
+        if not isinstance(css, str) or not css:
+            die(f"主题 {theme_id!r} 缺少 css 路径: {THEME_INDEX}")
+        css_path = Path(css)
+        if css_path.is_absolute() or css_path.suffix != ".css":
+            die(f"主题 {theme_id!r} 的 css 必须是 wenyan-theme/ 下的相对 .css 路径")
+        resolved_root = THEME_ROOT.resolve()
+        resolved_path = (CREW_WORKSPACE / css_path).resolve()
+        try:
+            resolved_path.relative_to(resolved_root)
+        except ValueError:
+            die(f"主题 {theme_id!r} 的 css 路径越界: {css}")
+        if not resolved_path.is_file():
+            die(f"主题 {theme_id!r} 的 CSS 文件不存在: {resolved_path}")
+        return resolved_path
     return None
 
 
@@ -131,7 +149,7 @@ def resolve_theme(theme_arg: str | None) -> tuple[str, str] | None:
     解析顺序：
       1. theme_arg 为空 → None
       2. 以 .css 结尾且是本地文件 → custom_theme（CSS 文本）
-      3. SKILL.md 主题表登记的自定义 id → 解析 CSS 路径 → custom_theme
+      3. wenyan-theme/index.json 登记的自定义 id → 解析 CSS 路径 → custom_theme
       4. 其它 → 内置主题 id，原样作为 theme
     """
     if not theme_arg:
@@ -318,7 +336,7 @@ def main() -> None:
     parser.add_argument("markdown_file", help="Markdown 文件路径")
     parser.add_argument(
         "theme", nargs="?", default=None,
-        help="主题：内置 id（pie/lapis/default/…）/ 本地 .css 路径 / SKILL.md 登记的自定义 id",
+        help="主题：内置 id（pie/lapis/default/…）/ 本地 .css 路径 / wenyan-theme/index.json 登记的自定义 id",
     )
     parser.add_argument("--account", default=None, help="指定公众号 alias（缺省用 accounts.json 的 default）")
     args = parser.parse_args()

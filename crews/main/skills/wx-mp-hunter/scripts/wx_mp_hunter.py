@@ -10,7 +10,8 @@
    captcha / 登录态。
 
 2. **账号 posts-list**：从本机微信客户端容器的 biz 消息库（SQLCipher 加密 +
-   Zstd 压缩）扫过去 N 小时的 49 号文章消息，按账号白名单过滤、按 url 去重。
+   Zstd 压缩）扫 49 号文章消息，支持过去 N 小时或最新 N 条，按账号白名单
+   过滤、按 url 去重。
    仅能拿到容器客户端已登录微信账号**已关注**的公众号推送。
 
 3. **专题页流程（mp/homepage）**：camoufox-cli 无头浏览器打开专题页，
@@ -114,6 +115,13 @@ def print_json(data: Any) -> None:
 def err_exit(msg: str, code: int = 1) -> None:
     print_json({"ok": False, "error": msg})
     sys.exit(code)
+
+
+def positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("必须为正整数")
+    return parsed
 
 
 # ── biz 消息库扫库 ───────────────────────────────────────────────────────────
@@ -271,23 +279,25 @@ def _parse_49_message(content_bytes: bytes) -> Optional[dict[str, Any]]:
 
 
 def _scan_biz_messages(
-    limit_hours: int,
+    limit_hours: Optional[int],
     account_whitelist: Optional[set[str]] = None,
+    recent_limit: Optional[int] = None,
 ) -> list[dict[str, Any]]:
-    """扫描 biz 消息库，返回过去 limit_hours 小时内的 49 号文章消息。
+    """扫描 biz 消息库，返回时间窗口或最近 N 条 49 号文章消息。
 
     Args:
-        limit_hours: 时间窗口（小时）
+        limit_hours: 时间窗口（小时）；recent 模式传 None
         account_whitelist: 公众号白名单（公众号名，即 author）。
             若为 None 则返回全部；若非空则只保留 author 在白名单内的消息。
+        recent_limit: recent 模式保留的最新消息条数；非 recent 模式传 None
 
     Returns:
         List[Dict]，每个 dict 含 title/url/author/publish_time/cover。
-        按 publish_time 倒序，已按 url 去重。
+        按消息接收时间倒序，已按 url 去重。
     """
-    cutoff_ts = time.time() - limit_hours * 3600
+    cutoff_ts = 0 if limit_hours is None else time.time() - limit_hours * 3600
     results: list[dict[str, Any]] = []
-    seen_urls: set[str] = set()
+    url_indexes: dict[str, int] = {}
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="bizscan_"))
     try:
@@ -320,10 +330,13 @@ def _scan_biz_messages(
                         continue
                     if account_whitelist and msg["author"] not in account_whitelist:
                         continue
-                    if msg["url"] in seen_urls:
-                        continue
-                    seen_urls.add(msg["url"])
-                    results.append(msg)
+                    msg["_message_time"] = int(_create_time)
+                    existing_index = url_indexes.get(msg["url"])
+                    if existing_index is None:
+                        url_indexes[msg["url"]] = len(results)
+                        results.append(msg)
+                    elif msg["_message_time"] > results[existing_index]["_message_time"]:
+                        results[existing_index] = msg
         finally:
             conn.close()
     except Exception as e:
@@ -331,12 +344,19 @@ def _scan_biz_messages(
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    def _sort_key(m: dict[str, Any]) -> Any:
-        pt = m.get("publish_time", "")
-        return pt if pt else "0000-00-00"
+    return _sort_and_limit_recent_messages(results, recent_limit)
 
-    results.sort(key=_sort_key, reverse=True)
-    return results
+
+def _sort_and_limit_recent_messages(
+    messages: list[dict[str, Any]],
+    recent_limit: Optional[int],
+) -> list[dict[str, Any]]:
+    messages.sort(key=lambda msg: msg["_message_time"], reverse=True)
+    if recent_limit is not None:
+        messages = messages[:recent_limit]
+    for msg in messages:
+        msg.pop("_message_time", None)
+    return messages
 
 
 # ── 单篇 fetch：MicroMessenger UA 直访 ──────────────────────────────────────
@@ -976,7 +996,7 @@ async def cmd_fetch(args: argparse.Namespace) -> int:
 
 
 def cmd_posts_list(args: argparse.Namespace) -> int:
-    """扫 biz 消息库拿过去 N 小时某账号（或全部）的文章推送列表。
+    """扫 biz 消息库拿时间窗口或最近 N 条文章推送列表。
 
     仅能拿到容器客户端已登录微信账号**已关注**的公众号推送。扫不到某账号
     时提示用户可能是未关注 / 该账号在此时间窗口内未发布。
@@ -984,14 +1004,15 @@ def cmd_posts_list(args: argparse.Namespace) -> int:
     # 仅此命令检查容器环境
     _require_biz_container_env()
 
-    limit_hours = args.hours
+    recent_mode = args.recent is not None
+    limit_hours = None if recent_mode else args.hours
     accounts_arg = args.accounts
 
     whitelist: Optional[set[str]] = None
     if accounts_arg:
         whitelist = {a.strip() for a in accounts_arg.split(",") if a.strip()}
 
-    posts = _scan_biz_messages(limit_hours, whitelist)
+    posts = _scan_biz_messages(limit_hours, whitelist, args.recent)
 
     # 健康度诊断：用户指定但未命中的账号
     missing_accounts: list[str] = []
@@ -1001,18 +1022,29 @@ def cmd_posts_list(args: argparse.Namespace) -> int:
 
     result: dict[str, Any] = {
         "ok": True,
-        "limit_hours": limit_hours,
+        "mode": "recent" if recent_mode else "hours",
         "total": len(posts),
         "posts": posts,
     }
+    if recent_mode:
+        result["recent_limit"] = args.recent
+    else:
+        result["limit_hours"] = limit_hours
     if missing_accounts:
         result["missing_accounts"] = missing_accounts
-        result["hint"] = (
-            f"以下账号过去 {limit_hours}h 未在消息库中扫到文章（共 {len(missing_accounts)} 个）："
-            f"{'、'.join(missing_accounts)}。"
-            f"可能是该公众号在此时间窗口内未发布，也可能是本机微信客户端未关注该公众号。"
-            f"若需稳定接收该公众号推送，请确认本机微信客户端已关注该公众号。"
-        )
+        if recent_mode:
+            result["hint"] = (
+                f"以下账号未出现在最近 {args.recent} 条文章中（共 {len(missing_accounts)} 个）："
+                f"{'、'.join(missing_accounts)}。"
+                f"可能是本机微信客户端未关注该公众号、近期未收到推送，或其消息被更新推送挤出前 {args.recent} 条。"
+            )
+        else:
+            result["hint"] = (
+                f"以下账号过去 {limit_hours}h 未在消息库中扫到文章（共 {len(missing_accounts)} 个）："
+                f"{'、'.join(missing_accounts)}。"
+                f"可能是该公众号在此时间窗口内未发布，也可能是本机微信客户端未关注该公众号。"
+                f"若需稳定接收该公众号推送，请确认本机微信客户端已关注该公众号。"
+            )
 
     print_json(result)
     return 0
@@ -1178,8 +1210,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_fetch.set_defaults(func=cmd_fetch)
 
     # posts-list
-    p_pl = sub.add_parser("posts-list", help="扫消息库拿过去 N 小时的文章推送列表")
-    p_pl.add_argument("--hours", type=int, default=24, help="时间窗口（小时，默认 24）")
+    p_pl = sub.add_parser("posts-list", help="扫消息库拿时间窗口或最近 N 条文章推送列表")
+    mode_group = p_pl.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--hours", type=positive_int, default=24,
+        help="时间窗口模式：取过去 N 小时（默认 24）",
+    )
+    mode_group.add_argument(
+        "--recent", type=positive_int, metavar="N",
+        help="最近发布模式：取消息库中最新 N 条",
+    )
     p_pl.add_argument(
         "--accounts", default="",
         help="公众号名白名单，逗号分隔；不传则返回全部",

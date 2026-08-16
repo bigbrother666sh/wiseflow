@@ -1,19 +1,20 @@
 ---
 name: generate-wenyan-theme
-description: Generate custom WeChat CSS themes from natural language descriptions,
-  WeChat article URLs, or recent articles from a WeChat Official Account.
-  Produces a valid CSS file conforming to wenyan and ready for wx-mp-publisher.
+description: 从自然语言描述或对标公众号文章生成自定义排版 CSS 主题，产出可直接给 wx-mp-publisher 使用的 wenyan 格式主题。
 metadata:
   openclaw:
-    emoji: 🎨
     requires:
       bins:
       - node
 ---
 
-# 微信公众号自定义主题 CSS 生成器
+# generate-wenyan-theme - 工具说明
+
+> 本文是 `expert-wx-mp` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow 指引调用。
 
 根据用户的自然语言需求，生成符合微信公众号排版规范的自定义 CSS 样式表，保存为本地文件。
+
+本工具只管理排版主题，不参与内容 DNA 采样、组合或评分。主题资产统一保存在 `wenyan-theme/`，不写入 `dna/wx_mp/`。
 
 ---
 
@@ -22,7 +23,7 @@ metadata:
 - **自然语言转 CSS**：理解视觉需求（如"赛博朋克风"、"深色代码块"、"带装饰的引用块"），转换为精确的 CSS 代码
 - **微信文章仿样式生成**：当用户提供 `https://mp.weixin.qq.com` 文章链接时，调用 `wx-mp-hunter fetch <url> --html` 获取正文 HTML，分析原文排版特征后生成 wenyan CSS
 - **公众号近期文章归纳生成**：当用户提供公众号账号时，调用 `wx-mp-hunter search` + `account-posts` + `fetch --html` 采集近期文章 HTML，抽取共性后生成模板
-- **主题注册联动**：生成自定义 CSS 后，自动更新同 crew 内 `./skills/wx-mp-publisher/SKILL.md` 的主题列表，方便后续发布优先选用
+- **主题注册到 index.json**：生成自定义 CSS 后，把主题信息写入工作区 `wenyan-theme/index.json`，`wx-mp-publisher` 会从这里读自定义主题
 - **微信排版规范适配**：严格遵循 `#wenyan` 命名空间约束，确保样式能完美注入微信公众号 DOM 结构
 - **高级排版特效**：支持伪元素 (`::before`/`::after`)、渐变背景 (`linear-gradient`)、内联 SVG/Base64 图片等高级 CSS 特性
 
@@ -30,7 +31,7 @@ metadata:
 
 ## 输入模式识别
 
-本技能支持三种模式，按以下优先级判断：
+本工具支持三种模式，按以下优先级判断：
 
 1. **单篇文章 URL 模式**：用户输入包含 `https://mp.weixin.qq.com` 开头的链接。
 2. **公众号账号模式**：用户明确提供微信公众号账号名、别名或要求“参考某公众号/抓取某公众号最近文章”。
@@ -262,8 +263,8 @@ generate-wenyan-theme --account <公众号名> --keywords "关键词1,关键词2
 1. **分析需求**：提取关键词（如：深色、科技风、可爱），确定主色调和风格方向
 2. **生成 CSS**：严格按照命名空间约束和上述规范，生成完整的 CSS 代码
 3. **保存文件**：将 CSS 写入 `wenyan-theme/` 子目录（如 `wenyan-theme/custom-theme.css`）
-4. **注册主题**：更新 `./skills/wx-mp-publisher/SKILL.md` 的“主题选择”表格，追加或更新该自定义主题记录
-5. **后续引导**：提示使用 `wx-mp-publisher` 技能的第二个位置参数传入自定义 CSS 路径进行发布
+4. **注册主题**：按「生成主题注册规则」更新工作区 `wenyan-theme/index.json`
+5. **后续引导**：提示使用 `wx-mp-publisher` 技能的第二个位置参数传入注册的 `theme-id` 发布
 
 ### B. 单篇文章 URL 模式
 
@@ -313,16 +314,27 @@ generate-wenyan-theme --account <公众号名> --keywords "关键词1,关键词2
 
 ## 生成主题注册规则
 
-`generate-wenyan-theme` 与 `wx-mp-publisher` 都是你的私有技能，目录相对位置固定。因此每次成功生成自定义 CSS 后，必须同步更新：
+每次成功生成自定义 CSS 后，必须更新工作区主题注册表：
 
 ```text
-./skills/wx-mp-publisher/SKILL.md
+wenyan-theme/index.json
 ```
 
-在 `wx-mp-publisher/SKILL.md` 的“主题选择”表格中追加或更新一行自定义主题记录：
+结构固定为：
 
-```markdown
-| `<theme-id>` | 用户自定义：<风格摘要>（文件：`<css-file>`） | 用户明确指定参考该主题时优先采用；相似内容可优先建议 |
+```json
+{
+  "version": 1,
+  "themes": [
+    {
+      "id": "<theme-id>",
+      "name": "<主题名称>",
+      "css": "wenyan-theme/<theme-id>.css",
+      "source": "<natural-language | url | account>",
+      "createdAt": "<ISO-8601 时间>"
+    }
+  ]
+}
 ```
 
 **登记表是 client 侧 id → 本地 CSS 路径映射，relay 不存主题。** CSS 内容随发布请求上传（`custom_theme` 字段）。
@@ -331,30 +343,30 @@ generate-wenyan-theme --account <公众号名> --keywords "关键词1,关键词2
 
 - `theme-id` 使用 CSS 文件名去掉 `.css` 后缀，例如 `wenyan-theme/custom-theme.css` → `custom-theme`。
 - CSS 文件路径写相对路径（含 `wenyan-theme/` 子目录），优先使用当前 crew workspace 内路径。
-- 如果同名 `theme-id` 已存在，更新原行，不重复追加。
-- 自定义主题必须在风格描述中标注“用户自定义”。
-- 自定义主题的适用场景必须强调：**用户指定参考时优先采用**。
+- 如果同名 `theme-id` 已存在，更新原记录，不重复追加。
+- 保留可追溯字段：`name`、`source`、`createdAt`；更新主题时刷新 `createdAt`。
 - 不要修改内置主题 ID 的含义。
 
-注册后，`wx-mp-publisher` 发布时通过第二个位置参数引用自定义主题，两种写法等价：
+注册后，`wx-mp-publisher` 发布时通过第二个位置参数引用自定义主题：
 
 ```bash
-# 1) 直接传 CSS 文件路径
-wx-mp-publisher article.md wenyan-theme/custom-theme.css
-# 2) 传登记在主题表里的 theme-id（脚本自动解析出 CSS 路径）
 wx-mp-publisher article.md custom-theme
+```
+
+临时未登记的 CSS 文件也可直接传路径：
+
+```bash
+wx-mp-publisher article.md wenyan-theme/custom-theme.css
 ```
 
 ---
 
 ## 与 wx-mp-publisher 配合使用
 
-生成 CSS 文件后，用 `wx-mp-publisher` 发布，第二个位置参数即主题（CSS 路径或登记的 theme-id 均可）：
+生成 CSS 文件后，用 `wx-mp-publisher` 发布，第二个位置参数优先传登记的 `theme-id`：
 
 ```bash
-wx-mp-publisher article.md wenyan-theme/custom-theme.css
-# 或
 wx-mp-publisher article.md custom-theme
 ```
 
-> 注：发布统一走 `publish_wx_mp.py`，当 theme 参数指向本地 `.css` 文件路径、或为主题表中登记的自定义 id 时，脚本读出 CSS 内容作 `custom_theme` 字段随 multipart 上传 relay；relay 侧请求结束即清理，不持久化、不落盘、不按用户存主题。
+> 注：发布统一走 `publish_wx_mp.py`，当 theme 参数指向本地 `.css` 文件路径、或为 `wenyan-theme/index.json` 登记的自定义 id 时，脚本读出 CSS 内容作 `custom_theme` 字段随 multipart 上传 relay；relay 侧请求结束即清理，不持久化、不落盘、不按用户存主题。

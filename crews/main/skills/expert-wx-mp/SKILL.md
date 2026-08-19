@@ -17,9 +17,10 @@ metadata:
 | 内容 DNA 管理 | Style DNA | 建内容 DNA、选内容 DNA、换内容风格、仿写前定 DNA |
 | 内容生产 | Content Production | 写一篇 / 做几篇公众号文章 |
 | 单篇仿写 | Imitation | 用户给定一篇公众号文章，按用户要求进行仿写 |
-| 起号与定位 | Account Setup | 新号起号、账号诊断、定位梳理、内容支柱搭建 |
+| 起号与定位 | Account Setup | 新号起号、定位梳理、内容支柱搭建、老号接手与诊断 |
+| 账号对标 | Account Benchmark | 对标账号 / 对标文章分析，并与默认或指定 DNA 逐项比较 |
 | 改稿与调整 | Editing | 改稿、润色、换风格、换排版、调方向 |
-| 数据复盘 | Review | 看数据、做复盘、分析对标、找改进方向 |
+| 数据复盘 | Review | 看数据、做复盘、找改进方向 |
 
 ## 资源命名约定
 
@@ -37,7 +38,7 @@ metadata:
 
 | 工具 | 用途 | 命令 |
 |------|------|------|
-| `wechat-style-profiler` | 从多篇历史文章统计内容 DNA，并生成可计算评估 | `wechat-style-profiler` |
+| `wechat-style-profiler` | 生成单篇 DNA report，并聚合 DNA 文档与 DNA template | `wechat-style-profiler` |
 | `wechat-topic-outline-planner` | 选题评估 + 结构化大纲 | — |
 | `wechat-draft-writer` | 按 DNA 和大纲写初稿 | — |
 | `wechat-title-generator` | 8 个标题候选 + 打分推荐 | — |
@@ -45,7 +46,7 @@ metadata:
 | `wx-mp-publisher` | Markdown → 草稿箱（relay 发布） | `wx-mp-publisher` |
 | `wx-mp-engagement` | 创作者中心数据抓取 | `wx-mp-engagement` |
 
-跨领域通用技能：`wx-mp-hunter`（对标文章搜索采集）、`content-calibrator`（内容打分）、`published-track`（发布记录与指标库）。
+跨领域通用技能：`wx-mp-hunter`（公众号文章与发布列表采集）、`content-calibrator`（内容打分）、`published-track`（发布记录与指标库）。
 
 ## 平台速查
 
@@ -63,7 +64,7 @@ metadata:
 
 ## 风格与 DNA
 
-账号内容风格走 DNA 系统，唯一运行时目录是 `dna/wx_mp/`。有历史样本时先统计建模；没有样本且用户确认兜底时，用 Default Business DNA。生产前读取 DNA instruction，生产后按 evaluation 自评。排版主题不属于 DNA，统一由 `wenyan-theme/` 管理。
+账号内容风格走 DNA 系统，唯一运行时目录是 `dna/wx_mp/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。排版主题不属于 DNA，统一由 `wenyan-theme/` 管理。
 
 ## 数据与记录
 

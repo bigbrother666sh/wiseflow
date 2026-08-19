@@ -1,6 +1,6 @@
 # 专家包（Expert Pack）+ DNA 架构规划
 
-> 日期：2026-08-14
+> 日期：2026-08-14；2026-08-18 更新 DNA 生产模式与跨平台 profiler 规范
 > 分析基准：内置 openclaw `v2026.7.1`（commit `2d2ddc43`）
 > 目标版本：`v2026.7.1-2`（commit `0790d9f`，待网络可用后升级）
 > 首个改造对象：`crews/main`（小贝 / main agent）
@@ -22,7 +22,7 @@
 一个 crew =
   薄 AGENTS.md（通用准则 + 专家包路由）
   + 多套专家包（工作流 + 技能组合 + 知识库 + DNA）
-  + DNA 库（可从对标账号抽取、可组合）
+  + DNA 库（report 聚合 -> DNA 文档 -> DNA template）
   + 共享的 SOUL / TOOLS / IDENTITY / USER / MEMORY（人格与记忆不拆分）
 ```
 
@@ -90,9 +90,9 @@
 | 薄 `AGENTS.md` + 按工作内容加载细则 | ✅ 直接可行 | 细则迁入专家包 `SKILL.md`，复用原生按需读取 |
 | 每个专家包单独一个 `agents.md` 并自动加载 | ⚠️ 不建议 | OpenClaw 不自动加载任意子目录 `AGENTS.md`；`bootstrap-extra-files` 会变成每轮全量注入 |
 | 专家包携带技能组合、知识库 | ✅ 直接可行 | skill 目录可包含任意附属文件；领域专属技能整体收纳进包内 `tools/`，跨领域技能保持顶层 |
-| DNA 文档库 + 灵活组合 | ✅ 可行（约定层实现） | OpenClaw 不理解「DNA」语义，需用 frontmatter 元数据 + 包内选择规则实现 |
+| DNA ID 管理 + 三层生产 | ✅ 可行（约定层实现） | OpenClaw 不理解「DNA」语义；由 style-profiler 约定 report / DNA 文档 / template 的文件关系 |
 | 共享一个 workspace / 记忆 / 人格 | ✅ 符合现状 | 专家包只是技能目录，不引入新 agent / 新 workspace |
-| 从对标账号自动提取 DNA | 🔜 后续阶段 | 属于上层工具链，先落人工/半自动的 DNA 文档规范 |
+| 从样本生成 DNA report scaffold | ✅ 可行 | 脚本负责样本记账与统计底座；定性提取必须由 Agent 回读原文完成 |
 
 核心设计原则：**不要发明新的加载机制，把专家包做成「一等公民 skill」**。专家包同时承担两个职责：
 
@@ -113,9 +113,11 @@ crews/main/
   SOUL.md / TOOLS.md / IDENTITY.md / USER.md / MEMORY.md   # 不变
   dna/                           # Workspace 运行时 DNA，统一按平台分目录
     wx_mp/
-      INDEX.md
-      default-business.md
-      default-business.evaluation.md
+      {dna-id}/
+        reports/
+          {sample-id}.report.md
+        {dna-id}.dna.md
+        {dna-id}.template.md
   skills/
     expert-wx-mp/                # 专家包：微信公众号运营
       SKILL.md                   # 第一层：专家身份 + 交互原则 + 平台速查 + workflow 清单 + 工具清单
@@ -126,7 +128,7 @@ crews/main/
         review.md                #   数据复盘 / 对标分析
         review.md                #   数据复盘/对标分析
       tools/                     # 领域专属工具（被收纳的原子技能）
-        wechat-style-profiler/   #   文风 DNA 建模
+        wechat-style-profiler/   #   单篇 report -> DNA 文档 -> DNA template
         wechat-topic-outline-planner/
         wechat-draft-writer/     #   按 DNA 写初稿
         wechat-title-generator/  #   标题生成
@@ -145,20 +147,52 @@ crews/main/
 
 - 专家包统一加 `expert-` 前缀，与「操作型技能」（如 `douyin-publish`）区分。
 - 专家包内不使用 `AGENTS.md` 作为文件名（避免与 workspace bootstrap 文件混淆，也避免被误解为会被自动注入）。
-- 专家包内不保存可变 DNA。运行期提取或生成的 DNA 一律写入 Workspace 的 `dna/<platform>/`；专家包只保留方法论、模板和工具。
+- 专家包内不保存可变 DNA。运行期生成的 DNA report、DNA 文档和 DNA template 一律写入 Workspace 的 `dna/<platform>/<dna-id>/`；专家包只保留方法论、框架和工具。
 
-### 4.2 三层结构原则
+### 4.2 专家包与运行时资产分层原则
 
-专家包内部不分"知识层"。所有内容按稳定性和用途归到三层：
+专家包是随代码部署的**能力包**，Workspace 是运行期产生的**数据区**。两者必须分开管理，不再把专家包、workflow、DNA 混称为同一个三层结构。
 
-| 层 | 文件 | 内容 | 变化频率 |
-|----|------|------|----------|
-| 第一层 | `SKILL.md` | 平台能力边界、workflow 清单、工具清单、平台速查、默认红线 | 低频 |
-| | | **不放**：身份描述、人设、交互原则——这些是 crew 层 SOUL.md / AGENTS.md 的事，专家包只做事 | |
-| 第二类 | `workflows/*.md` | 按场景拆分的操作流程（每个场景一个文件） | 中频 |
-| 第三层 | Workspace `dna/<platform>/*.md` | 风格、定位、语气等可组合的 DNA | 高频，可增减 |
+#### 专家包：稳定能力
 
-知识不独立成层--平台规则收进 SKILL.md，操作步骤收进 workflow，风格偏好收进 Workspace DNA。排版等非 DNA 资产保存在各自平台资源目录。
+```text
+expert-<platform>/
+  SKILL.md
+  workflows/
+  tools/
+```
+
+| 组件 | 职责 | 边界 |
+|------|------|------|
+| `SKILL.md` | 专家包入口：平台能力边界、workflow 清单、工具清单、平台速查、硬性红线 | 不承载人设、通用准则或完整操作步骤；这些分别属于 crew 层文件和 workflow |
+| `workflows/*.md` | 场景编排：决定何时用哪个工具、何时由 Agent 分析、何时写入运行时资产 | 只写流程和调用关系，不实现具体工具逻辑 |
+| `tools/*` | 原子能力：profiler、选题、写作、排版、发布、取数等工具 | 每个平台必须有同构 `<platform>-style-profiler`；工具文档只写自己的输入、输出和调用方式 |
+| tool 内 `references/` | 方法论、分析框架、输出格式说明 | 附属于具体工具，不独立成全局 knowledge 层，也不保存生成数据 |
+
+#### Workspace：运行时数据
+
+```text
+Workspace/
+  dna/<platform>/<dna-id>/
+    reports/{sample-id}.report.md
+    {dna-id}.dna.md
+    {dna-id}.template.md
+  wenyan-theme/                 # 平台排版主题
+  calibration/<platform>/       # 平台校准与复盘数据
+```
+
+| 数据 | 归属 |
+|------|------|
+| DNA report / DNA 文档 / DNA template | `dna/<platform>/<dna-id>/` |
+| 排版主题 | 平台主题目录，例如 `wenyan-theme/` |
+| 校准、复盘、抓取结果 | 对应平台运行时数据目录 |
+
+硬性边界：
+
+1. 专家包可部署、可替换、可重建；运行期写入只能发生在 Workspace。
+2. DNA 不是专家包内置知识，而是由 style-profiler 生成并持续更新的运行时资产。
+3. 不单独设全局 knowledge 层；方法论文档必须附属于具体 tool 或 workflow。
+4. workflow 负责编排，tool 负责操作，Workspace 负责保存生成物。
 
 ### workflow 设计原则
 
@@ -216,57 +250,153 @@ crews/main/
 
 见已经完成的 `crews/main/skills/expert-wx-mp`
 
-### 4.6 DNA 文档规范
+### 4.6 DNA 定义与生产模式
 
-DNA = 同一工作内容下的可组合「风格 / 方案 / 定位」变体。运行时统一保存在 Workspace `dna/<platform>/`。每个统计型 DNA 必须交付三件资产：
+DNA 是一个以 `dna-id` 为管理主体的内容生产规则集。它不按账号名建模：一个 DNA 可以持续吸收任意数量的文章，样本可以来自一个账号，也可以来自多个账号不同的文章，甚至来自用户直接的想法；是否归入同一个 DNA，取决于用户指定（未指定，均录入默认的 `dna-0`)
 
-- `<dna-id>.md`：生产 instruction，写作前直接执行。
-- `<dna-id>.evaluation.md`：可观测评估方案，写作后计算。
-- `<dna-id>.metrics.json`：评估命令读取的统计目标与容差。
+DNA 的生产必须是三层产物：
 
-instruction 使用以下 frontmatter：
+```text
+单篇文章 -> DNA report
+同一个 DNA 目录下的全部 report + 权重/focus + 用户输入转译 -> DNA 文档
+DNA 文档 -> DNA template
+```
+
+#### 4.6.1 存储结构
+
+运行时统一保存在 Workspace 根目录，按平台和 DNA ID 分层：
+
+```text
+dna/<platform>/<dna-id>/
+  reports/
+    {sample-id}.report.md
+  {dna-id}.dna.md
+  {dna-id}.template.md
+```
+
+以微信公众号为例：
+
+```text
+dna/wx_mp/{dna-id}/reports/{sample-id}.report.md
+dna/wx_mp/{dna-id}/{dna-id}.dna.md
+dna/wx_mp/{dna-id}/{dna-id}.template.md
+```
+
+硬性边界：
+
+1. DNA report 必须归属于一个 `dna-id`，build/update 时拒绝混入其他 DNA 的 report。
+2. 原始文章可临时来自任意位置；生成后的 report 必须进入该 DNA 的 `reports/`。
+3. 专家包内只保留工具、方法论和框架，不保存可变 DNA。
+
+#### 4.6.2 DNA report
+
+DNA report 是单篇文章的定性提取结果，不是账号级结论，也不是写作模板。每篇 report 记录：
+
+- 16 维或平台自定义维度的单篇结论；
+- 原文证据；
+- 可复用写作信号；
+- 聚合权重，默认 `1`；
+- focus，限制该篇只影响某些维度；
+- 来源文章路径。
+
+单篇 report 不负责判断跨篇稳定性。是否成为共性、偏好、孤例或例外，由 DNA 文档聚合阶段判断。
+
+#### 4.6.3 DNA 文档
+
+DNA 文档聚合同一个 DNA 目录下的全部 report，形成当前采用的生产规则。每个维度至少包含：
+
+1. **聚合结论**：当前怎么选题、表达、组织或推进。
+2. **报告依据**：来自哪些 report、权重和 focus。
+3. **写作规则**：生产时必须怎么做。
+
+聚合时要区分：
+
+- 高覆盖共性；
+- 高权重样本带来的偏好；
+- 只在指定 focus 上借鉴的信号；
+- 单篇孤例或例外；
+- 用户输入转译后的规则。
+
+无法获取表现数据时默认等权；用户可显式指定某篇权重更高，或指定只在某些维度参考该篇。
+
+#### 4.6.4 DNA template
+
+DNA template 是从 DNA 文档推导出的生产模板。它不是概念说明，而是写稿时直接执行的结构化要求。
+
+通用形态：
 
 ```markdown
----
-dna-id: government-publish
-domain: wx-mp
-dimensions:
-  - tone          # 语气：严谨、权威、克制
-  - topic         # 选题：政策解读、民生服务、通知公告
-  - structure     # 结构：标题-导语-正文-落款
-  - cta           # 行动号召：弱 CTA，强调官方渠道
-  - risk          # 风险：表述准确性 > 传播性
-composable-with:
-  - local-news    # 可与本地资讯 DNA 组合
-priority: tone > risk > structure > topic > cta
----
+（选题角度推荐：xxx、xx、xxx）
+（选题需考虑的受众关联角度：xxx）
 
-# 政务发布型 DNA
-（使用时必须执行 + 可观测量化目标 + 维度规则 + 例外）
+[标题]（类型为主：xxx、xx、xx）
+（参考：xxx、xxx、xxx）
+
+[第一段]
+（本段用于引出话题，多用短句，从 xxx 起步……）
 ```
 
-组合规则（写在 DNA Index）：
+template 必须能从 DNA 文档推导，不能引入 DNA 文档未确认的规则。分段数量由 DNA 文档的结构和起承转合结论决定，不固定为三段或四段。
 
-1. **必选一个主 DNA**（决定账号定位）。
-2. 可叠加 0–2 个辅助 DNA（如 `local-news` + `government-publish`）。
-3. 冲突时按 DNA 自带 `priority` 解析（如语气 > 结构 > 选题）。
-4. 任何 DNA 都不得覆盖品牌红线与平台硬性规则。
-5. 未识别定位时**询问用户**，不默认套用 DNA。
+#### 4.6.5 用户输入
 
-从对标账号提取 DNA 的流程（平台工具实现统计底座，agent 补语义维度）：
+用户输入是参考信息，不是可直接入库的 DNA 规则。Agent 必须把用户输入转译到具体维度，例如：
 
-```
-全量可获取样本 -> 逐篇指标 -> 跨篇中位数/MAD/覆盖率 -> instruction + evaluation + metrics -> 人工确认 -> 入库 Workspace 的 dna/<platform>/
+```text
+sentence-rhythm：提高短句比例，连续长句不超过两句
+vocabulary-syntax：优先使用动词驱动的短表达
+narrative-micro-operations：转折处使用一句成段强化节奏
 ```
 
-硬性规则：
+DNA 文档中的用户输入转译区必须记录：
 
-1. 定性特征至少覆盖 60% 样本才可进入主 DNA；孤例进入例外区。
-2. 无法获取账号级表现数据时不做表现加权，先等权统计共性。
-3. 生产前读取 instruction，生产后按 evaluation 计算；总分或关键维度未达标先修订。
-4. 排版、发布配置和平台凭据不是 DNA 维度，分别保存在对应运行时资源目录。
+- 原始输入来源；
+- affected dimensions；
+- DNA 文档修改；
+- template 修改；
+- 处理状态。
 
-### 4.7 Markdown 引用与运行时数据边界
+template 只写转译后的执行规则，不直接抄用户原话。用户不需要确认后登记索引；用户意见可以直接推动 DNA 更新，但必须落为具体维度规则。
+
+#### 4.6.6 统计边界
+
+脚本统计只作为聚合证据底座，可用于句段、标点、人称、时长、镜头等平台相关观测，不生成总分，不决定风格是否合格。定性判断由 Agent 回读 report 与必要原文完成。
+
+高频表达、关键词或标签只是候选线索。分词器不能直接判断口头禅、签名式表达或平台叙事特征；任何分词结果都必须经 Agent 结合原文解释后才能进入 DNA 文档。
+
+### 4.7 跨平台 style-profiler 统一规范
+
+每个平台专家包必须有对应的 style-profiler tool，命名建议：
+
+```text
+crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
+```
+
+结构、模式、形态、流程必须与 `wechat-style-profiler` 一致：
+
+1. **命令模式**：`report` / `build` / `update`。
+2. **存储模式**：`dna/<platform>/<dna-id>/reports/`、`<dna-id>.dna.md`、`<dna-id>.template.md`。
+3. **生产模式**：单篇 report -> 聚合 DNA 文档 -> 推导 DNA template。
+4. **权重与 focus**：支持单篇权重和维度级 focus。
+5. **用户输入**：进入转译区，由 Agent 映射到平台维度后同步 DNA 文档与 template。
+6. **统计边界**：脚本只做证据底座，不评分、不替代定性判断。
+7. **更新模式**：合并历史 report 与新 report，保留 Agent 已完成结论和自定义段落。
+
+各平台允许不同、且必须单独讨论的部分只有：
+
+- DNA 提取与分析维度；
+- 维度分组和命名；
+- 平台特有观测物，例如图文的标题与分段、视频的分镜与节奏、电商的卖点组织；
+- template 的分段结构；
+- focus ID 集合。
+
+其他平台改造固定顺序：
+
+1. **先搭架构**：复制 wechat-style-profiler 的命令契约、存储结构、三层产物、权重/focus、用户输入转译和 update 机制，仅保留通用维度占位。
+2. **再定义维度**：与用户讨论并确认该平台的 DNA 提取与分析维度；没有确认前，不得把微信 16 维直接照搬到其他平台。
+3. **最后接入工作流**：将 draft writer、改稿、仿写等工具改为读取该平台 DNA template。
+
+### 4.8 Markdown 引用与运行时数据边界
 
 后续平台改造必须遵守两条硬性边界：
 
@@ -277,9 +407,9 @@ priority: tone > risk > structure > topic > cta
    - 只有工具清单中明确列出的 wrapper 名称可以直接作为 shell 命令调用；未暴露 wrapper 的 Tool 名称仅用于定位工具说明，不得拼成脚本路径。
 
 2. **运行期数据只能写 Workspace**。
-   - 账号 DNA、样本清单、证据矩阵、主题 CSS、抓取结果、校准数据等提取或生成物，都必须保存到 Workspace 下的平台数据目录（例如 `dna/wx_mp/`、`wenyan-theme/`、`wx_mp_ref/`、`calibration/wx_mp/`）。
+   - DNA report、DNA 文档、DNA template、主题 CSS、抓取结果、校准数据等生成物，都必须保存到 Workspace 下的平台数据目录（例如 `dna/wx_mp/`、`wenyan-theme/`、`calibration/wx_mp/`）。
    - 不得写入专家包的 `dna/`、`references/`、`tools/` 或其他包内目录。专家包是可替换、可重建、可软链的代码与规则资产；运行期写入会造成实例状态和源仓状态耦合， reinstall / 重建 / 升级时也容易丢失。
-   - 专家包只发布方法论和模板；默认 DNA 与生成结果都保存在 Workspace `dna/<platform>/`，并通过 Workspace 索引管理。
+   - 专家包只发布方法论、框架和工具；DNA 生成结果保存在 Workspace `dna/<platform>/<dna-id>/`，不通过索引登记。
 
 ---
 
@@ -320,7 +450,7 @@ priority: tone > risk > structure > topic > cta
 
 ### Phase 1：骨架 + 入口
 
-- 建三层结构：`SKILL.md` + `workflows/`（5 个空壳）+ `tools/`
+- 建专家包骨架：`SKILL.md` + `workflows/` + `tools/`
 - 写好 SKILL.md 的 description 和工具清单
 - 部署验证：确认该技能出现在 `<available_skills>`、子目录 SKILL.md 不出现
 - wrapper 扫描扩展：确认 `tools/` 里的 wrapper 能被 expose 出来（需要脚本支持，见下）
@@ -328,7 +458,7 @@ priority: tone > risk > structure > topic > cta
 ### Phase 2：迁移 + 收纳
 
 - 把 AGENTS.md 里的平台流程拆进对应 workflow
-- 把知识文档拆分：规则进 SKILL.md、步骤进 workflow、风格进 DNA
+- 把知识文档拆分：规则进 `SKILL.md`，步骤进 workflow，方法论附属于 tool，风格进入 Workspace DNA
 - 执行技能收纳：原子技能整个目录移进 `tools/`
 - 删旧位置 + 更新引用（BUILTIN_SKILLS、AGENTS.md、其他技能里的交叉引用）
 - 从外部移植来的 persona：按"原则→SKILL、风格→DNA、没用的删掉"原则拆分
@@ -339,11 +469,12 @@ priority: tone > risk > structure > topic > cta
 - 薄化 AGENTS.md：删掉对应平台的细节，只留路由入口
 - 残留引用检查：rg 一遍旧路径，确保没有漏网之鱼
 
-### Phase 4：DNA 丰富 + 工具链（后续）
+### Phase 4：DNA 工具链 + 多平台扩展（后续）
 
-- 逐步新增更多 DNA 文档（政务型、产品推广型、创始人 IP 型等）
-- 实现 DNA 提取工具：从对标账号自动抽取风格 DNA
-- 推广到其他平台（小红书、抖音、视频号……）
+- 每个平台专家包先落地同构 `<platform>-style-profiler`：统一 report / build / update 命令、DNA ID 存储和用户输入转译机制。
+- 平台架构完成后，与用户确认该平台独有的 DNA 提取与分析维度。
+- 维度确认后再接入内容生产、改稿、仿写等下游 workflow。
+- 逐步沉淀更多 DNA：每个 DNA 持续追加 report，并通过 update 重聚合同步 DNA 文档与 template。
 
 ---
 
@@ -352,7 +483,7 @@ priority: tone > risk > structure > topic > cta
 | 风险 | 影响 | 对策 |
 |------|------|------|
 | 路由失败：任务描述与专家包 description 匹配不准 | 走错流程或回退到通用行为 | description 写触发词与排除项；`AGENTS.md` 路由表兜底；试点期观察误路由案例 |
-| DNA 组合冲突 | 输出风格摇摆 | 每个 DNA 声明 `priority`；主 DNA 优先；红线不可覆盖 |
+| DNA 选择混乱 | 多套风格规则同时生效，输出摇摆 | 生产任务必须明确一个 `dna-id`；如需融合，先把用户输入和新样本转译进该 DNA，再重聚合并更新 template |
 | 专家包膨胀为新的「小 AGENTS.md」 | 按需读取成本上升 | `SKILL.md` 只做入口与索引，细节分层到 `workflow.md` / `knowledge/` |
 | 技能提示超预算（150 个 / 18k 字符） | 专家包不出现在 `<available_skills>` | 控制 description 长度；合并低频操作技能；定期审计 skill 数量 |
 | 弱模型路径拼接错误 | 读不到包内文件 | 遵循 D21 wrapper 原则；包内脚本统一暴露 wrapper；`SKILL.md` 用相对路径引用 |
@@ -388,16 +519,17 @@ git -C openclaw checkout 0790d9f
 - 典型任务路由到正确专家包（description 承接触发词）。
 - 专家包 `SKILL.md` 未被任务触发时不进入上下文（仅 name/description 常驻）。
 - 被收纳技能不再出现在 `<available_skills>`；技能总数较改造前下降（净减 = 收纳数 - 1 个专家包）。
-- 专家包内三层结构清晰：`SKILL.md`（接口 + 速查）、`workflows/`（流程）、`tools/`（原子级技能）——没有 knowledge 层。
+- 专家包结构清晰：`SKILL.md`（接口 + 速查）、`workflows/`（流程）、`tools/`（原子级技能）--没有独立 knowledge 层。
 - 6 个 workflow（style-dna / content-production / imitation / account-setup / editing / review）各对应一类用户需求，互不重叠，覆盖完整。
-- 至少有一个可用的 DNA 文档 + DNA 索引。
+- style-profiler 支持 `report / build / update`，并能生成 DNA 文档与 DNA template。
+- DNA 存储符合 `dna/<platform>/<dna-id>/reports/`，并在 DNA 目录下交付 `.dna.md` 与 `.template.md` 两个核心文件。
 - wrapper 扫描支持 `tools/` 嵌套层，收纳后的工具命令调用方式不变。
 - 部署脚本（`apply-addons.sh` / `setup-crew.sh`）无需结构性改动即可安装专家包。
 
 
 ## 10. 案例：微信公众号专家包改造（wx_mp）
 
-> 首个落地的专家包。2026-08-15 完成，可作为其他平台改造的参考模板。
+> 首个落地的专家包。2026-08-15 完成初始改造，2026-08-18 升级为三层 DNA 生产模式，可作为其他平台改造的参考模板。
 
 ### 10.1 改造前基线
 
@@ -427,7 +559,7 @@ git -C openclaw checkout 0790d9f
 expert-wx-mp/
   SKILL.md                  92 行   — 身份/交互/5 个 workflow/7 个工具/平台速查
   workflows/                        — 6 个场景 workflow
-    style-dna.md             70+ 行  - 内容 DNA 的统计提取/选择/组合/评估
+    style-dna.md             70+ 行  - DNA report 生成、聚合与 template 使用
     content-production.md    80+ 行  — 内容生产 SOP
     imitation.md             60+ 行  — 单篇仿写
     account-setup.md        110+ 行  — 起号/定位/账号诊断
@@ -468,10 +600,12 @@ expert-wx-mp/
 - [ ] 盘点：顶层技能数、哪些专属哪些复用
 - [ ] 盘点：AGENTS.md 里的平台段落
 - [ ] 盘点：knowledge / calibration / 其他散落文件
-- [ ] 建三层骨架：SKILL.md + workflows/ + tools/
-- [ ] 写 SKILL.md：6 个 workflow 清单、7 个工具清单、平台速查
+- [ ] 建专家包骨架：SKILL.md + workflows/ + tools/
+- [ ] 先搭建与 wechat-style-profiler 同构的 `<platform>-style-profiler`
+- [ ] 与用户确认该平台的 DNA 提取与分析维度；未确认前不照搬微信 16 维
+- [ ] 写 SKILL.md：按平台实际能力列 workflow / tool 清单，并必含 style-profiler
 - [ ] 拆 workflow：6 个场景各一个文件（style-dna + content-production + imitation + account-setup + editing + review）
-- [ ] 拆 DNA：至少一个默认 DNA
+- [ ] 拆 DNA：明确平台维度与 report / DNA 文档 / template 三层产物
 - [ ] 写资源命名约定：跨 Tool / Workflow 引用只写逻辑名称，禁止 `../` 和包内路径示例
 - [ ] 写数据边界：提取 / 生成的 DNA、风格、样本、主题等全部写 Workspace，不写专家包目录
 - [ ] 执行收纳：专属技能整个目录移进 tools/

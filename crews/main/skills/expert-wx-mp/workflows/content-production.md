@@ -1,92 +1,184 @@
-# 内容生产 Workflow
+# 公众号内容生产 Workflow
 
 从选题到发布的完整文章生产。用户说“帮我写一篇 XX”“出几篇稿子”“写篇公众号”走这个。
 
-## Step 0 - 前置准备
+## Step 0 - 生产契约锁定
 
-**先确定内容 DNA。**
-- 有指定风格 / 指定账号 -> 走 `style-dna.md` 建好 DNA
-- 有历史 DNA 可用 -> 读取 `dna/wx_mp/<dna-id>.md` 的「使用时必须执行」
-- 都没有 -> 向用户确认后用 `dna/wx_mp/default-business.md`
+### 1. 确定 DNA
 
-**再看缺不缺信息：**
-- 文章主题 / 方向是什么
-- 目标读者是谁（不确定就按账号定位来）
-- 手上有什么素材（文案、笔记、截图、参考链接）
-- 要不要打分、要不要发布
+生产必须绑定一个 DNA：
 
-缺信息一次问清，不挤牙膏。
+1. 用户明确指定 `dna-id` 时，只用该 DNA。
+2. 用户没有指定时，用默认 `dna-0`。
+3. 不得临场凭感觉拼一个风格，也不得改用 `default-business.md`。
+4. 若目标 DNA 不存在，先按 `account-setup.md` / `style-dna.md` 建立或更新 DNA；完成前不进入写作。
+5. 用户只给参考文章或参考账号时，先按 `style-dna.md` 处理：未指定目标则生成 report 并更新 `dna-0`，再回到本流程。
 
-## Step 1 - 选题（按需）
+写前必须读取两份文件：
 
-- 有明确主题 -> 跳过，直接到 Step 2
-- 只有方向没有具体选题 -> 调 `wechat-topic-outline-planner` 出 3-5 个选题方向
-- 需要对标参考 -> 调顶层 `wx-mp-hunter` 抓对标文章
-- 给用户选，或者直接推荐最优的一个
+```text
+dna/wx_mp/{dna-id}/{dna-id}.dna.md
+dna/wx_mp/{dna-id}/{dna-id}.template.md
+```
 
-## Step 2 - 大纲
+DNA template 是段落结构、句式、语气、标题和表达路线的直接执行依据；DNA 文档用于理解稳定性、例外和适用条件。
 
-- 调 `wechat-topic-outline-planner` 把选题转成结构化大纲
-- 产出：大纲 + 开头钩子选项 + 结尾方案
+### 2. 读取业务知识
+
+写作必须为 Workspace 根的 `business_knowledge.md` 服务。写前提取：
+
+- 产品 / 服务概括和核心差异
+- 目标读者与具体痛点
+- 收费项目、转化目标或下一步动作
+- 红线、合规限制和品牌语气
+
+内容选题、案例、承诺、CTA 和商业表述必须与这些信息一致。关键信息缺失时先问用户，不虚构。
+
+### 3. 采集生产要求
+
+根据输入和Memory确定以下信息是否齐全，如有缺失一次性向用户问清：
+
+| 项目 | 规则 |
+| --- | --- |
+| 主题 / 方向 | 用户给了明确主题时不得另起炉灶，仅按DNA template进行细化选题和标题拟定 |
+| 素材 | 用户提供的文案、笔记、截图、链接、数据、案例必须优先使用 |
+| 目标读者 | 未指定时按 `business_knowledge.md` 和 DNA 受众关系推导 |
+| 字数 | 未指定时按 DNA template；再无要求则默认 1500-2500 字 |
+| 署名 | 用户指定或有要求 `author` 时逐字使用，如无默认使用 `xiaobei` |
+| 原文链接 | 用户指定或有要求 `source_url` 时逐字保留；没有则不编造 |
+| CTA | 用户指定 CTA 时优先执行；未指定时按业务目标与 DNA template 推导，注意微信公众号不允许出现明显的二维码或者链接引流 |
+| 打分 / 发布 | 明确用户是否需要，不默认执行 |
+
+优先级固定为：
+
+```text
+用户明确交付要求 + 业务事实 / 红线
+> 用户提供的素材
+> business_knowledge.md
+> DNA template 的风格规则
+> Agent 的一般写作判断
+```
+
+DNA 约束的是选题角度、标题、结构、句式、语气和表达方式；不能覆盖用户指定署名、来源、CTA、事实和合规边界。
+
+## Step 1 - 素材整理
+
+1. 建立素材清单：用户原话、事实、数据、案例、图片、链接、可用观点、待确认信息。
+2. 用户给的公众号链接用 `wx-mp-hunter fetch` 获取正文；其他链接按可用工具读取。
+3. 区分三类输入：
+   - **必用素材**：用户明确要求采用的事实、观点、案例和图文物料。
+   - **参考素材**：提供方向或表达参考，不直接替代用户结论。
+   - **对标素材**：只用于模式比较，不能覆盖用户素材和业务事实。
+4. 素材不足时先补问；确实无法补充时，在稿中避免无证据断言。
+5. 素材之间冲突时列出冲突并问用户；商业事实以 `business_knowledge.md` 和用户最新说明为准。
+
+## Step 2 - 选题
+
+- 用户已有明确主题 -> 跳过生成，仅按DNA template进行细化选题和标题拟定。
+- 只有方向没有具体选题 -> 调 `wechat-topic-outline-planner` 出 3-5 个选题方向。
+- 选题必须优先消耗用户素材，并服务于 `business_knowledge.md` 中的读者痛点、产品服务或转化目标。
+
+给用户选题结论时，说明推荐理由必须同时覆盖：
+
+1. 使用了哪些用户素材。
+2. 服务哪个业务目标。
+3. 符合目标 DNA 的哪些选题与受众特征。
+
+## Step 3 - 大纲
+
+调 `wechat-topic-outline-planner` 把选题转成结构化大纲，并把 DNA template 转成本文的路线路径：
+
+- 标题策略和候选方向
+- 每段任务、起步方式、长度、句式、语气
+- 必用素材放置位置
+- 论证顺序、情绪曲线和 CTA 位置
+- 避免 DNA 中的反模式
 
 ## 【确认】选题 + 大纲
 
-方向对不对、结构行不行--这是第一个必停节点。
-- 确认的是方向和结构，不是每个字
-- 大调回 Step 1/2，小调直接改
+第一个必停节点。确认的是方向和结构，不是每个字。
 
-## Step 3 - 初稿
+- 小调直接改。
+- 换主题、换读者、换结构、换转化目标 -> 回到 Step 1/2。
+- 用户调整与 DNA 冲突时：事实、合规、署名、来源、CTA 按用户要求；纯风格偏好可按 `style-dna.md` 转译后更新 DNA，再继续生产。
 
-- 调 `wechat-draft-writer` 按 DNA instruction + 大纲写初稿
-- 默认字数 1500-2500，特殊需求另说
-- 统计型 DNA 运行 `wechat-style-profiler evaluate`；手写 DNA 按 `.evaluation.md` 自评
-- 总分低于 80 先修订，再重新计算
+## Step 4 - 初稿
+
+调用 `wechat-draft-writer`，输入大纲、必用素材和目标 DNA 的 DNA 文档 + DNA template。
+
+写作要求：
+
+1. 严格按 DNA template 的段落分布、段落任务、句式节奏、语气和结构执行。
+2. 用户必用素材优先进入正文，不得为了模板形状删除关键事实。
+3. 商业承诺、服务范围、价格和案例必须与 `business_knowledge.md` 一致。
+4. 用户指定 `author`、`source_url`、CTA 时逐字或按原意执行。
+5. 未指定 CTA 时，只选择一个与业务目标匹配的下一步动作，不堆叠多个转化要求。
+6. 不生成 `dna-evaluation.json`，不调用旧版 `wechat-style-profiler evaluate`。
 
 ## 【确认】初稿方向
 
 第二个必停节点。
-- 小修小改直接处理
-- 大调（换角度/换结构/换语气）回前面重写
-- OK 就往下走
 
-## Step 4 - 标题
+- 小修小改直接处理。
+- 换角度、换结构、换语气 -> 回到大纲或 DNA 检查。
+- 用户提出可复用风格偏好 -> 先判断是否更新 DNA；单次修改只改稿件，不落盘。
 
-- 调 `wechat-title-generator` 出 8 个候选 + 打分
-- 给用户 3 个选项：最推荐 / 最稳妥 / 最强传播
-- 用户也可以自己改
+## Step 5 - 标题
 
-## Step 5 - 排版主题（独立于 DNA）
+调 `wechat-title-generator` 出 8 个候选，并按 DNA 标题特征筛选。
 
-**Agent 自己选，不丢给 relay 默认。**
-- 根据内容类型和阅读场景，先看 `wenyan-theme/index.json` 有无可复用主题，再从内置主题里挑最合适的
-- 要对标排版 / 用户指定了参考文章 -> 调 `generate-wenyan-theme` 生成自定义主题
-- 生成后保存到 `wenyan-theme/<theme-id>.css`，并在 `wenyan-theme/index.json` 登记 `theme-id`
-- 用户直接指定了主题 -> 用用户指定的
+给用户 3 个选项：
 
-## Step 6 - 打分（可选）
+1. 最推荐
+2. 最稳妥
+3. 最强传播
 
-- 用户要求打分 -> 走 `content-calibrator` blind sub-agent 7 维打分 + 盲预测
-- 没提 -> 不主动加，但可以问一句“要不要跑个分”
-- 阈值门以 `calibration/.cheat-state.json` 为准
+用户已指定标题或标题原则时，候选必须在该约束内生成，不得偷换方向。
 
-## Step 7 - 存文件
+## Step 6 - 排版主题
 
-`output_articles/<article-name>/` 下放好：
+排版独立于 DNA，不作为风格符合证据。
+
+1. Agent 自己选，不丢给 relay 默认。
+2. 先看 `wenyan-theme/index.json` 有无可复用主题，再从内置主题中挑选。
+3. 用户指定主题 -> 使用指定主题。
+4. 用户要求对标排版 -> 调 `generate-wenyan-theme`，生成后保存并登记。
+
+## Step 7 - 质量检查（可选）
+
+用户要求打分 -> 走 `content-calibrator` blind sub-agent 7 维打分 + 盲预测。
+
+用户没提 -> 不主动加，但可以询问。阈值门以 `calibration/.cheat-state.json` 为准。
+
+## Step 8 - 存文件
+
+保存到 `output_articles/<article-name>/`：
+
 - `article.md`
 - 封面图 + 配图
-- `dna-evaluation.json`（统计型 DNA 时）
-- `calibration/`（打了分的话）
+- `calibration/`（仅打了分时）
+
+`article.md` frontmatter 或交付记录中必须保留：
+
+- 最终标题
+- 用户指定的 `author`（如有）
+- 用户指定的 `source_url`（如有）
+- 使用的 `dna-id`
+- CTA 说明
 
 ## 【确认】发布前检查
 
-第三个必停节点。检查清单在 `wx-mp-publisher` 工具说明末尾，核心是：
-- 内容合规（敏感表述、夸大、版权）
-- 格式正常（图片、标题长度、作者）
-- 链接正确
+第三个必停节点。检查清单在 `wx-mp-publisher` 工具说明末尾，核心包括：
+
+- 内容合规、敏感表述、夸大、版权
+- 事实与 `business_knowledge.md` 一致
+- 用户必用素材已使用且没有被改错
+- `author`、`source_url`、CTA 符合用户指定
+- 标题长度、图片、链接和格式正常
 - 发对账号
 
-## Step 8 - 发布 + 记录
+## Step 9 - 发布 + 记录
 
-- 调 `wx-mp-publisher` 推草稿箱；自定义主题传 `theme-id`，不修改 publisher 说明书主题表
-- 告诉用户去后台确认手动发布
-- 发布完成后调 `published-track record.sh` 落库
+1. 调 `wx-mp-publisher` 推草稿箱；自定义主题传 `theme-id`。
+2. 告诉用户去后台确认手动发布。
+3. 发布完成后调 `published-track record.sh` 落库。

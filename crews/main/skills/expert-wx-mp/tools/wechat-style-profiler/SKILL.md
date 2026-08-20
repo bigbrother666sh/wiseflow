@@ -1,6 +1,6 @@
 ---
 name: wechat-style-profiler
-description: 为单篇文章提取 DNA report，按 DNA ID 聚合历史 report 生成 DNA 文档，并推导完整的 DNA template。
+description: 为单篇文章提取 17 维 DNA report，按 DNA ID 聚合历史 report 生成 DNA 文档，并推导完整的 DNA template。
 metadata:
   openclaw:
     emoji: 🧬
@@ -16,7 +16,7 @@ metadata:
 DNA 文档 -> DNA template
 ```
 
-- **DNA report**：单篇文章的 16 维提取结果。
+- **DNA report**：单篇文章的 17 维提取结果。
 - **DNA 文档**：聚合历史 report 后得到的风格与选题规则。
 - **DNA template**：由 DNA 文档推导出的写作模板，供生产时直接执行。
 
@@ -28,6 +28,8 @@ DNA 以 DNA ID 为主体存储，一个 DNA 可以持续放入任意数量文章
 dna/wx_mp/{dna-id}/
   reports/
     {sample-id}.report.md
+  covers/
+    {sample-id}.{ext}
   {dna-id}.dna.md
   {dna-id}.template.md
 ```
@@ -38,7 +40,7 @@ dna/wx_mp/{dna-id}/
 
 - 输入正文支持 `.md` / `.txt`；`.docx` 先由 Agent 提取为文本。
 - 统计只作为聚合证据底座，不评分、不替代定性判断。
-- 16 维语义判断由 Agent 回读原文完成。
+- 17 维语义判断由 Agent 回读原文完成；封面图维度必须由视觉模型读取本地图片完成。
 - 不输出排版主题、合规结论、账号权重或风格评分。
 - 不要求用户确认或登记 INDEX。
 
@@ -48,7 +50,8 @@ dna/wx_mp/{dna-id}/
 wechat-style-profiler report \
   --input path/to/article.md \
   --dna-id {dna-id} \
-  --sample-id {sample-id}
+  --sample-id {sample-id} \
+  --cover-image path/to/cover.jpg
 ```
 
 默认输出：
@@ -71,6 +74,7 @@ dna/wx_mp/{dna-id}/reports/{sample-id}.report.md
 ```
 
 Agent 生成 scaffold 后必须回读原文，补齐每个维度的单篇结论、原文证据和可复用写作信号。
+封面图维度必须读取 `--cover-image` 指向的本地图片，并通过视觉模型补齐主体、构图、色彩、光线、质感、风格、文字视觉、品牌元素、避免项和 AIGC 复现提示词要素。没有封面图时记录“未提供”，不得编造。
 
 ## Build - 聚合 DNA 文档与模板
 
@@ -109,10 +113,10 @@ Agent 聚合时必须：
 
 ## DNA Template
 
-Template 是生产模板，不是概念解释。必须从 DNA 文档的 16 个维度推导，至少包含：
+Template 是生产模板，不是概念解释。必须从 DNA 文档的 17 个维度推导，至少包含：
 
 - 选题角度、受众关系
-- 标题类型和参考标题
+- 标题类型、参考标题、封面图风格和封面 AIGC 提示词要素
 - 起、承、转、合、CTA 五个固定语义部分
 - 每个部分的本段任务、切入或推进方式、结构、句式、语气、素材、必须做和避免项
 
@@ -170,6 +174,7 @@ narrative-micro-operations：转折处使用一句成段强化节奏
 |---|---|
 | `topic-angle` | 选题角度 |
 | `title-style` | 标题特征 |
+| `cover-image` | 封面图 |
 | `word-habit` | 用词习惯 |
 | `vocabulary-syntax` | 词汇与句式 |
 | `sentence-rhythm` | 句式节奏 |
@@ -193,4 +198,4 @@ narrative-micro-operations：转折处使用一句成段强化节奏
 
 ## 参考资料
 
-- `references/style-16d-framework.md`
+- `references/style-17d-framework.md`

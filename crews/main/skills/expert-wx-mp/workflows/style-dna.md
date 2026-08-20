@@ -1,6 +1,12 @@
-# 公众号内容 DNA 编排 Workflow
+# 公众号风格 DNA 创建与更新 Workflow
 
-本 Workflow 只负责编排：判断样本来源、选择目标 DNA、调用 `wx-mp-hunter` 获取材料、调用 `wechat-style-profiler` 生成或更新三层产物。16 维提取与聚合方法以 `tools/wechat-style-profiler/` 为准。
+本 Workflow 只负责风格 DNA 三层产物的创建与更新：判断样本来源、选择目标 DNA、调用 `wx-mp-hunter` 获取材料、调用 `wechat-style-profiler` 生成或更新 report / DNA 文档 / template。17 维提取与聚合方法以 `tools/wechat-style-profiler/` 为准。
+
+边界说明：
+
+- 账号初始化、定位梳理与默认 `dna-0` 初始化走 `account-setup.md`（该 workflow 会调用本 workflow 的样本获取与更新机制）。
+- 账号对标分析走 `account-benchmark.md`；本 workflow 只承担对标 DNA 的三层产物生成与更新，以及采纳后并入基线 DNA 的更新。
+- DNA 如何被用于写稿、改稿、仿写，分别由 `content-production.md` / `editing.md` / `imitation.md` 规定；本 workflow 不描述生产过程。
 
 DNA 只描述选题、标题、内容结构与表达策略。排版由 `generate-wenyan-theme` 独立管理，不参与 DNA 采样、组合或评分。
 
@@ -10,10 +16,13 @@ DNA 只描述选题、标题、内容结构与表达策略。排版由 `generate
 
 - “建 DNA / 更新 DNA / 提炼文章风格”
 - “把这篇文章落到某个 DNA 上”
-- “按这个风格写，但没有现成 DNA”
+- “提取下这个账号的风格DNA”
 
 不走本 Workflow：
 
+- “帮我写篇稿 / 出几篇”（使用 DNA 生产）-> 走 `content-production.md`
+- “改改这篇 / 润色 / 换风格” -> 走 `editing.md`
+- “看数据 / 复盘 / 诊断这篇” -> 走 `review.md`
 - “照着这篇排版” -> 走 `generate-wenyan-theme`
 - “只换颜色 / 字体 / 间距” -> 走 `generate-wenyan-theme`
 - “起号 / 梳理账号定位” -> 先走 `account-setup.md`
@@ -38,13 +47,14 @@ DNA 只描述选题、标题、内容结构与表达策略。排版由 `generate
 dna/wx_mp/{dna-id}/
   reports/
     {sample-id}.report.md
+  covers/
+    {sample-id}.{ext}
   {dna-id}.dna.md
   {dna-id}.template.md
 ```
 
 - 原始文章可以临时保存在 `wx_mp_ref/{dna-id}/articles/`，也可以来自用户提供的路径。
 - 生成后的 DNA report 必须进入目标 DNA 的 `reports/` 目录。
-- 不登记 `INDEX.md`，不生成 `.metrics.json`，不生成 `.evaluation.md`。
 - `sample-id` 必须可读且稳定；覆盖同名 report 前，先向用户说明该文件会被重算。
 
 ## 样本获取
@@ -53,9 +63,9 @@ dna/wx_mp/{dna-id}/
 
 | 来源 | 处理 |
 | --- | --- |
-| `mp.weixin.qq.com` 文章链接 | 调 `wx-mp-hunter fetch <url>` 获取正文 |
-| 公众号名称 | 调 `wx-mp-hunter posts-list` 获取可访问列表，再按需 `fetch`；抓不到时请用户提供链接 |
-| 专题页 / 合集页 | 调 `wx-mp-hunter homepage` 获取链接后逐篇 `fetch` |
+| `mp.weixin.qq.com` 文章链接 | 调 `wx-mp-hunter fetch <url> --download-cover` 获取正文和封面图；封面下载失败时请用户手动提供 |
+| 公众号名称 | 调 `wx-mp-hunter posts-list` 获取可访问列表，再逐篇 `fetch --download-cover`；抓不到时请用户提供链接 |
+| 专题页 / 合集页 | 调 `wx-mp-hunter homepage` 获取链接后逐篇 `fetch --download-cover` |
 | 本地 `.md` / `.txt` | 直接作为 profiler 输入 |
 | `.docx` / 粘贴文本 | Agent 先提取或保存为 `.md` / `.txt`，再进入 profiler |
 
@@ -63,8 +73,9 @@ dna/wx_mp/{dna-id}/
 
 1. 剔除重复、删除、付费不可读、正文缺失或非文章页面。
 2. 保留来源 URL、账号名、发布时间和获取时间作为报告线索。
-3. Profiler 本身不限制样本量；一个样本生成单篇 report，多个样本聚合统计。账号级初始化、老号诊断和对标比较可在 `account-setup.md` / `account-benchmark.md` 设置最低样本要求；低于该要求时仍可生成 report，但结论必须降级为单篇或小样本观察，不得称为账号级稳定 DNA。
+3. Profiler 本身不限制样本量；一个样本生成单篇 report，多个样本聚合统计。账号级初始化、老号诊断和对标比较可在 `account-setup.md` / `account-benchmark.md` 设置最低样本要求。
 4. `wx-mp-hunter` 不提供阅读、转发、评论等互动数据；如需用互动信号选样本，只能依赖用户提供的截图或数据，不得编造。
+5. 封面图来源优先使用 hunter 输出的 `cover_local_path`，也可使用用户手动提供的本地图片；没有封面时保留缺失状态，不得用正文图片或想象补齐。
 
 ## 建立或重建 DNA
 
@@ -82,7 +93,8 @@ dna/wx_mp/{dna-id}/
 wechat-style-profiler report \
   --input path/to/article.md \
   --dna-id {dna-id} \
-  --sample-id {sample-id}
+  --sample-id {sample-id} \
+  --cover-image path/to/cover.jpg
 ```
 
 可选参数：
@@ -90,7 +102,7 @@ wechat-style-profiler report \
 - `--weight N`：用户明确强调某篇参考价值时使用。
 - `--focus DIMENSION`：用户明确说只借鉴标题、结构、语气等局部时使用，可重复传入。
 
-Agent 生成 scaffold 后必须回读原文，补齐 16 维单篇结论、原文证据和可复用信号。
+Agent 生成 scaffold 后必须回读原文，补齐 17 维单篇结论、原文证据和可复用信号；封面图维度必须由视觉模型读取本地封面图，输出可复现的 AIGC 提示词要素。
 
 ### Step 3 - 聚合 DNA
 
@@ -131,7 +143,7 @@ wechat-style-profiler update \
   --template dna/wx_mp/{dna-id}/{dna-id}.template.md
 ```
 
-3. Agent 根据新的加权统计和 16 维证据，同步修订 DNA 文档与 template。
+3. Agent 根据新的加权统计和 17 维证据，同步修订 DNA 文档与 template。
 
 ### 用户偏好
 
@@ -155,34 +167,22 @@ wechat-style-profiler update \
 2. 用 `--focus` 限定参与影响的维度。
 3. 更新 DNA 文档与 template，并在报告中保留来源和 focus 说明。
 
-## 使用 DNA
+## DNA 使用接口
 
-生产前读取：
+本 Workflow 不描述如何用 DNA 生产：各生产 workflow 自行读取 `dna/wx_mp/{dna-id}/{dna-id}.dna.md` 与 `{dna-id}.template.md`，按 template 七部分执行，见 `content-production.md` / `editing.md` / `imitation.md`。
 
-```text
-dna/wx_mp/{dna-id}/{dna-id}.dna.md
-dna/wx_mp/{dna-id}/{dna-id}.template.md
-```
+反馈回流判定：来自生产、改稿或复盘的成稿风格修改意见，先判断是否可复用偏好——只有可复用偏好才经本 workflow「更新已有 DNA」进入 DNA；单次修改留在稿件审阅记录，不动 DNA。
 
-使用规则：
+## 对标接口
 
-1. Template 是直接生产模板，按选题、标题、起、承、转、合、CTA 七部分执行；DNA 文档解释依据、稳定性和例外。
-2. 用户对某次成稿提出风格修改意见时，先判断是否需要更新 DNA；只有可复用偏好才进入 DNA，单次修改留在稿件审阅记录中。
-3. 不运行旧版 DNA 评分，不以排版变化作为 DNA 符合证据。
+对标账号或一组对标文章不得默认落入现有 DNA；分析流程、逐项对比与采纳判断以 `account-benchmark.md` 为准。本 Workflow 只承担两件事：
 
-## 账号对标
-
-对标账号或一组对标文章不得默认落入现有 DNA。处理顺序：
-
-1. 读取 `account-benchmark.md`。
-2. 为同一对标对象或样本组使用独立 `dna-id`，例如 `dna-benchmark-{slug}`；同组后续更新复用该 DNA，不重复新建。
-3. 生成单篇 report，聚合 DNA 文档与 template。
-4. 与 `dna-0` 或用户指定 DNA 做逐项对比。
-5. 用户确认采纳时，按 `account-benchmark.md` Step 5 选择局部 DNA 融合、局部样本借鉴或偏好转译；默认优先局部 DNA 融合，不要求重新提取原文。
+1. 对标 DNA 的三层产物生成与更新：使用独立 `dna-id`（如 `dna-benchmark-{slug}`，同组后续更新复用），样本获取、report、build/update 同本 workflow 的创建/更新流程。
+2. 用户采纳后，按「更新已有 DNA」执行并入基线 DNA 的更新：局部 DNA 融合、局部样本借鉴或偏好转译；默认优先局部 DNA 融合，不要求重新提取原文。
 
 ## 编排原则
 
-- Workflow 负责选择路径和衔接工具，不复制 profiler 的 16 维定义。
+- Workflow 负责选择路径和衔接工具，不复制 profiler 的 17 维定义。
 - Agent 判断必须回读原文和 report，不能只依赖统计表。
 - 样本统计描述内容模式，不替代事实核查、合规审核和商业判断。
 - 用户确认只用于初始化方向或采纳建议，不是登记资产的前置门槛。

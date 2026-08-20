@@ -14,7 +14,7 @@ metadata:
 
 | 场景 | Workflow | 什么时候触发 |
 |------|----------|-------------|
-| 内容 DNA 管理 | Style DNA | 建内容 DNA、选内容 DNA、换内容风格、仿写前定 DNA |
+| 内容 DNA 管理 | Style DNA | 建 / 更新内容 DNA（样本、偏好、局部借鉴、对标融合），决定样本落到哪个 DNA |
 | 内容生产 | Content Production | 写一篇 / 做几篇公众号文章 |
 | 单篇仿写 | Imitation | 用户给定一篇公众号文章，按用户要求进行仿写 |
 | 起号与定位 | Account Setup | 新号起号、定位梳理、内容支柱搭建、老号接手与诊断 |
@@ -38,7 +38,7 @@ metadata:
 
 | 工具 | 用途 | 命令 |
 |------|------|------|
-| `wechat-style-profiler` | 生成单篇 DNA report，并聚合 DNA 文档与 DNA template | `wechat-style-profiler` |
+| `wechat-style-profiler` | 生成单篇 17 维 DNA report，并聚合 DNA 文档与 DNA template | `wechat-style-profiler` |
 | `wechat-topic-outline-planner` | 选题评估 + 结构化大纲 | — |
 | `wechat-draft-writer` | 按 DNA 和大纲写初稿 | — |
 | `wechat-title-generator` | 8 个标题候选 + 打分推荐 | — |

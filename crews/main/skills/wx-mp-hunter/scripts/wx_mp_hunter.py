@@ -518,6 +518,34 @@ def _strip_tags(html_fragment: str) -> str:
     return re.sub(r"<[^>]+>", "", html_fragment)
 
 
+def _extract_cover_url(html: str) -> str:
+    """提取文章分享封面 URL；og:image 通常是分享卡片封面。"""
+    candidates: list[str] = []
+    og_image = re.search(
+        r'<meta[^>]*property=["\']og:image["\'][^>]*content=["\']([^"\']+)["\']',
+        html,
+    )
+    if og_image:
+        candidates.append(og_image.group(1))
+    twitter_image = re.search(
+        r'<meta[^>]*name=["\']twitter:image["\'][^>]*content=["\']([^"\']+)["\']',
+        html,
+    )
+    if twitter_image:
+        candidates.append(twitter_image.group(1))
+    msg_cdn_url = re.search(
+        r'var\s+msg_cdn_url\s*=\s*["\']([^"\']+)["\']',
+        html,
+    )
+    if msg_cdn_url:
+        candidates.append(msg_cdn_url.group(1))
+    for candidate in candidates:
+        normalized = _normalize_img_url(html_module.unescape(candidate).strip())
+        if normalized:
+            return normalized
+    return ""
+
+
 def _extract_article_fields(html: str) -> dict[str, Any]:
     """从文章 HTML 提取 title / author / publish_time / content_text /
     content_markdown / images / error_msg。
@@ -545,8 +573,10 @@ def _extract_article_fields(html: str) -> dict[str, Any]:
         "content_text": "",
         "content_markdown": "",
         "images": [],
+        "cover_url": "",
         "error_msg": "",
     }
+    result["cover_url"] = _extract_cover_url(html)
 
     # ── publish_time: 多路兜底（已在上一轮实现，保留）──────────────────────
     # 1. <em id="publish_time">xxxx年xx月xx日</em>（PC 端常见）
@@ -815,6 +845,7 @@ async def _download_image(
     url: str,
     dest_dir: Path,
     max_bytes: int = 5 * 1024 * 1024,
+    destination_subdir: str = "images",
 ) -> Optional[Path]:
     """下载单张图片到 dest_dir/images/<hash>.<ext>，返回本地路径。"""
     try:
@@ -844,7 +875,7 @@ async def _download_image(
                 ext = "gif"
             elif url_lower.endswith(".webp"):
                 ext = "webp"
-        dest = dest_dir / "images" / f"{h}.{ext}"
+        dest = dest_dir / destination_subdir / f"{h}.{ext}"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
         return dest
@@ -885,6 +916,19 @@ async def _download_images(
         await asyncio.gather(*[_one(u) for u in images])
 
     return url_to_path
+
+
+async def _download_cover_image(cover_url: str, output_dir: Path) -> Optional[Path]:
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        headers={"User-Agent": WX_MICROMESSENGER_UA},
+    ) as client:
+        return await _download_image(
+            client,
+            cover_url,
+            output_dir,
+            destination_subdir="covers",
+        )
 
 
 def _rewrite_md_images(
@@ -969,6 +1013,7 @@ async def cmd_fetch(args: argparse.Namespace) -> int:
         "content_text": fields["content_text"],
         "content_markdown": fields["content_markdown"],
         "images": fields["images"],
+        "cover_url": fields["cover_url"],
     }
 
     # 透传多类型识别的 error_msg（new_type_article type ... / it's a deleted page 等）
@@ -978,14 +1023,26 @@ async def cmd_fetch(args: argparse.Namespace) -> int:
         print_json(result)
         return 1
 
-    # 图片本地化
-    if args.download_images:
+    # 图片/封面本地化
+    if args.download_images or args.download_cover:
         output_dir = Path(args.output_dir or ".").resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.download_images:
         url_to_path = await _download_images(fields["images"], output_dir)
         result["content_markdown"] = _rewrite_md_images(
             result["content_markdown"], url_to_path, output_dir
         )
+
+    if args.download_cover:
+        if fields["cover_url"]:
+            cover_path = await _download_cover_image(fields["cover_url"], output_dir)
+            result["cover_local_path"] = str(cover_path.resolve()) if cover_path else ""
+            result["cover_download_ok"] = cover_path is not None
+        else:
+            result["cover_local_path"] = ""
+            result["cover_download_ok"] = False
+            result["cover_download_error"] = "cover url not found"
 
     # 返回原始 HTML（可选）
     if args.html:
@@ -1202,6 +1259,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_fetch.add_argument(
         "--download-images", action="store_true",
         help="把正文图片下载到本地，content_markdown 中 URL 替换为本地相对路径",
+    )
+    p_fetch.add_argument(
+        "--download-cover", action="store_true",
+        help="下载文章分享封面到 covers/<hash>.<ext>",
     )
     p_fetch.add_argument(
         "--output-dir", default="",

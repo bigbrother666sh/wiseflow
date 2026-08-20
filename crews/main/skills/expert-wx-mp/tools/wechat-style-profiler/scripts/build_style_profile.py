@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, json, math, re
+import argparse, json, math, re, shutil
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,7 +38,11 @@ STOP_TERMS = {
 }
 
 DIMENSION_GROUPS = {
-    "选题特征": [("topic-angle", "选题角度"), ("title-style", "标题特征")],
+    "选题特征": [
+        ("topic-angle", "选题角度"),
+        ("title-style", "标题特征"),
+        ("cover-image", "封面图"),
+    ],
     "表层特征": [("word-habit", "用词习惯"), ("vocabulary-syntax", "词汇与句式"), ("sentence-rhythm", "句式节奏"), ("tone", "语气与基调")],
     "结构特征": [("paragraph-structure", "段落结构"), ("article-structure", "文章结构模式"), ("argument-logic", "论证逻辑")],
     "深层特征": [("rhythm", "节奏感"), ("rhetoric", "修辞手法"), ("emotion", "情感表达"), ("thinking", "思维特征")],
@@ -160,6 +164,23 @@ def collect_input_paths(inputs: list[str], suffixes: set[str]) -> list[Path]:
             raise SystemExit(f"Input must be a {', '.join(sorted(suffixes))} file or directory: {input_path}")
     unique = {path.resolve(): path for path in paths}
     return sorted(unique.values(), key=lambda path: str(path))
+
+
+def validate_cover_image(path_value: str) -> Path:
+    path = Path(path_value).expanduser()
+    if not path.is_file():
+        raise SystemExit(f"Cover image does not exist: {path}")
+    if path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        raise SystemExit("--cover-image must be a local .jpg/.jpeg/.png/.webp/.gif file")
+    return path
+
+
+def persist_cover_image(cover_image: Path, report_output_dir: Path, sample_id: str) -> Path:
+    cover_dir = report_output_dir.parent / "covers"
+    cover_dir.mkdir(parents=True, exist_ok=True)
+    destination = cover_dir / f"{sample_id}{cover_image.suffix.lower()}"
+    shutil.copyfile(cover_image, destination)
+    return destination
 
 
 def yaml_value(value: object) -> str:
@@ -344,21 +365,42 @@ def load_reports(paths: list[Path]) -> list[dict]:
     return reports
 
 
+def report_dimension_markdown(dimension: dict) -> str:
+    heading = f"### {dimension['number']}. {dimension['name']}"
+    if dimension["id"] == "cover-image":
+        return (
+            f"{heading}\n\n"
+            "**视觉模型分析：**待 Agent 基于封面图补齐。\n\n"
+            "- 画面主体与场景：待 Agent 补齐。\n"
+            "- 构图与画幅：待 Agent 补齐。\n"
+            "- 色彩体系：待 Agent 补齐。\n"
+            "- 光线与质感：待 Agent 补齐。\n"
+            "- 风格与媒介：待 Agent 补齐。\n"
+            "- 文字视觉与图文关系：待 Agent 补齐。\n"
+            "- 品牌识别元素：待 Agent 补齐。\n"
+            "- 避免项：待 Agent 补齐。\n\n"
+            "**AIGC 复现提示词要素：**待 Agent 补齐；要求能据此生成风格高度一致的封面图。\n\n"
+            "**可复用写作信号：**待 Agent 补齐。"
+        )
+    return (
+        f"{heading}\n\n"
+        "**单篇结论：**待 Agent 补齐。\n\n"
+        "**原文证据：**待 Agent 补齐。\n\n"
+        "**可复用写作信号：**待 Agent 补齐。"
+    )
+
+
 def report_markdown(
     dna_id: str,
     report_id: str,
     weight: float,
     focus: list[str],
     document: dict,
+    cover_image: str,
 ) -> str:
     dimensions = []
     for dimension in DIMENSIONS:
-        dimensions.append(
-            f"### {dimension['number']}. {dimension['name']}\n\n"
-            "**单篇结论：**待 Agent 补齐。\n\n"
-            "**原文证据：**待 Agent 补齐。\n\n"
-            "**可复用写作信号：**待 Agent 补齐。"
-        )
+        dimensions.append(report_dimension_markdown(dimension))
     return "\n\n".join(
         [
             "---\n"
@@ -367,6 +409,7 @@ def report_markdown(
             "type: dna-report\n"
             f"title: {yaml_value(document['title_candidates'][-1])}\n"
             f"source-article: {yaml_value(document['source_article'])}\n"
+            f"cover-image: {yaml_value(cover_image)}\n"
             f"weight: {weight}\n"
             f"focus: {yaml_value(focus)}\n"
             "sample_count: 1\n"
@@ -375,12 +418,13 @@ def report_markdown(
             f"# {document['title_candidates'][-1]} 单篇 DNA Report",
             "本文件只描述这一篇文章。它不是聚合后的 DNA 文档，也不直接作为写作模板。",
             "## 单篇统计",
-            f"- 字符：{document['characters']}\n- 句子：{document['sentences']}\n- 段落：{document['paragraphs']}\n- 标题候选：{' / '.join(document['title_candidates'])}",
-            "## 16 维单篇分析",
+            f"- 字符：{document['characters']}\n- 句子：{document['sentences']}\n- 段落：{document['paragraphs']}\n- 标题候选：{' / '.join(document['title_candidates'])}\n- 封面图：{cover_image or '未提供'}",
+            f"## {len(DIMENSIONS)} 维单篇分析",
             "\n\n".join(dimensions),
             "## 单篇边界",
             "- 这里记录本文的可复用信号，不判断跨篇稳定性。\n- 聚合时由 Agent 根据 DNA report、权重和 focus 判断共性、偏好和例外。",
             f"<!-- source-article\n{document['source_article']}\n-->",
+            *( [f"<!-- source-cover\n{cover_image}\n-->"] if cover_image else [] ),
         ]
     ) + "\n"
 
@@ -393,7 +437,7 @@ def user_input_markdown(user_inputs: list[str], existing_body: str | None = None
         entries.append(
             f"### 输入 {index}\n"
             f"- raw_input: {yaml_value(user_input)}\n"
-            "- affected_dimensions: 待 Agent 映射到 16 个维度 ID\n"
+            f"- affected_dimensions: 待 Agent 映射到 {len(DIMENSIONS)} 个维度 ID\n"
             "- dna_document_change: 待 Agent 转译为聚合结论 / 报告依据 / 写作规则\n"
             "- template_change: 待 Agent 转译为具体执行规则\n"
             "- status: pending"
@@ -415,14 +459,25 @@ def dna_document_markdown(
     for dimension in DIMENSIONS:
         heading = f"### {dimension['number']}. {dimension['name']}"
         body = old_sections.get(heading)
+        if body is None and dimension["number"] > 3:
+            legacy_heading = f"### {dimension['number'] - 1}. {dimension['name']}"
+            body = old_sections.get(legacy_heading)
         if body:
             dimensions.append(f"{heading}\n\n{body}")
         else:
-            dimensions.append(
-                f"{heading}\n\n**聚合结论：**待 Agent 补齐。\n\n"
-                "**报告依据：**待 Agent 列出使用的 DNA report、权重和 focus。\n\n"
-                "**写作规则：**待 Agent 补齐。"
-            )
+            if dimension["id"] == "cover-image":
+                dimensions.append(
+                    f"{heading}\n\n**聚合结论：**待 Agent 补齐。\n\n"
+                    "**报告依据：**待 Agent 列出使用的封面图和 DNA report。\n\n"
+                    "**视觉生成规则：**待 Agent 转成可执行的 AIGC 提示词要素。\n\n"
+                    "**例外与约束：**待 Agent 补齐。"
+                )
+            else:
+                dimensions.append(
+                    f"{heading}\n\n**聚合结论：**待 Agent 补齐。\n\n"
+                    "**报告依据：**待 Agent 列出使用的 DNA report、权重和 focus。\n\n"
+                    "**写作规则：**待 Agent 补齐。"
+                )
     report_paths = "\n".join(report["report_path"] for report in reports)
     existing_user_inputs = (
         extract_named_section(previous_dna, "## 用户输入转译区") if previous_dna else None
@@ -445,7 +500,7 @@ def dna_document_markdown(
                 for report in reports
             ),
             statistics_markdown(statistics),
-            "## 16 维聚合",
+            f"## {len(DIMENSIONS)} 维聚合",
             "\n\n".join(dimensions),
             "## 用户输入转译区",
             user_input_markdown(user_inputs or [], existing_user_inputs),
@@ -685,8 +740,14 @@ def template_markdown(
         "（选题需考虑的受众关联角度：待 Agent 补齐。）\n"
         "\n"
         "[标题]（类型为主：待 Agent 补齐。）\n"
-        "（参考：待 Agent 补齐。）"
+        "（参考：待 Agent 补齐。）\n"
+        "（封面图风格：待 Agent 补齐。）\n"
+        "（封面 AIGC 提示词要素：待 Agent 补齐。）"
     )
+    if previous_template:
+        for field in ("（封面图风格：", "（封面 AIGC 提示词要素："):
+            if field not in topic_title:
+                topic_title += f"\n{field}待 Agent 补齐。）"
     section_defaults = [
         (
             "## 生产模板",
@@ -695,7 +756,7 @@ def template_markdown(
         (
             "## 用户输入转译后的执行规则",
             "- （来自用户输入：待 Agent 补齐来源。）\n"
-            "- （影响维度：待 Agent 映射到 16 维 ID。）\n"
+            f"- （影响维度：待 Agent 映射到 {len(DIMENSIONS)} 维 ID。）\n"
             "- （执行规则：待 Agent 写成写稿时可直接执行的要求。）",
         ),
         (
@@ -805,8 +866,19 @@ def report_command(args: argparse.Namespace) -> None:
         paths[0], paths[0].read_text(encoding="utf-8", errors="ignore")
     )
     output_dir = Path(args.output_dir or f"dna/wx_mp/{args.dna_id}/reports")
+    cover_image = ""
+    if args.cover_image:
+        source_cover = validate_cover_image(args.cover_image)
+        cover_image = str(
+            persist_cover_image(source_cover, output_dir, args.sample_id).resolve()
+        )
     output = output_dir / f"{args.sample_id}.report.md"
-    write_text(output, report_markdown(args.dna_id, args.sample_id, weight, args.focus, document))
+    write_text(
+        output,
+        report_markdown(
+            args.dna_id, args.sample_id, weight, args.focus, document, cover_image
+        ),
+    )
     print(f"Wrote single-article DNA report: {output}")
 
 
@@ -883,11 +955,12 @@ def update_command(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build qualitative 16D WeChat MP DNA assets")
+    parser = argparse.ArgumentParser(description="Build qualitative 17D WeChat MP DNA assets")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     report = subparsers.add_parser("report", help="Create one single-article DNA report")
     report.add_argument("--input", action="append", required=True)
+    report.add_argument("--cover-image", help="Local cover image used by visual-model analysis")
     report.add_argument("--dna-id", required=True)
     report.add_argument("--sample-id", required=True)
     report.add_argument("--weight", default="1")

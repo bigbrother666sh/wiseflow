@@ -1,6 +1,6 @@
 # 专家包（Expert Pack）+ DNA 架构规划
 
-> 日期：2026-08-14；2026-08-18 更新 DNA 生产模式与跨平台 profiler 规范
+> 日期：2026-08-14；2026-08-18 更新 DNA 生产模式与跨平台 profiler 规范；2026-08-20 明确跨平台 DNA 维度边界与 template 通用开头
 > 分析基准：内置 openclaw `v2026.7.1`（commit `2d2ddc43`）
 > 目标版本：`v2026.7.1-2`（commit `0790d9f`，待网络可用后升级）
 > 首个改造对象：`crews/main`（小贝 / main agent）
@@ -270,6 +270,8 @@ DNA 文档 -> DNA template
 dna/<platform>/<dna-id>/
   reports/
     {sample-id}.report.md
+  covers/
+    {sample-id}.{ext}
   {dna-id}.dna.md
   {dna-id}.template.md
 ```
@@ -278,6 +280,7 @@ dna/<platform>/<dna-id>/
 
 ```text
 dna/wx_mp/{dna-id}/reports/{sample-id}.report.md
+dna/wx_mp/{dna-id}/covers/{sample-id}.{ext}
 dna/wx_mp/{dna-id}/{dna-id}.dna.md
 dna/wx_mp/{dna-id}/{dna-id}.template.md
 ```
@@ -290,14 +293,15 @@ dna/wx_mp/{dna-id}/{dna-id}.template.md
 
 #### 4.6.2 DNA report
 
-DNA report 是单篇文章的定性提取结果，不是账号级结论，也不是写作模板。每篇 report 记录：
+DNA report 是单篇作品的定性提取结果，不是账号级结论，也不是写作模板。每篇 report 记录：
 
-- 16 维或平台自定义维度的单篇结论；
+- 平台维度（微信公众号当前为 17 维）的单篇结论；
 - 原文证据；
-- 可复用写作信号；
+- 可复用创作信号；
 - 聚合权重，默认 `1`；
 - focus，限制该篇只影响某些维度；
-- 来源文章路径。
+- 来源路径；
+- 可选的封面图等视觉素材路径；视觉特征必须由视觉模型分析，并能反推为 AIGC 生成要素。
 
 单篇 report 不负责判断跨篇稳定性。是否成为共性、偏好、孤例或例外，由 DNA 文档聚合阶段判断。
 
@@ -331,12 +335,15 @@ DNA template 是从 DNA 文档推导出的生产模板。它不是概念说明�
 
 [标题]（类型为主：xxx、xx、xx）
 （参考：xxx、xxx、xxx）
+（封面图：比例、类型与视觉重点、主体/场景……）
 
-[第一段]
+[起部分]
 （本段用于引出话题，多用短句，从 xxx 起步……）
 ```
 
-template 必须能从 DNA 文档推导，不能引入 DNA 文档未确认的规则。分段数量由 DNA 文档的结构和起承转合结论决定，不固定为三段或四段。
+template 开头两项跨平台通用：**选题**与**标题（含封面图）**——任何平台的生产都先解决「写什么」和「怎么命名、怎么呈现封面」；第三项起由各平台从自己的 DNA 文档推导。分段数量由 DNA 文档的结构和起承转合结论决定，不固定为三段或四段。
+
+template 必须能从 DNA 文档推导，不能引入 DNA 文档未确认的规则。
 
 #### 4.6.5 用户输入
 
@@ -381,19 +388,20 @@ crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
 5. **用户输入**：进入转译区，由 Agent 映射到平台维度后同步 DNA 文档与 template。
 6. **统计边界**：脚本只做证据底座，不评分、不替代定性判断。
 7. **更新模式**：合并历史 report 与新 report，保留 Agent 已完成结论和自定义段落。
+8. **template 开头两项**：template 开头两项统一为选题、标题（含封面图）；第三项起平台自定义。
 
 各平台允许不同、且必须单独讨论的部分只有：
 
-- DNA 提取与分析维度；
+- DNA 提取与分析维度（可以与微信 17 维截然不同；本规范不要求其他平台采纳 17 维）；
 - 维度分组和命名；
 - 平台特有观测物，例如图文的标题与分段、视频的分镜与节奏、电商的卖点组织；
-- template 的分段结构；
+- template 第三项起的分段结构（开头两项固定为选题、标题（含封面图））；
 - focus ID 集合。
 
 其他平台改造固定顺序：
 
 1. **先搭架构**：复制 wechat-style-profiler 的命令契约、存储结构、三层产物、权重/focus、用户输入转译和 update 机制，仅保留通用维度占位。
-2. **再定义维度**：与用户讨论并确认该平台的 DNA 提取与分析维度；没有确认前，不得把微信 16 维直接照搬到其他平台。
+2. **再定义维度**：与用户讨论并确认该平台的 DNA 提取与分析维度；维度可以与微信截然不同，本规范不要求采纳 17 维，没有确认前不得直接照搬。
 3. **最后接入工作流**：将 draft writer、改稿、仿写等工具改为读取该平台 DNA template。
 
 ### 4.8 Markdown 引用与运行时数据边界
@@ -472,7 +480,7 @@ crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
 ### Phase 4：DNA 工具链 + 多平台扩展（后续）
 
 - 每个平台专家包先落地同构 `<platform>-style-profiler`：统一 report / build / update 命令、DNA ID 存储和用户输入转译机制。
-- 平台架构完成后，与用户确认该平台独有的 DNA 提取与分析维度。
+- 平台架构完成后，与用户确认该平台独有的 DNA 提取与分析维度；维度可以与微信截然不同、不必对齐 17 维，但 template 开头两项（选题、标题（含封面图））通用。
 - 维度确认后再接入内容生产、改稿、仿写等下游 workflow。
 - 逐步沉淀更多 DNA：每个 DNA 持续追加 report，并通过 update 重聚合同步 DNA 文档与 template。
 
@@ -589,28 +597,4 @@ expert-wx-mp/
 
 5. **收纳后的工具 SKILL.md 必须瘦身** — 一开始还保留着"当用户说 XX 时触发本技能"和"上下游衔接"的内容，但它已经不是独立技能了，这些话都不对了。正确做法：触发语删了，衔接关系写进 workflow，工具文档只写输入输出和怎么用。
 
-6. **style-dna 是独立 workflow** — 一开始把"建 DNA"塞在 content-production 第一步里，后来发现每个 workflow（仿写、改稿、起号）都需要先定 DNA。抽出来做成独立 workflow 之后，其他 workflow 第一步都跳它，结构清爽多了。
-
-7. **workflow 每一步都要能落到工具** — 第一版 workflow 写了很多"专家产出选题"、"专家进行分析"这种空话，后来发现每个环节其实都有对应工具（topic-outline-planner 出大纲、draft-writer 写初稿、title-generator 起标题……）。workflow 的价值是编排工具、规定顺序和确认节点，不是写一堆空话让 agent 自由发挥。
-
-### 10.5 改造其他平台的检查清单
-
-拿这份清单逐项过，漏了哪步就补哪步：
-
-- [ ] 盘点：顶层技能数、哪些专属哪些复用
-- [ ] 盘点：AGENTS.md 里的平台段落
-- [ ] 盘点：knowledge / calibration / 其他散落文件
-- [ ] 建专家包骨架：SKILL.md + workflows/ + tools/
-- [ ] 先搭建与 wechat-style-profiler 同构的 `<platform>-style-profiler`
-- [ ] 与用户确认该平台的 DNA 提取与分析维度；未确认前不照搬微信 16 维
-- [ ] 写 SKILL.md：按平台实际能力列 workflow / tool 清单，并必含 style-profiler
-- [ ] 拆 workflow：6 个场景各一个文件（style-dna + content-production + imitation + account-setup + editing + review）
-- [ ] 拆 DNA：明确平台维度与 report / DNA 文档 / template 三层产物
-- [ ] 写资源命名约定：跨 Tool / Workflow 引用只写逻辑名称，禁止 `../` 和包内路径示例
-- [ ] 写数据边界：提取 / 生成的 DNA、风格、样本、主题等全部写 Workspace，不写专家包目录
-- [ ] 执行收纳：专属技能整个目录移进 tools/
-- [ ] wrapper 脚本确认支持 tools/ 嵌套扫描
-- [ ] 删旧位置 + 更新 BUILTIN_SKILLS / AGENTS.md / 交叉引用
-- [ ] 残留引用扫一遍（rg 旧路径）
-- [ ] 端到端走一遍验证
-- [ ] AGENTS.md 薄化
+6. **workflow 每一步都要能落到工具** — 第一版 workflow 写了很多"专家产出选题"、"专家进行分析"这种空话，后来发现每个环节其实都有对应工具（topic-outline-planner 出大纲、draft-writer 写初稿、title-generator 起标题……）。workflow 的价值是编排工具、规定顺序和确认节点，不是写一堆空话让 agent 自由发挥。

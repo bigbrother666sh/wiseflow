@@ -32,10 +32,10 @@
 
 | 来源 | 工具 |
 | --- | --- |
-| 公众号名 | `wx-mp-hunter posts-list` -> `fetch` |
-| 文章链接 | `wx-mp-hunter fetch` |
-| 专题页 / 合集页 | `wx-mp-hunter homepage` -> `fetch` |
-| 本地文本 | 直接输入 profiler |
+| 公众号名 | `wx-mp-hunter posts-list` -> `fetch --download-cover` |
+| 文章链接 | `wx-mp-hunter fetch --download-cover` |
+| 专题页 / 合集页 | `wx-mp-hunter homepage` -> `fetch --download-cover` |
+| 本地文本 + 封面图 | 正文直接输入 profiler，封面通过 `--cover-image` 传入 |
 
 选择建议：
 
@@ -87,8 +87,8 @@ dna/wx_mp/{base-dna-id}/{base-dna-id}.template.md
 
 比较必须覆盖两层：
 
-1. **16 维 DNA 文档**：逐个维度比较规则、证据和适用条件。
-2. **七部分 template**：逐项比较选题、标题、起、承、转、合、CTA 的执行方式。
+1. **17 维 DNA 文档**：逐个维度比较规则、证据和适用条件；封面图需比较视觉特征与 AIGC 复现要素。
+2. **七部分 template**：逐项比较选题、标题、起、承、转、合、CTA 的执行方式；标题部分包含封面图风格。
 
 每个维度和模板部分都输出四类结论：
 
@@ -117,7 +117,7 @@ dna/wx_mp/{base-dna-id}/{base-dna-id}.template.md
 
 局部 DNA 融合流程：
 
-1. 明确采纳范围：16 维中的维度、七部分中的模板部分，或两者组合。
+1. 明确采纳范围：17 维中的维度、七部分中的模板部分，或两者组合。
 2. 读取对标 DNA 文档 / template 的对应规则、适用条件和例外。
 3. 将其整理为一条可转译的输入，必须包含来源 `dna-id`、采纳范围和具体规则。
 4. 在基线 DNA 上执行无新增样本的 update：

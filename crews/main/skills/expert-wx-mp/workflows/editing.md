@@ -11,7 +11,7 @@
 | "润色一下" / "顺一顺" | 措辞、节奏、AI 味 | 轻改，直接上手 |
 | "换个语气" / "活泼一点" | 内容风格层 | 选目标 DNA -> 按 instruction 改 -> 评估 |
 | "结构调一下" / "换个角度" | 结构层 | 先出调整方案 -> 确认 -> 改 |
-| "方向不对，重写" | 方向层 | 回到 content-production Step 1 重新来 |
+| "方向不对，重写" | 方向层 | 回到 content-production.md 从选题重新走 |
 | "换个排版" / "照着 XX 的排版来" | 排版层 | 生成/提取新主题 -> 套 |
 | "压缩到 X 字" / "展开到 X 字" | 篇幅层 | 先问清楚保留什么砍掉什么 |
 
@@ -29,13 +29,13 @@
 - 用户给了对标账号 -> 用那个号的 DNA（如果有，没有的话，通过`style-dna`新建）
 
 改完先给开头 3 段预览，用户觉得味道对了再全文改，省得返工。
-全文改完按对应 `.evaluation.md` 或 `wechat-style-profiler evaluate` 自评，低于 80 分继续修。
+全文改完对照目标 DNA template 逐项自检；用户要求打分时走 `content-calibrator`。
 
 ## 换结构
 
 先出结构调整方案（新的大纲/节标题），用户确认后再改正文。
 结构动了通常风格也要跟着调--别只动骨架不换肉。
-结构调整可以调 `wechat-topic-outline-planner` 帮忙出新版大纲。
+结构调整按 DNA template 的结构部分重新出大纲（节标题、段落任务、素材位置）。
 
 ## 换排版
 
@@ -54,3 +54,12 @@
 1. 自己过一遍质量自检
 2. 跟用户说清楚改了什么、为什么这么改
 3. 如果之前打了分，改完建议重打一次对比
+
+## 改后发布
+
+用户要求改完后发布 / 重新发布时，走 `content-production.md` 的初稿后流程（Step 7-10）：
+
+1. **Frontmatter**：按 `wx-mp-publisher` 规范更新 `article.md` 的 frontmatter（至少核对 `title`、`cover` / `image_list`、`author`、`source_url` 与改后内容同步）；frontmatter 在 workflow 中直接写入，`wx-mp-publisher` 只校验。
+2. **存文件**：文章与图片归位 `output_articles/<article-name>/`，图片与 `article.md` 同目录、纯文件名引用。
+3. **质量门**：走 `content-calibrator` 流程 1A 重新打分（新结果覆盖旧 `calibration/`）；平台未启用则跳过。
+4. **发布 + 记录**：调 `wx-mp-publisher` 发布（排版由用户指定或 Agent 按内容自主选择；自定义主题传登记的 `theme-id`），再按 `content-production.md` Step 10.3 的公众号特例入库——`media_id` 占位先落 `published-track`，用户正式发布后提供正式 URL 时重跑 `record.sh` 升级记录。

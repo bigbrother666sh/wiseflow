@@ -165,12 +165,6 @@ Agent 不需要手动上传图片；脚本会自动收集并上传上述本地�
 - relay 已内置 `@wenyan-md/core` 渲染，client 不再需要装 `wenyan-cli`
 - 仅支持文本 + 图片（无视频）
 
-## 发布后publish-track入库流程
-
-wx-mp-publisher 只能把文章发布到微信公众号的后台草稿箱，正式发布必须由用户手动至微信公众号后台操作。
-调用 wx-mp-publisher 成功后，relay 会返回草稿的 `media_id` ，可暂时将`media_id`作为文章的url占位，先完成 `published-track` 入库存储。
-后续用户完成正常发布后，如果向你提供了正式的URL，需要对`published-track`数据库中对应记录进行升级。
-
 ## 微信平台硬限制（发布链路通用）
 
 - 标题长度：最多 64 字节（约 21 个中文字符）

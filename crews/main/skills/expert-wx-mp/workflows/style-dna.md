@@ -6,7 +6,7 @@
 
 - 账号初始化、定位梳理与默认 `dna-0` 初始化走 `account-setup.md`（该 workflow 会调用本 workflow 的样本获取与更新机制）。
 - 账号对标分析走 `account-benchmark.md`；本 workflow 只承担对标 DNA 的三层产物生成与更新，以及采纳后并入基线 DNA 的更新。
-- DNA 如何被用于写稿、改稿、仿写，分别由 `content-production.md` / `editing.md` / `imitation.md` 规定；本 workflow 不描述生产过程。
+- DNA 如何被用于写稿（含仿写、改写、小绿书）由 `content-production.md` 规定，改稿由 `editing.md` 规定；本 workflow 不描述生产过程。
 
 DNA 只描述选题、标题、内容结构与表达策略。排版由 `generate-wenyan-theme` 独立管理，不参与 DNA 采样、组合或评分。
 
@@ -20,7 +20,7 @@ DNA 只描述选题、标题、内容结构与表达策略。排版由 `generate
 
 不走本 Workflow：
 
-- “帮我写篇稿 / 出几篇”（使用 DNA 生产）-> 走 `content-production.md`
+- “帮我写篇稿 / 出几篇 / 照着这篇仿写 / 这篇的主题我们也写一篇 / 发小绿书”（使用 DNA 生产）-> 走 `content-production.md`
 - “改改这篇 / 润色 / 换风格” -> 走 `editing.md`
 - “看数据 / 复盘 / 诊断这篇” -> 走 `review.md`
 - “照着这篇排版” -> 走 `generate-wenyan-theme`
@@ -169,9 +169,9 @@ wechat-style-profiler update \
 
 ## DNA 使用接口
 
-本 Workflow 不描述如何用 DNA 生产：各生产 workflow 自行读取 `dna/wx_mp/{dna-id}/{dna-id}.dna.md` 与 `{dna-id}.template.md`，按 template 七部分执行，见 `content-production.md` / `editing.md` / `imitation.md`。
+本 Workflow 不描述如何用 DNA 生产：生产 workflow 自行读取 `dna/wx_mp/{dna-id}/{dna-id}.dna.md` 与 `{dna-id}.template.md`，按 template 七部分执行，见 `content-production.md` / `editing.md`。
 
-反馈回流判定：来自生产、改稿或复盘的成稿风格修改意见，先判断是否可复用偏好——只有可复用偏好才经本 workflow「更新已有 DNA」进入 DNA；单次修改留在稿件审阅记录，不动 DNA。
+反馈回流判定：来自生产、改稿或复盘的成稿风格修改意见，先判断是否可复用偏好——只有可复用偏好才经本 workflow「更新已有 DNA」进入 DNA；单次修改留在稿件审阅记录，不动 DNA。参考文章的风格吸收（“把这篇的风格融入到我们的 DNA”）属于本 workflow 的新增样本 / 局部借鉴场景，不是生产流程的一部分。
 
 ## 对标接口
 

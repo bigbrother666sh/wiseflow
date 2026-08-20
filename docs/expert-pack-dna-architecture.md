@@ -122,16 +122,14 @@ crews/main/
     expert-wx-mp/                # 专家包：微信公众号运营
       SKILL.md                   # 第一层：专家身份 + 交互原则 + 平台速查 + workflow 清单 + 工具清单
       workflows/                 # 第二层：按场景拆分的操作流程
-        content-production.md    #   内容生产 SOP
-        account-setup.md         #   起号 / 定位 / 账号诊断
-        editing.md               #   改稿 / 润色 / 调风格
-        review.md                #   数据复盘 / 对标分析
-        review.md                #   数据复盘/对标分析
+        style-dna.md                    - DNA report 生成、聚合与 template 使用
+        content-production.md           — 内容生产 SOP（想法/参考/草稿输入分支 + 长文/小绿书产出分支）
+        account-setup.md                — 起号/定位/账号诊断
+        account-benchmark.md            — 账号对标分析
+        editing.md                      — 改稿/润色/换风格/换排版
+        review.md                       — 数据复盘/对标分析
       tools/                     # 领域专属工具（被收纳的原子技能）
         wechat-style-profiler/   #   单篇 report -> DNA 文档 -> DNA template
-        wechat-topic-outline-planner/
-        wechat-draft-writer/     #   按 DNA 写初稿
-        wechat-title-generator/  #   标题生成
         generate-wenyan-theme/   #   排版主题生成
         wx-mp-publisher/         #   发布到草稿箱
         wx-mp-engagement/        #   数据抓取
@@ -198,10 +196,11 @@ Workspace/
 
 **workflow 必须基于工具**，每一步操作都要能落到具体工具上，不能凭空写"专家来分析"、"专家来判断"。
 
-- 能用工具的用工具（topic-outline-planner / draft-writer / style-profiler 等）
+- 能用工具的用工具（style-profiler / publisher / hunter / calibrator 等）
 - 必须靠 agent 判断的，明确写"agent 推理/分析"（如数据诊断、选题价值判断）
 - 严禁出现模糊的"专家进行 XX"这种步骤——要么有工具，要么明确是推理任务
 - 工具调用关系写进 workflow，不写进每个工具的 SKILL.md（工具文档只写自己的输入输出）
+- 至少包含如下6个 workflow——`style-dna`（DNA 创建与更新）、`content-production`（内容生产，含仿照创作、用户输入草稿等输入分支）、`account-setup`（起号与定位）、`account-benchmark`（对标比较）、`editing`（改稿与调整）、`review`（数据复盘）
 
 ### 4.3 编排与收纳的判定规则
 
@@ -311,7 +310,7 @@ DNA 文档聚合同一个 DNA 目录下的全部 report，形成当前采用的�
 
 1. **聚合结论**：当前怎么选题、表达、组织或推进。
 2. **报告依据**：来自哪些 report、权重和 focus。
-3. **写作规则**：生产时必须怎么做。
+3. **创作规则**：生产时必须怎么做。
 
 聚合时要区分：
 
@@ -402,14 +401,16 @@ crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
 
 1. **先搭架构**：复制 wechat-style-profiler 的命令契约、存储结构、三层产物、权重/focus、用户输入转译和 update 机制，仅保留通用维度占位。
 2. **再定义维度**：与用户讨论并确认该平台的 DNA 提取与分析维度；维度可以与微信截然不同，本规范不要求采纳 17 维，没有确认前不得直接照搬。
-3. **最后接入工作流**：将 draft writer、改稿、仿写等工具改为读取该平台 DNA template。
+3. **最后接入工作流**：将内容生产（含仿写）、改稿等下游环节改为读取该平台 DNA template 直接执行。
+4. **配齐 workflow 基线集**：每个平台的专家包至少包含与 wx_mp 对应的 6 类 workflow——`style-dna`（DNA 创建与更新）、`content-production`（内容生产，含仿写 / 改写等输入分支）、`account-setup`（起号与定位）、`account-benchmark`（对标比较）、`editing`（改稿与调整）、`review`（数据复盘）。命名可按平台语境微调，职责不能缺；平台特有场景（如 wx_mp 的小绿书）优先作为 content-production 的产出分支，确有必要才独立成 workflow。
 
 ### 4.8 Markdown 引用与运行时数据边界
 
 后续平台改造必须遵守两条硬性边界：
 
 1. **跨资源引用只写逻辑名称**。
-   - Workflow 与 Tool 的 Markdown 示例中，引用其他 Tool / Workflow 时写资源名，例如 `wechat-topic-outline-planner`、`Style DNA Workflow`，不写 `../tools/...`、`../workflows/...`、`tools/...`、`workflows/...`。
+   - Workflow 与 Tool 的 Markdown 示例中，引用其他 Tool / Workflow 时写资源名，例如 `wechat-style-profiler`、`Style DNA Workflow`，不写 `../tools/...`、`../workflows/...`、`tools/...`、`workflows/...`。
+   - 资源名必须真实存在；引用前先确认该 Tool / Workflow 仍在专家包内，已删除的工具不得出现在示例中。
    - Agent 的默认工作目录是 Workspace，不是专家包目录。相对路径会被误解为 Workspace 路径，导致错误拼接。
    - 专家包部署时通过软链进入运行环境（见 `docs/d21-symlink-skill.md`），包内资源不会被展开到 Workspace。根 `SKILL.md` 应统一说明：Tools / Workflows / DNA 模板是逻辑资源名；只有明确声明的 Workspace 目录才按 Workspace 根解析。
    - 只有工具清单中明确列出的 wrapper 名称可以直接作为 shell 命令调用；未暴露 wrapper 的 Tool 名称仅用于定位工具说明，不得拼成脚本路径。
@@ -481,7 +482,7 @@ crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
 
 - 每个平台专家包先落地同构 `<platform>-style-profiler`：统一 report / build / update 命令、DNA ID 存储和用户输入转译机制。
 - 平台架构完成后，与用户确认该平台独有的 DNA 提取与分析维度；维度可以与微信截然不同、不必对齐 17 维，但 template 开头两项（选题、标题（含封面图））通用。
-- 维度确认后再接入内容生产、改稿、仿写等下游 workflow。
+- 维度确认后再接入内容生产、改稿等下游 workflow，并配齐 4.7 要求的 6 类 workflow 基线集。
 - 逐步沉淀更多 DNA：每个 DNA 持续追加 report，并通过 update 重聚合同步 DNA 文档与 template。
 
 ---
@@ -528,7 +529,7 @@ git -C openclaw checkout 0790d9f
 - 专家包 `SKILL.md` 未被任务触发时不进入上下文（仅 name/description 常驻）。
 - 被收纳技能不再出现在 `<available_skills>`；技能总数较改造前下降（净减 = 收纳数 - 1 个专家包）。
 - 专家包结构清晰：`SKILL.md`（接口 + 速查）、`workflows/`（流程）、`tools/`（原子级技能）--没有独立 knowledge 层。
-- 6 个 workflow（style-dna / content-production / imitation / account-setup / editing / review）各对应一类用户需求，互不重叠，覆盖完整。
+- 每个平台专家包至少包含 6 类 workflow：style-dna / content-production / account-setup / account-benchmark / editing / review（wx_mp 现状即此 6 个）；每个 workflow 各对应一类用户需求，互不重叠，覆盖完整，平台特有场景可按需增加。
 - style-profiler 支持 `report / build / update`，并能生成 DNA 文档与 DNA template。
 - DNA 存储符合 `dna/<platform>/<dna-id>/reports/`，并在 DNA 目录下交付 `.dna.md` 与 `.template.md` 两个核心文件。
 - wrapper 扫描支持 `tools/` 嵌套层，收纳后的工具命令调用方式不变。
@@ -537,7 +538,7 @@ git -C openclaw checkout 0790d9f
 
 ## 10. 案例：微信公众号专家包改造（wx_mp）
 
-> 首个落地的专家包。2026-08-15 完成初始改造，2026-08-18 升级为三层 DNA 生产模式，可作为其他平台改造的参考模板。
+> 首个落地的专家包。2026-08-15 完成初始改造，2026-08-18 升级为三层 DNA 生产模式，2026-08-20 合并内容生产 workflow，可作为其他平台改造的参考模板。
 
 ### 10.1 改造前基线
 
@@ -554,8 +555,8 @@ git -C openclaw checkout 0790d9f
 | 专家包入口 | `expert-wx-mp/SKILL.md` | 复用原生 skill 按需加载机制，零代码改动 |
 | 子技能 SKILL.md | 保留但不注册（收纳在 tools/） | 扫描器遇到 SKILL.md 就停，子目录不进 available_skills |
 | 知识层 | 不设独立 knowledge/ 层 | 按稳定性拆分：规则→SKILL.md、步骤→workflow、风格→DNA |
-| workflow 数量 | 6 个（style-dna / content-production / imitation / account-setup / editing / review） | 一个 workflow 对应一类用户需求，避免单文件臃肿 |
-| 专属技能收纳 | 7 个全收进 tools/ | generate-wenyan-theme + 3 个原平台技能 + 3 个移植工具 |
+| workflow 数量 | 6 个（style-dna / content-production / account-setup / account-benchmark / editing / review） | 一个 workflow 对应一类用户需求；2026-08-20 imitation 并入 content-production（输入分支化），新增小绿书分支与 account-benchmark |
+| 专属技能收纳 | 4 个在 tools/ | 原 7 个收纳；2026-08-20 移除写作三件套（topic-outline-planner / draft-writer / title-generator），生产环节改为按 DNA template 直接执行 |
 | 留顶层的技能 | 1 个（wx-mp-hunter） | 跨工作流复用的对标采集 |
 | 外部 persona 处理 | 拆分后删除原文件 | 原则进 SKILL、风格进 DNA、KPI/五阶段/身份描述全删 |
 | calibration 数据 | 不随迁，留原位 | 是数据记录文件，不是专家知识 |
@@ -565,19 +566,16 @@ git -C openclaw checkout 0790d9f
 
 ```
 expert-wx-mp/
-  SKILL.md                  92 行   — 身份/交互/5 个 workflow/7 个工具/平台速查
+  SKILL.md                          — 身份/交互/6 个 workflow/4 个工具/平台速查
   workflows/                        — 6 个场景 workflow
-    style-dna.md             70+ 行  - DNA report 生成、聚合与 template 使用
-    content-production.md    80+ 行  — 内容生产 SOP
-    imitation.md             60+ 行  — 单篇仿写
-    account-setup.md        110+ 行  — 起号/定位/账号诊断
-    editing.md               50+ 行  — 改稿/润色/换风格/换排版
-    review.md                70+ 行  — 数据复盘/对标分析
-  tools/                            - 7 个被收纳的原子技能
+    style-dna.md                    - DNA report 生成、聚合与 template 使用
+    content-production.md           — 内容生产 SOP（想法/参考/草稿输入分支 + 长文/小绿书产出分支；初稿后 Frontmatter → 存文件 → calibrator 质量门 → 发布+记录）
+    account-setup.md                — 起号/定位/账号诊断
+    account-benchmark.md            — 账号对标分析
+    editing.md                      — 改稿/润色/换风格/换排版
+    review.md                       — 数据复盘/对标分析
+  tools/                            - 4 个被收纳的原子技能
     wechat-style-profiler/
-    wechat-topic-outline-planner/
-    wechat-draft-writer/
-    wechat-title-generator/
     generate-wenyan-theme/
     wx-mp-publisher/
     wx-mp-engagement/
@@ -597,4 +595,4 @@ expert-wx-mp/
 
 5. **收纳后的工具 SKILL.md 必须瘦身** — 一开始还保留着"当用户说 XX 时触发本技能"和"上下游衔接"的内容，但它已经不是独立技能了，这些话都不对了。正确做法：触发语删了，衔接关系写进 workflow，工具文档只写输入输出和怎么用。
 
-6. **workflow 每一步都要能落到工具** — 第一版 workflow 写了很多"专家产出选题"、"专家进行分析"这种空话，后来发现每个环节其实都有对应工具（topic-outline-planner 出大纲、draft-writer 写初稿、title-generator 起标题……）。workflow 的价值是编排工具、规定顺序和确认节点，不是写一堆空话让 agent 自由发挥。
+6. **workflow 每一步都要能落到工具** — 第一版 workflow 写了很多"专家产出选题"、"专家进行分析"这种空话，后来发现每个环节其实都有对应工具（topic-outline-planner 出大纲、draft-writer 写初稿、title-generator 起标题……）。workflow 的价值是编排工具、规定顺序和确认节点，不是写一堆空话让 agent 自由发挥。后续演进（2026-08-20）：DNA template 细化到可直接执行后，写作三件套工具被移除，选题、标题、初稿由 agent 按 template 直接产出；workflow 的价值转为编排用户输入分支、确认节点和工具衔接（抓取、封面、排版、发布）。

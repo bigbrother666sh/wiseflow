@@ -22,10 +22,11 @@ awada-server（relay 侧 TS）只做两件事：收 platform webhook 写 inbound
 每个请求带 header：
 
 ```
-X-OFB-Key: <你的 OFB_KEY>
+X-Awada-Key: <你的 awadaKey>
 ```
 
-- key 由 relay admin 签发，`scopes` 数组含 `awada:lane:<laneId>` 才能访问该 lane。
+- 服务端优先读 `X-Awada-Key`，fallback `X-OFB-Key`（向后兼容）。
+- `awadaKey` 由 relay admin 签发（与签名服务用的 `OFB_KEY` 是两份独立凭证），`scopes` 数组含 `awada:lane:<laneId>` 才能访问该 lane。
 - 无任何 `awada:lane:*` scope → `403 AWADA_NOT_SUBSCRIBED`（未购买 awada 增值服务）。
 - 有 awada scope 但不含请求的 lane → `403 FORBIDDEN_LANE`。
 - 速率限制：每 key `rpm`（签发时定），超限 `429`。
@@ -41,7 +42,7 @@ Base URL：`https://<relay-domain>/api/v1/awada`（incu 上经 nginx TLS）。
 
 | 参数 | 说明 |
 |---|---|
-| `lane` | 必填，lane id |
+| `lane` | 可选，lane id；不传时 server 默认 `User` |
 | `block_ms` | 长轮询阻塞毫秒，默认 2500，上限 10000 |
 | `count` | 单次最多拉取条数，默认 10，上限 100 |
 | `last_id` | 上次返回的 `lastId`；首次不传（网关从历史 pending `0` 开始消费） |
@@ -88,7 +89,7 @@ Base URL：`https://<relay-domain>/api/v1/awada`（incu 上经 nginx TLS）。
 
 | 字段 | 必填？ | 说明 |
 |---|---|---|
-| `platform` | **必填** | server 据此找 bot 配置发回 platform。从 inbound `event.meta.platform` 原样回传 |
+| `platform` | 回复必填 / 主动外呼可省 | server 据此找 bot 配置发回 platform。回复从 inbound `event.meta.platform` 原样回传；主动外呼省略时 server 按 lane 绑定推导 |
 | `channel_id` | **必填** | 群聊=群标识、私聊=`'0'`，server 据此判群/私聊定接收者。从 inbound `event.meta.channel_id` 原样回传 |
 | `user_id_external` | **必填** | 私聊接收者标识。从 inbound `event.meta.user_id_external` 原样回传 |
 | `tenant_id` | 建议 | 多租户路由用。从 inbound `event.meta.tenant_id` 回传 |
@@ -96,7 +97,7 @@ Base URL：`https://<relay-domain>/api/v1/awada`（incu 上经 nginx TLS）。
 | `source_event_id` | 建议 | 对应 inbound 的 `event_id`，回执关联 / 链路追踪 |
 | `reply_to_message_id` | 可选 | 平台原消息 id（如企微 reply_to） |
 
-> **关键**：`platform` / `channel_id` / `user_id_external` 缺省会被填成 `'unknown'`，多 bot 场景会路由失败或投错对象。最简做法：把 inbound `event.meta` 整个回传，再覆盖 `source_event_id`。
+> **关键**：回复时把 inbound `event.meta` 整个回传再覆盖 `source_event_id` 即可。主动外呼不传 `platform`，server 按 `lane` 的 provision 绑定推导。`channel_id` / `user_id_external` 始终必填。
 
 响应 200：
 
@@ -120,7 +121,7 @@ Base URL：`https://<relay-domain>/api/v1/awada`（incu 上经 nginx TLS）。
 
 ### WS /inbound?lane=
 
-升级时带 header `X-OFB-Key: <OFB_KEY>`（与 HTTP 同一鉴权）。升级成功后：
+升级时带 header `X-Awada-Key: <awadaKey>`（与 HTTP 同一鉴权，服务端 fallback `X-OFB-Key`）。升级成功后：
 
 **server → client 帧**（推 inbound 事件）：
 
@@ -144,7 +145,7 @@ Base URL：`https://<relay-domain>/api/v1/awada`（incu 上经 nginx TLS）。
 }
 ```
 
-`meta` 字段同 §3 POST /outbound：`platform` / `channel_id` / `user_id_external` **必填**（server 据此路由回 platform），从 inbound `event.meta` 原样回传；最简做法是整个 `event.meta` 回传再覆盖 `source_event_id`。
+`meta` 字段同 §3 POST /outbound：回复时 `platform` / `channel_id` / `user_id_external` 从 inbound `event.meta` 原样回传（最简做法是整个 `event.meta` 回传再覆盖 `source_event_id`）；主动外呼省略 `platform`，server 按 lane 绑定推导。
 
 server 回 `reply_ok`：
 
@@ -170,15 +171,16 @@ server 回 `reply_ok`：
 
 ## 7. lane 绑定与计费
 
-- 一个 OFB_KEY ↔ 0 或多个 lane。awada 是**增值服务**（按月租），与 VIP Club 内含的 sign/wxmp/wxwork 无关。
-- 租 lane = relay admin 建一个 lane（绑一个 platform，如一个企业微信机器人账号）+ 给你的 OFB_KEY 加 `awada:lane:<id>` scope。
+- 一个 awadaKey ↔ 0 或多个 lane。awada 是**增值服务**（按月租），与 VIP Club 内含的 sign/wxmp/wxwork 无关。
+- 租 lane = relay admin 建一个 lane（绑一个 platform，如一个企业微信机器人账号）+ 给你的 awadaKey 加 `awada:lane:<id>` scope。
 - 一个 lane 绑定**恰好一个 platform**（1:1，不再支持按规则投递多 lane）。
+- lane 可省略——不传时 server 默认使用 `User` lane。
 
 ## 8. 最小接入示例（伪代码）
 
 ```js
 const ws = new WebSocket("wss://relay/api/v1/awada/inbound?lane=" + LANE, {
-  headers: { "X-OFB-Key": OFB_KEY },
+  headers: { "X-Awada-Key": AWADA_KEY },
 });
 ws.on("message", async (raw) => {
   const frame = JSON.parse(raw);
@@ -200,3 +202,4 @@ ws.on("message", async (raw) => {
 - 2026-07-06：初版。方向修正为 bot 侧代理（GET /inbound 读、POST /outbound 写、WS /inbound）。此前若 client 实现过 POST /inbound / GET /outbound，需翻转。
 - 2026-07-06：D5b — WS 必须 ack。processed 改在 ack 时标记（unacked 重连可重投，不丢消息）。网关 XAUTOCLAIM 周期回收 stale PEL。至少一次语义，bot 侧按 event_id 幂等。
 - 2026-07-06：明确 reply（POST /outbound + WS reply 帧）的 `meta.platform` / `channel_id` / `user_id_external` **必填**——server 直接据此路由回 platform，不按 `source_event_id` 反查 inbound。client 须从 inbound `event.meta` 原样回传。补 HTTP 错误信封形状；§8 示例补 ack 帧。
+- 2026-08-20：配置简化。鉴权 header 改 `X-Awada-Key`（服务端 fallback `X-OFB-Key` 向后兼容）；`lane` 改可选（不传 server 默认 `User`）；`relayBaseUrl` 默认官方域名 `https://relay.openclaw-for-business.com`；客户端不发 `platform`（relay 按 lane 绑定推导，回复仍从 inbound `event.meta.platform` 回传）。客户端最小配置只需 `awadaKey`。`awadaKey` 与签名服务 `OFB_KEY` 是两份独立凭证。

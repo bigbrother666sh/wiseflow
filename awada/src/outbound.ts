@@ -14,7 +14,7 @@ import type { AwadaConfig } from "./types.js";
 import { isNoReplyText } from "./silent-reply.js";
 
 /**
- * Resolve the gateway send params (relayBaseUrl/ofbKey/lane) for an account.
+ * Resolve the gateway send params (relayBaseUrl/awadaKey/lane) for an account.
  * Throws if the account isn't configured for gateway transport.
  */
 function resolveGatewaySend(params: {
@@ -22,12 +22,12 @@ function resolveGatewaySend(params: {
   accountId?: string | null;
 }) {
   const account = resolveAwadaAccount({ cfg: params.cfg, accountId: params.accountId ?? undefined });
-  if (!account.relayBaseUrl || !account.ofbKey) {
-    throw new Error("[awada] relayBaseUrl/ofbKey not configured");
+  if (!account.relayBaseUrl || !account.awadaKey) {
+    throw new Error("[awada] not configured (need awadaKey)");
   }
   return {
     relayBaseUrl: account.relayBaseUrl,
-    ofbKey: account.ofbKey,
+    awadaKey: account.awadaKey,
     lane: account.lane,
     account,
   };
@@ -40,13 +40,13 @@ function resolveGatewaySend(params: {
 async function sendChunked(params: {
   cfg: ClawdbotConfig;
   relayBaseUrl: string;
-  ofbKey: string;
+  awadaKey: string;
   lane: string;
   target: ReturnType<typeof decodeAwadaTo>;
   text: string;
   sourceEventId?: string;
 }): Promise<string> {
-  const { cfg, relayBaseUrl, ofbKey, lane, target, sourceEventId } = params;
+  const { cfg, relayBaseUrl, awadaKey, lane, target, sourceEventId } = params;
   const awadaCfg = cfg.channels?.awada as AwadaConfig | undefined;
   const perMsgMaxLen = awadaCfg?.perMsgMaxLen;
   const chunks =
@@ -58,7 +58,7 @@ async function sendChunked(params: {
   for (const chunk of chunks) {
     lastId = await sendTextToAwada({
       relayBaseUrl,
-      ofbKey,
+      awadaKey,
       lane,
       target: target!,
       text: chunk,
@@ -85,7 +85,7 @@ export const awadaOutbound: ChannelOutboundAdapter = {
     const streamId = await sendChunked({
       cfg,
       relayBaseUrl: gw.relayBaseUrl,
-      ofbKey: gw.ofbKey,
+      awadaKey: gw.awadaKey,
       lane: gw.lane,
       target,
       text: text ?? "",
@@ -109,7 +109,7 @@ export const awadaOutbound: ChannelOutboundAdapter = {
         const media = buildMediaContentFromUrl(url);
         const streamId = await sendMediaToAwada({
           relayBaseUrl: gw.relayBaseUrl,
-          ofbKey: gw.ofbKey,
+          awadaKey: gw.awadaKey,
           lane: gw.lane,
           target,
           media,
@@ -120,7 +120,7 @@ export const awadaOutbound: ChannelOutboundAdapter = {
         const media = buildMediaContentFromName({ file_name: url });
         const streamId = await sendMediaToAwada({
           relayBaseUrl: gw.relayBaseUrl,
-          ofbKey: gw.ofbKey,
+          awadaKey: gw.awadaKey,
           lane: gw.lane,
           target,
           media,
@@ -135,7 +135,7 @@ export const awadaOutbound: ChannelOutboundAdapter = {
     const streamId = await sendChunked({
       cfg,
       relayBaseUrl: gw.relayBaseUrl,
-      ofbKey: gw.ofbKey,
+      awadaKey: gw.awadaKey,
       lane: gw.lane,
       target,
       text: body,

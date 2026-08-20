@@ -2,7 +2,7 @@
  * Gateway client — WS inbound channel + ack.
  *
  * Per docs/AWADA-CLIENT-TRANSPORT.md §4: bot opens WS /api/v1/awada/inbound?lane=<lane>
- * with X-OFB-Key header. Relay pushes `{id, event}` frames. Bot processes the event then
+ * with X-Awada-Key header. Relay pushes `{id, event}` frames. Bot processes the event then
  * sends `{type:"ack",id}`. Unacked events stay in the PEL and are reclaimed by the gateway
  * (XAUTOCLAIM, min-idle 65s) after reconnect — at-least-once semantics.
  *
@@ -25,7 +25,7 @@ export function buildInboundWsUrl(relayBaseUrl: string, lane: string): string {
 
 export type GatewayClientOpts = {
   relayBaseUrl: string;
-  ofbKey: string;
+  awadaKey: string;
   lane: string;
   /** Bot processing for one inbound event. Resolves when the bot is done (reply already POSTed). */
   onEvent: (id: string, event: InboundEvent) => Promise<void>;
@@ -39,9 +39,9 @@ export type GatewayClientOpts = {
  * Resolves when abortSignal fires (or a fatal misconfiguration throws).
  */
 export async function runGatewayClient(opts: GatewayClientOpts): Promise<void> {
-  const { relayBaseUrl, ofbKey, lane, onEvent, abortSignal, log = console.log, error = console.error } = opts;
+  const { relayBaseUrl, awadaKey, lane, onEvent, abortSignal, log = console.log, error = console.error } = opts;
   if (!relayBaseUrl) throw new Error("[awada] relayBaseUrl not configured");
-  if (!ofbKey) throw new Error("[awada] ofbKey not configured");
+  if (!awadaKey) throw new Error("[awada] awadaKey not configured");
 
   const url = buildInboundWsUrl(relayBaseUrl, lane);
   let backoffIdx = 0;
@@ -56,7 +56,7 @@ export async function runGatewayClient(opts: GatewayClientOpts): Promise<void> {
     if (abortSignal?.aborted) break;
     const sessionStart = Date.now();
     try {
-      await runOnce(url, ofbKey, lane, onEvent, abortSignal, log, error);
+      await runOnce(url, awadaKey, lane, onEvent, abortSignal, log, error);
       // runOnce resolves only on close/error; fall through to reconnect.
     } catch (err) {
       error(`[awada] gateway WS error: ${String(err)}`);
@@ -90,7 +90,7 @@ function sleep(ms: number, abortSignal?: AbortSignal): Promise<void> {
  */
 function runOnce(
   url: string,
-  ofbKey: string,
+  awadaKey: string,
   lane: string,
   onEvent: (id: string, event: InboundEvent) => Promise<void>,
   abortSignal: AbortSignal | undefined,
@@ -99,7 +99,7 @@ function runOnce(
 ): Promise<void> {
   return new Promise<void>((resolve) => {
     let closed = false;
-    const ws = new WebSocket(url, { headers: { "X-OFB-Key": ofbKey } });
+    const ws = new WebSocket(url, { headers: { "X-Awada-Key": awadaKey } });
 
     let lastPong = Date.now();
     const watchdog = setInterval(() => {

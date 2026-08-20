@@ -11,9 +11,8 @@
         "properties": {
           "enabled": { "type": "boolean" },
           "relayBaseUrl": { "type": "string" },
-          "ofbKey": { "type": "string" },
+          "awadaKey": { "type": "string" },
           "lane": { "type": "string" },
-          "platform": { "type": "string" },
           "dmPolicy": { "type": "string", "enum": ["open", "pairing", "allowlist"] },
           "allowFrom": { "type": "array", "items": { "type": "string" } },
           "perMsgMaxLen": { "type": "integer", "minimum": 1 },
@@ -37,9 +36,8 @@
     "properties": {
       "enabled": { "type": "boolean" },
       "relayBaseUrl": { "type": "string" },
-      "ofbKey": { "type": "string" },
+      "awadaKey": { "type": "string" },
       "lane": { "type": "string" },
-      "platform": { "type": "string" },
       "dmPolicy": { "type": "string", "enum": ["open", "pairing", "allowlist"] },
       "allowFrom": { "type": "array", "items": { "type": "string" } },
       "perMsgMaxLen": { "type": "integer", "minimum": 1 },

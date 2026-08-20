@@ -23,15 +23,12 @@ export async function publishTextToAwada(params: {
   const { cfg, accountId, userId, channelId, tenantId = "", text } = params;
 
   const account = resolveAwadaAccount({ cfg, accountId });
-  if (!account.relayBaseUrl || !account.ofbKey) {
-    throw new Error("[awada] relayBaseUrl/ofbKey not configured");
-  }
-  if (!account.platform) {
-    throw new Error("[awada] platform not configured — required for proactive sends");
+  if (!account.relayBaseUrl || !account.awadaKey) {
+    throw new Error("[awada] not configured (need awadaKey)");
   }
 
+  // platform is omitted — the relay derives it from the lane binding (provisioned server-side).
   const target = buildOutboundTarget({
-    platform: account.platform,
     lane: account.lane,
     user_id_external: userId,
     channel_id: channelId,
@@ -40,7 +37,7 @@ export async function publishTextToAwada(params: {
 
   const result = await postOutbound({
     relayBaseUrl: account.relayBaseUrl,
-    ofbKey: account.ofbKey,
+    awadaKey: account.awadaKey,
     lane: account.lane,
     target,
     payload: [{ type: "text", text }],

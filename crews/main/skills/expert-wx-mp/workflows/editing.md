@@ -61,4 +61,4 @@
 
 1. **Frontmatter**：按 `wx-mp-publisher` 规范更新 `article.md` 的 frontmatter（至少核对 `title`、`cover` / `image_list`、`author`、`source_url` 与改后内容同步）；frontmatter 在 workflow 中直接写入，`wx-mp-publisher` 只校验。
 2. **存文件**：文章与图片归位 `output_articles/<article-name>/`，图片与 `article.md` 同目录、纯文件名引用。
-3. **发布 + 记录**：调 `wx-mp-publisher` 发布（排版由用户指定或 Agent 按内容自主选择；自定义主题传登记的 `theme-id`），再按 `content-production.md` Step 9.3 的公众号特例入库——`media_id` 占位先落 `published-track`，用户正式发布后提供正式 URL 时重跑 `record.sh` 升级记录。
+3. **发布 + 记录**：调 `wx-mp-publisher` 发布（排版由用户指定或 Agent 按内容自主选择；自定义主题传登记的 `theme-id`），再按 `content-production.md` Step 9 的公众号特例入库——`media_id` 占位先调 `published-track record`，用户正式发布后提供正式 URL 时重跑升级记录。

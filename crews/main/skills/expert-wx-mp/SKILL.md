@@ -19,7 +19,7 @@ metadata:
 | 起号与定位 | Account Setup | 新号起号、定位梳理、内容支柱搭建、老号接手与诊断 |
 | 账号对标 | Account Benchmark | 对标账号 / 对标文章分析，并与默认或指定 DNA 逐项比较 |
 | 改稿与调整 | Editing | 改稿、润色、换风格、换排版、调方向 |
-| 数据复盘 | Review | 看数据、做复盘、找改进方向 |
+| 数据复盘 | Review | wx_mp 全部数据复盘：DNA 评估、用户临时看数据 / 复盘 / 评估 DNA |
 
 ## 资源命名约定
 
@@ -51,7 +51,6 @@ metadata:
 ## 数据与记录
 
 - 发布记录统一走 `published-track`（入库时传 `--account`；`dna_id` 经作品目录 `dna-meta.json` 自动关联）
-- DNA 表现评估走 `content-calibrator`：发布数据按量触发评估（每平台每 DNA ≥5 条成熟记录），趋势优先归因，评估报告落 `dna/wx_mp/<dna-id>/evals/`；建议经用户确认后走 Style DNA Workflow 回写 DNA。
-- 按需看数据 / 诊断 / 复盘走 Review Workflow（与 content-calibrator 的边界见 `review.md`）
+- DNA 表现评估的引擎是 `content-calibrator`（触发、基线归一化、趋势、报告结构），数据在 `published-track`；**wx_mp 的全部复盘工作（heartbeat 按量触发 + 用户临时发起）统一走 Review Workflow**，由它调用上述技能并用公众号归因方法分析。评估报告落 `dna/wx_mp/<dna-id>/evals/`，建议经用户逐条确认后走 Style DNA Workflow 回写 DNA
 - 平台级数据（受众画像、对标记录、平台状态）存在 workspace 根 `calibration/wx_mp/`
 - 数据是用来指导下一轮改进的，不是为了凑数字——每次复盘必须有明确的下一步动作

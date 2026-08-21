@@ -75,7 +75,7 @@ def main():
     args = parse_args()
     db_path = os.path.join(args.workspace, "db", "published_track.db")
     if not os.path.isfile(db_path):
-        die(f"published_track.db not found at {db_path}（先跑 published-track init-db.sh；agent 须从 workspace 根调用）")
+        die(f"published_track.db not found at {db_path}（先跑 published-track init-db；agent 须从 workspace 根调用）")
     table = f"pub_{args.platform}"
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -86,7 +86,7 @@ def main():
         die(f"unknown platform: {args.platform} (table {table} not found)")
     cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     if "dna_id" not in cols or "perf_evaluated" not in cols:
-        die(f"{table} 缺少 v3 列（dna_id/perf_evaluated），先跑 published-track migrate-v3.sh")
+        die(f"{table} 缺少 v3 列（dna_id/perf_evaluated），先跑 published-track migrate-v3")
 
     metrics = metric_columns(conn, table)
     today = date.today()

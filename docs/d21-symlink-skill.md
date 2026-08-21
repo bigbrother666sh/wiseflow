@@ -160,7 +160,7 @@ login-manager check douyin   # wrapper 在 PATH 中
 | sales-cs-enablement | scripts/symlink_business_knowledge.py | wrapper → py |
 | sales-cs-review | scripts/scan_feedback.py | wrapper → py |
 
-**C 类清单（多并列脚本，暂不加分发器 wrapper，维持 SKILL.md 绝对路径调用）**：bd-record（5）、info-record（4）、ir-record（11）、published-track（11）、content-calibrator（8）、work-channel-binding（7）、customer-db（7）、pitch-deck（3）、swcr-register（3）、video-product（6）、html-video（2，功能分裂）。
+**C 类清单（多并列脚本，暂不加分发器 wrapper，维持 SKILL.md 绝对路径调用）**：bd-record（5）、info-record（4）、ir-record（11）、work-channel-binding（7）、customer-db（7）、pitch-deck（3）、swcr-register（3）、video-product（6）、html-video（2，功能分裂）。（published-track、content-calibrator 已于 2026-08-21 转分发器 wrapper，见变更历史。）
 
 > **为何 C 类不加**：分发器 wrapper（`<skill> <subcmd> ...` 呺由到对应脚本）是为每个 skill 单定制分发表，引入新子命令方言、agent 还要学一套；现 SKILL.md 已把 `./skills/<name>/scripts/<file>.sh` 绝对路径写死（CLAUDE.md 也强制要求），多并列脚本那种靠 SKILL.md 路径明文已治拼错。分发器是未来可选演进，本轮不做。
 
@@ -216,6 +216,8 @@ dev plan §Phase 7 续 写"验收"：
 ---
 
 ## 六、变更历史
+
+- **2026-08-21**：数据直连 DNA 改造连带 wrapper 补强：`published-track`（C 类转分发器 wrapper：`published-track <record|update-metrics|fetch-metrics|query|query-pending|check-published|set-distribute-status|get-xhs-user-id|init-db|migrate-v3>`）与 `content-calibrator`（`content-calibrator <eval|query-metrics|init>`）落顶层分发器 wrapper，SKILL.md / HEARTBEAT.md / AGENTS.md / expert-wx-mp workflows 全部 PATH 化，agent 零路径拼接。继 video-edit 之后第 2、3 个分发器 wrapper。
 
 - **2026-07-04**：本任务在 dev plan §Phase 7 续 标注。文档化完成；实例软链化 + wrapper 补齐等部署阶段做。
 - **2026-07-26**：视频能力重规划落地（`docs/video-capability-replanning-2026-07-25.md`）连带 wrapper 变化：`video-product` 重构更名 `video-edit`，从 C 类"暂不加"转为**首个分发器 wrapper**（`video-edit <extract|assemble|audio-mix|subtitles|frames|apply-cut|preview>`）；`highlight-cut` 更名 `talking-head-cut`，加 B 类薄转发 wrapper（→ scripts/cut_plan.py，剪拼步改调 `video-edit apply-cut`）；公共 `video-review` 补 B 类薄转发 wrapper（→ scripts/review.py，review.py 同时兼容单文件入参）。三个 SKILL.md 示例均已 PATH 化。

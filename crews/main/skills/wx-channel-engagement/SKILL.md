@@ -64,7 +64,7 @@ wx-channel-engagement login --reset   # 删 profile 目录 + 重新 open，从�
 ```bash
 ls ~/.openclaw/workspace-main/db/published_track.db
 # 初始化（如未建）
-~/.openclaw/workspace-main/skills/published-track/scripts/init-db.sh
+published-track init-db
 ```
 
 ---
@@ -154,7 +154,7 @@ wx-channel-engagement fetch --row-id <rowid>
 1. camoufox 打开视频号助手后台首页，看 redirect URL 判断登录态（跳登录页 = 失效，exit 2）
 2. 打开作品管理页，eval JS 解析 innerText 拿作品列表 + 行内 metrics
 3. 按标题匹配拿目标作品 metrics
-4. 调 `./skills/published-track/scripts/update-metrics.sh --platform wx_channel --id <rowid> ...` 写 pub_wx_channel
+4. 调 `published-track update-metrics --platform wx_channel --id <rowid> ...` 写 pub_wx_channel
 
 > `update-metrics.sh` 是 published-track 的纯写库脚本，本 skill 写库就走它（不经过 fetch-and-update-metrics.sh）。`fetch-and-update-metrics.sh` 收到 `--platform wx_channel` 会直接 exit 1 报错提示走本 skill，两条链路独立、不耦合。
 
@@ -202,6 +202,6 @@ wx-channel-engagement fetch --row-id <rowid>
 ## Notes
 
 - **限频建议**：单视频号账号每 24h 全量 ≤ 1 次；单篇按需触发
-- **失败兜底**：本 skill 跑不通时回退到 manual update（`update-metrics.sh --plays ... --likes ... --comments ... --shares ... --favorites ...` 手动填）
+- **失败兜底**：本 skill 跑不通时回退到 manual update（`published-track update-metrics --platform wx_channel --id <rowid> --plays ... --likes ... --comments ... --shares ... --favorites ...` 手动填）
 - **camoufox-cli 注意**：本 skill 全部命令统一 `--session wechat-channel --persistent`（与 `wechat-channels-publish` 共管的持久化 session），headless 是默认行为；登录态从 session profile 桥接
 - **报错约束**：调用方（agent）报告失败时必须原样转述脚本 stderr + exit code，禁止根据 DB 字段（如 `publish_url` 是否为空）自行归因

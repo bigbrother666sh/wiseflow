@@ -613,12 +613,12 @@ expert-wx-mp 改造的最后一块：把 `content-calibrator` × `published-trac
 | 归因原则 | 趋势优先：同账号相对值（对此前最多 10 篇基线的比值）及其走向，不看绝对值 | 同 DNA 下数据好坏还取决于账号成熟度（新号天然低、老号天然高），绝对值不可比 |
 | 归因路径 | 漏斗（打开/完读/收藏/评论/关注）→ template 七部分 → 17 维；混杂排不掉降级为「观察」 | 脚本只给聚合证据，定性归因由 Agent 回读 DNA 文档与原文完成 |
 | 更新权限 | 评估报告 → 用户逐条确认 → style-dna workflow 转译进 DNA（新增「表现反馈区」） | 与既有 DNA 更新习惯一致，防噪声带偏 |
-| 单篇复盘（prediction.md / retro.md） | 废除 | 单篇诊断由专家包 review workflow 按需承接 |
+| 单篇复盘（prediction.md / retro.md） | 废除 | 复盘一律针对 DNA、无单篇复盘；单篇数据疑问由 agent 在账号/DNA 上下文直接回答 |
 
 ### 11.2 职责边界（review vs content-calibrator）
 
-- `review` workflow（专家包内）回答「数据怎么了、为什么」：按需单篇诊断、周期复盘、对标分析；产出诊断与行动项；读 `evals/` 报告作素材，不生成评估报告、不直接改 DNA。
-- `content-calibrator`（顶层跨平台技能）回答「这个 DNA 好不好、该怎么改」：阈值触发的 DNA 表现评估；产出 `dna/<platform>/<dna-id>/evals/{date}.eval.md` 与 DNA 更新建议；结论必须落到 DNA 动作。
+- `review` workflow（专家包内）= 该平台的**全部数据复盘工作**（heartbeat 按量触发 + 用户临时发起），一律根据数据针对 DNA 做，无单篇复盘；提供平台归因方法（指标语义、互动路径映射、混杂因素），过程中调用 `content-calibrator` 与 `published-track`。
+- `content-calibrator`（顶层跨平台技能）= 共性评估引擎：触发规则、账号基线归一化、趋势计算、报告结构；只给共性归因步骤与原则，**不含任何平台特有归因方法**；产出 `dna/<platform>/<dna-id>/evals/{date}.eval.md` 与 DNA 更新建议；结论必须落到 DNA 动作。
 
 ### 11.3 新闭环
 
@@ -629,4 +629,10 @@ expert-wx-mp 改造的最后一块：把 `content-calibrator` × `published-trac
 → mark-evaluated → 用户逐条确认 → style-dna update 回写 DNA
 ```
 
-脚本入口：`content-calibrator/scripts/dna-eval.sh`（`--check` / 聚合 / `--force` / `--mark-evaluated`）。旧 rubric 脚本（score-only / commit-prediction / cal-toggle / detect-bump-signals / validate-rubric 等）与 seed 文件（rubric_notes.md / rubric-memo.md / .cheat-state.json）已删除；`cal_*` DB 列保留做历史兼容，停写。
+脚本入口走 PATH wrapper（D21 分发器 wrapper）：`content-calibrator eval`（`--check` / 聚合 / `--force` / `--mark-evaluated`）、`published-track record|update-metrics|fetch-metrics|...`，agent 零路径拼接。旧 rubric 脚本（score-only / commit-prediction / cal-toggle / detect-bump-signals / validate-rubric 等）与 seed 文件（rubric_notes.md / rubric-memo.md / .cheat-state.json）已删除；`cal_*` DB 列保留做历史兼容，停写。
+
+### 11.4 review 与引擎的落位（2026-08-21 补充）
+
+- **复盘全走平台 review workflow**：该平台的 heartbeat 评估与用户临时复盘统一入口，复盘一律针对 DNA，无单篇复盘；单篇数据疑问由 agent 在账号/DNA 上下文直接回答，发现系统性问题再引导发起评估。
+- **引擎无归因方法**：`content-calibrator` 只给共性归因步骤与原则（趋势优先、证据可追溯、先排混杂）；平台归因方法（指标语义、互动路径与名词、维度映射、混杂清单）全部在平台 review workflow——不同平台连名词都不同（图文讲打开/完读，短视频讲完播），引擎不得特化。
+- **复盘不取数**：review workflow 自身不做取数动作，数据新鲜度由每日定时任务 heartbeat 统一采集保证；用户临时发起单次 review 时直接基于库内已有数据做。仅当用户明确要求「先更新数据」时，才单独调用 `published-track` 取数后再进入复盘。

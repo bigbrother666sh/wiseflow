@@ -49,7 +49,7 @@
 
 ```bash
 # 对每个平台，查询近期记录（取数时效窗口内，见 Step 2）
-./skills/published-track/scripts/query.sh --platform xhs --limit 50
+published-track query --platform xhs --limit 50
 ```
 
 对每个平台列出取数时效窗口内的记录，准备在 Step 2 中更新互动数据。
@@ -60,10 +60,10 @@
 
 对 Step 1 中列出的**每条记录（按 id 逐条）**取数并写库。按平台分三种情况：
 
-1. **douyin / xhs / kuaishou / bilibili** —— 走 `fetch-and-update-metrics.sh`（纯 HTTP+cookie 链路：login-manager 探活 → fetch-retro-data.ts → update-metrics.sh）：
+1. **douyin / xhs / kuaishou / bilibili** —— 走 `published-track fetch-metrics`（纯 HTTP+cookie 链路：login-manager 探活 → fetch-retro-data.ts → 写库）：
 
    ```bash
-   ./skills/published-track/scripts/fetch-and-update-metrics.sh \
+   published-track fetch-metrics \
      --platform <platform> --id <rowid>
    ```
 
@@ -77,7 +77,7 @@
 
    内部流程：camoufox 打开创作者中心首页看 redirect URL 判登录态（跳 `/cgi-bin/home?token=xxx` = 就位，跳 `login`/`scanloginqrcode` = 失效）→ 从 redirect URL 提 token 拼「发表记录」页 URL → camoufox 抓发表记录页 → 解析 innerText 按标题匹配 → update-metrics.sh 写 pub_wx_mp。不导出 cookie/UA/token——登录态在 `wx_mp` session profile 里就位即可。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。
 
-   > ⚠️ 不要调 `fetch-and-update-metrics.sh --platform wx_mp`——该脚本对 wx_mp 直接 exit 1 报错提示走 wx-mp-engagement。两条链路独立维护，避免机制错配。
+   > ⚠️ 不要调 `published-track fetch-metrics --platform wx_mp`——该子命令对 wx_mp 直接 exit 1 报错提示走 wx-mp-engagement。两条链路独立维护，避免机制错配。
 
 3. **微信视频号 (wx_channel)** —— **走 `wx-channel-engagement` 技能**，camoufox 抓视频号助手后台方案，与 wx_mp 同源（camoufox + 解析 innerText）、与第 1 条四个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
 
@@ -87,7 +87,7 @@
 
    内部流程：camoufox 打开视频号助手后台首页看 redirect URL 判登录态（跳 `/platform/home` 等后台路径 = 就位，跳 `login`/扫码页 = 失效）→ 打开作品管理页（`channels.weixin.qq.com/platform/post/list`）→ 解析 wujie shadow DOM innerText 按标题匹配 → update-metrics.sh 写 pub_wx_channel。不导出 cookie/UA/token——登录态在 `wechat-channel` session profile 里就位即可。**与 `wechat-channels-publish` 共管 `wechat-channel` session**（靠 session 名字符串约定共享登录态）。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。
 
-   > ⚠️ 不要调 `fetch-and-update-metrics.sh --platform wx_channel`——该脚本对 wx_channel 直接 exit 1 报错提示走 wx-channel-engagement。两条链路独立维护，避免机制错配。
+   > ⚠️ 不要调 `published-track fetch-metrics --platform wx_channel`——该子命令对 wx_channel 直接 exit 1 报错提示走 wx-channel-engagement。两条链路独立维护，避免机制错配。
 
 **其他平台** —— 除 douyin / xhs / kuaishou / bilibili / wx_mp / wx_channel 外，其他平台暂不支持自动取数，直接跳过。
 
@@ -96,7 +96,7 @@
 **发布超过 30 天的内容不再每天抓取互动数据**——数据已稳定，边际变化可忽略，反复抓只浪费配额/增加风控暴露。按平台类型：
 
 - **浏览器方案**（wx_mp / wx_channel）：列表页/创作者中心天然只展示近期内容，无需额外过滤——老内容不在列表里自然抓不到，**这是设计不是 bug**，不要加翻页去补抓老内容。
-- **接口方案**（xhs / bilibili / douyin / kuaishou）：Step 1 查询时加 `publish_date >= date('now', '-30 days')` 过滤，超过 30 天的行直接跳过不调 `fetch-and-update-metrics.sh`。
+- **接口方案**（xhs / bilibili / douyin / kuaishou）：Step 1 查询时加 `publish_date >= date('now', '-30 days')` 过滤，超过 30 天的行直接跳过不调 `published-track fetch-metrics`。
 
 **DNA 评估（Step 3）不受此限**
 
@@ -114,34 +114,28 @@
 数据采集每天跑，但 DNA 评估**按量触发**——每个（平台, DNA）的成熟待评估记录（发布 ≥3 天 且 `perf_evaluated=0`）累积 **≥5 条**才评估一轮。先跑廉价阈值检查（各启用平台各一次）：
 
 ```bash
-./skills/content-calibrator/scripts/dna-eval.sh --platform <platform> --check
+content-calibrator eval --platform <platform> --check
 ```
 
 返回 JSON：`{dnas: [{dna_id, pending, triggered}]}`
 - 全部 `triggered=false` → 本轮评估跳过，不消耗后续 token
 - 有 `triggered=true` 的 DNA → 进入 Step 3a
 
-##### Step 3a: 聚合证据（每个触发的 DNA）
+##### Step 3a: 有专家包的平台 → 走该平台 review workflow
+
+触发的 DNA 属于哪个平台，就按该平台专家包的 review workflow 执行完整复盘（聚合、平台归因、写报告、标记全在 workflow 内；**workflow 不取数**——本轮数据已在 Step 2 采集就位）：
+
+- **wx_mp** → expert-wx-mp 的 Review Workflow（`skills/expert-wx-mp/workflows/review.md`）
+
+##### Step 3b: 无专家包 review workflow 的平台 → 通用流程
+
+按 `content-calibrator/SKILL.md` 的共性归因步骤执行：聚合 → 回读 DNA 文档与作品原文 → 写 `dna/<platform>/<dna-id>/evals/{YYYY-MM-DD}.eval.md` → 标记：
 
 ```bash
-./skills/content-calibrator/scripts/dna-eval.sh --platform <platform> --dna-id <触发的 dna-id>
+content-calibrator eval --platform <platform> --mark-evaluated --ids <本轮覆盖的记录 id，逗号分隔>
 ```
 
-输出逐篇绝对值 + 同账号基线比值 + 每指标趋势走向（`baseline_insufficient` 的记录只作绝对观察）。须从 workspace 根调用。
-
-##### Step 3b: 归因分析与评估报告
-
-按 `content-calibrator/SKILL.md` 的归因方法执行：
-
-1. **趋势优先**：判定基于同账号相对值及其走向，不拿绝对值下结论。
-2. **先排混杂**：账号成熟度、粉丝自然增长、选题热度、季节性流量；排不掉的降级写「观察」不写「结论」。
-3. 回读该 DNA 的 `.dna.md` / `.template.md` 与待评估作品原文，把漏斗变化落到 template 七部分与具体维度。
-4. 写评估报告到 `dna/<platform>/<dna-id>/evals/{YYYY-MM-DD}.eval.md`（整体判定、趋势表、七部分归因、逐条建议、观察区）。
-5. 报告写完**必须**标记覆盖的记录，防止下轮重复评估：
-
-```bash
-./skills/content-calibrator/scripts/dna-eval.sh --platform <platform> --mark-evaluated --ids <本轮覆盖的记录 id，逗号分隔>
-```
+无平台归因方法时结论只写「观察」级。
 
 **Step 2 取数失败时评估不跳过**：若 DB 里已有历史互动数据（reads/likes/plays 等 > 0），评估**必须用已有数据做**；只有完全没有数据（全 0）且取数也失败时才跳过。
 

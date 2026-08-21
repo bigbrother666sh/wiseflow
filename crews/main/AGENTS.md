@@ -95,7 +95,7 @@ output_articles/
 
 ### 视频发布流程
 
-> 发布记录脚本（`record.sh`）来自 `published-track` 技能，发布则依据各个平台发布技能。视频暂无 DNA 体系，记录时 `dna_id` 留空，不参与 DNA 表现评估。
+> 发布记录命令（`published-track record`）来自 `published-track` 技能，发布则依据各个平台发布技能。视频暂无 DNA 体系，记录时 `dna_id` 留空，不参与 DNA 表现评估。
 
 当用户确认成片后，先根据成片内容与用户诉求草拟视频发布的题目和简介以及hashtag。视频简介中应提及提及我们的产品或业务，但不要有明显引流信息，更加禁止放二维码、联系方式等，可以引导用户在平台内外进行主动搜索或者点头像看主页详情等。
 
@@ -105,29 +105,31 @@ output_articles/
 
 #### 发布后数据记录流程（除用户要求或特殊说明外都应执行）
 
-> 如果用户或者任务描述明确说**不记录** → 不调 `record.sh`, 发布流程结束
+> 如果用户或者任务描述明确说**不记录** → 不调 `published-track record`, 发布流程结束
 
-发布后执行 `published-track` 技能中的 `record.sh`，`--source-folder output_videos/<name>`、`--account <发布账号>`。视频目录无 `dna-meta.json` 时 `dna_id` 自动留空，直接记录即可。
+发布后执行 `published-track record`，`--source-folder output_videos/<name>`、`--account <发布账号>`。视频目录无 `dna-meta.json` 时 `dna_id` 自动留空，直接记录即可。
 
-> **视频号（`--platform wx_channel`）特例**：视频号作品没有「标题」概念，后台展示与 `wx-channel-engagement` 抓取匹配用的都是**描述文案（desc）**。故 `record.sh --title` 必须传**完整描述文案**（即 `wechat-channels-publish` Step 6 填的描述，含 hashtag，最长约 300 字），**不要传 Step 5 的短标题**。这样 `pub_wx_channel.title` 列存的就是完整 desc，`wx-channel-engagement fetch` 按它匹配后台作品管理页才能成功。
+> **视频号（`--platform wx_channel`）特例**：视频号作品没有「标题」概念，后台展示与 `wx-channel-engagement` 抓取匹配用的都是**描述文案（desc）**。故 `published-track record --title` 必须传**完整描述文案**（即 `wechat-channels-publish` Step 6 填的描述，含 hashtag，最长约 300 字），**不要传 Step 5 的短标题**。这样 `pub_wx_channel.title` 列存的就是完整 desc，`wx-channel-engagement fetch` 按它匹配后台作品管理页才能成功。
 
 ### 发布记录管理与复盘
 
 **统一使用 `published-track` 技能管理所有发布记录**。
 
-- 数据库位置:`./db/published_track.db`(初始化:`./skills/published-track/scripts/init-db.sh`,幂等可重复执行)
+- 数据库位置:`./db/published_track.db`(初始化:`published-track init-db`,幂等可重复执行)
 - 按平台分表,每张表包含标题、类型、原始文件夹、发布 URL、发布日期、互动指标、DNA 关联（`dna_id`/`account`/`perf_evaluated`）等字段
-- 数据更新通过 `update-metrics.sh` 完成(每日定时任务触发,或按用户要求录入用户提供数据)
+- 数据更新通过 `published-track update-metrics` 完成(每日定时任务触发,或按用户要求录入用户提供数据)
 
 #### 查询与平台设置
 
-日常按需调用 `published-track` 提供的查询与设置脚本：
+日常按需调用 `published-track` 提供的查询与设置子命令：
 
-- **查询待分发**：`query-pending.sh`（分发任务用）
-- **分发状态设置**：`set-distribute-status.sh`（`--status 0/1/2`、`--mark-all-distributed`）
-- **通用查询**：`query.sh`、`check-published.sh`（按需自查是否已发布、读记录）
+- **查询待分发**：`published-track query-pending`（分发任务用）
+- **分发状态设置**：`published-track set-distribute-status`（`--status 0/1/2`、`--mark-all-distributed`）
+- **通用查询**：`published-track query`、`published-track check-published`（按需自查是否已发布、读记录）
 
-**DNA 表现评估**由 `content-calibrator` 技能承担：消费发布记录与互动数据，按量触发（每平台每 DNA ≥5 条成熟记录）评估 DNA 好坏并产出优化建议（趋势优先，按账号基线归一化），经用户确认后回写 DNA。平台初始化（baseline / 受众 / 对标数据目录）见 `content-calibrator` 技能。
+**DNA 表现评估**：引擎是 `content-calibrator` 技能（消费发布记录与互动数据，按量触发——每平台每 DNA 累积 ≥5 条成熟记录评估一轮，趋势优先、按账号基线归一化，产出评估报告与优化建议）。有专家包的平台（如 wx_mp），heartbeat 触发与用户临时发起的复盘**统一走专家包内的 review workflow**（平台归因方法 + 编排，调用 content-calibrator 与 published-track）；建议经用户逐条确认后走对应专家包的 style-dna workflow 回写 DNA，Agent 不得自动改 DNA。平台初始化（baseline / 受众 / 对标数据目录）见 `content-calibrator` 技能。
+
+**复盘不取数**：复盘 workflow 自身不做取数动作——互动数据的新鲜度由每日凌晨 heartbeat 的采集任务（见 HEARTBEAT.md Step 2）统一保证，复盘直接基于库内已有数据做。用户临时发起复盘时也不要顺手取数；仅当用户明确要求「先更新数据」时，才先单独取数（脚本类平台 `published-track fetch-metrics`；wx_mp 走 `wx-mp-engagement`）再进入复盘。
 ---
 
 ## 商务拓展（BD）

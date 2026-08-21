@@ -122,8 +122,8 @@ esac
 
 # wx_mp（微信公众号）**不走本脚本**——它走 camoufox 抓创作者中心的方案，
 # 与 xhs/bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
-# 由 wx-mp-engagement 技能独立承担（agent 直调 wx-mp-engagement wrapper）。
-# 见 crews/main/HEARTBEAT.md Step 2 与 wx-mp-engagement/SKILL.md。
+# 由 expert-wx-mp 专家包内的 wx-mp-engagement 工具独立承担（agent 直调 wx-mp-engagement wrapper）。
+# 见 crews/main/HEARTBEAT.md Step 2 与 crews/main/skills/expert-wx-mp/tools/wx-mp-engagement/SKILL.md。
 if [ "$PLATFORM" = "wx_mp" ]; then
   echo "{\"ok\":false,\"error\":\"WX_MP_NOT_SUPPORTED_HERE\",\"platform\":\"wx_mp\",\"hint\":\"微信公众号不走 fetch-and-update-metrics.sh。请直调 wx-mp-engagement 技能：wx-mp-engagement fetch --row-id <rowid>（camoufox 抓创作者中心方案，与纯 HTTP+cookie 平台不同）\"}"
   exit 1

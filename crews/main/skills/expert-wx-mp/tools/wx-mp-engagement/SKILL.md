@@ -195,6 +195,5 @@ wx-mp-engagement fetch --row-id <rowid>
 ## Notes
 
 - **限频建议**：单公众号每 24h 全量 ≤ 1 次；单篇按需触发
-- **失败兜底**：本 skill 跑不通时回退到 manual update（`update-metrics.sh --reads ... --likes ... --comments ...` 手动填）
 - **camoufox-cli 注意**：本 skill 全部命令统一 `--session wx_mp --persistent`（本工具自管的持久化 session），headless 是默认行为；token 从 session 内 redirect URL 实时拿
 - **报错约束**：调用方（agent）报告失败时必须原样转述脚本 stderr + exit code，禁止根据 DB 字段（如 `publish_url` 是否为空）自行归因。token 从首页 redirect URL 提取，**与 `publish_url` 无关**——`publish_url` 仅用于输出 JSON，不参与抓取逻辑

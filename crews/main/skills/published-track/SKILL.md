@@ -18,13 +18,15 @@ metadata:
 
 ---
 
-## 数据库位置
+## 数据库位置与调用约定
 
 `./db/published_track.db`（相对于工作区根目录）。初始化（幂等）：
 
 ```bash
-./skills/published-track/scripts/init-db.sh
+published-track init-db
 ```
+
+**脚本统一走顶层 wrapper `published-track <子命令>`**（在 PATH 中，零路径拼接）：`record` / `update-metrics` / `fetch-metrics` / `query` / `query-pending` / `check-published` / `set-distribute-status` / `get-xhs-user-id` / `init-db` / `migrate-v3`。ROOT 按 wrapper 真实路径解析（符号链接自动解析），不限调用目录。
 
 ---
 
@@ -59,7 +61,7 @@ metadata:
 | `account` | 发布账号 alias（如 wx_mp `accounts.json` 的 alias）；DNA 表现评估按账号基线归一化用，`record.sh --account` 写入 |
 | `perf_evaluated` | 是否已被 content-calibrator 的 DNA 表现评估覆盖（0/1）；评估完成后由 `dna-eval.sh --mark-evaluated` 置 1 |
 
-> **历史兼容**：`cal_enabled` / `cal_score_*` / `cal_composite` / `cal_rubric_version` / `cal_bias_signals` / `cal_bump_evaluated` 等旧打分字段保留但**停止写入**——rubric 打分体系已废除，发布数据直接关联 DNA 做表现评估，见 `content-calibrator` 技能。旧库升级跑 `scripts/migrate-v3.sh`（幂等）。
+> **历史兼容**：`cal_enabled` / `cal_score_*` / `cal_composite` / `cal_rubric_version` / `cal_bias_signals` / `cal_bump_evaluated` 等旧打分字段保留但**停止写入**——rubric 打分体系已废除，发布数据直接关联 DNA 做表现评估，见 `content-calibrator` 技能。旧库升级跑 `published-track migrate-v3`（幂等）。
 
 ---
 
@@ -80,7 +82,7 @@ metadata:
 
 ```bash
 # 正常发布后（dna-meta.json 自动读入 dna_id；--account 传发布账号）
-./skills/published-track/scripts/record.sh \
+published-track record \
   --platform wx_mp \
   --title "标题" \
   --content-type article \
@@ -89,7 +91,7 @@ metadata:
   --account xiaobei-main
 
 # 补登记历史作品（无 dna-meta.json → dna_id 留 NULL，不参与 DNA 评估）
-./skills/published-track/scripts/record.sh \
+published-track record \
   --platform xhs \
   --title "标题" \
   --content-type post \
@@ -114,11 +116,11 @@ metadata:
 
 ```bash
 # 通过 source-folder 从 DB 查 publish_url → 抓取 → 写入
-./skills/published-track/scripts/fetch-and-update-metrics.sh \
+published-track fetch-metrics \
   --platform <platform> --source-folder "output_articles/xxx"
 
 # 按 id 逐条抓（同 folder 多条记录各自独立统计，推荐）
-./skills/published-track/scripts/fetch-and-update-metrics.sh \
+published-track fetch-metrics \
   --platform xhs --id <rowid> --xsec-token <tok> --xsec-source pc_feed
 ```
 
@@ -133,7 +135,7 @@ metadata:
 
 Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSION_EXPIRED。
 
-- **脚本支持**：xhs、bilibili、douyin、kuaishou（走 `fetch-retro-data.ts` 纯 HTTP + cookie + UA）；wx_mp（走同目录下的 `wx-mp-engagement` skill, wx_channel（走同目录下的 `wx-channel-engagement` skill）。其他平台暂不支持自动抓取互动数据。
+- **脚本支持**：xhs、bilibili、douyin、kuaishou（走 `fetch-retro-data.ts` 纯 HTTP + cookie + UA）。wx_mp 不走本技能取数——走 `expert-wx-mp` 专家包内的 `wx-mp-engagement` 工具（PATH wrapper 直调）；wx_channel 走顶层 `wx-channel-engagement` 技能。其他平台暂不支持自动抓取互动数据。
 - **xhs 取数路线**：走 `get_note_by_id_from_html`——GET 笔记详情页 HTML 解析 `window.__INITIAL_STATE__` 拿互动计数，**不走** `/api/sns/web/v1/feed`（feed 需 xsec_token 且极易触发滑块/500）。仅需 cookie + 浏览器头，无需 relay 签名、无需 camoufox。
 - **xsec_token 获取**：feed/HTML 路线均强制要 xsec_token，而 `publish_url` 不带、发布响应也不返，唯一来源是 profile 页 note 列表。`fetch-retro-data.ts` 在未传 `--xsec-token` 时，**纯 HTTP** GET 自己 profile 页（`/user/profile/{user_id}`，user_id 取 `xhs-user-id.cache`）解析 `user.notes` 建 note_id→xsec_token 映射（仅近期 ~20 条可见），查到目标 note 的 token 后再 GET 笔记详情页。`fetch-and-update-metrics.sh` 也会从 `publish_url` query 抽 xsec_token 透传（未来发布侧落 token 时直接生效）。笔记不在 profile 首页范围 → `NOTE_NOT_IN_PROFILE`。
 - **xhs headers**：按 UA 家族区分 sec-ch-ua（camoufox=Firefox 不发 brand 列表，Chrome 发完整 sec-ch-ua），避免指纹破绽；sec-fetch 用 document/navigate（真实页面导航）。评论内容（`top_comment`）暂不抓（comment API 同样依赖 xsec_token，待发布侧落 token 后再补）。
@@ -144,14 +146,14 @@ Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSI
 
 ```bash
 # 1) 录入基础信息（历史补录无 dna-meta.json → dna_id 自动留 NULL）
-./skills/published-track/scripts/record.sh \
+published-track record \
   --platform wx_mp --title "用户提供的标题" --content-type article \
   --source-folder "output_articles/xxx" \
   --publish-url "https://mp.weixin.qq.com/s/xxx" \
   --publish-date "2026-06-14" --distribute-status 1 --notes "用户手动录入"
 
 # 2) 补录互动数据（只传用户提供的字段，其余保持不变）
-./skills/published-track/scripts/update-metrics.sh \
+published-track update-metrics \
   --platform wx_mp --source-folder "output_articles/xxx" \
   --reads 1234 --likes 56 --shares 12
 ```
@@ -165,8 +167,8 @@ Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSI
 ### 流程 3A·查询待分发内容（白天 heartbeat 用）
 
 ```bash
-./skills/published-track/scripts/query-pending.sh                # 所有平台待分发
-./skills/published-track/scripts/query-pending.sh --platform wx_mp # 单平台
+published-track query-pending                # 所有平台待分发
+published-track query-pending --platform wx_mp # 单平台
 ```
 
 返回 JSON 数组，每项含 `platform`、`source_folder`、`title`、`publish_url`。
@@ -176,31 +178,31 @@ Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSI
 **分发状态**：
 
 ```bash
-./skills/published-track/scripts/set-distribute-status.sh \
+published-track set-distribute-status \
   --platform wx_mp --source-folder "output_articles/xxx" --status 2
-./skills/published-track/scripts/set-distribute-status.sh \
+published-track set-distribute-status \
   --platform wx_mp --id 3 --status 2
-./skills/published-track/scripts/set-distribute-status.sh \
+published-track set-distribute-status \
   --platform wx_mp --mark-all-distributed
 ```
 
 ### 流程 3C·通用查询（Agent 按需调用）
 
 ```bash
-./skills/published-track/scripts/query.sh --platform zhihu            # 某平台全部记录
-./skills/published-track/scripts/query.sh --platform zhihu --limit 10 # 最近 N 条
-./skills/published-track/scripts/check-published.sh \
+published-track query --platform zhihu            # 某平台全部记录
+published-track query --platform zhihu --limit 10 # 最近 N 条
+published-track check-published \
   --platform zhihu --source-folder "output_articles/xxx"              # 是否已发布
 ```
 
 ### 流程 3D·DNA 表现评估（凌晨 heartbeat 用）
 
-待评估扫描与聚合由 `content-calibrator` 的 `dna-eval.sh` 承担（按平台查 `dna_id` + `perf_evaluated` 列），本技能不再提供复盘查询脚本。
+待评估扫描与聚合由 `content-calibrator eval` 承担（按平台查 `dna_id` + `perf_evaluated` 列），本技能不再提供复盘查询脚本。
 
 ---
 
 ## 与发布技能的配合
 
-所有发布技能（wx-mp-publisher、xhs-publish、gaoqian-article、wechat-channels-publish、bilibili-publish 等）的流程统一为 **发布 → 记录**（`record.sh` 带 `--account`；DNA 关联经 `dna-meta.json` 自动建立）。各技能 SKILL.md 的"发布记录"段标注此要求，主 agent 无需额外提醒。
+所有发布技能（wx-mp-publisher、xhs-publish、gaoqian-article、wechat-channels-publish、bilibili-publish 等）的流程统一为 **发布 → 记录**（`published-track record` 带 `--account`；DNA 关联经 `dna-meta.json` 自动建立）。各技能 SKILL.md 的"发布记录"段标注此要求，主 agent 无需额外提醒。
 
-**平台代号对照**：`wx-mp-publisher`/`sync-from-mp` → `wx_mp`；`wechat-channels-publish` → `wx_channel`；`xhs-publish` → `xhs`。
+**平台代号对照**：`wx-mp-publisher`/`sync-from-mp` → `wx_mp`；`wechat-channels-publish` → `wx_channel`；`xhs-publish` → `xhs`; `douyin` → `douyin`；`bilibili-publish` → `bilibili`；`kuaishou-publish` → `kuaishou`；`zhihu-publish` → `zhihu`; `twitter-post` → `twitter`；`weibo-publish` → `weibo`.

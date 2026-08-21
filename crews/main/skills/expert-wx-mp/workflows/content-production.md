@@ -242,11 +242,11 @@ image_list:
 - `article.md`（含 frontmatter）
 - 封面图与配图（与 article.md 同目录）
 - `materials/` 原始素材（Step 2 已放入）
-- `dna-meta.json` 内容形如 `{"platform":"wx_mp","dna_id":"<dna-id>"}`，记录本篇所用 DNA（发布记录时 `record.sh` 自动读取建立关联，供后续 DNA 表现评估）
+- `dna-meta.json` 内容形如 `{"platform":"wx_mp","dna_id":"<dna-id>"}`，记录本篇所用 DNA（发布记录时 `published-track record` 自动读取建立关联，供后续 DNA 表现评估）
 
 ## Step 9 - 发布 + 记录
 
-### 1. 排版选择（仅公众号长文，小绿书跳过）
+### 9-1. 排版选择（仅公众号长文，小绿书跳过）
 
 排版独立于 DNA，不作为风格符合证据；排版在这一步选定：
 
@@ -255,7 +255,7 @@ image_list:
 3. 用户要求对标排版（“照着这篇的排版来”）-> 调 `generate-wenyan-theme` 提取参考文章排版风格生成主题，登记到 `wenyan-theme/index.json`。
 4. 自定义主题把登记的 `theme-id` 直接传给 `wx-mp-publisher`（脚本经 `wenyan-theme/index.json` 解析出 CSS 并随请求上传 relay）；直接传 `.css` 文件路径也可以。
 
-### 2. 发布
+### 9-2. 发布
 
 调 `wx-mp-publisher <article.md> [theme] [--account ALIAS]` 推草稿箱：
 
@@ -263,12 +263,12 @@ image_list:
 - 脚本自带发布前校验（图片纯文件名引用、`author` 长度），校验失败直接退出。
 - 必须等待脚本完整返回后再判定结果，禁止提前自行判断发布成功。
 
-### 3. 公众号特例：media_id 占位与 URL 升级
+### 9-3. 公众号特例：media_id 占位与 URL 升级
 
 `wx-mp-publisher` 只能把文章发布到微信公众号后台草稿箱，正式发布必须由用户手动至微信公众号后台操作：
 
-1. 调用成功后 relay 返回草稿的 `media_id`；暂时将 `media_id` 作为文章 url 占位，先调 `published-track` 的 `record.sh` 完成入库：`--platform wx_mp`、`--source-folder output_articles/<article-name>/`、`--account <发布所用账号 alias>`（`dna_id` 由 record.sh 自动从 `dna-meta.json` 读取）。
+1. 调用成功后 relay 返回草稿的 `media_id`；暂时将 `media_id` 作为文章 url 占位，先调 `published-track record` 完成入库：`--platform wx_mp`、`--source-folder output_articles/<article-name>/`、`--account <发布所用账号 alias>`（`dna_id` 自动从 `dna-meta.json` 读取）。
 2. 告诉用户去公众号后台草稿箱正式发布。
-3. 后续用户完成正式发布并提供了正式 URL 时，用相同 `--source-folder`、`--publish-date` 重跑 `record.sh` 并传入正式 `--publish-url`——upsert 语义会升级对应记录的 URL，不重复插行。
+3. 后续用户完成正式发布并提供了正式 URL 时，用相同 `--source-folder`、`--publish-date` 重跑 `published-track record` 并传入正式 `--publish-url`——upsert 语义会升级对应记录的 URL，不重复插行。
 
 小绿书记录同理：入库时同样用 `media_id` 占位，用户提供正式链接后升级。

@@ -114,8 +114,9 @@ function runOnce(
       }
     }, 30_000);
 
-    // ws auto-replies to protocol-level ping with pong; track pong events for liveness.
-    ws.on("pong", () => {
+    // Server sends protocol-level ping every 30s; ws auto-replies with pong.
+    // Track ping events for liveness (we receive pings, not pongs).
+    ws.on("ping", () => {
       lastPong = Date.now();
     });
 

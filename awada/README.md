@@ -1,7 +1,5 @@
 # awada（client 侧）
 
-> 产品拆分后本仓承担 **wiseflow-client** 角色。awada-server 已整体迁出至 relay 仓 `services/awada-server/`（决策 D4）。本仓仅保留 **awada-extension** 作为 openclaw channel，走 HTTP/WS transport 调 relay 网关（决策 D2），**不再直连 Redis**。
-
 ## 为什么需要 awada？
 
 部分第三方消息服务提供商（企微 bot、个微 bot）要求固定公网 IP 接收 webhook，而 openclaw 多为本地部署。awada 在公网中转消息到本地 openclaw 实例。
@@ -12,7 +10,7 @@
 微信用户
    │  (消息)
    ▼
-WorkTool / QiweAPI ──webhook──► awada-server（relay 仓 services/awada-server/）
+provider service ──webhook──► awada-server
                                       │
                                    HTTP/WS 网关（X-Awada-Key 鉴权）
                                       │
@@ -105,7 +103,3 @@ openclaw 配置文件中添加 `channels.awada` 节点：
 - **多 bot**：在 relay 侧 awada-server 配置多个 bot，每个 bot 绑定一个 lane（1:1）。客户端用不同 `awadaKey`/`lane` 订阅（`lane` 可省略，server 默认 `User`）。
 - **多 openclaw 实例**：不同实例订阅不同 lane。
 - 客户端无需感知 Redis db 隔离（relay 内部处理）。
-
-## awada-server 在哪？
-
-`services/awada-server/` 已迁至 relay 仓（`git-server:repos/wiseflow-relay.git`），交接文档见该仓 `docs/HANDOVER.md`。本仓不再包含 server 代码。启用 sales-cs（D10）由 IT engineer 操作改 `enabled: true` + 软链 business_knowledge。

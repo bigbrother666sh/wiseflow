@@ -77,7 +77,6 @@ DNA template 是选题、标题、段落结构、句式、语气和表达路线�
 | 署名 | 用户指定或有要求 `author` 时逐字使用，如无默认使用 `xiaobei` |
 | 原文链接 | 用户指定或有要求 `source_url` 时逐字保留；没有则不编造 |
 | CTA | 用户指定 CTA 时优先执行；未指定时按业务目标与 DNA template 推导，注意微信公众号不允许出现明显的二维码或者链接引流 |
-| 打分 / 发布 | 明确用户是否需要，不默认执行 |
 
 优先级固定为：
 
@@ -243,19 +242,9 @@ image_list:
 - `article.md`（含 frontmatter）
 - 封面图与配图（与 article.md 同目录）
 - `materials/` 原始素材（Step 2 已放入）
-- `calibration/` 由下一步质量门生成（未打分则无）
+- `dna-meta.json` 内容形如 `{"platform":"wx_mp","dna_id":"<dna-id>"}`，记录本篇所用 DNA（发布记录时 `record.sh` 自动读取建立关联，供后续 DNA 表现评估）
 
-## Step 9 - 质量门（content-calibrator）
-
-按 `content-calibrator` 流程 1A 做发布前自检：
-
-1. 打分 + 盲预测（交互式会话派发 blind sub-agent；定时 / 隔离会话 inline 打分）。
-2. `score-only.sh` 校验并判阈值门（阈值取 `calibration/.cheat-state.json` 的全局 `score_threshold`）。
-3. `commit-prediction.sh` 把 `score.json` + `prediction.md` 落盘到 `output_articles/<article-name>/calibration/`。
-4. `passed=false` -> 按 `failing_dims` 改稿重打，最多 2 轮；仍不达标暂停发布、上报用户裁定。
-5. 平台未启用 calibration -> 跳过本步，记录时传 `--no-cal`。
-
-## Step 10 - 发布 + 记录
+## Step 9 - 发布 + 记录
 
 ### 1. 排版选择（仅公众号长文，小绿书跳过）
 
@@ -278,7 +267,7 @@ image_list:
 
 `wx-mp-publisher` 只能把文章发布到微信公众号后台草稿箱，正式发布必须由用户手动至微信公众号后台操作：
 
-1. 调用成功后 relay 返回草稿的 `media_id`；暂时将 `media_id` 作为文章 url 占位，先调 `published-track` 的 `record.sh` 完成入库：`--platform wx_mp`、`--source-folder output_articles/<article-name>/`（record.sh 自动从 `calibration/score.json` 读分；Step 9 跳过时传 `--no-cal`）。交付元信息（使用的 `dna-id`、CTA 说明、封面来源或 AIGC 提示词）写入 `--notes`。
+1. 调用成功后 relay 返回草稿的 `media_id`；暂时将 `media_id` 作为文章 url 占位，先调 `published-track` 的 `record.sh` 完成入库：`--platform wx_mp`、`--source-folder output_articles/<article-name>/`、`--account <发布所用账号 alias>`（`dna_id` 由 record.sh 自动从 `dna-meta.json` 读取）。
 2. 告诉用户去公众号后台草稿箱正式发布。
 3. 后续用户完成正式发布并提供了正式 URL 时，用相同 `--source-folder`、`--publish-date` 重跑 `record.sh` 并传入正式 `--publish-url`——upsert 语义会升级对应记录的 URL，不重复插行。
 

@@ -129,7 +129,7 @@ Template 聚合要求：
 
 ## 更新已有 DNA
 
-适用场景：目标 DNA 已存在，用户新增样本、偏好或局部借鉴。
+适用场景：目标 DNA 已存在，新增样本、偏好、局部借鉴或表现反馈。
 
 ### 新增样本
 
@@ -167,11 +167,21 @@ wechat-style-profiler update \
 2. 用 `--focus` 限定参与影响的维度。
 3. 更新 DNA 文档与 template，并在报告中保留来源和 focus 说明。
 
+### 表现反馈
+
+来源：`content-calibrator` 的 DNA 表现评估报告（`dna/wx_mp/{dna-id}/evals/*.eval.md`）。评估回答「这个 DNA 好不好、哪些部分好/不好」，本 workflow 负责把**用户确认采纳**的评估结论转译进 DNA。
+
+1. 前提：评估报告已存在，且用户逐条确认了要采纳的建议（未确认的建议不动 DNA）。
+2. 每条采纳建议按参考输入处理：转译到具体维度和执行要求（如「完读率持续走低，起部铺垫过长」→ 起部分切入方式 + 句式节奏维度），经 `wechat-style-profiler update --user-input` 传入。
+3. 转译结果写入 DNA 文档的「表现反馈区」（与「用户输入转译区」并列），每条记录：来源 eval 文件、affected dimensions、DNA 文档修改、template 修改。
+4. 同步修订 template 对应部分；表现反馈只改规则表达，不引入样本未覆盖的新风格。
+5. 趋势类证据（比值走向）只支持方向性调整（加强/弱化既有规则），不支持凭空新增维度规则——新增规则仍需样本或用户输入支撑。
+
 ## DNA 使用接口
 
 本 Workflow 不描述如何用 DNA 生产：生产 workflow 自行读取 `dna/wx_mp/{dna-id}/{dna-id}.dna.md` 与 `{dna-id}.template.md`，按 template 七部分执行，见 `content-production.md` / `editing.md`。
 
-反馈回流判定：来自生产、改稿或复盘的成稿风格修改意见，先判断是否可复用偏好——只有可复用偏好才经本 workflow「更新已有 DNA」进入 DNA；单次修改留在稿件审阅记录，不动 DNA。参考文章的风格吸收（“把这篇的风格融入到我们的 DNA”）属于本 workflow 的新增样本 / 局部借鉴场景，不是生产流程的一部分。
+反馈回流判定：来自生产、改稿或复盘的成稿风格修改意见，先判断是否可复用偏好——只有可复用偏好才经本 workflow「更新已有 DNA」进入 DNA；单次修改留在稿件审阅记录，不动 DNA。参考文章的风格吸收（“把这篇的风格融入到我们的 DNA”）属于本 workflow 的新增样本 / 局部借鉴场景，不是生产流程的一部分。发布数据驱动的风格优化走「表现反馈」：`content-calibrator` 评估产出建议 → 用户逐条确认 → 本 workflow 转译进 DNA；评估本身不改 DNA。
 
 ## 对标接口
 

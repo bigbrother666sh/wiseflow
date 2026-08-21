@@ -83,21 +83,6 @@ output_articles/
   - 3. **技能生成图片**:
     - 优先使用 siliconflow-img-gen 生成,siliconflow-img-gen 不可用时,尝试 pexels-footage 或 pixabay-footage 下载免版权图片
 
-按需写作的文章生产后**主动询问用户是否需要打分流程**。后续按用户决策推进（每一步决策由用户做）：
-
-> 打分+预测脚本（`score-only.sh`/`commit-prediction.sh`/`cal-toggle.sh`）与盲打分规范来自 `content-calibrator` 技能，发布记录脚本（`record.sh`）来自 `published-track` 技能，发布则依据各个平台发布技能。
-
-1. **问是否打分**。
-  - 用户说**要打分** → 对 `article.md` 执行**打分+盲预测**：主 agent `sessions_spawn` blind sub-agent（只喂 `article.md` + `calibration/rubric_notes.md`，一次输出 7 维分 + 盲预测草稿）→ 使用 `score-only.sh` 校验 + 判阈值门 → 使用 `commit-prediction.sh` 把 score+预测落盘到 `<article-english-title>/calibration/`（`score.json` + `prediction.md`，同 work 重打覆盖）。平台未启用 calibration → 跳过打分并告知用户。
-
-     ⚠️ **spawn blind sub-agent 时，prompt 里必须强制要求**：「你最后一步的 reply 正文里**必须**包含一个 JSON 代码块（装着 7 维分 + 预测）；不要只 tool-call 后 stop，不要只用 thinking 代替最终文本输出。」不照此要求会导致某些模型路由下（如 awk/glm-latest）提前 stop 不输出文本，主 agent 拿不到打分结果。本要求同样适用于所有 spawn blind sub-agent 做打分的场景。
-     - 每轮打分后，**询问用户是否发布**。
-     - 用户有意见，则按用户意见修改之后再次执行打分+预测流程（覆盖上一次落盘），直到用户确认可发布。
-     - 用户说**发布** → 调对应发布技能发布 → 用 `record.sh` 记录（`--source-folder output_articles/<article-english-title>`，record.sh 自动从 `<work>/calibration/score.json` 读分；缺 score.json/prediction.md 则报错，提示先补跑 1A）。
-   - 用户说**不必打分直接发布** → 直接调发布技能发布 → 用 `record.sh` 记录（显式 `--no-cal`，`cal_enabled=0`）。
-2. 发布到哪个平台、是否多平台，由用户指定，因为涉及到用户交互和浏览器操作，所以多平台发布必须串行执行。**多平台共用同一份打分+预测**（per-work），`record.sh` 每个平台各调一次、同一 `--source-folder`，从同一份 score.json 读分。
-3. 打分阈值取自根级 `calibration/.cheat-state.json` 的 `score_threshold`（**全局统一**，默认 0=不拦截），每维需 > 阈值。打分+预测流程与阈值命令见 `content-calibrator/SKILL.md`，发布记录见 `published-track/SKILL.md`。
-
 ### 视频生产
 
 你只做**基于已有素材的轻加工**，三类活对应三个技能：
@@ -110,7 +95,7 @@ output_articles/
 
 ### 视频发布流程
 
-> 打分+预测脚本与盲打分规范来自 `content-calibrator` 技能，发布记录脚本（`record.sh`）来自 `published-track` 技能，发布则依据各个平台发布技能。视频若走打分流程，参照"按需写作"一节的打分环节执行，落盘到 `output_videos/<name>/calibration/`；未打分的视频发布后记录时显式 `--no-cal`。
+> 发布记录脚本（`record.sh`）来自 `published-track` 技能，发布则依据各个平台发布技能。视频暂无 DNA 体系，记录时 `dna_id` 留空，不参与 DNA 表现评估。
 
 当用户确认成片后，先根据成片内容与用户诉求草拟视频发布的题目和简介以及hashtag。视频简介中应提及提及我们的产品或业务，但不要有明显引流信息，更加禁止放二维码、联系方式等，可以引导用户在平台内外进行主动搜索或者点头像看主页详情等。
 
@@ -122,10 +107,7 @@ output_articles/
 
 > 如果用户或者任务描述明确说**不记录** → 不调 `record.sh`, 发布流程结束
 
-发布后执行 `published-track` 技能中的 `record.sh`，`--source-folder output_videos/<name>`。**record.sh 自动从 `output_videos/<name>/calibration/score.json` 读分**：
-
-- Step 2.4 已落盘 `score.json`+`prediction.md` → record.sh 读分、`cal_enabled=1` + 算 composite。
-- 若 Step 2.4 跳过（无任何已启用视频平台 / 用户不打分）→ calibration 目录不存在 → 显式传 `--no-cal` 记录（`cal_enabled=0`）；不传 `--no-cal` 则因 score.json 缺失报错，提示先补跑 Step 2.4。
+发布后执行 `published-track` 技能中的 `record.sh`，`--source-folder output_videos/<name>`、`--account <发布账号>`。视频目录无 `dna-meta.json` 时 `dna_id` 自动留空，直接记录即可。
 
 > **视频号（`--platform wx_channel`）特例**：视频号作品没有「标题」概念，后台展示与 `wx-channel-engagement` 抓取匹配用的都是**描述文案（desc）**。故 `record.sh --title` 必须传**完整描述文案**（即 `wechat-channels-publish` Step 6 填的描述，含 hashtag，最长约 300 字），**不要传 Step 5 的短标题**。这样 `pub_wx_channel.title` 列存的就是完整 desc，`wx-channel-engagement fetch` 按它匹配后台作品管理页才能成功。
 
@@ -134,7 +116,7 @@ output_articles/
 **统一使用 `published-track` 技能管理所有发布记录**。
 
 - 数据库位置:`./db/published_track.db`(初始化:`./skills/published-track/scripts/init-db.sh`,幂等可重复执行)
-- 按平台分表,每张表包含标题、类型、原始文件夹、发布 URL、发布日期、互动指标、校准打分等字段
+- 按平台分表,每张表包含标题、类型、原始文件夹、发布 URL、发布日期、互动指标、DNA 关联（`dna_id`/`account`/`perf_evaluated`）等字段
 - 数据更新通过 `update-metrics.sh` 完成(每日定时任务触发,或按用户要求录入用户提供数据)
 
 #### 查询与平台设置
@@ -143,10 +125,9 @@ output_articles/
 
 - **查询待分发**：`query-pending.sh`（分发任务用）
 - **分发状态设置**：`set-distribute-status.sh`（`--status 0/1/2`、`--mark-all-distributed`）
-- **平台打分开关 + 阈值**：`cal-toggle.sh`（`--enable/--disable/--status/--threshold/--set-threshold N/--list`）。阈值语义：每维需 > `score_threshold`（默认 0=不拦截）。Agent 不得自动启用某平台打分或自动改阈值，需告知用户由用户决定；复盘后可向用户推荐阈值。
 - **通用查询**：`query.sh`、`check-published.sh`（按需自查是否已发布、读记录）
 
-平台初始化与是否开启打分，具体见 `content-calibrator` 技能。
+**DNA 表现评估**由 `content-calibrator` 技能承担：消费发布记录与互动数据，按量触发（每平台每 DNA ≥5 条成熟记录）评估 DNA 好坏并产出优化建议（趋势优先，按账号基线归一化），经用户确认后回写 DNA。平台初始化（baseline / 受众 / 对标数据目录）见 `content-calibrator` 技能。
 ---
 
 ## 商务拓展（BD）

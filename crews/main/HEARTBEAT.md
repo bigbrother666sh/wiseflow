@@ -19,7 +19,7 @@
 
    本任务由 cron 以 `session_target=isolated` 启动,**本身已是独立上下文**,不占主 agent 上下文、不阻塞主 session。再 spawn subagent 是零收益纯增复杂度,且 `sessions_yield` 会**直接 abort 当前 run**,cron 将 yield 视为 run 结束并标记 outcome,session 变 inactive;subagent 完成后的 announce 找不到可唤醒的活跃 session,retry 3 次后 give-up,**后续 Step 全部丢失**。
 
-   - 所有 Step 1–5 **顺序内联执行**,retro.md 等产出主 agent 自己写,不 spawn subagent、不 `sessions_yield`。
+   - 所有 Step 1–5 **顺序内联执行**,评估报告等产出主 agent 自己写,不 spawn subagent、不 `sessions_yield`。
    - 唯一允许 spawn 的是约束 2 的「故障兜底 spawn IT Engineer」,且必须 fire-and-forget(不 yield)。
 
 4. **⛔ 登录失效一律「跳过 + 记录 + 汇总上报」，严禁硬行恢复登录**
@@ -45,17 +45,14 @@
 
 ### 工作流程
 
-#### Step 1: 通过 published-track 读取所有已启用打分（cal_enabled=1）的已发布内容
+#### Step 1: 通过 published-track 读取待取数的已发布内容
 
 ```bash
-# 查看哪些平台启用了 content-calibrator
-./skills/content-calibrator/scripts/cal-toggle.sh --list
-
-# 对每个已启用平台，查询有 cal_enabled=1 的记录
+# 对每个平台，查询近期记录（取数时效窗口内，见 Step 2）
 ./skills/published-track/scripts/query.sh --platform xhs --limit 50
 ```
 
-对每个已启用平台，列出所有 `cal_enabled=1` 的记录，准备在 Step 2 中更新数据。
+对每个平台列出取数时效窗口内的记录，准备在 Step 2 中更新互动数据。
 
 ---
 
@@ -101,7 +98,7 @@
 - **浏览器方案**（wx_mp / wx_channel）：列表页/创作者中心天然只展示近期内容，无需额外过滤——老内容不在列表里自然抓不到，**这是设计不是 bug**，不要加翻页去补抓老内容。
 - **接口方案**（xhs / bilibili / douyin / kuaishou）：Step 1 查询时加 `publish_date >= date('now', '-30 days')` 过滤，超过 30 天的行直接跳过不调 `fetch-and-update-metrics.sh`。
 
-**复盘（Step 3）不受此限**——复盘按 T+3d 窗口 + 有 `prediction.md` 无 `retro.md` 判断，可能涉及发布较早但尚未复盘的内容。Step 2 没抓到新数据时，复盘用 DB 里已有的历史数据。
+**DNA 评估（Step 3）不受此限**
 
 ##### 通用规则
 
@@ -112,46 +109,43 @@
 
 ---
 
-#### Step 3: content-calibrator 复盘
+#### Step 3: content-calibrator DNA 表现评估（按量触发）
 
-一键扫描待复盘作品 + 带出互动数据（有 `prediction.md` 无 `retro.md` + 过 T+3d 窗口的 `cal_enabled=1` 记录）：
-
-```bash
-./skills/published-track/scripts/query-retro-pending.sh --days 3
-```
-
-返回 JSON：`{total, pending: [{source_folder, title, prediction_path, publish_date, cal_scores, platforms: {<platform>: {id, metrics}}}]}`
-- `total = 0` → 无待复盘作品，跳过
-- `total >= 1` → 进入 Step 3a
-
-##### Step 3a: 单篇复盘（批量）
-
-对 `pending` 数组里**每个作品依次**执行：
-- 读 `prediction_path` 拿预测（路径已在 JSON 里，无需自己拼）
-- 对比预测 vs `platforms` 里各平台的实际 `metrics`（数据已在 JSON 里，无需再查 DB）
-- 写 `<source_folder>/calibration/retro.md`（T+3d 写一次，immutable，含多平台实绩对比）
-- 提炼本篇观察 → 追加写入**统一** `calibration/rubric-memo.md`（根级，非平台目录；见 content-calibrator SKILL.md 归集表）
-
-**所有作品全部写完 retro.md + rubric-memo.md 后，才进入 Step 3b。** 不在单篇之间插 bump 检测。
-
-##### Step 3b: 综合评估（一次性）
-
-全部单篇复盘完成后，调脚本一次性检测偏差信号并做综合评估：
+数据采集每天跑，但 DNA 评估**按量触发**——每个（平台, DNA）的成熟待评估记录（发布 ≥3 天 且 `perf_evaluated=0`）累积 **≥5 条**才评估一轮。先跑廉价阈值检查（各启用平台各一次）：
 
 ```bash
-./skills/content-calibrator/scripts/detect-bump-signals.sh
+./skills/content-calibrator/scripts/dna-eval.sh --platform <platform> --check
 ```
 
-返回 JSON：`{newly_processed, data_points, signals: [{dimension, direction, count, threshold, triggered, platforms, examples}], recommend_bump}`
+返回 JSON：`{dnas: [{dna_id, pending, triggered}]}`
+- 全部 `triggered=false` → 本轮评估跳过，不消耗后续 token
+- 有 `triggered=true` 的 DNA → 进入 Step 3a
 
-脚本纯 DB 操作：从 `cal_score_*` + 互动指标算偏差信号，写回 `cal_bias_signals` 列，**触发 bump 时自动清空**（未触发时保留，跨轮累积直到达标）。每条记录只处理一次（`cal_bump_evaluated` 标记）。`platforms` 字段给出各信号的平台分布。
+##### Step 3a: 聚合证据（每个触发的 DNA）
 
-- `recommend_bump=false` → 本轮无系统性偏差，复盘结束
-- `recommend_bump=true` → **混杂因素评估**：检查 `triggered_signals` 的 `platforms` 分布 + `examples` 的 work 分布——同账号集中 → 可能冷启动惩罚；同平台集中 → 可能该平台 baseline 偏移；跨平台多账号一致 → rubric 维度失准证据强 → 评估结论写入 `calibration/rubric-memo.md` → 在 Step 5 汇总中告知用户 + 建议（是否升级 rubric / 是否调整发布阈值）。**Agent 不得自动升级 rubric 或改阈值。**
+```bash
+./skills/content-calibrator/scripts/dna-eval.sh --platform <platform> --dna-id <触发的 dna-id>
+```
 
-**Step 2 取数失败时复盘不跳过**：若某条记录 Step 2 取数失败但 DB 里已有历史互动数据（reads/likes/plays 等 > 0），复盘**必须用已有数据做**，不得因 re-fetch 失败就跳过复盘。只有 DB 里完全没有数据（全 0）且取数也失败时才跳过。
+输出逐篇绝对值 + 同账号基线比值 + 每指标趋势走向（`baseline_insufficient` 的记录只作绝对观察）。须从 workspace 根调用。
 
-**如果某平台未启用 content-calibrator，跳过此步骤。Agent 不得自动启用。**
+##### Step 3b: 归因分析与评估报告
+
+按 `content-calibrator/SKILL.md` 的归因方法执行：
+
+1. **趋势优先**：判定基于同账号相对值及其走向，不拿绝对值下结论。
+2. **先排混杂**：账号成熟度、粉丝自然增长、选题热度、季节性流量；排不掉的降级写「观察」不写「结论」。
+3. 回读该 DNA 的 `.dna.md` / `.template.md` 与待评估作品原文，把漏斗变化落到 template 七部分与具体维度。
+4. 写评估报告到 `dna/<platform>/<dna-id>/evals/{YYYY-MM-DD}.eval.md`（整体判定、趋势表、七部分归因、逐条建议、观察区）。
+5. 报告写完**必须**标记覆盖的记录，防止下轮重复评估：
+
+```bash
+./skills/content-calibrator/scripts/dna-eval.sh --platform <platform> --mark-evaluated --ids <本轮覆盖的记录 id，逗号分隔>
+```
+
+**Step 2 取数失败时评估不跳过**：若 DB 里已有历史互动数据（reads/likes/plays 等 > 0），评估**必须用已有数据做**；只有完全没有数据（全 0）且取数也失败时才跳过。
+
+**Agent 不得自动更新 DNA**——评估建议经 Step 5 上报，用户逐条确认后走对应平台专家包的 style-dna workflow 回写。
 
 ---
 
@@ -185,8 +179,8 @@
    > **只报告取数端 cookie**。**不要报告、也不要探测 `xhs-publish`（小红书发布端 / creator.xiaohongshu.com）**：
    > 复盘/取数完全不依赖发布端 cookie，探测它只会给 creator 域增加风控概率且结论与取数无关。
    > 发布端失效由发布任务（xhs-publish 技能）自己管，不在本复盘心跳职责内。
-3. content-calibrator 复盘结果摘要（如有）：列出本轮复盘的**每个作品**（`source_folder` / 标题）+ 预测 vs 实际对比简述；Step 3b 综合评估结果（`detect-bump-signals.sh` 输出的 `recommend_bump` + 触发的维度/方向/count + 混杂因素评估结论）
-4. **综合评估建议（如有）**：Step 3b `recommend_bump=true` 时，Agent 输出评估结论——包含触发的维度/方向/count、证据（`examples` 里的 work/platform/dim_score/actual_score）、混杂因素评估结果、是否建议升级 rubric / 调整发布阈值。**Agent 不得自动执行升级或改阈值**。用户白天确认后，由用户发起 Rubric 升级流程（生成新公式 → 盲重打 10 篇 → `validate-rubric.sh` 验证 → pass=true 落地 / pass=false 重试最多 3 轮）。
+3. DNA 表现评估摘要（如有）：列出本轮评估的 DNA（平台 / dna-id / 覆盖篇数）+ 整体判定（改善 / 平稳 / 下滑）+ 关键归因；无触发 DNA 时写「无 DNA 达到评估阈值」并附各 DNA 待评估计数。
+4. **DNA 优化建议待确认（如有）**：列出评估报告中的逐条建议（建议内容 + 目标维度/template 部分 + 证据篇目）。**Agent 不得自动更新 DNA**。用户白天逐条确认后，指示走对应平台专家包的 style-dna workflow 回写 DNA。
 5. 用户咨询回复摘要。
 
 发送后本次定时任务结束。

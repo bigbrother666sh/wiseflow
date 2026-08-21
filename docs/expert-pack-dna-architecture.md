@@ -1,6 +1,6 @@
 # 专家包（Expert Pack）+ DNA 架构规划
 
-> 日期：2026-08-14；2026-08-18 更新 DNA 生产模式与跨平台 profiler 规范；2026-08-20 明确跨平台 DNA 维度边界与 template 通用开头
+> 日期：2026-08-14；2026-08-18 更新 DNA 生产模式与跨平台 profiler 规范；2026-08-20 明确跨平台 DNA 维度边界与 template 通用开头；2026-08-20 废除 rubric、数据直连 DNA（见第 11 节）
 > 分析基准：内置 openclaw `v2026.7.1`（commit `2d2ddc43`）
 > 目标版本：`v2026.7.1-2`（commit `0790d9f`，待网络可用后升级）
 > 首个改造对象：`crews/main`（小贝 / main agent）
@@ -96,7 +96,7 @@
 
 核心设计原则：**不要发明新的加载机制，把专家包做成「一等公民 skill」**。专家包同时承担两个职责：
 
-1. **编排**：调用跨领域复用的顶层技能（打分、记录、素材采集等）；
+1. **编排**：调用跨领域复用的顶层技能（DNA 表现评估、记录、素材采集等）；
 2. **收纳**：把只服务本领域的专属技能整体挪进包内，使其从 `<available_skills>` 路由面消失。
 
 只做编排不做收纳，会让技能数随领域数线性增长，重新制造臃肿与误路由问题。
@@ -137,7 +137,7 @@ crews/main/
     expert-douyin/
     expert-wx-channel/
     wx-mp-hunter/                # 保留顶层：跨工作流复用（对标采集）
-    content-calibrator/          # 保留顶层：跨平台打分
+    content-calibrator/          # 保留顶层：跨平台 DNA 表现评估
     published-track/             # 保留顶层：跨平台发布记录
 ```
 
@@ -596,3 +596,37 @@ expert-wx-mp/
 5. **收纳后的工具 SKILL.md 必须瘦身** — 一开始还保留着"当用户说 XX 时触发本技能"和"上下游衔接"的内容，但它已经不是独立技能了，这些话都不对了。正确做法：触发语删了，衔接关系写进 workflow，工具文档只写输入输出和怎么用。
 
 6. **workflow 每一步都要能落到工具** — 第一版 workflow 写了很多"专家产出选题"、"专家进行分析"这种空话，后来发现每个环节其实都有对应工具（topic-outline-planner 出大纲、draft-writer 写初稿、title-generator 起标题……）。workflow 的价值是编排工具、规定顺序和确认节点，不是写一堆空话让 agent 自由发挥。后续演进（2026-08-20）：DNA template 细化到可直接执行后，写作三件套工具被移除，选题、标题、初稿由 agent 按 template 直接产出；workflow 的价值转为编排用户输入分支、确认节点和工具衔接（抓取、封面、排版、发布）。
+
+---
+
+## 11. 数据直连 DNA：废除 rubric（2026-08-20）
+
+expert-wx-mp 改造的最后一块：把 `content-calibrator` × `published-track` 的数据闭环从「进化判断准则（rubric）」改为「直接评估并优化 DNA」。
+
+### 11.1 决策一览
+
+| 决策点 | 结论 | 理由 |
+|--------|------|------|
+| rubric 体系（7 维打分 / 盲预测 / 阈值门 / bump 升级） | 整体废除 | 判断准则不再是独立进化对象；发布前质量门退回「DNA template 自检 + 初稿确认」节点 |
+| 数据关联 | `pub_*` 表新增 `dna_id` / `account` / `perf_evaluated` 列（v3 schema） | 作品 ↔ DNA 直接挂钩；account 用于按账号基线归一化 |
+| 评估触发 | 数据采集每天跑；评估按量触发——每（平台, DNA）累积 ≥5 条成熟记录（发布 ≥3 天）评估一轮 | 每日评估噪声大且浪费；低频 DNA 由用户手动 `--force` 兜底 |
+| 归因原则 | 趋势优先：同账号相对值（对此前最多 10 篇基线的比值）及其走向，不看绝对值 | 同 DNA 下数据好坏还取决于账号成熟度（新号天然低、老号天然高），绝对值不可比 |
+| 归因路径 | 漏斗（打开/完读/收藏/评论/关注）→ template 七部分 → 17 维；混杂排不掉降级为「观察」 | 脚本只给聚合证据，定性归因由 Agent 回读 DNA 文档与原文完成 |
+| 更新权限 | 评估报告 → 用户逐条确认 → style-dna workflow 转译进 DNA（新增「表现反馈区」） | 与既有 DNA 更新习惯一致，防噪声带偏 |
+| 单篇复盘（prediction.md / retro.md） | 废除 | 单篇诊断由专家包 review workflow 按需承接 |
+
+### 11.2 职责边界（review vs content-calibrator）
+
+- `review` workflow（专家包内）回答「数据怎么了、为什么」：按需单篇诊断、周期复盘、对标分析；产出诊断与行动项；读 `evals/` 报告作素材，不生成评估报告、不直接改 DNA。
+- `content-calibrator`（顶层跨平台技能）回答「这个 DNA 好不好、该怎么改」：阈值触发的 DNA 表现评估；产出 `dna/<platform>/<dna-id>/evals/{date}.eval.md` 与 DNA 更新建议；结论必须落到 DNA 动作。
+
+### 11.3 新闭环
+
+```
+生产绑定 DNA（dna-meta.json）→ 发布 → record.sh 落 dna_id/account
+→ 每日数据采集（heartbeat）→ dna-eval.sh --check 阈值检查
+→ 触发 → 聚合证据（账号基线比值 + 趋势）→ Agent 归因写 eval 报告
+→ mark-evaluated → 用户逐条确认 → style-dna update 回写 DNA
+```
+
+脚本入口：`content-calibrator/scripts/dna-eval.sh`（`--check` / 聚合 / `--force` / `--mark-evaluated`）。旧 rubric 脚本（score-only / commit-prediction / cal-toggle / detect-bump-signals / validate-rubric 等）与 seed 文件（rubric_notes.md / rubric-memo.md / .cheat-state.json）已删除；`cal_*` DB 列保留做历史兼容，停写。

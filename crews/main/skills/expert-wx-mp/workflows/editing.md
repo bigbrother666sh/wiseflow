@@ -29,7 +29,7 @@
 - 用户给了对标账号 -> 用那个号的 DNA（如果有，没有的话，通过`style-dna`新建）
 
 改完先给开头 3 段预览，用户觉得味道对了再全文改，省得返工。
-全文改完对照目标 DNA template 逐项自检；用户要求打分时走 `content-calibrator`。
+全文改完对照目标 DNA template 逐项自检（无数字打分环节；发布后表现由 DNA 表现评估闭环跟踪）。
 
 ## 换结构
 
@@ -53,7 +53,7 @@
 
 1. 自己过一遍质量自检
 2. 跟用户说清楚改了什么、为什么这么改
-3. 如果之前打了分，改完建议重打一次对比
+3. 改稿结论属于可复用风格偏好时，按 `style-dna.md` 的反馈回流判定更新 DNA；单次修改不动 DNA
 
 ## 改后发布
 
@@ -61,5 +61,4 @@
 
 1. **Frontmatter**：按 `wx-mp-publisher` 规范更新 `article.md` 的 frontmatter（至少核对 `title`、`cover` / `image_list`、`author`、`source_url` 与改后内容同步）；frontmatter 在 workflow 中直接写入，`wx-mp-publisher` 只校验。
 2. **存文件**：文章与图片归位 `output_articles/<article-name>/`，图片与 `article.md` 同目录、纯文件名引用。
-3. **质量门**：走 `content-calibrator` 流程 1A 重新打分（新结果覆盖旧 `calibration/`）；平台未启用则跳过。
-4. **发布 + 记录**：调 `wx-mp-publisher` 发布（排版由用户指定或 Agent 按内容自主选择；自定义主题传登记的 `theme-id`），再按 `content-production.md` Step 10.3 的公众号特例入库——`media_id` 占位先落 `published-track`，用户正式发布后提供正式 URL 时重跑 `record.sh` 升级记录。
+3. **发布 + 记录**：调 `wx-mp-publisher` 发布（排版由用户指定或 Agent 按内容自主选择；自定义主题传登记的 `theme-id`），再按 `content-production.md` Step 9.3 的公众号特例入库——`media_id` 占位先落 `published-track`，用户正式发布后提供正式 URL 时重跑 `record.sh` 升级记录。

@@ -42,7 +42,7 @@ metadata:
 | `wx-mp-publisher` | Markdown → 草稿箱（relay 发布） | `wx-mp-publisher` |
 | `wx-mp-engagement` | 创作者中心数据抓取 | `wx-mp-engagement` |
 
-跨领域通用技能：`wx-mp-hunter`（公众号文章与发布列表采集）、`content-calibrator`（内容打分）、`published-track`（发布记录与指标库）。
+跨领域通用技能：`wx-mp-hunter`（公众号文章与发布列表采集）、`content-calibrator`（DNA 表现评估）、`published-track`（发布记录与指标库）。
 
 ## 风格与 DNA
 
@@ -50,6 +50,8 @@ metadata:
 
 ## 数据与记录
 
-- 发布记录统一走 `published-track`，打分走 `content-calibrator`
+- 发布记录统一走 `published-track`（入库时传 `--account`；`dna_id` 经作品目录 `dna-meta.json` 自动关联）
+- DNA 表现评估走 `content-calibrator`：发布数据按量触发评估（每平台每 DNA ≥5 条成熟记录），趋势优先归因，评估报告落 `dna/wx_mp/<dna-id>/evals/`；建议经用户确认后走 Style DNA Workflow 回写 DNA。
+- 按需看数据 / 诊断 / 复盘走 Review Workflow（与 content-calibrator 的边界见 `review.md`）
 - 平台级数据（受众画像、对标记录、平台状态）存在 workspace 根 `calibration/wx_mp/`
 - 数据是用来指导下一轮改进的，不是为了凑数字——每次复盘必须有明确的下一步动作

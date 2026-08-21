@@ -583,7 +583,7 @@ elif [ "$(uname -s)" = "Linux" ] && command -v systemctl >/dev/null 2>&1; then
   if [ -f "$UNIT_FILE" ] && [ -f "$PROJECT_ROOT/openclaw.version" ]; then
     OC_VER="$(grep -E '^OPENCLAW_VERSION=' "$PROJECT_ROOT/openclaw.version" | cut -d= -f2)"
     if [ -n "$OC_VER" ] && grep -q 'Description=OpenClaw Gateway (v' "$UNIT_FILE"; then
-      sed -i -E "s/(Description=OpenClaw Gateway \(v)[0-9.]+(\))/\1${OC_VER}\2/" "$UNIT_FILE" 2>/dev/null && \
+      sed -i -E "s/(Description=OpenClaw Gateway \(v)[0-9.-]+(\))/\1${OC_VER}\2/" "$UNIT_FILE" 2>/dev/null && \
         systemctl --user daemon-reload 2>/dev/null && \
         echo "🏷️  Synced ${SERVICE_NAME}.service Description -> v${OC_VER}"
     fi

@@ -1,5 +1,13 @@
 # v5.7.0 (2026-08-21)
 
+### openclaw 上游同步 v2026.7.1 → v2026.7.1-2
+
+> 7.1 release branch 上的两个补丁发行版（7.1-1 / 7.1-2，均 2026-08-04 发布）。37 个 patch（002 / 007 + 35 个 browser-camoufox-pivot per-file）全部 `git apply --3way --check` 干净通过，无需重新生成。变更集中在 codex / memory-core / state-migrations / plugins / infra，与浏览器转向 patch 无重叠。**未 build**，待次日整体 apply-addon。
+
+- **v2026.7.1-1**（`81ac4f3bdd`）：Codex progress replies 不再中途停 turn（#106961/#108487）；Memory Core 启动期修复 derived sidecar 冲突避免 Gateway fatal restart loop（#107220/#108652）；WSL state permissions 容忍 EROFS（#108250/#108258）；legacy migration residue 改非致命（#106101）；managed plugin 更新修复 stale npm lock（#107294/#107866）。
+- **v2026.7.1-2**（`0790d9f593`）：npm plugin updates 接受 singleton-array metadata（#108336），tracked 官方插件可正常安装/升级。
+- `openclaw.version` → `2026.7.1-2` / `0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c`。`openclaw-weixin.version.json` 无新发行版，不变。
+
 ### camoufox-cli fork 跟随上游 0.7.3 + 浏览器二进制升 FF152
 
 > 本轮把 wiseflow fork 的 camoufox-cli 从 `0.6.2-wiseflow.1` 升到 `0.7.3-wiseflow.1`，同步上游 0.7.x 的安装链路修复，浏览器二进制从 FF135 那一代升到 `v152.0.4-beta.28`（Firefox 152 基线，2026-07-19）。FF152 修了 "synthetic mouse input stalling under heavy load"（地址栏换 IP 死机的根因之一）、"humanized mouse trajectory dropped in FF146 migration"、juggler hang 等多个稳定性问题。

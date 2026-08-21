@@ -1,3 +1,34 @@
+# v5.7.0 (2026-08-21)
+
+### camoufox-cli fork 跟随上游 0.7.3 + 浏览器二进制升 FF152
+
+> 本轮把 wiseflow fork 的 camoufox-cli 从 `0.6.2-wiseflow.1` 升到 `0.7.3-wiseflow.1`，同步上游 0.7.x 的安装链路修复，浏览器二进制从 FF135 那一代升到 `v152.0.4-beta.28`（Firefox 152 基线，2026-07-19）。FF152 修了 "synthetic mouse input stalling under heavy load"（地址栏换 IP 死机的根因之一）、"humanized mouse trajectory dropped in FF146 migration"、juggler hang 等多个稳定性问题。
+
+- **`patches/camoufox-cli/src/install.ts` 同步上游 0.7.3 三块缺失修复**：
+  - `stableTags()` 函数 + `assetsViaWeb()` 重构（上游 #17）——scrape path 过滤 prerelease tag，不再误拉 beta 版浏览器。
+  - `browserPresent()` + install 后 `launchPath()` 兜底（上游 #17/#19）——"已安装"不只看 version.json，还要检查二进制在磁盘上；broken install 立即报错。
+  - `launchPath` 加入 import，支持上面两处。
+- **`patches/camoufox-cli/package.json` 升级**：
+  - `version`: `0.6.2-wiseflow.1` → `0.7.3-wiseflow.1`
+  - `camoufox-js`: `^0.11.1` → `0.11.2`（pin 死，跟上游 0.7.3 对齐，避免意外升 0.12）
+  - `playwright-core`: 保持 `1.52.0`（camoufox juggler 兼容性需要）
+  - `wiseflowForkBaseline`: `0.6.2` → `0.7.3`
+- **浏览器二进制 `v152.0.4-beta.28`（FF152 基线）**：`camoufox-js@0.11.2` 的 `CamoufoxFetcher` 指向 `daijro/camoufox` 仓库，`fetchLatest()` 跳过 prerelease，拉第一个 stable release。比 fork 之前用的 FF135 那一代新 17 个 Firefox 大版本。
+- **`scripts/update.sh` 加入 camoufox-cli fork rebuild（第 6.5 步）**：
+  - 老用户跑 `update.sh` 时，在 `apply-addons.sh` 之后、`pnpm build` 之前，自动 `bash patches/camoufox-cli/build.sh`（rebuild dist + npm install -g 覆盖旧版）+ `camoufox-cli install`（用新 fork 拉新浏览器二进制）。
+  - 修复之前老用户升级后全局 `camoufox-cli` 还是旧版、浏览器二进制不更新的缺口。
+- **未引入多 tab 架构**：上游 0.7.3 的 `browser.ts` 引入 `TabState` + `tabs` Map + ref-counted close（多 agent 共享浏览器指纹），跟 fork 的单 page + fail-first 队列架构冲突。wiseflow 当前"一个 session 一个 agent"场景不需要多 tab，保留 fork 现状。
+- **保留的 fork 独有功能**：`shortenSession()`（支持 cron 长 session 名）、`recoverOrphanBrowser()`/`killDaemon()`/`termThenKill()`（孤儿浏览器进程树回收）、`--viewport` 参数（weibo/xianyu 二维码登录用）、fail-first 队列、`upload`/`identity` 三件套。
+
+### 验证
+
+- `cd patches/camoufox-cli && npm run build`（tsc）→ 0 errors
+- `bash patches/camoufox-cli/build.sh` → 全局装好 `0.7.3-wiseflow.1`
+- `camoufox-cli install` → `Camoufox v152.0.4-beta.28 is already up to date` → `Browser installed`
+- `scripts/update.sh` 语法检查（`bash -n`）→ OK
+
+---
+
 # v5.6.5 (2026-08-15)
 
 ### 安装脚本与镜像运行时 bug 修复

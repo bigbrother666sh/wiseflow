@@ -330,6 +330,22 @@ ADDON_ARGS=(--no-build --no-restart)
 "$PROJECT_ROOT/scripts/apply-addons.sh" "${ADDON_ARGS[@]}"
 echo ""
 
+# ─── 6.5. 重新 build + 全局安装 camoufox-cli fork ──────────────
+# apply-addons.sh 只调 `camoufox-cli install`（拉浏览器二进制），不 rebuild fork。
+# 老用户全局装的 camoufox-cli 还是旧版，需要 rebuild dist + npm install -g 覆盖。
+# build.sh 内部幂等（npm install + tsc + npm install -g），重复跑无害。
+FORK_DIR="$PROJECT_ROOT/patches/camoufox-cli"
+if [ -f "$FORK_DIR/build.sh" ]; then
+  echo "🔨 Rebuilding camoufox-cli fork..."
+  bash "$FORK_DIR/build.sh" || echo "  ⚠️  camoufox-cli fork rebuild failed; 继续升级（旧版 fork 仍可用）"
+  # rebuild 后新 fork 可能 pin 了新 camoufox-js → 需要重跑 install 拉新浏览器二进制。
+  # 幂等：已装版本 === 当前版本时跳过。
+  if command -v camoufox-cli >/dev/null 2>&1; then
+    camoufox-cli install || echo "  ⚠️  camoufox-cli install failed; 可后续手动 camoufox-cli install"
+  fi
+  echo ""
+fi
+
 # ─── 7. 编译 openclaw dist ──────────────────────────────────────
 echo "🔨 Building openclaw..."
 (cd "$OPENCLAW_DIR" && pnpm build)

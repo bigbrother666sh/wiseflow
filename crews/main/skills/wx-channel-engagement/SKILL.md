@@ -202,6 +202,5 @@ wx-channel-engagement fetch --row-id <rowid>
 ## Notes
 
 - **限频建议**：单视频号账号每 24h 全量 ≤ 1 次；单篇按需触发
-- **失败兜底**：本 skill 跑不通时回退到 manual update（`published-track update-metrics --platform wx_channel --id <rowid> --plays ... --likes ... --comments ... --shares ... --favorites ...` 手动填）
 - **camoufox-cli 注意**：本 skill 全部命令统一 `--session wechat-channel --persistent`（与 `wechat-channels-publish` 共管的持久化 session），headless 是默认行为；登录态从 session profile 桥接
 - **报错约束**：调用方（agent）报告失败时必须原样转述脚本 stderr + exit code，禁止根据 DB 字段（如 `publish_url` 是否为空）自行归因

@@ -39,7 +39,7 @@
 
    - xhs 对「会话凭空 materialize + 短时批量签名请求」极度敏感，**一次** CDP 注入 cookie + 批量 feed 抓取就可能触发风控/限流/封号。
    - xhs 任何登录失效迹象 → **立刻整段跳过 xhs**，不要尝试任何恢复，记入 `EXPIRED_PLATFORMS` 等白天重新登录。
-   - 取数走 `xhs-engagement`（camoufox 打开 creator 后台，复用 `xhs-browse` session + creator SSO 态）；**严禁** CDP 注入 cookie / `cookies import` 造会话（见 Step 2 注意事项）。
+   - 取数走 `xhs-engagement`；
 
 ---
 

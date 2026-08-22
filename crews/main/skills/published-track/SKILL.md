@@ -136,7 +136,6 @@ published-track fetch-metrics \
 Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSION_EXPIRED。
 
 - **脚本支持**：bilibili、douyin、kuaishou（走 `fetch-retro-data.ts` 纯 HTTP + cookie + UA）。**xhs / wx_mp / wx_channel 均不走本技能的 fetch-metrics**（收到这三个平台直接 exit 1 指路）——xhs 走顶层 `xhs-engagement` 技能，wx_mp 走 `expert-wx-mp` 专家包内的 `wx-mp-engagement` 工具，wx_channel 走顶层 `wx-channel-engagement` 技能，三者都是 camoufox 抓平台后台方案，与纯 HTTP 链路机制不同。其他平台暂不支持自动抓取互动数据。
-- **xhs 取数（xhs-engagement creator 后台方案，2026-08-22 起）**：agent 直调 `xhs-engagement fetch --row-id <rowid>`——camoufox 打开 creator 后台笔记管理页（复用 xhs-browse session 登录态），eval 解析 `.note-card__body` 按 DB 该行 title 匹配，拿 5 列互动数（阅读/点赞/收藏/评论/分享），写库走本技能的 `update-metrics.sh`。取数细节、探活与重登流程（两步：login-manager 重登 www + `xhs-publish login-verify` creator SSO）见 `xhs-engagement/SKILL.md`。**替代了已失效的 profile SSR 方案**：2026-07-25 起小红书把 profile 页 SSR `__INITIAL_STATE__.user.notes` 置空数组（客户端 hydration 才回填），旧方案 `PROFILE_MAPPING_EMPTY`。新方案数据更全（多阅读量）、风控更低（creator 后台是官方管理界面）、维护成本更低（DOM 结构稳定）。
 
 ### 流程 2B·用户提供数据（Agent 补录）
 

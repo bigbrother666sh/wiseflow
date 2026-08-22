@@ -16,24 +16,19 @@ metadata:
 
 **思路**：creator 后台笔记管理页把每条已发布笔记的 5 列互动数（阅读/点赞/收藏/评论/分享）列在卡片内，走「打开 creator 后台 → eval 解析 `.note-card__body` → 按 title 匹配 → 提卡片内 5 列数字」。
 
-**为什么不用旧的 profile SSR 方案**：2026-07-25 起小红书把 profile 页 SSR `__INITIAL_STATE__.user.notes` 置空数组（客户端 hydration 才回填），旧方案 `fetchXhsProfileEntries` 解析 SSR HTML 拿到空数组 → `PROFILE_MAPPING_EMPTY`。这是结构性变化，不会回滚。creator 后台方案数据更全（多阅读量）、风控更低（creator 后台是官方管理界面，用户自己每天看的页面）、维护成本更低（DOM 结构稳定，不像 SSR 结构随时变）。
-
-**职责边界**（与 wx-mp-engagement / wx-channel-engagement 对齐）：`fetch --row-id` 走完整链路——从 published-track DB 查该行 title → camoufox 取数 → 委托 published-track 的 `update-metrics.sh` 写库（不直接 SQL 写）。agent 直调本 skill wrapper；`published-track fetch-metrics --platform xhs` 会 exit 1 指路到本 skill，两条链路独立、不耦合。
+**限制**：仅支持用户**自己有后台权限的号**（视频号助手用微信扫码登录）。竞品号拿不到——这是产品约束，不是技术约束。
 
 ---
 
 ## 前置条件
 
-### 1. 登录态管理（login-manager + creator SSO，本 skill 不自管）
+### 1. 登录态管理（共享 xhs-browse profile，创作者 cookie 自管）
 
-**与 wx-mp-engagement 的关键差异**：wx_mp 的登录态只需留在 camoufox profile 即可；xhs 每次登录**必须导出 cookie+UA** 到中央存储（`xhs-publish` / `viral-chaser` / `xhs-content-ops` 等 raw HTTP 下游消费 `~/.openclaw/logins/xhs-*.json`），所以本 skill **不自管登录**，复用平台级两步登录流程（参考 xhs-publish 的登录态管理）：
+本技能的登录流程完全走 `xhs-publish` 技能的登录态管理章节。
 
-| 步骤 | 负责 skill | 产出 |
-|------|-----------|------|
-| ① www 消费者域登录 | login-manager | `~/.openclaw/logins/xhs-browse.json` + `.ua.json` |
-| ② creator 创作者域 SSO | xhs-publish（`login-verify`） | `~/.openclaw/logins/xhs-publish.json` + `.ua.json` |
+本 skill 消费的是 **xhs-browse session profile 里的 creator 登录态**（camoufox 打开 creator 后台时 SSO 态在 profile 里就位），自身**不需要导出任何 cookie**。
 
-本 skill 消费的是 **xhs-browse session profile 里的 creator 登录态**（camoufox 打开 creator 后台时 SSO 态在 profile 里就位），自身**不导出任何 cookie**。
+每次执行前的探活使用自己的脚本命令。
 
 **探活**：
 
@@ -45,7 +40,7 @@ xhs-engagement check
 - exit 2 = `SESSION_EXPIRED`（creator 后台跳登录页）→ 走下方重登流程
 - exit 1 = crash / 页面异常 → 人工排查（可先跑 `probe` 看页面）
 
-**重登流程**（exit 2 时触发，两步都做——只重登 www 不做 SSO，creator 域 cookie 不会落）：
+**重登流程**（exit 2 时触发，使用 `xhs-publish` 的登录流程）：
 
 1. **www 消费者域重登**（走 login-manager 的有头手动登录流程）：
    ```bash

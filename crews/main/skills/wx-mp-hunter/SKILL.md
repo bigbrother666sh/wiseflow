@@ -184,8 +184,7 @@ wx-mp-hunter posts-list --recent 50
 
 ### ⚠️ 使用前的环境检查
 
-`posts-list` 依赖本机运行的微信客户端容器（默认容器名 `mimicwx-linux`，
-可通过 `WX_BIZ_CONTAINER` 环境变量覆盖）。
+`posts-list` 依赖本机运行的微信客户端容器（默认容器名 `mimicwx-linux`，可通过 `WX_BIZ_CONTAINER` 环境变量覆盖）。
 
 用户数据目录、密钥文件路径、biz 消息库相对路径、biz 库 key 名
 **全部自动探测/硬编码**，用户无需配置：

@@ -12,14 +12,12 @@
  *   - 快手:  GraphQL（无需签名）
  *
  * Cookie 来源: login-manager（~/.openclaw/logins/{platform}.json）
- *   小红书（xhs）例外：不走纯 HTTP，委托 xhs-engagement skill
- *   （camoufox 打开 creator 后台，复用 xhs-browse session 登录态）
+ *   小红书（xhs）不走本脚本——走 xhs-engagement 技能（camoufox creator 后台方案）
  *
  * Usage:
  *   node fetch-retro-data.ts --platform douyin --content-id <aweme_id>
  *   node fetch-retro-data.ts --platform bilibili --content-id <bvid>
  *   node fetch-retro-data.ts --platform kuaishou --content-id <photo_id>
- *   node fetch-retro-data.ts --platform xhs --content-id <note_id>
  *
  * Exit codes:
  *   0  成功 — JSON 输出到 stdout
@@ -30,10 +28,6 @@
 import { readFileSync, existsSync } from "fs"
 import { join } from "path"
 import { homedir } from "os"
-import { execFile } from "child_process"
-import { promisify } from "util"
-
-const execFileAsync = promisify(execFile)
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -291,20 +285,14 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2)
   let platform = ""
   let contentId = ""
-  let xsecToken = ""
-  let xsecSource = ""
-  let title = ""
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--platform" && args[i + 1]) platform = args[++i]
     else if (args[i] === "--content-id" && args[i + 1]) contentId = args[++i]
-    else if (args[i] === "--xsec-token" && args[i + 1]) xsecToken = args[++i]
-    else if (args[i] === "--xsec-source" && args[i + 1]) xsecSource = args[++i]
-    else if (args[i] === "--title" && args[i + 1]) title = args[++i]
   }
 
   if (!platform || !contentId) {
-    process.stderr.write("用法: node fetch-retro-data.ts --platform <douyin|bilibili|kuaishou|xhs> --content-id <id> [--xsec-token <t> --xsec-source <s>] [--title <t>]\n")
+    process.stderr.write("用法: node fetch-retro-data.ts --platform <douyin|bilibili|kuaishou> --content-id <id>\n")
     process.exit(1)
   }
 
@@ -321,9 +309,9 @@ async function main(): Promise<void> {
       result = await fetchKuaishou(contentId)
       break
     case "xhs":
-      // xsecToken/xsecSource 是旧 profile SSR 方案的遗留参数，creator 后台方案忽略
-      result = await fetchXhs(contentId, title)
-      break
+      // 2026-08-22 起 xhs 不走本脚本——走 xhs-engagement 技能（camoufox creator 后台方案）
+      process.stderr.write("❌ xhs 不走 fetch-retro-data.ts。请直调 xhs-engagement 技能：xhs-engagement fetch --row-id <rowid>（camoufox 抓 creator 后台方案）\n")
+      process.exit(1)
     default:
       process.stderr.write(`❌ 不支持的平台: ${platform}\n`)
       process.exit(1)

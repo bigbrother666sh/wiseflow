@@ -101,7 +101,7 @@ esac
 # ─── 平台路由 ──────────────────────────────────────────────────────────────
 
 # wx_mp（微信公众号）**不走本脚本**——它走 camoufox 抓创作者中心的方案，
-# 与 xhs/bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
+# 与 bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
 # 由 expert-wx-mp 专家包内的 wx-mp-engagement 工具独立承担（agent 直调 wx-mp-engagement wrapper）。
 # 见 crews/main/HEARTBEAT.md Step 2 与 crews/main/skills/expert-wx-mp/tools/wx-mp-engagement/SKILL.md。
 if [ "$PLATFORM" = "wx_mp" ]; then
@@ -118,7 +118,7 @@ if [ "$PLATFORM" = "xhs" ]; then
 fi
 
 # wx_channel（微信视频号）**不走本脚本**——它走 camoufox 抓视频号助手后台的方案，
-# 与 xhs/bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
+# 与 bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
 # 由 wx-channel-engagement 技能独立承担（agent 直调 wx-channel-engagement wrapper）。
 # 见 crews/main/HEARTBEAT.md Step 2 与 wx-channel-engagement/SKILL.md。
 if [ "$PLATFORM" = "wx_channel" ]; then
@@ -327,7 +327,7 @@ if [ "$METRICS_EXIT" -ne 0 ]; then
   exit 1
 fi
 
-# fetch-retro-data.ts 返回 ok:false（如 xhs NOTE_INACCESSIBLE：缺/失效 xsec_token）
+# fetch-retro-data.ts 返回 ok:false
 if [[ "$METRICS_PARAMS" == __fetch_failed__:* ]]; then
   FAIL_ERR="${METRICS_PARAMS#__fetch_failed__:}"
   FAIL_CODE="${FAIL_ERR%%:*}"

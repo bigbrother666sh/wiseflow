@@ -24,7 +24,7 @@
 
 4. **⛔ 登录失效一律「跳过 + 记录 + 汇总上报」，严禁硬行恢复登录**
 
-   任何平台的取数端登录失效（`SESSION_EXPIRED` / 探活失败 / 浏览器跳登录页 / `get-xhs-user-id.sh` exit 2 等）时，**必须**：
+   任何平台的取数端登录失效（`SESSION_EXPIRED` / 探活失败 / 浏览器跳登录页等）时，**必须**：
    - 立即**跳过该平台**本轮取数，不再尝试任何取数动作；
    - 把平台名记入 `EXPIRED_PLATFORMS`，在 Step 5 统一汇报，由用户**白天**重新登录；
    - **不得**在凌晨心跳里扫码登录、不得唤醒用户。
@@ -58,18 +58,28 @@ published-track query --platform xhs --limit 50
 
 #### Step 2: 依次获取已发布内容的互动数据并更新到 published-track
 
-对 Step 1 中列出的**每条记录（按 id 逐条）**取数并写库。按平台分三种情况：
+对 Step 1 中列出的**每条记录（按 id 逐条）**取数并写库。按平台分四种情况：
 
-1. **douyin / xhs / kuaishou / bilibili** —— 走 `published-track fetch-metrics`：
+1. **douyin / kuaishou / bilibili** —— 走 `published-track fetch-metrics`（纯 HTTP+cookie 链路：login-manager 探活 → fetch-retro-data.ts → 写库）：
 
    ```bash
    published-track fetch-metrics \
      --platform <platform> --id <rowid>
    ```
 
-   脚本封装了完整流程，返回统一 JSON 结果。其中 **douyin / kuaishou / bilibili 是纯 HTTP+cookie 链路**（login-manager 探活 → fetch-retro-data.ts → 写库）；**xhs 由 fetch-retro-data.ts 内部委托 `xhs-engagement` 技能**（camoufox 打开 creator 后台笔记管理页，按 title 匹配拿 5 列互动数，复用 `xhs-browse` session 登录态）——调用方式不变，机制差异对心跳透明。**wx_mp 不走这个脚本**——机制不同，见下方第 2 条。
+   脚本封装了完整流程，返回统一 JSON 结果。**xhs / wx_mp / wx_channel 不走这个脚本**——机制不同，见下方第 2/3/4 条。
 
-2. **微信公众号 (wx_mp)** -- **走 `expert-wx-mp` 包内 `wx-mp-engagement` 工具**（PATH wrapper 同名），camoufox 抓创作者中心方案，与上面四个平台的纯 HTTP+cookie 链路完全不同，两条路独立、不耦合：
+2. **小红书 (xhs)** —— **走 `xhs-engagement` 技能**（PATH wrapper 同名），camoufox 抓 creator 创作服务平台后台方案，与第 1 条三个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
+
+   ```bash
+   xhs-engagement fetch --row-id <rowid>
+   ```
+
+   内部流程：camoufox 打开 creator 后台笔记管理页（`creator.xiaohongshu.com/new/note-manager`，复用 `xhs-browse` session 登录态；跳登录页 = 失效）→ eval 解析 `.note-card__body` 按 DB 该行 title 匹配 → 提卡片内 5 列互动数（阅读/点赞/收藏/评论/分享）→ update-metrics.sh 写 pub_xhs。本技能不导出 cookie——登录态在 `xhs-browse` session profile 里就位即可。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。重登是两步：login-manager 重登 www + `xhs-publish login-verify` 做 creator SSO（见 xhs-engagement SKILL.md）。
+
+   > ⚠️ 不要调 `published-track fetch-metrics --platform xhs`——该子命令对 xhs 直接 exit 1 报错提示走 xhs-engagement。两条链路独立维护，避免机制错配。
+
+3. **微信公众号 (wx_mp)** -- **走 `expert-wx-mp` 包内 `wx-mp-engagement` 工具**（PATH wrapper 同名），camoufox 抓创作者中心方案，与第 1 条三个平台的纯 HTTP+cookie 链路完全不同，两条路独立、不耦合：
 
    ```bash
    wx-mp-engagement fetch --row-id <rowid>
@@ -79,7 +89,7 @@ published-track query --platform xhs --limit 50
 
    > ⚠️ 不要调 `published-track fetch-metrics --platform wx_mp`——该子命令对 wx_mp 直接 exit 1 报错提示走 wx-mp-engagement。两条链路独立维护，避免机制错配。
 
-3. **微信视频号 (wx_channel)** —— **走 `wx-channel-engagement` 技能**，camoufox 抓视频号助手后台方案，与 wx_mp 同源（camoufox + 解析 innerText）、与第 1 条四个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
+4. **微信视频号 (wx_channel)** —— **走 `wx-channel-engagement` 技能**，camoufox 抓视频号助手后台方案，与 wx_mp 同源（camoufox + 解析 innerText）、与第 1 条三个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
 
    ```bash
    wx-channel-engagement fetch --row-id <rowid>
@@ -96,7 +106,7 @@ published-track query --platform xhs --limit 50
 **发布超过 30 天的内容不再每天抓取互动数据**——数据已稳定，边际变化可忽略，反复抓只浪费配额/增加风控暴露。按平台类型：
 
 - **浏览器方案**（wx_mp / wx_channel）：列表页/创作者中心天然只展示近期内容，无需额外过滤——老内容不在列表里自然抓不到，**这是设计不是 bug**，不要加翻页去补抓老内容。
-- **脚本方案**（xhs / bilibili / douyin / kuaishou）：Step 1 查询时加 `publish_date >= date('now', '-30 days')` 过滤，超过 30 天的行直接跳过不调 `published-track fetch-metrics`。
+- **脚本方案**（bilibili / douyin / kuaishou）+ **xhs**（xhs-engagement creator 后台列出全部笔记，不在列表页天然过滤范围内）：Step 1 查询时加 `publish_date >= date('now', '-30 days')` 过滤，超过 30 天的行直接跳过、不调取数。
 
 **DNA 评估（Step 3）不受此限**
 

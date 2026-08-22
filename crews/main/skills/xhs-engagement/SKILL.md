@@ -1,12 +1,13 @@
 ---
 name: xhs-engagement
-description: 抓取小红书已发布笔记的阅读/点赞/收藏/评论/分享数据。通过 camoufox 打开 creator 创作服务平台后台解析互动数，与 published-track 职责边界对齐（本 skill 单纯取数，DB 操作由 published-track 承担）。
+description: 抓取小红书已发布笔记的阅读/点赞/收藏/评论/分享数据，写入 published-track 的 pub_xhs 表。通过 camoufox 打开 creator 创作服务平台后台解析互动数（仿 wx-mp-engagement 模式）。
 metadata:
   openclaw:
     requires:
       bins:
       - python3
       - camoufox-cli
+      - sqlite3
 ---
 
 # xhs-engagement — 小红书互动数抓取
@@ -17,7 +18,7 @@ metadata:
 
 **为什么不用旧的 profile SSR 方案**：2026-07-25 起小红书把 profile 页 SSR `__INITIAL_STATE__.user.notes` 置空数组（客户端 hydration 才回填），旧方案 `fetchXhsProfileEntries` 解析 SSR HTML 拿到空数组 → `PROFILE_MAPPING_EMPTY`。这是结构性变化，不会回滚。creator 后台方案数据更全（多阅读量）、风控更低（creator 后台是官方管理界面，用户自己每天看的页面）、维护成本更低（DOM 结构稳定，不像 SSR 结构随时变）。
 
-**职责边界**：本 skill 单纯取数——camoufox 打开 creator 后台、解析互动数、返回 JSON。DB 查询/写入由 published-track 承担（`published-track fetch-metrics --platform xhs` 内部委托本 skill 取数，再用 `update-metrics.sh` 写库）。与 wx-mp-engagement 的职责边界对齐。
+**职责边界**（与 wx-mp-engagement / wx-channel-engagement 对齐）：`fetch --row-id` 走完整链路——从 published-track DB 查该行 title → camoufox 取数 → 委托 published-track 的 `update-metrics.sh` 写库（不直接 SQL 写）。agent 直调本 skill wrapper；`published-track fetch-metrics --platform xhs` 会 exit 1 指路到本 skill，两条链路独立、不耦合。
 
 ---
 
@@ -76,7 +77,10 @@ forked camoufox-cli 有全局硬上限 `MAX_IDLE_TIMEOUT = 60`（`patches/camouf
 # 判 creator 后台登录态（取数前探活用）
 xhs-engagement check
 
-# 抓单条笔记互动数（按 title 在 creator 后台笔记列表匹配）
+# 抓单条笔记互动数并写库（从 pub_xhs 取该行 title 匹配 → update-metrics.sh 写库）
+xhs-engagement fetch --row-id <pub_xhs.id>
+
+# 纯取数调试入口（按 title 匹配，只输出 JSON 不写库）
 xhs-engagement fetch --title "笔记标题"
 
 # 列出 creator 后台所有笔记 + 5 列互动数
@@ -93,6 +97,7 @@ xhs-engagement probe
 ### fetch 流程
 
 ```
+0.（--row-id 模式）从 pub_xhs 查该行 title / publish_url
 1. camoufox 打开 creator 后台笔记管理页（复用 xhs-browse session 登录态）
    URL: https://creator.xiaohongshu.com/new/note-manager?source=official
    ├─ 跳登录页 → exit 2（SESSION_EXPIRED，走重登流程）
@@ -104,7 +109,9 @@ xhs-engagement probe
      顺序：[0]阅读量 [1]点赞数 [2]收藏数 [3]评论数 [4]分享数
 4. 按 title 匹配目标笔记（normalize 后精确匹配，其次唯一前缀互含防截断）
 5. close session
-6. 输出 JSON
+6.（--row-id 模式）委托 published-track 的 update-metrics.sh 写 pub_xhs
+   （collects 写 favorites 列）
+7. 输出 JSON
 ```
 
 ### 注意点
@@ -115,7 +122,7 @@ xhs-engagement probe
 
 2. **5 列互动数顺序**：creator 后台笔记管理页 stats 区 5 列数字顺序为 **阅读量 / 点赞数 / 收藏数 / 评论数 / 分享数**。这是小红书创作者后台的标准指标顺序。
 
-3. **title 匹配**：creator 后台方案按 `--title` 匹配目标笔记。`fetch-and-update-metrics.sh` 会自动从 DB 取该行 title 透传。笔记不在 creator 后台列表 → `NOTE_NOT_IN_CREATOR_BACKEND`。
+3. **title 匹配**：creator 后台方案按 title 匹配目标笔记。`fetch --row-id` 会自动从 DB 取该行 title；`fetch --title` 是纯取数调试入口（不写库）。笔记不在 creator 后台列表 → `NOTE_NOT_IN_CREATOR_BACKEND`。
 
 4. **Cookie 导入禁忌**：⚠️ **严禁** `camoufox-cli cookies import` 造会话（浏览器方案严禁 cookie 导入）。本 skill 复用既有 `xhs-browse` 持久化 session，camoufox-cli 命令统一 `--session xhs-browse --persistent`，登录态在 session profile 里已就位，**不开独立 session、不 import cookie**。
 
@@ -134,6 +141,8 @@ xhs-engagement probe
 
 ## 输出 JSON 示例
 
+`fetch --row-id`（含写库结果）：
+
 ```json
 {
   "ok": true,
@@ -146,7 +155,22 @@ xhs-engagement probe
     "collects": 0,
     "comments": 0,
     "shares": 0
-  }
+  },
+  "row_id": 42,
+  "publish_url": "https://www.xiaohongshu.com/explore/xxx",
+  "update": {"ok": true}
+}
+```
+
+`fetch --title`（纯取数，无 row_id/update 字段）：
+
+```json
+{
+  "ok": true,
+  "platform": "xhs",
+  "title": "测试笔记",
+  "matched_title": "测试笔记",
+  "metrics": {"views": 11, "likes": 0, "collects": 0, "comments": 0, "shares": 0}
 }
 ```
 
@@ -170,19 +194,21 @@ xhs-engagement probe
 
 ## 与 published-track 集成
 
-xhs 的互动数据抓取走本 skill（camoufox 打开 creator 后台），不走 `fetch-retro-data.ts` 的纯 HTTP 链路。
+xhs 的互动数据抓取由本 skill 独立承担（camoufox 打开 creator 后台），**不走** `fetch-and-update-metrics.sh`——后者只管 bilibili/douyin/kuaishou 三个纯 HTTP+cookie 平台，收到 `--platform xhs` 会直接 exit 1 报错提示走本 skill（与 wx_mp/wx_channel 同模式，两条链路独立、不耦合）。
 
-published-track 的 `fetch-retro-data.ts` xhs 分支 `execFile` 调本 skill 的 PATH wrapper：
+agent 直调本 skill wrapper：
 
-```
-fetch-retro-data.ts --platform xhs --title <title>
-  → execFile xhs-engagement fetch --title <title>
-  → 拿回 JSON {ok, metrics: {views, likes, collects, comments, shares}}
-  → exit 2 透传为 SESSION_EXPIRED
-  → 返回 RetroResult
+```bash
+xhs-engagement fetch --row-id <rowid>
 ```
 
-DB 写入仍由 published-track 的 `update-metrics.sh` 统一承担（本 skill 不碰 DB）。
+本 skill 内部流程：
+1. 从 pub_xhs 查该行 title / publish_url
+2. camoufox 打开 creator 后台笔记管理页判登录态（跳登录页 = 失效，exit 2）
+3. eval 解析笔记卡片，按 title 匹配拿 5 列互动数
+4. 委托 published-track 的 `update-metrics.sh`，以 `platform=xhs`、`id=<rowid>` 写 pub_xhs（collects 写 favorites 列）
+
+> `update-metrics.sh` 是 published-track 的纯写库脚本，本 skill 写库就走它（不直接 SQL 写）。
 
 ---
 

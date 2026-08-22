@@ -804,7 +804,7 @@ Flags:
   --session <name>     Session name (default: "default")
   --headed             Show browser window
   --timeout <secs>     Daemon idle timeout (default: 0 = disabled — daemons stay
-                        alive until `close` or eviction by the concurrent daemon
+                        alive until 'close' or eviction by the concurrent daemon
                         cap; login state lives in the profile dir either way)
   --json               Output as JSON
   --persistent [path]  Persistent identity — freeze fingerprint/OS/locale + store cookies/state (default: ~/.camoufox-cli/profiles/<session>)

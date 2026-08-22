@@ -121,7 +121,9 @@ published-track fetch-metrics \
 
 # 按 id 逐条抓（同 folder 多条记录各自独立统计，推荐）
 published-track fetch-metrics \
-  --platform xhs --id <rowid> --xsec-token <tok> --xsec-source pc_feed
+  --platform xhs --id <rowid>
+# （xhs 走 xhs-engagement creator 后台方案，按 title 匹配，--title 由脚本从 DB 自动透传，
+#   无需再传 --xsec-token）
 ```
 
 返回 JSON 统一格式：
@@ -135,10 +137,10 @@ published-track fetch-metrics \
 
 Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSION_EXPIRED。
 
-- **脚本支持**：xhs、bilibili、douyin、kuaishou（走 `fetch-retro-data.ts` 纯 HTTP + cookie + UA）。wx_mp 不走本技能取数——走 `expert-wx-mp` 专家包内的 `wx-mp-engagement` 工具（PATH wrapper 直调）；wx_channel 走顶层 `wx-channel-engagement` 技能。其他平台暂不支持自动抓取互动数据。
-- **xhs 取数路线**：走 `get_note_by_id_from_html`——GET 笔记详情页 HTML 解析 `window.__INITIAL_STATE__` 拿互动计数，**不走** `/api/sns/web/v1/feed`（feed 需 xsec_token 且极易触发滑块/500）。仅需 cookie + 浏览器头，无需 relay 签名、无需 camoufox。
-- **xsec_token 获取**：feed/HTML 路线均强制要 xsec_token，而 `publish_url` 不带、发布响应也不返，唯一来源是 profile 页 note 列表。`fetch-retro-data.ts` 在未传 `--xsec-token` 时，**纯 HTTP** GET 自己 profile 页（`/user/profile/{user_id}`，user_id 取 `xhs-user-id.cache`）解析 `user.notes` 建 note_id→xsec_token 映射（仅近期 ~20 条可见），查到目标 note 的 token 后再 GET 笔记详情页。`fetch-and-update-metrics.sh` 也会从 `publish_url` query 抽 xsec_token 透传（未来发布侧落 token 时直接生效）。笔记不在 profile 首页范围 → `NOTE_NOT_IN_PROFILE`。
-- **xhs headers**：按 UA 家族区分 sec-ch-ua（camoufox=Firefox 不发 brand 列表，Chrome 发完整 sec-ch-ua），避免指纹破绽；sec-fetch 用 document/navigate（真实页面导航）。评论内容（`top_comment`）暂不抓（comment API 同样依赖 xsec_token，待发布侧落 token 后再补）。
+- **脚本支持**：xhs、bilibili、douyin、kuaishou（走 `fetch-retro-data.ts`）。其中 bilibili/douyin/kuaishou 走纯 HTTP + cookie + UA；xhs 委托 `xhs-engagement` 技能（详见下条）。wx_mp 不走本技能取数——走 `expert-wx-mp` 专家包内的 `wx-mp-engagement` 工具；wx_channel 走顶层 `wx-channel-engagement` 技能。其他平台暂不支持自动抓取互动数据。
+- **xhs 取数路线（xhs-engagement creator 后台方案，2026-08-22 起）**：`fetch-retro-data.ts` xhs 分支 `execFile` 调顶层 `xhs-engagement` 技能（PATH wrapper：`xhs-engagement fetch --title <title>`）——camoufox 打开 creator 后台笔记管理页（复用 xhs-browse session 登录态），eval 解析 `.note-card__body` 拿标题 + 5 列互动数（阅读/点赞/收藏/评论/分享），按 title 匹配目标笔记。取数细节、探活与重登流程见 `xhs-engagement/SKILL.md`。**替代了已失效的 profile SSR 方案**：2026-07-25 起小红书把 profile 页 SSR `__INITIAL_STATE__.user.notes` 置空数组（客户端 hydration 才回填），旧方案 `PROFILE_MAPPING_EMPTY`。新方案数据更全（多阅读量）、风控更低（creator 后台是官方管理界面）、维护成本更低（DOM 结构稳定）。
+- **xhs title 匹配**：creator 后台方案按 `--title` 匹配目标笔记。`fetch-and-update-metrics.sh` 会自动从 DB 取该行 title 透传 `--title`。笔记不在 creator 后台列表 → `NOTE_NOT_IN_CREATOR_BACKEND`。
+- **xhs 登录失效处理**：链路返回 `SESSION_EXPIRED`（exit 2）时，重登走 xhs-engagement 的两步流程——login-manager 重登 www + `xhs-publish login-verify` 做 creator SSO（详见 `xhs-engagement/SKILL.md`），不要只重登 www。
 
 ### 流程 2B·用户提供数据（Agent 补录）
 

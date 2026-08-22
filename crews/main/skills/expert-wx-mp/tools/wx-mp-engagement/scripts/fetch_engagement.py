@@ -272,38 +272,81 @@ def cmd_login_confirm(args) -> None:
     """轮询当前页等用户手机确认 → 验登录就位（redirect 到 /cgi-bin/home?token=xxx）→ close session。
 
     不导出 cookie/UA/token——登录态在 wx_mp session profile 里就位即可。
+
+    根因（2026-08-16 todo §5 复现）：camoufox-cli daemon ``MAX_IDLE_TIMEOUT=60``，
+    ``cmd_login`` 截 QR 返回后，agent 拿 QR 发用户扫码往往 >60s，daemon 已 idle 自退
+    （manager.close() 释放 profile lock + 关 browser context）。``cmd_login_confirm``
+    第一个 ``url`` 命令触发 ``ensureDaemon`` spawn 新 daemon——新 daemon 即使用同一
+    persistent profile（登录态 cookie 在 profile 里），page.url() 仍是 ``about:blank``
+    （fresh page，没执行过 open）。旧实现直接轮询 ``url``，读到 ``about:blank`` 永远
+    不含 ``/cgi-bin/home`` → 误判「未就位」。
+
+    修复：轮询前先 ``open`` 创作者中心首页触发 redirect。``--persistent`` 模式下
+    daemon 自退时释放 profile lock，新 daemon 用同一 profile 不会互杀（旧注释
+    「重 open 起新 daemon 抢同 session profile 互杀」是错误假设）。
+
+    就位判定（宽匹配，对齐 wx-channel-engagement 策略）：
+    - URL 不含 login / scanloginqrcode（已离开登录页）
+    - 且 URL 含 /cgi-bin/ 或含 token= 参数（已进入后台）
+
+    关键：camoufox-cli ``open`` 用 ``page.goto(url, { waitUntil: "domcontentloaded" })``，
+    goto **不跟随 client-side JS redirect**。微信公众号扫码登录成功后是 JS 触发的
+    ``window.location`` 跳转（scanloginqrcode → /cgi-bin/home?...&token=xxx），
+    不是 HTTP 302。故 open 返回时 URL 可能还在 scanloginqrcode，需轮询等 JS redirect 完成。
     """
+    # 先 open 首页触发 redirect——解决 daemon idle 自退后 page 是 about:blank 的问题。
+    # persistent 模式下 daemon 自退释放 profile lock，新 daemon 用同一 profile 不会互杀。
+    try:
+        camoufox_open(SESSION_NAME, CREATOR_CENTER_URL)
+    except RuntimeError as e:
+        sys.stderr.write(f"error: camoufox 打开首页失败: {e}\n")
+        sys.exit(2)
+
     deadline = time.time() + LOGIN_CONFIRM_POLL_MAX_S
     token: str | None = None
+    logged_in = False
+    last_url = ""
 
     while time.time() < deadline:
         current_url = camoufox_get_url(SESSION_NAME)
-        if current_url and "/cgi-bin/home" in current_url:
-            m = re.search(r"token=(\d+)", current_url)
-            if m:
-                token = m.group(1)
+        if current_url:
+            last_url = current_url
+            # 显式还在登录页 → 继续等
+            if "login" in current_url or "scanloginqrcode" in current_url:
+                time.sleep(LOGIN_CONFIRM_POLL_INTERVAL_S)
+                continue
+            # 已离开登录页：判是否进入后台
+            # 后台 URL 特征：含 /cgi-bin/ 或含 token= 参数
+            is_backend = "/cgi-bin/" in current_url or "token=" in current_url
+            if is_backend:
+                logged_in = True
+                # 尝试提 token（诊断用，不强制要求）
+                m = re.search(r"token=([^&]+)", current_url)
+                if m:
+                    token = m.group(1)
                 break
-        # 还在 scanloginqrcode 页，等待
+        # 还在登录页或 redirect 中，等待
         time.sleep(LOGIN_CONFIRM_POLL_INTERVAL_S)
 
-    if not token:
+    if not logged_in:
         camoufox_close(SESSION_NAME)
-        sys.stderr.write("error: 登录超时或未就位，请重新调 login 生成新二维码\n")
+        sys.stderr.write(
+            f"error: 登录超时或未就位（最后 URL: {last_url[:120]}），"
+            f"请重新调 login 生成新二维码\n"
+        )
         sys.exit(2)
 
-    # token 已从 redirect URL 拿到，证明登录就位——不再重 open 首页验登录：
-    # 重 open 会起新 daemon 抢同 session profile，与 login 那次 open 的旧 daemon
-    # 互杀（SIGKILL），正在跑的 daemon 被杀导致 confirm 异常退出。
-    # 登录态已在 profile 里就位，直接 close session 收尾即可。
-
-    # 登录态在 profile 里就位，close session 不影响 profile 持久化
+    # 已从轮询 URL 拿到登录就位信号（已离开登录页、进入后台），证明登录态已就位。
+    # 登录态在 profile 里就位，close session 不影响 profile 持久化。
     camoufox_close(SESSION_NAME)
 
-    sys.stdout.write(json.dumps({
+    result = {
         "ok": True,
         "message": "登录成功，登录态已在 wx_mp session profile 就位",
-        "token": token,
-    }, ensure_ascii=False, indent=2))
+    }
+    if token:
+        result["token"] = token
+    sys.stdout.write(json.dumps(result, ensure_ascii=False, indent=2))
     sys.stdout.write("\n")
 
 

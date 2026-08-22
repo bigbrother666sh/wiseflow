@@ -184,20 +184,23 @@ wx-mp-hunter posts-list --recent 50
 
 ### ⚠️ 使用前的环境检查
 
-`posts-list` 依赖本机运行的微信客户端容器。**使用此命令前必须检查以下环境变量是否存在**：
+`posts-list` 依赖本机运行的微信客户端容器（默认容器名 `mimicwx-linux`，
+可通过 `WX_BIZ_CONTAINER` 环境变量覆盖）。
 
-| 环境变量 | 用途 |
-|---------|------|
-| `WX_BIZ_CONTAINER` | 微信客户端容器名 |
-| `WX_BIZ_USER_DIR` | 容器内微信用户数据根目录 |
-| `WX_BIZ_KEYS_FILE` | 容器内密钥文件路径 |
+用户数据目录、密钥文件路径、biz 消息库相对路径、biz 库 key 名
+**全部自动探测/硬编码**，用户无需配置：
 
-如果这些环境变量不存在（或容器未运行），脚本会直接报错退出：
-```
-{"ok": false, "error": "缺少环境变量 WX_BIZ_CONTAINER：posts-list 依赖本机微信客户端容器，请先在环境中设置该变量指向运行中的容器名"}
-```
+- 容器名：`WX_BIZ_CONTAINER`（默认 `mimicwx-linux`）
+- 用户数据目录：自动探测 `/home/wechat/Documents/xwechat_files/*/db_storage`，
+  多账号取 `db_storage/message` mtime 最新的那个
+- 密钥文件：`/home/wechat/.xwechat/wechat_keys.json`（兜底 `/tmp/wechat_keys.json`）
+- biz 消息库相对路径：`db_storage/message/biz_message_0.db`
+- biz 库 key 名：`message/biz_message_0.db`
 
-**重要**：仅 `posts-list` 命令会检查这些环境变量。普通 `fetch` 抓文章不需要这些变量，也不会检查。
+如果自动探测失败（容器未运行、未登录、密钥文件不存在等），
+脚本报清晰错误并给出排查建议。
+
+**重要**：仅 `posts-list` 命令会检查容器环境。普通 `fetch` 抓文章不需要容器，也不会检查。
 
 ### 已关注账号约束
 
@@ -307,5 +310,5 @@ wx-mp-hunter homepage <url>
 |-------|------|------|
 | `UA 直访被风控` (fetch) | 微信客户端 UA 也被风控（罕见） | 重试一次；仍失败跳过该文章 |
 | `未找到文章正文 (#js_content)` (fetch) | 文章已删除或私有 | 跳过该文章 |
-| `缺少环境变量 WX_BIZ_CONTAINER` (posts-list) | 容器环境未配置 | 报错退出，告知用户需配置环境变量并启动容器 |
+| `容器不可达 / 自动探测失败` (posts-list) | 容器未启动、未登录微信、或密钥文件缺失 | 报错退出，告知用户需启动容器并确认微信已登录 |
 | `HTTP 4xx` on fetch | 文章已删除或私有 | 跳过该文章 |

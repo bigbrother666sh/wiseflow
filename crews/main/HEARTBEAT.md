@@ -38,8 +38,8 @@
 5. **⚠️ 小红书 (xhs) 封号风险显著高于其他平台**
 
    - xhs 对「会话凭空 materialize + 短时批量签名请求」极度敏感，**一次** CDP 注入 cookie + 批量 feed 抓取就可能触发风控/限流/封号。
-   - xhs-browse 任何登录失效迹象 → **立刻整段跳过 xhs**，不要尝试任何恢复，记入 `EXPIRED_PLATFORMS` 等白天重新登录。
-   - 取数只走 `xhs-browse`；**禁止**探测/使用 `xhs-publish` creator 域 cookie（见 Step 2 注意事项）。
+   - xhs 任何登录失效迹象 → **立刻整段跳过 xhs**，不要尝试任何恢复，记入 `EXPIRED_PLATFORMS` 等白天重新登录。
+   - 取数走 `xhs-engagement`（camoufox 打开 creator 后台，复用 `xhs-browse` session + creator SSO 态）；**严禁** CDP 注入 cookie / `cookies import` 造会话（见 Step 2 注意事项）。
 
 ---
 
@@ -60,14 +60,14 @@ published-track query --platform xhs --limit 50
 
 对 Step 1 中列出的**每条记录（按 id 逐条）**取数并写库。按平台分三种情况：
 
-1. **douyin / xhs / kuaishou / bilibili** —— 走 `published-track fetch-metrics`（纯 HTTP+cookie 链路：login-manager 探活 → fetch-retro-data.ts → 写库）：
+1. **douyin / xhs / kuaishou / bilibili** —— 走 `published-track fetch-metrics`：
 
    ```bash
    published-track fetch-metrics \
      --platform <platform> --id <rowid>
    ```
 
-   脚本封装了完整流程，返回统一 JSON 结果。**wx_mp 不走这个脚本**——机制不同，见下方第 2 条。
+   脚本封装了完整流程，返回统一 JSON 结果。其中 **douyin / kuaishou / bilibili 是纯 HTTP+cookie 链路**（login-manager 探活 → fetch-retro-data.ts → 写库）；**xhs 由 fetch-retro-data.ts 内部委托 `xhs-engagement` 技能**（camoufox 打开 creator 后台笔记管理页，按 title 匹配拿 5 列互动数，复用 `xhs-browse` session 登录态）——调用方式不变，机制差异对心跳透明。**wx_mp 不走这个脚本**——机制不同，见下方第 2 条。
 
 2. **微信公众号 (wx_mp)** -- **走 `expert-wx-mp` 包内 `wx-mp-engagement` 工具**（PATH wrapper 同名），camoufox 抓创作者中心方案，与上面四个平台的纯 HTTP+cookie 链路完全不同，两条路独立、不耦合：
 
@@ -96,7 +96,7 @@ published-track query --platform xhs --limit 50
 **发布超过 30 天的内容不再每天抓取互动数据**——数据已稳定，边际变化可忽略，反复抓只浪费配额/增加风控暴露。按平台类型：
 
 - **浏览器方案**（wx_mp / wx_channel）：列表页/创作者中心天然只展示近期内容，无需额外过滤——老内容不在列表里自然抓不到，**这是设计不是 bug**，不要加翻页去补抓老内容。
-- **接口方案**（xhs / bilibili / douyin / kuaishou）：Step 1 查询时加 `publish_date >= date('now', '-30 days')` 过滤，超过 30 天的行直接跳过不调 `published-track fetch-metrics`。
+- **脚本方案**（xhs / bilibili / douyin / kuaishou）：Step 1 查询时加 `publish_date >= date('now', '-30 days')` 过滤，超过 30 天的行直接跳过不调 `published-track fetch-metrics`。
 
 **DNA 评估（Step 3）不受此限**
 
@@ -104,7 +104,7 @@ published-track query --platform xhs --limit 50
 
 - **必须传 `--id <rowid>`**（脚本类平台）：`<rowid>` 取自 Step 1 查询结果里的 `id` 字段。同一 `source_folder` 可能对应多条记录（同内容重复发布到不同帖子），按 `--id` 逐条抓取/写库才能让每次发布各自独立统计；若只传 `--source-folder`，脚本会只抓一行指标却批量写进所有同 folder 行，造成重复发布之间互相污染。
 - **SESSION_EXPIRED**：脚本返回 `ok=false, error=SESSION_EXPIRED`（exit 2）时，**跳过该平台**本轮取数，记入 `EXPIRED_PLATFORMS`，Step 5 统一汇报，由用户白天重新登录。**凌晨不唤醒用户、不扫码登录、不私拉会话**（见约束 4/5）。
-- **xhs 风控显著高于其他平台**：xhs 任何登录失效迹象 → 立刻整段跳过 xhs，不尝试任何恢复。取数只走 `xhs-browse`，**禁止**探测/使用 `xhs-publish` creator 域 cookie。
+- **xhs 风控显著高于其他平台**：xhs 任何登录失效迹象 → 立刻整段跳过 xhs，不尝试任何恢复。取数走 `xhs-engagement`（creator 后台方案，复用 `xhs-browse` session），**严禁** CDP 注入 cookie / `cookies import` 造会话。
 - **⛔ 取数失败时必须原样报告脚本 stderr + exit code，禁止自行归因**：脚本的 stderr 是排查的唯一可靠依据。Agent 不得根据 DB 字段（如 `publish_url` 是否为空）脑补错误原因、不得改写/概括 stderr 成自己的话。例：`wx-mp-engagement fetch` exit 1 stderr=`error: 发表记录页未找到标题匹配的 row id=3`，就报这个原文，不要脑补成 "publish_url 无效"。错误归因错误会误导排查方向。
 
 ---
@@ -164,15 +164,18 @@ content-calibrator eval --platform <platform> --mark-evaluated --ids <本轮覆�
 汇总执行情况，反馈用户。报告内容：
 
 1. 各平台数据更新情况（成功/跳过/失败数量）
-2. **取数端 Cookie 失效列表**（如有）：
-   > ⚠️ 以下**取数端**Cookie 已失效，数据未能更新。请白天通知小贝重新登录：
+2. **取数端登录态失效列表**（如有）：
+   > ⚠️ 以下**取数端**登录态已失效，数据未能更新。请白天通知小贝重新登录：
    > - douyin（抖音）
    > - xhs-browse（小红书浏览端）
    > - wechat-channel（微信视频号)
    >
-   > **只报告取数端 cookie**。**不要报告、也不要探测 `xhs-publish`（小红书发布端 / creator.xiaohongshu.com）**：
-   > 复盘/取数完全不依赖发布端 cookie，探测它只会给 creator 域增加风控概率且结论与取数无关。
-   > 发布端失效由发布任务（xhs-publish 技能）自己管，不在本复盘心跳职责内。
+   > **xhs 重登是两步**（见 `xhs-engagement/SKILL.md`）：① login-manager 有头重登 www（导出 `xhs-browse.json`）；
+   > ② `xhs-publish login-verify` 做 creator SSO（导出 `xhs-publish.json`）——xhs 取数走 creator 后台，
+   > 只做第①步不做第②步 creator 域 cookie 不会落，取数仍会跳登录页。
+   >
+   > **只报告取数端登录态**。**不要报告、也不要探测 `xhs-publish` 导出 cookie 本身**：
+   > 那是发布侧产物，健康与否由发布任务（xhs-publish 技能）自己管，不在本复盘心跳职责内。
 3. DNA 表现评估摘要（如有）：列出本轮评估的 DNA（平台 / dna-id / 覆盖篇数）+ 整体判定（改善 / 平稳 / 下滑）+ 关键归因；无触发 DNA 时写「无 DNA 达到评估阈值」并附各 DNA 待评估计数。
 4. **DNA 优化建议待确认（如有）**：列出评估报告中的逐条建议（建议内容 + 目标维度/template 部分 + 证据篇目）。**Agent 不得自动更新 DNA**。用户白天逐条确认后，指示走对应平台专家包的 style-dna workflow 回写 DNA。
 5. 用户咨询回复摘要。

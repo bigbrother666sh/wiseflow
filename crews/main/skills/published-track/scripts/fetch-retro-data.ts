@@ -12,7 +12,8 @@
  *   - 快手:  GraphQL（无需签名）
  *
  * Cookie 来源: login-manager（~/.openclaw/logins/{platform}.json）
- *   小红书使用 xhs-browse cookie（消费者端域 www.xiaohongshu.com）
+ *   小红书（xhs）例外：不走纯 HTTP，委托 xhs-engagement skill
+ *   （camoufox 打开 creator 后台，复用 xhs-browse session 登录态）
  *
  * Usage:
  *   node fetch-retro-data.ts --platform douyin --content-id <aweme_id>
@@ -29,15 +30,8 @@
 import { readFileSync, existsSync } from "fs"
 import { join } from "path"
 import { homedir } from "os"
-import { execFile, execFileSync } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
-import {
-  xhsBrowserHeaders,
-  extractInitialState,
-  fetchXhsNoteFromHtml,
-  XhsCaptchaError,
-  XhsNoteInaccessibleError,
-} from "../../_shared/xhs-html-note.ts"
 
 const execFileAsync = promisify(execFile)
 
@@ -286,210 +280,10 @@ async function fetchKuaishou(photoId: string): Promise<RetroResult> {
 
 // ─── 小红书 ────────────────────────────────────────────────────────────────
 //
-// 走 get_note_by_id_from_html 路线（借鉴 MediaCrawlerPro-Python xhs/client.py）：
-// 直接 GET 笔记详情网页 https://www.xiaohongshu.com/explore/{note_id}?xsec_token=...，
-// 解析 window.__INITIAL_STATE__.note.noteDetailMap[note_id].note.interactInfo 拿互动计数。
-//
-// 为何不走 feed API（/api/sns/web/v1/feed）：feed 接口需 xsec_token 且极易触发滑块验证
-// （MediaCrawlerPro get_note_by_id 原注释：「开启xsec_token详情接口特别容易出现滑块验证」，
-// 实测 500）。HTML 路线只需 cookie + 浏览器头，无需 relay 签名，风控远低于 feed。
-//
-// headers 形态参考 MediaCrawlerPro xhs/client.py 的 headers 属性（accept-language /
-// cache-control / pragma / priority / referer / sec-ch-ua* / sec-fetch-* / ua / cookie）。
-// 因是真实页面导航（非 XHR），sec-fetch 用 document/navigate 而非 cors/empty，
-// accept 用 text/html —— 比 MediaCrawlerPro 复用 API 头更贴合真实浏览器，camoufox 造的
-// cookie 本就来自页面导航，保持一致降低风控。
-//
-// xhsBrowserHeaders / extractInitialState / fetchXhsNoteFromHtml / parseXhsCount 复用
-// _shared/xhs-html-note.ts（与 viral-chaser / xhs-content-ops 同源，避免三处重复解析逻辑）。
-
-/** profile 页 SSR 解析出的单条笔记（2026-07-25 起 xhs 把 SSR 里的 note id 置空，
- * id 可能为空串——此时靠 title 匹配拿 xsec_token）。 */
-interface XhsProfileEntry {
-  id: string
-  title: string
-  xsecToken: string
-  xsecSource: string
-}
-
-/** 解析 profile 页 window.__INITIAL_STATE__.user.notes，解 Vue ref 后取笔记条目列表。
- * 纯 HTTP：GET /user/profile/{user_id}（带 cookie）即可，无需 camoufox。返回 null 表示抓取/解析失败。
- *
- * 2026-07-25 起 xhs 改版：SSR 里每条笔记的 id/noteCard.noteId 全部置空（客户端 hydration 才回填），
- * 但 xsecToken 和 noteCard.displayTitle 仍在。故不再只按 id 建映射，而是返回完整条目列表，
- * 由调用方先按 id 匹配（兼容旧结构/未来回滚），miss 再按 title 匹配。 */
-async function fetchXhsProfileEntries(
-  userId: string,
-  cookieStr: string,
-  ua: string,
-): Promise<XhsProfileEntry[] | null> {
-  const url = `https://www.xiaohongshu.com/user/profile/${userId}`
-  try {
-    const resp = await fetch(url, {
-      headers: xhsBrowserHeaders(ua, cookieStr),
-      signal: AbortSignal.timeout(20_000),
-    })
-    if (!resp.ok) return null
-    const html = await resp.text()
-    if (/website-login\/captcha/.test(html)) return null
-    const state = extractInitialState(html)
-    if (!state) return null
-    const unref = (v: any): any => (v && v.__v_isRef && v._rawValue !== undefined ? v._rawValue : v)
-    const notes = unref(state?.user?.notes)
-    const entries: XhsProfileEntry[] = []
-    if (Array.isArray(notes)) {
-      for (const grp of notes) {
-        const g = unref(grp)
-        if (!Array.isArray(g)) continue
-        for (const n of g) {
-          const nn = unref(n)
-          const card = nn?.noteCard ?? {}
-          const token = nn?.xsecToken || card?.xsecToken
-          if (!token) continue
-          entries.push({
-            id: String(nn?.id || card?.noteId || ""),
-            title: String(card?.displayTitle ?? nn?.displayTitle ?? ""),
-            xsecToken: String(token),
-            xsecSource: nn?.xsecSource || card?.xsecSource || "pc_feed",
-          })
-        }
-      }
-    }
-    return entries
-  } catch {
-    return null
-  }
-}
-
-/** 标题归一化：去首尾空白、折叠空白、去尾部省略号（SSR displayTitle 可能截断）。 */
-function normalizeXhsTitle(s: string): string {
-  return s.replace(/[\s　]+/g, " ").trim().replace(/[.…]+$/, "")
-}
-
-/** 按标题在 profile 条目里找唯一匹配：精确相等优先，其次前缀互含（防截断，最短 6 字符起）。
- * 多条歧义时返回 null（宁可失败也不错配）。 */
-function matchXhsEntryByTitle(entries: XhsProfileEntry[], title: string): XhsProfileEntry | null {
-  const target = normalizeXhsTitle(title)
-  if (!target) return null
-  const exact = entries.filter(e => normalizeXhsTitle(e.title) === target)
-  if (exact.length === 1) return exact[0]
-  if (exact.length > 1) return null
-  const prefix = entries.filter(e => {
-    const t = normalizeXhsTitle(e.title)
-    if (t.length < 6 || target.length < 6) return false
-    return t.startsWith(target) || target.startsWith(t)
-  })
-  return prefix.length === 1 ? prefix[0] : null
-}
-
-/** 取 xhs-browse 自身 user_id：优先读 xhs-user-id.cache，缺失则调 get-xhs-user-id.sh（relay sign + user/me）。 */
-function readXhsUserId(): string {
-  const root = join(import.meta.dirname, "../../..")
-  const skillDir = join(root, "skills", "published-track")
-  const cache = join(skillDir, "xhs-user-id.cache")
-  if (existsSync(cache)) {
-    const v = readFileSync(cache, "utf-8").trim()
-    if (/^[0-9a-f]{20,}$/.test(v)) return v
-  }
-  try {
-    const out = execFileSync("bash", [join(skillDir, "scripts", "get-xhs-user-id.sh")], {
-      encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"], timeout: 30_000,
-    }).trim()
-    if (/^[0-9a-f]{20,}$/.test(out)) return out
-  } catch { /* get-xhs-user-id.sh 失败，返回空交上游报错 */ }
-  return ""
-}
-
-async function fetchXhs(noteId: string, xsecToken: string = "", xsecSource: string = "", title: string = ""): Promise<RetroResult> {
-  const session = requireSession("xhs-browse")
-  const cookieDict = parseCookies(session.cookies)
-  const ua = sessionUA("xhs-browse", session)
-
-  if (!cookieDict.a1 || !cookieDict.web_session) {
-    process.stderr.write("[fetch-retro-data] 小红书 cookie 缺少 a1 或 web_session\n")
-    process.exit(2)
-  }
-
-  const result: RetroResult = {
-    ok: true,
-    platform: "xhs",
-    contentId: noteId,
-    stats: {},
-    comments: [],
-  }
-
-  const cookieStr = cookieHeader(cookieDict)
-
-  // 1. 无 xsec_token 时，从自己 profile 页（纯 HTTP）取 note_id→xsec_token 映射。
-  //    feed/HTML 路线都强制要 xsec_token；publish_url 不带 token、发布响应也不返 token，
-  //    唯一来源是 profile 页 note 列表（每条 note 附 xsecToken）。纯 HTTP，不开 camoufox。
-  let token = xsecToken
-  let source = xsecSource
-  if (!token) {
-    console.error("  → 无 xsec_token，从自己 profile 页取映射（纯 HTTP）...")
-    const userId = readXhsUserId()
-    if (!userId) {
-      return { ...result, ok: false, error: "NO_USER_ID", msg: "未取到 self user_id（xhs-user-id.cache 缺失且 get-xhs-user-id.sh 失败）" }
-    }
-    const entries = await fetchXhsProfileEntries(userId, cookieStr, ua)
-    if (!entries) {
-      return { ...result, ok: false, error: "PROFILE_FETCH_FAILED", msg: "profile 页抓取/解析失败（可能触发风控/登录态失效）" }
-    }
-    if (entries.length === 0) {
-      // 与"笔记不在列表里"区分开：0 条通常是 SSR 结构再次变化或页面异常，不是笔记问题
-      return { ...result, ok: false, error: "PROFILE_MAPPING_EMPTY", msg: "profile 页解析到 0 条笔记条目（SSR 结构可能再次变化，或页面异常/风控），请人工核查解析逻辑" }
-    }
-    // 先按 id 匹配（旧 SSR 结构/未来回滚仍可用），miss 再按 title 匹配
-    // （2026-07-25 起 SSR note id 置空，title 是唯一可用的匹配键）
-    let entry = entries.find(e => e.id === noteId) ?? null
-    let matchedBy = "id"
-    if (!entry && title) {
-      entry = matchXhsEntryByTitle(entries, title)
-      matchedBy = "title"
-    }
-    if (!entry) {
-      const idsEmpty = entries.every(e => !e.id)
-      return {
-        ...result, ok: false, error: "NOTE_NOT_IN_PROFILE",
-        msg: `profile 首页未匹配到该笔记（共 ${entries.length} 条条目${idsEmpty ? "，SSR note id 全为空" : ""}${title ? "，title 匹配也未命中" : "，未提供 --title 无法按标题匹配"}；可能已删除/私密/超出首页范围）`,
-      }
-    }
-    token = entry.xsecToken
-    source = entry.xsecSource || "pc_feed"
-    console.error(`  ✓ 映射命中（共 ${entries.length} 条，按 ${matchedBy} 匹配），拿到 xsec_token`)
-  }
-
-  // 2. GET 笔记详情页 HTML，解析 interactInfo（复用 _shared/xhs-html-note.ts）
-  console.error(`  → GET 小红书笔记详情页 HTML（get_note_by_id_from_html 路线）...`)
-  try {
-    const note = await fetchXhsNoteFromHtml(noteId, {
-      xsecToken: token,
-      xsecSource: source,
-      cookieStr,
-      ua,
-    })
-    // 解析成功即返回——新发笔记可能四项全 0，属正常态。
-    result.stats = {
-      likeCount: note.stats.likeCount,
-      collectCount: note.stats.collectCount,
-      commentCount: note.stats.commentCount,
-      shareCount: note.stats.shareCount,
-    }
-    console.error(`  ✓ 点赞 ${result.stats.likeCount} / 收藏 ${result.stats.collectCount} / 评论 ${result.stats.commentCount} / 分享 ${result.stats.shareCount}`)
-    return result
-  } catch (e) {
-    if (e instanceof XhsCaptchaError) {
-      return { ...result, ok: false, error: "NEED_VERIFY", msg: "小红书出现安全验证滑块，请扫码验证后重试" }
-    }
-    if (e instanceof XhsNoteInaccessibleError) {
-      // 评论内容（top_comment）需 comment/page API，同样依赖 xsec_token 且易触发风控；
-      // 当前 DB 不存 xsec_token，该 API 本就拿不到，故暂不调。互动计数（含 commentCount）
-      // 已从 HTML 拿到，published-track 指标完整。top_comment 待发布侧落 xsec_token 后再补。
-      return { ...result, ok: false, error: "NOTE_INACCESSIBLE", msg: "多次重试仍未拿到笔记 interactInfo（可能笔记已删除/私密或触发风控）" }
-    }
-    return { ...result, ok: false, error: "NOTE_INACCESSIBLE", msg: String(e) }
-  }
-}
+// 2026-08-22 起 xhs 不走本脚本——取数走 xhs-engagement 技能（camoufox 打开 creator
+// 后台笔记管理页，复用 xhs-browse session 登录态），与 wx_mp/wx_channel 同模式，
+// agent 直调 `xhs-engagement fetch --row-id <rowid>`。
+// 旧 profile SSR 方案 2026-07-25 起结构性失效（SSR notes 置空数组），相关代码已移除。
 
 // ─── Main ─────────────────────────────────────────────────────────────────
 
@@ -527,7 +321,8 @@ async function main(): Promise<void> {
       result = await fetchKuaishou(contentId)
       break
     case "xhs":
-      result = await fetchXhs(contentId, xsecToken, xsecSource, title)
+      // xsecToken/xsecSource 是旧 profile SSR 方案的遗留参数，creator 后台方案忽略
+      result = await fetchXhs(contentId, title)
       break
     default:
       process.stderr.write(`❌ 不支持的平台: ${platform}\n`)

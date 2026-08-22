@@ -71,21 +71,20 @@ CAMOUFOX_BIN = os.environ.get("CAMOUFOX_CLI", "camoufox-cli")
 HOMEPAGE_SESSION = "wx_mp_hunter_homepage"
 
 # ── biz 消息库扫库常量 ───────────────────────────────────────────────────────
-# 依赖本机微信客户端容器，相关路径通过环境变量注入。
-WX_BIZ_CONTAINER = os.environ.get("WX_BIZ_CONTAINER")
-WX_BIZ_USER_DIR = os.environ.get("WX_BIZ_USER_DIR")
-WX_BIZ_KEYS_FILE = os.environ.get(
-    "WX_BIZ_KEYS_FILE",
-    "/home/wechat/.xwechat/wechat_keys.json",
-)
-WX_BIZ_DB_REL = os.environ.get(
-    "WX_BIZ_DB_REL",
-    "db_storage/message/biz_message_0.db",
-)
-WX_BIZ_DB_KEY_NAME = os.environ.get(
-    "WX_BIZ_DB_KEY_NAME",
-    "message/biz_message_0.db",
-)
+# 依赖本机微信客户端容器（MimicWX-Linux 镜像）。容器名可 override，
+# 其余路径全部硬编码/自动探测（复刻 MimicWX-Linux 的 find_db_dir 逻辑）。
+WX_BIZ_CONTAINER = os.environ.get("WX_BIZ_CONTAINER", "mimicwx-linux")
+
+# 硬编码常量（由 MimicWX-Linux 镜像布局和微信客户端数据库约定决定，不让用户配置）
+WX_BIZ_KEYS_FILE = "/home/wechat/.xwechat/wechat_keys.json"
+WX_BIZ_KEYS_FILE_COMPAT = "/tmp/wechat_keys.json"
+WX_BIZ_DB_REL = "db_storage/message/biz_message_0.db"
+WX_BIZ_DB_KEY_NAME = "message/biz_message_0.db"
+
+# MimicWX-Linux 用户数据目录的搜索根（由 Dockerfile 里 `useradd -m wechat` 决定）
+WX_BIZ_XWECHAT_ROOT = "/home/wechat/Documents/xwechat_files"
+# 旧路径兜底
+WX_BIZ_OLD_DATA_ROOT = "/home/wechat/.local/share/weixin/data"
 
 # ── 单篇 fetch：微信客户端 UA 直访 ──────────────────────────────────────────
 
@@ -126,16 +125,66 @@ def positive_int(value: str) -> int:
 
 # ── biz 消息库扫库 ───────────────────────────────────────────────────────────
 
-def _require_biz_container_env() -> None:
+def _require_biz_container_env() -> str:
     """posts-list 才检查容器环境是否就位；普通 fetch 不检查。
 
-    仅校验容器名是否被显式配置或保持默认值，避免在不需要扫库时误报。
-    真正的容器可达性检查在 ``_scan_biz_messages`` 里做。
+    返回自动探测到的 user_dir（wxid 那层目录，即 db_storage 的父目录）。
+    失败直接 err_exit 报清晰错误。
+
+    探测逻辑复刻 MimicWX-Linux 的 ``find_db_dir``：
+    - 主搜索根：``/home/wechat/Documents/xwechat_files/*``（遍历所有子目录，不限定 ``wxid_*``）
+    - 旧路径兜底：``/home/wechat/.local/share/weixin/data/db_storage``
+    - 多账号场景取 ``db_storage/message`` mtime 最新的那个（最近活跃账号）
     """
-    if not WX_BIZ_CONTAINER:
+    # 1. 校验容器可达
+    try:
+        _docker_exec(["true"], timeout=10.0)
+    except RuntimeError:
         err_exit(
-            "缺少环境变量 WX_BIZ_CONTAINER：posts-list 依赖本机微信客户端容器，"
-            "请先在环境中设置该变量指向运行中的容器名"
+            f"容器 {WX_BIZ_CONTAINER} 不可达：posts-list 依赖本机运行的微信客户端容器，"
+            f"请确认容器已启动（docker ps | grep {WX_BIZ_CONTAINER}）"
+        )
+
+    # 2. 自动探测 user_dir（复刻 MimicWX-Linux find_db_dir）
+    probe_script = (
+        "import os, time\n"
+        "candidates = []\n"
+        f"root = {WX_BIZ_XWECHAT_ROOT!r}\n"
+        "if os.path.isdir(root):\n"
+        "    for entry in os.listdir(root):\n"
+        "        db_storage = os.path.join(root, entry, 'db_storage')\n"
+        "        if os.path.isdir(db_storage):\n"
+        "            msg_dir = os.path.join(db_storage, 'message')\n"
+        "            try:\n"
+        "                mtime = os.path.getmtime(msg_dir)\n"
+        "            except OSError:\n"
+        "                mtime = 0\n"
+        "            candidates.append((db_storage, mtime))\n"
+        f"old = {WX_BIZ_OLD_DATA_ROOT!r}\n"
+        "if os.path.isdir(old):\n"
+        "    db_storage = os.path.join(old, 'db_storage')\n"
+        "    if os.path.isdir(db_storage):\n"
+        "        try:\n"
+        "            mtime = os.path.getmtime(os.path.join(db_storage, 'message'))\n"
+        "        except OSError:\n"
+        "            mtime = 0\n"
+        "        candidates.append((db_storage, mtime))\n"
+        "if not candidates:\n"
+        "    raise SystemExit('no db_storage found')\n"
+        "candidates.sort(key=lambda x: x[1], reverse=True)\n"
+        "print(os.path.dirname(candidates[0][0]))\n"
+    )
+    try:
+        out = _docker_exec(["python3", "-c", probe_script], timeout=15.0)
+        user_dir = out.decode("utf-8", errors="replace").strip()
+        if not user_dir:
+            raise RuntimeError("probe returned empty user_dir")
+        return user_dir
+    except RuntimeError as e:
+        err_exit(
+            f"自动探测用户数据目录失败：{e}\n"
+            f"请确认容器 {WX_BIZ_CONTAINER} 内已登录微信账号、"
+            f"且 {WX_BIZ_XWECHAT_ROOT} 下存在带 db_storage 的账号目录"
         )
 
 
@@ -161,20 +210,40 @@ def _docker_cp(src: str, dst: str, timeout: float = 60.0) -> None:
 
 
 def _read_biz_db_key() -> str:
-    """从容器内密钥文件读取 biz 消息库的密钥（hex 字符串）。"""
-    raw = _docker_exec(["cat", WX_BIZ_KEYS_FILE])
-    keys = json.loads(raw)
-    key = keys.get(WX_BIZ_DB_KEY_NAME) or keys.get(WX_BIZ_DB_REL)
-    if not key:
-        raise RuntimeError(
-            f"key for {WX_BIZ_DB_KEY_NAME} (or {WX_BIZ_DB_REL}) not found in {WX_BIZ_KEYS_FILE}"
-        )
-    return key
+    """从容器内硬编码密钥文件读取 biz 消息库的密钥（hex 字符串）。
+
+    主路径 ``/home/wechat/.xwechat/wechat_keys.json``，失败再试
+    ``/tmp/wechat_keys.json``。从 JSON 里取 ``message/biz_message_0.db``
+    对应的密钥；若 key 不存在，fallback 扫所有 key 找 basename 匹配
+    ``biz_message_0.db`` 的（复刻 MimicWX lookup_db_key 的 fallback 逻辑）。
+    """
+    for keys_path in (WX_BIZ_KEYS_FILE, WX_BIZ_KEYS_FILE_COMPAT):
+        try:
+            raw = _docker_exec(["cat", keys_path])
+            keys = json.loads(raw)
+            # 1. 精确匹配
+            key = keys.get(WX_BIZ_DB_KEY_NAME)
+            if key:
+                return key
+            # 2. basename fallback
+            for k, v in keys.items():
+                if k.endswith("biz_message_0.db"):
+                    return v
+        except RuntimeError:
+            continue
+    raise RuntimeError(
+        f"无法从容器 {WX_BIZ_CONTAINER} 读取 biz 消息库密钥："
+        f"主路径 {WX_BIZ_KEYS_FILE} 和兜底路径 {WX_BIZ_KEYS_FILE_COMPAT} 都失败。"
+        f"请确认容器内微信已登录、extract_key.py 已产出密钥文件。"
+    )
 
 
-def _copy_biz_db(tmp_dir: Path) -> Path:
-    """从容器拷出 biz 消息库（含 -wal / -shm），返回拷贝后的 .db 路径。"""
-    container_db = os.path.join(WX_BIZ_USER_DIR, WX_BIZ_DB_REL)
+def _copy_biz_db(tmp_dir: Path, user_dir: str) -> Path:
+    """从容器拷出 biz 消息库（含 -wal / -shm），返回拷贝后的 .db 路径。
+
+    user_dir 由 ``_require_biz_container_env`` 自动探测得到（wxid 那层目录）。
+    """
+    container_db = os.path.join(user_dir, WX_BIZ_DB_REL)
     db_name = Path(WX_BIZ_DB_REL).name
     for suffix in ("", "-wal", "-shm"):
         src = f"{container_db}{suffix}"
@@ -299,10 +368,13 @@ def _scan_biz_messages(
     results: list[dict[str, Any]] = []
     url_indexes: dict[str, int] = {}
 
+    # 自动探测 user_dir（校验容器可达 + 复刻 MimicWX find_db_dir）
+    user_dir = _require_biz_container_env()
+
     tmp_dir = Path(tempfile.mkdtemp(prefix="bizscan_"))
     try:
         key_hex = _read_biz_db_key()
-        db_path = _copy_biz_db(tmp_dir)
+        db_path = _copy_biz_db(tmp_dir, user_dir)
         conn = _open_sqlcipher(db_path, key_hex)
         try:
             cur = conn.cursor()
@@ -1058,9 +1130,6 @@ def cmd_posts_list(args: argparse.Namespace) -> int:
     仅能拿到容器客户端已登录微信账号**已关注**的公众号推送。扫不到某账号
     时提示用户可能是未关注 / 该账号在此时间窗口内未发布。
     """
-    # 仅此命令检查容器环境
-    _require_biz_container_env()
-
     recent_mode = args.recent is not None
     limit_hours = None if recent_mode else args.hours
     accounts_arg = args.accounts

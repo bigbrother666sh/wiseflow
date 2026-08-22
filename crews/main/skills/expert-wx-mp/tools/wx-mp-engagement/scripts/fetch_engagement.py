@@ -67,7 +67,10 @@ SESSION_CLEANUP_ON_EXIT = True  # 仅 close camoufox session，不动中央存�
 
 # 登录流程常量（本技能自管 wx_mp session 的扫码登录）
 QR_FILE = "/tmp/qr-wx-mp.png"
-LOGIN_CONFIRM_POLL_MAX_S = 150
+# Stop-and-wait 模式（对齐 login-manager）：agent 在对话里等用户「已扫码/已完成」
+# 信号后才调 login-confirm；confirm 只做短窗口 settle 验证（吸收手机确认后
+# 页面 JS redirect 的尾巴），不承担「等用户」职责；不就位 → exit 2 交回对话。
+LOGIN_CONFIRM_SETTLE_MAX_S = 30
 LOGIN_CONFIRM_POLL_INTERVAL_S = 3
 
 # spike dump 输出目录
@@ -269,40 +272,58 @@ def cmd_login(args) -> None:
 
 
 def cmd_login_confirm(args) -> None:
-    """轮询当前页等用户手机确认 → 验登录就位（redirect 到 /cgi-bin/home?token=xxx）→ close session。
+    """验登录就位（用户在对话里给信号后调用）→ close session。Stop-and-wait 模式，对齐 login-manager。
+
+    对话层 stop-and-wait：agent 发二维码 PNG 给用户后**停下等用户信号**（「已扫码」/
+    「已完成」），收到信号才调本命令。本命令不承担「等用户」职责，只做短窗口
+    settle 验证（LOGIN_CONFIRM_SETTLE_MAX_S，吸收手机确认后页面 JS redirect 的尾巴），
+    不就位即 exit 2 交回对话，不长时间阻塞：
+    - 用户只扫了码、还没在手机上点「确认登录」→ 提示用户点确认，再重跑本命令
+      （二维码页还活着，无需重新扫码）
+    - 已确认仍未就位 / 二维码过期 → 重新调 login 生成新二维码
 
     不导出 cookie/UA/token——登录态在 wx_mp session profile 里就位即可。
-
-    根因（2026-08-16 todo §5 复现）：camoufox-cli daemon ``MAX_IDLE_TIMEOUT=60``，
-    ``cmd_login`` 截 QR 返回后，agent 拿 QR 发用户扫码往往 >60s，daemon 已 idle 自退
-    （manager.close() 释放 profile lock + 关 browser context）。``cmd_login_confirm``
-    第一个 ``url`` 命令触发 ``ensureDaemon`` spawn 新 daemon——新 daemon 即使用同一
-    persistent profile（登录态 cookie 在 profile 里），page.url() 仍是 ``about:blank``
-    （fresh page，没执行过 open）。旧实现直接轮询 ``url``，读到 ``about:blank`` 永远
-    不含 ``/cgi-bin/home`` → 误判「未就位」。
-
-    修复：轮询前先 ``open`` 创作者中心首页触发 redirect。``--persistent`` 模式下
-    daemon 自退时释放 profile lock，新 daemon 用同一 profile 不会互杀（旧注释
-    「重 open 起新 daemon 抢同 session profile 互杀」是错误假设）。
 
     就位判定（宽匹配，对齐 wx-channel-engagement 策略）：
     - URL 不含 login / scanloginqrcode（已离开登录页）
     - 且 URL 含 /cgi-bin/ 或含 token= 参数（已进入后台）
 
-    关键：camoufox-cli ``open`` 用 ``page.goto(url, { waitUntil: "domcontentloaded" })``，
-    goto **不跟随 client-side JS redirect**。微信公众号扫码登录成功后是 JS 触发的
-    ``window.location`` 跳转（scanloginqrcode → /cgi-bin/home?...&token=xxx），
-    不是 HTTP 302。故 open 返回时 URL 可能还在 scanloginqrcode，需轮询等 JS redirect 完成。
+    历史（open-first 防御的由来，保留原因）：
+    - 2026-08-16：旧版 camoufox-cli daemon 60s idle 自退，confirm 时 often 已是 fresh
+      daemon，page 停在 about:blank（没执行过 open），直接轮询 url 永远读不到后台
+      → 误判「未就位」。
+    - 2026-08-22：camoufox-cli 默认关闭 idle 自退，二维码页一直活着等用户；但
+      daemon 仍可能被 6 并发上限驱逐或手动 close。故仅当 url 为空/about:blank
+      （fresh daemon）时才 ``open`` 首页触发 redirect；活着的登录页/后台页绝不
+      导航走——导航走会重新生成新二维码，用户手里的二维码 PNG 作废。
+      注意：``open`` 用 ``page.goto(waitUntil: "domcontentloaded")``，不跟随
+      client-side JS redirect，而微信登录成功是 JS ``window.location`` 跳转
+      （非 HTTP 302），故 open 后仍需轮询等 redirect 完成。
     """
-    # 先 open 首页触发 redirect——解决 daemon idle 自退后 page 是 about:blank 的问题。
-    # persistent 模式下 daemon 自退释放 profile lock，新 daemon 用同一 profile 不会互杀。
-    try:
-        camoufox_open(SESSION_NAME, CREATOR_CENTER_URL)
-    except RuntimeError as e:
-        sys.stderr.write(f"error: camoufox 打开首页失败: {e}\n")
-        sys.exit(2)
+    # 先读当前 url 决定是否 open-first——不盲目导航：
+    # - 在登录页（login/scanloginqrcode）→ daemon 活着，二维码页正等用户扫码/确认
+    #   （2026-08-22 起 camoufox-cli 默认不 idle 自退，该页可存活 >60s）。
+    #   导航走会重新生成新二维码，用户手里的二维码 PNG 作废 → 只轮询 url，
+    #   等页面在用户确认后自己 redirect。
+    # - 已在后台（/cgi-bin/ 或 token=）→ 登录已在活页面里完成，同样不导航，
+    #   轮询第一轮即判定就位。
+    # - 其余（空/about:blank —— daemon 被并发上限驱逐或手动 close，
+    #   ensureDaemon 新起了 fresh daemon，page 没执行过 open）→ 沿用
+    #   2026-08-16 的 open-first：open 首页触发 redirect 再轮询。
+    current_url = camoufox_get_url(SESSION_NAME)
+    on_login_page = "login" in current_url or "scanloginqrcode" in current_url
+    live_backend_page = (
+        bool(current_url) and not on_login_page
+        and ("/cgi-bin/" in current_url or "token=" in current_url)
+    )
+    if not on_login_page and not live_backend_page:
+        try:
+            camoufox_open(SESSION_NAME, CREATOR_CENTER_URL)
+        except RuntimeError as e:
+            sys.stderr.write(f"error: camoufox 打开首页失败: {e}\n")
+            sys.exit(2)
 
-    deadline = time.time() + LOGIN_CONFIRM_POLL_MAX_S
+    deadline = time.time() + LOGIN_CONFIRM_SETTLE_MAX_S
     token: str | None = None
     logged_in = False
     last_url = ""
@@ -329,10 +350,14 @@ def cmd_login_confirm(args) -> None:
         time.sleep(LOGIN_CONFIRM_POLL_INTERVAL_S)
 
     if not logged_in:
-        camoufox_close(SESSION_NAME)
+        # 失败不 close（对齐 login-manager「失败时保留 session」）：daemon + 二维码页
+        # 留着，用户在手机上补点「确认登录」后，agent 直接重跑 login-confirm 即可，
+        # 无需重新扫码。
         sys.stderr.write(
-            f"error: 登录超时或未就位（最后 URL: {last_url[:120]}），"
-            f"请重新调 login 生成新二维码\n"
+            f"error: 登录态未就位（最后 URL: {last_url[:120]}）\n"
+            f"  - 若用户只扫了码、还没在手机上点「确认登录」→ 提示用户点确认后"
+            f"重跑 login-confirm（二维码页还活着，无需重新生成）\n"
+            f"  - 若已确认仍未就位 / 二维码已过期 → 重新调 login 生成新二维码\n"
         )
         sys.exit(2)
 
@@ -382,7 +407,7 @@ _LIST_PARSE_JS = r"""
   const text = document.body.innerText;
   const lines = text.split('\n').map(l => l.trim()).filter(l => l);
   const articles = [];
-  const skipWords = new Set(['已发表', '全部', '已通知', '未通知', '置顶', '发表记录', '已修改', '首页', '内容管理', '草稿箱', '素材库', '原创', '合集', '话题', '互动管理', '数据分析', '收入变现', '广告与服务', '广告主', '客服', '电子发票', '小程序管理', '微信位置运营', '微信搜一搜', '微信支付', '服务市场', '设置与开发', '新的功能', '通知中心', 'AI首席情报官']);
+  const skipWords = new Set(['已发表', '全部', '已通知', '未通知', '置顶', '发表记录', '已修改', '首页', '内容管理', '草稿箱', '素材库', '原创', '合集', '话题', '互动管理', '数据分析', '收入变现', '广告与服务', '广告主', '客服', '电子发票', '小程序管理', '微信位置运营', '微信搜一搜', '微信支付', '服务市场', '设置与开发', '新的功能', '通知中心']);
   const typeWords = new Set(['转载', '原创', '视频号']);
   
   let i = 0;

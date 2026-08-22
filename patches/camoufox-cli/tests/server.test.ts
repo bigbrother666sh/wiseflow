@@ -31,15 +31,36 @@ describe("DaemonServer", () => {
     expect(server).toBeDefined();
   });
 
-  it("clamps idle timeout to the 60s hard ceiling", () => {
-    // A caller asking for 1800s (old default) must be clamped to 60 — this is
-    // the backstop against browser accumulation. A caller asking for less is honored.
-    const greedy = new DaemonServer({ session: "greedy", timeout: 1800 });
-    expect((greedy as any).timeout).toBe(60);
+  it("honors the requested idle timeout with no hard ceiling", () => {
+    const long = new DaemonServer({ session: "long", timeout: 1800 });
+    expect((long as any).timeout).toBe(1800);
     const modest = new DaemonServer({ session: "modest", timeout: 30 });
     expect((modest as any).timeout).toBe(30);
-    const def = new DaemonServer({ session: "def" });
-    expect((def as any).timeout).toBe(60);
+  });
+
+  it("defaults to no idle self-exit (timeout 0, no watchdog)", async () => {
+    const server = new DaemonServer({ session: TEST_SESSION });
+    expect((server as any).timeout).toBe(0);
+
+    const serverPromise = server.start();
+    for (let i = 0; i < 50; i++) {
+      if (fs.existsSync(SOCK_PATH)) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    expect(fs.existsSync(SOCK_PATH)).toBe(true);
+    expect((server as any).watchdogTimer).toBeNull();
+
+    const response = await new Promise<string>((resolve, reject) => {
+      const client = net.createConnection(SOCK_PATH, () => {
+        client.end(JSON.stringify({ id: "r1", action: "close", params: {} }) + "\n");
+      });
+      let data = "";
+      client.on("data", chunk => { data += chunk.toString(); });
+      client.on("end", () => resolve(data));
+      client.on("error", reject);
+    });
+    expect(JSON.parse(response).success).toBe(true);
+    await serverPromise;
   });
 
   it("starts and accepts connections", async () => {

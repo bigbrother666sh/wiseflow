@@ -58,11 +58,11 @@ xhs-engagement check
 
 两步完成后 `xhs-engagement check` 应回 exit 0。
 
-### 2. camoufox-cli daemon idle 自退约束
+### 2. camoufox-cli daemon 生命周期
 
-forked camoufox-cli 有全局硬上限 `MAX_IDLE_TIMEOUT = 60`（`patches/camoufox-cli/src/server.ts`）：任何 session（包括 `--persistent`）idle 超过 60s 就自退。这是防浏览器进程堆积的后备闸。
+forked camoufox-cli 自 2026-08-22 起**默认不再 idle 自退**（`--timeout` 默认 0）。旧版有 60s 硬上限，会把等用户扫码/交互的 daemon 误杀掉，已移除；防浏览器进程堆积的兜底改为全局并发 daemon 上限 6（超了驱逐最老的）。
 
-**对本 skill 的约束**：camoufox 打开 creator 后台后，**必须在 60s 内发完所有 eval 命令**，否则 daemon 自退、page 没了。本 skill 实现是「open → 立即连续 eval → close」一条龙，不跨 60s 窗口。
+**对本 skill 的约束**：保持「open → 立即连续 eval → close」一条龙——这仍是最高效、最不易撞风控的做法；用完必须 close，不要依赖驱逐兜底。
 
 ---
 
@@ -224,10 +224,10 @@ xhs-engagement fetch --row-id <rowid>
 - **症状**：`NOTE_NOT_IN_CREATOR_BACKEND`
 - **workaround**：creator 后台默认显示全部笔记，但若笔记已删除/审核未通过/私密，不会出现在列表里。检查笔记状态。
 
-### pitfall: camoufox-cli daemon idle 自退
+### pitfall: camoufox-cli daemon 中途消失
 
 - **症状**：camoufox 打开 creator 后台后，eval 返回「session not found」或「page not found」
-- **workaround**：forked camoufox-cli 有全局硬上限 `MAX_IDLE_TIMEOUT = 60`，idle 超过 60s 就自退。本 skill 实现是「open → 立即连续 eval → close」一条龙，不跨 60s 窗口。
+- **workaround**：2026-08-22 起已默认关闭 idle 自退，但 daemon 仍可能被并发上限（6 个）驱逐或被 `close --all` 收尾误伤。本 skill 实现是「open → 立即连续 eval → close」一条龙，缩短 daemon 暴露窗口。
 
 ### pitfall: 只重登 www 没做 creator SSO
 

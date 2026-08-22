@@ -44,8 +44,10 @@ camoufox-cli 命令统一 `--session wechat-channel --persistent`，登录态在
 **失效重登流程**（走本技能自己）：
 ```bash
 wx-channel-engagement login           # camoufox 无头截 QR PNG 落 /tmp/qr-wx-channel.png
-# （发 QR PNG 给用户 -> 用户扫码后 -> 主会话回复"已扫码"）
-wx-channel-engagement login-confirm   # 验登录就位 + close session（不导出 cookie/UA/token）
+# 发 QR PNG 给用户 → **Stop and wait**：等用户回复"已扫码/已完成"再往下走，不盲轮询、不催促
+wx-channel-engagement login-confirm   # 短窗口 settle 验证（30s）+ close session（不导出 cookie/UA/token）
+# exit 2 = 未就位：用户只扫码没在手机上点"确认登录" → 提示用户点确认后重跑本命令
+# （二维码页还活着，无需重新扫码）；已确认仍未就位 → 重跑 login 生成新二维码
 ```
 
 `login` 返回 `already_logged_in: true` 时无需扫码，直接执行后续命令。扫码失败 / 用错账户后，**不要直接重跑 `login`**——旧 cookie 污染 profile，重跑拿到的 QR 扫了也不生效。先带 `--reset` 清 profile 再重登：

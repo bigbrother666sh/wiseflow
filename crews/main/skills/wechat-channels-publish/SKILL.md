@@ -174,9 +174,9 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 ### pitfall: form_reset_on_idle
 
-- **触发**：填写完表单后长时间不操作
-- **症状**：标签页被重置为空白页（约 30 秒空闲超时）
-- **workaround**：填完表单后立即发布，或使用手动模式让用户快速操作
+- **触发**：填写完表单后长时间不操作（旧版 camoufox-cli daemon idle 60s 自退后新起 daemon，page 变空白；2026-08-22 起已默认关闭 idle 自退，此 pitfall 应不再复现）
+- **症状**：标签页被重置为空白页
+- **workaround**：填完表单后尽快发布；若仍复现，检查 daemon 是否被并发上限（6 个）驱逐或被 `close --all` 误伤
 
 ---
 

@@ -77,7 +77,10 @@ PROFILE_DIR = Path.home() / ".camoufox-cli" / "profiles" / SESSION_NAME
 
 # 登录流程常量（本技能自管 wechat-channel session 的扫码登录）
 QR_FILE = "/tmp/qr-wx-channel.png"
-LOGIN_CONFIRM_POLL_MAX_S = 150
+# Stop-and-wait 模式（对齐 login-manager）：agent 在对话里等用户「已扫码/已完成」
+# 信号后才调 login-confirm；confirm 只做短窗口 settle 验证（吸收扫码确认后
+# 可能经一两个中间页才稳定的尾巴），不承担「等用户」职责；不就位 → exit 2 交回对话。
+LOGIN_CONFIRM_SETTLE_MAX_S = 30
 LOGIN_CONFIRM_POLL_INTERVAL_S = 3
 
 # probe dump 输出目录
@@ -307,15 +310,44 @@ def cmd_login(args) -> None:
 
 
 def cmd_login_confirm(args) -> None:
-    """轮询当前页等用户手机确认 → 验登录就位（redirect 到 /platform/home 等后台路径）→ close session。
+    """验登录就位（用户在对话里给信号后调用）→ close session。Stop-and-wait 模式，对齐 login-manager。
+
+    对话层 stop-and-wait：agent 发二维码 PNG 给用户后**停下等用户信号**（「已扫码」/
+    「已完成」），收到信号才调本命令。本命令不承担「等用户」职责，只做短窗口
+    settle 验证（LOGIN_CONFIRM_SETTLE_MAX_S，吸收扫码确认后可能先跳一两个中间页
+    如 /platform/index、/platform/main 才稳定的尾巴），不就位即 exit 2 交回对话，
+    不长时间阻塞：
+    - 用户只扫了码、还没在手机上点「确认登录」→ 提示用户点确认，再重跑本命令
+      （二维码页还活着，无需重新扫码）
+    - 已确认仍未就位 / 二维码过期 → 重新调 login 生成新二维码
 
     不导出 cookie/UA/token——登录态在 wechat-channel session profile 里就位即可。
+
+    就位判定走 url_at_backend（与 _ensure_login 同源）：URL 含真后台路径
+    （BACKEND_PATHS）且不含 login；登录页 login.html 也含 /platform/ 段，
+    login 检查优先。
+
+    历史：旧实现不读当前页直接轮询 240s，期间 daemon 若被 6 并发上限驱逐或
+    手动 close，ensureDaemon 新起 fresh daemon，page 停在 about:blank，
+    轮询必超时 → 误判「未就位」（与 wx-mp-engagement 2026-08-16 同根因）。
+    现先读 url 分支：仅空/about:blank（fresh daemon）才 ``open`` 后台首页
+    触发 redirect；活着的登录页绝不导航走——导航走用户手里的二维码 PNG 作废。
     """
-    # 轮询当前页 URL，等扫码后跳到后台真路径。
-    # 视频号助手后台登录成功后跳 /platform/home、/platform/post/list、/platform/post/create 等，
-    # 但扫码确认后可能先跳一两个中间页（如 /platform/index、/platform/main）才稳定。
-    # 故轮询窗口放宽到 240s，且只要 URL 含 /platform/ 且不含 login 就算就位。
-    deadline = time.time() + 240
+    # 先读当前 url 决定是否 open-first——不盲目导航：
+    # - 在登录页 → daemon 活着，二维码页正等用户扫码/确认 → 只轮询不导航
+    # - 已就位（真后台路径 / wujie 已渲染）→ 轮询第一轮即判定，不导航
+    # - 其余（空/about:blank —— daemon 被驱逐/close，ensureDaemon 新起，
+    #   page 没执行过 open）→ 先 open 后台首页触发 redirect 再轮询
+    current_url = camoufox_get_url(SESSION_NAME)
+    on_login_page = "login" in current_url or "scanloginqrcode" in current_url
+    if not on_login_page and not url_at_backend(SESSION_NAME, current_url):
+        try:
+            camoufox_open(SESSION_NAME, CREATOR_CENTER_URL)
+        except RuntimeError as e:
+            sys.stderr.write(f"error: camoufox 打开后台首页失败: {e}\n")
+            sys.exit(2)
+
+    deadline = time.time() + LOGIN_CONFIRM_SETTLE_MAX_S
     logged_in = False
     stable_url = ""
 
@@ -326,27 +358,27 @@ def cmd_login_confirm(args) -> None:
             if "login" in current_url or "scanloginqrcode" in current_url:
                 time.sleep(LOGIN_CONFIRM_POLL_INTERVAL_S)
                 continue
-            # 跳到后台真路径 = 登录就位
-            if "/platform/" in current_url:
+            # 跳到后台真路径 = 登录就位（login 检查已在上面 continue 掉）
+            if url_at_backend(SESSION_NAME, current_url):
                 logged_in = True
                 stable_url = current_url
                 break
         time.sleep(LOGIN_CONFIRM_POLL_INTERVAL_S)
 
     if not logged_in:
-        # 超时不立刻 close——先看一眼最后 URL，给调用方诊断信息
+        # 失败不 close（对齐 login-manager「失败时保留 session」）：daemon + 二维码页
+        # 留着，用户在手机上补点「确认登录」后，agent 直接重跑 login-confirm 即可，
+        # 无需重新扫码。最后 URL 给调用方诊断信息。
         last_url = camoufox_get_url(SESSION_NAME)
-        camoufox_close(SESSION_NAME)
         sys.stderr.write(
-            f"error: 登录超时或未就位（最后 URL: {last_url[:120]}），请重新调 login 生成新二维码\n"
+            f"error: 登录态未就位（最后 URL: {last_url[:120]}）\n"
+            f"  - 若用户只扫了码、还没在手机上点「确认登录」→ 提示用户点确认后"
+            f"重跑 login-confirm（二维码页还活着，无需重新生成）\n"
+            f"  - 若已确认仍未就位 / 二维码已过期 → 重新调 login 生成新二维码\n"
         )
         sys.exit(2)
 
-    # 已从轮询 URL 拿到登录就位信号（URL 含 /platform/ 且不含 login），证明登录态已就位——
-    # 不再重 open 后台首页验登录：重 open 会起新 daemon 抢同 session profile，与 login 那次
-    # open 的旧 daemon 互杀（SIGKILL），正在跑的 daemon 被杀导致 confirm 异常退出。
-    # 登录态已在 profile 里就位，直接 close session 收尾即可。
-
+    # 已从轮询 URL 拿到登录就位信号，证明登录态已就位。
     # 登录态在 profile 里就位，close session 不影响 profile 持久化
     camoufox_close(SESSION_NAME)
 
@@ -358,6 +390,26 @@ def cmd_login_confirm(args) -> None:
 
 
 # ── 登录态校验 ──────────────────────────────────────────────────────────────
+
+def url_at_backend(session: str, url: str) -> bool:
+    """判 URL 是否已到视频号助手真后台（_ensure_login / cmd_login_confirm 共用）。
+
+    - 空 url / 登录页（login.html、scanloginqrcode）→ False
+    - 真后台路径 BACKEND_PATHS（/platform/home、/platform/post、...）→ True
+    - 其余（含根路径 /platform/：入口 URL 本身含 /platform/，登录成功后页面
+      也可能停在根路径「wujie 已加载但 URL 未跳转」）→ fallback 探
+      wujie-app shadow 容器是否渲染。
+    """
+    if not url or "login" in url or "scanloginqrcode" in url:
+        return False
+    if any(p in url for p in BACKEND_PATHS):
+        return True
+    probe = camoufox_eval(
+        session,
+        '(() => { try { return !!document.querySelector("wujie-app"); } catch(e) { return false; } })()',
+    )
+    return probe in (True, "true", "True")
+
 
 def _ensure_login() -> None:
     """判登录态：camoufox 打开视频号助手后台首页，轮询 redirect URL。
@@ -380,9 +432,9 @@ def _ensure_login() -> None:
         sys.exit(2)
 
     # 轮询 redirect URL，等后台路径出现（最多 15s）
-    # 视频号助手后台真路径是 /platform/home、/platform/post/list 等，
-    # 但登录页 login.html 也含 /platform/ 始末（域名段 channels.weixin.qq.com/platform/login.html），
-    # 故不能用 "/platform/ in url" 判就位——要排除 login.html / scanloginqrcode。
+    # 就位判定走 url_at_backend：真后台路径是 BACKEND_PATHS（/platform/home 等）；
+    # 登录页 login.html 也含 /platform/ 段（域名段 channels.weixin.qq.com/platform/login.html），
+    # login 检查优先；初始 URL 本身含 /platform/，不能拿 "/platform/" in url 判就位。
     deadline = time.time() + 15
     current_url = ""
     while time.time() < deadline:
@@ -390,16 +442,9 @@ def _ensure_login() -> None:
         # 显式跳登录页 → 真失效，不等
         if "login" in current_url or "scanloginqrcode" in current_url:
             break
-        # 跳到后台具体页面（/platform/home 等）= 登录就位
-        # 不再用 "/platform/" in url 判断，因为初始 URL 本身就含 /platform/
-        if any(p in current_url for p in BACKEND_PATHS):
+        # 就位判定（BACKEND_PATHS 真路径 + 根路径 wujie 渲染 fallback）
+        if url_at_backend(session, current_url):
             return
-        # 登录成功后页面可能停在根路径 /platform/（wujie 已加载但 URL 未跳转）。
-        # 只要 wujie-app 已渲染且 URL 不含 login，即视为登录就位。
-        if "login" not in current_url:
-            probe = camoufox_eval(session, '(() => { try { return !!document.querySelector("wujie-app"); } catch(e) { return false; } })()')
-            if probe in (True, "true", "True"):
-                return
         time.sleep(0.5)
 
     sys.stderr.write(

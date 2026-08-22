@@ -7,13 +7,14 @@ import { execute } from "./commands.js";
 import { parseCommand, serializeResponse, errorResponse, okResponse } from "./protocol.js";
 import { getSocketPath, getPidPath } from "./cli.js";
 
-// Hard ceiling on daemon idle timeout. Persistence only needs to keep login
-// state on disk (the profile dir survives daemon exit); it does NOT need the
-// process alive. So every daemon — persistent or not — self-exits after this
-// many seconds with no command, regardless of what --timeout the caller passed.
-// This is the backstop against browser-process accumulation (see memory
-// 23-smart-search-session-leak-crash: 72 open / 1 close froze a 13GB machine).
-const MAX_IDLE_TIMEOUT = 60;
+// Idle self-exit is OFF by default (timeout 0). Interactive flows — QR logins,
+// human-in-the-loop skills (login-manager, wx-mp/xhs/twitter engagement, ...) —
+// routinely wait on the user for minutes, and the old 60s hard ceiling killed
+// daemons mid-flow, leaving follow-up commands talking to a fresh about:blank
+// page. The backstop against browser-process accumulation is now the
+// concurrent daemon cap in cli.ts (MAX_CONCURRENT_DAEMONS, evicts the oldest
+// daemon); skills must still `close` when done. Callers can opt back in to
+// idle self-exit with --timeout <secs>.
 
 export class DaemonServer {
   private session: string;
@@ -45,9 +46,10 @@ export class DaemonServer {
   constructor(opts: { session?: string; headless?: boolean; timeout?: number; persistent?: string | null; proxy?: string | null; geoip?: boolean; locale?: string | null; viewport?: [number, number] | null; forceExit?: boolean }) {
     this.session = opts.session ?? "default";
     this.headless = opts.headless ?? true;
-    // Clamp to MAX_IDLE_TIMEOUT so callers can't request a longer-lived daemon
-    // than the backstop allows. A caller asking for less (e.g. 30s) is honored.
-    this.timeout = Math.min(opts.timeout ?? MAX_IDLE_TIMEOUT, MAX_IDLE_TIMEOUT);
+    // 0 disables the idle watchdog: the daemon lives until `close`, SIGTERM,
+    // or eviction by the concurrent daemon cap. No hard ceiling — callers who
+    // opt in with --timeout get exactly what they asked for.
+    this.timeout = Math.max(0, Math.floor(opts.timeout ?? 0));
     this.socketPath = getSocketPath(this.session);
     this.pidPath = getPidPath(this.session);
     this.manager = new BrowserManager(opts.persistent ?? null, opts.proxy ?? null, opts.geoip ?? true, opts.locale ?? null, opts.viewport ?? null);
@@ -57,17 +59,19 @@ export class DaemonServer {
   async start(): Promise<void> {
     this.cleanupStale();
     this.writePid();
-    // Idle timeout watchdog
-    this.watchdogTimer = setInterval(() => {
-      // A command mid-flight (e.g. `wait 90`, a slow `open`) is NOT idle —
-      // don't kill the daemon out from under it. Only self-exit when truly
-      // idle: no command running AND no activity for the timeout window.
-      if (this.busy) return;
-      if (Date.now() - this.lastActivity > this.timeout * 1000) {
-        process.stderr.write(`[camoufox-cli] Idle timeout (${this.timeout}s), shutting down\n`);
-        this.server?.close();
-      }
-    }, 10000);
+    // Idle timeout watchdog (only when the caller opted in with --timeout > 0)
+    if (this.timeout > 0) {
+      this.watchdogTimer = setInterval(() => {
+        // A command mid-flight (e.g. `wait 90`, a slow `open`) is NOT idle —
+        // don't kill the daemon out from under it. Only self-exit when truly
+        // idle: no command running AND no activity for the timeout window.
+        if (this.busy) return;
+        if (Date.now() - this.lastActivity > this.timeout * 1000) {
+          process.stderr.write(`[camoufox-cli] Idle timeout (${this.timeout}s), shutting down\n`);
+          this.server?.close();
+        }
+      }, 10000);
+    }
 
     // Signal handlers
     process.on("SIGTERM", () => { this.server?.close(); });

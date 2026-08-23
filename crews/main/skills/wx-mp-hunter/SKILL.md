@@ -37,8 +37,7 @@ Use this skill when:
 
 流程 1b：按时间窗口或最近 N 条获取指定账号发布列表
   └─ posts-list ([--hours N] | --recent N) [--accounts a,b,c]
-                              → 扫本机微信客户端容器消息库
-                                （依赖容器环境，使用前检查环境变量）
+                              → 扫本机微信客户端容器消息库（依赖额外的容器环境，不可用时告知用户）
 
 流程 1c：专题页/主页/合集目录链接采集（mp/homepage 或 mp/appmsgalbum）
   └─ homepage <url>          → camoufox-cli 打开专题页，完整滚动 +

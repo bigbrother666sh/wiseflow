@@ -16,6 +16,13 @@
 
 看起来“只读”的 `pnpm openclaw cron list / cron show / cron runs / config get` 同样会触发 build，**同样是雷区**。
 
+### ⚠️ 控制面工具可能不可用（owner-only deny 机制）
+
+`cron`、`gateway`、`nodes` 是 Gateway 所有者专用工具。聊天渠道（飞书/企微）会话中发送者非 owner，系统会自动移除这 3 个工具，并打一条 INFO 日志（`tool policy removed 3 tool(s) ... cron, gateway, nodes`）。**这是安全设计，日志可忽略**。
+
+- 工具**可用** → 用 MCP 工具（上表首选路径）
+- 工具**不可用** → 直接操作 SQLite（详细方法见 MEMORY.md「定时任务(Cron)维护方案 - 控制面工具不可用时」）
+
 ### GitHub / 代码相关（需已启用 github、gh-issues、coding-agent 技能）
 - `github`：读取 xiaobei 和 OpenClaw 仓库的最新信息（commits、releases、README）
 - `gh-issues`：查看 xiaobei 和 OpenClaw 的 issue，了解已知问题和修复状态

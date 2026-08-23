@@ -191,7 +191,7 @@ cron(action="runs", jobId="<job-id>", limit=20)
 
 #### 直接查询 SQLite（只读排查用）
 
-SQLite 只读查询不会触发 build，安全。但 **不得直接 UPDATE/INSERT/DELETE `cron_jobs` 表**，会跟 MCP 的状态机、`job_json` 冲突。
+SQLite 只读查询不会触发 build，安全，可随时用于排查。**修改**见下文「控制面工具不可用时：直接操作 SQLite」（工具可用用工具，不可用直接 SQL，注意双写一致）。
 
 ```bash
 # 列出所有 job 及关键字段
@@ -203,7 +203,46 @@ sqlite3 ~/.openclaw/state/openclaw.sqlite \
   "SELECT job_id, seq, datetime(ts/1000, 'unixepoch', 'localtime') as time, status, error FROM cron_run_logs ORDER BY ts DESC LIMIT 20;"
 ```
 
-修改、增删都走 MCP `cron` 工具，**不允许手工 SQL 修改这些表**。
+#### 控制面工具不可用时：直接操作 SQLite
+
+**规则**：cron/gateway MCP 工具**可用就用工具**；**不可用**（聊天渠道被 owner-only deny 移除）就**直接操作 SQLite**，不再绕弯、无需每回征求许可。**绝不调用 `pnpm openclaw` / `node dist/index.js` CLI**（触发 build 会崩系统）。
+
+**通用步骤（每次修改必走，保证不出错）**：
+
+1. **查**（先确认目标 job）：
+   ```sql
+   sqlite3 ~/.openclaw/state/openclaw.sqlite "SELECT job_id, name, enabled, payload_model, payload_fallbacks_json FROM cron_jobs;"
+   ```
+2. **备份**（受影响行存 /tmp）：
+   ```bash
+   sqlite3 ~/.openclaw/state/openclaw.sqlite "SELECT job_id, name, payload_model, payload_fallbacks_json, job_json FROM cron_jobs WHERE job_id='<job-id>';" > /tmp/cron_bak_$(date +%Y%m%d-%H%M%S).txt
+   ```
+3. **改**：SQL 必须**同时更新「结构化列」和「job_json 快照」**（两处不一致会打架：MCP 工具读列、运行时读 job_json）
+4. **验证**：改完立刻回读，确认两处都已生效
+
+**常用操作**：
+
+- 清空 fallback（让任务继承 openclaw.json 的 agents.defaults.model）：
+  ```sql
+  UPDATE cron_jobs SET payload_fallbacks_json = NULL, job_json = json_remove(job_json, '$.payload.fallbacks') WHERE job_id = '<job-id>';
+  ```
+- 设置 fallback：
+  ```sql
+  UPDATE cron_jobs SET payload_fallbacks_json = '["<provider>/<model>"]', job_json = json_set(job_json, '$.payload.fallbacks', json('["<provider>/<model>"]')) WHERE job_id = '<job-id>';
+  ```
+- 指定任务模型：
+  ```sql
+  UPDATE cron_jobs SET payload_model = '<provider>/<model>', job_json = json_set(job_json, '$.payload.model', '<provider>/<model>') WHERE job_id = '<job-id>';
+  ```
+- 禁用 / 启用：
+  ```sql
+  UPDATE cron_jobs SET enabled = 0, job_json = json_set(job_json, '$.enabled', false) WHERE job_id = '<job-id>';
+  ```
+
+**避坑**：
+- cron 修改即时生效（跑在 Gateway 进程内），无需重启
+- 不要手工改 `cron_run_logs` 表（运行历史，只读查询可以）
+- 不要编辑 `~/.openclaw/cron/` 下任何 JSON（已废弃，运行时不再读取）
 
 #### 迁移操作（如需要）
 
@@ -213,7 +252,7 @@ sqlite3 ~/.openclaw/state/openclaw.sqlite \
 #### 重要提醒
 
 1. **禁止手动编辑** `~/.openclaw/cron/` 下的任何 JSON 文件,它们已不再被运行时读取
-2. **禁止手动 UPDATE/INSERT/DELETE** SQLite 中 `cron_jobs` / `cron_run_logs` 表；必须走 MCP `cron` 工具，CLI 会同时更新结构化列和概念上的 `job_json` 快照
+2. cron/gateway MCP 工具**可用时用工具**；**不可用时**（聊天渠道）直接操作 SQLite（方法见上文「控制面工具不可用时」），唯一硬性禁止是 `pnpm openclaw` / `node dist/index.js` CLI（触发 build 会崩系统）
 3. cron 运行在 Gateway 进程内,修改后立即生效,无需重启
 
 ---

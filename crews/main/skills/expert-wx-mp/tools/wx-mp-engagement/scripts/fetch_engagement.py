@@ -10,7 +10,8 @@ CLI 形态：
     probe                          打开创作者中心 + dump DOM/截图，调试用
     list                           列出后台所有文章 + 行内 metrics
     fetch   --row-id <id>          抓单篇（按 title 在列表页匹配）
-    fetch-all --days <N>           批量抓最近 N 天未更新（reads=0）的 row
+    fetch-all                      批量刷新（打开首页一次，解析页内全部文章，匹配 pub_wx_mp
+                                 全部行写库；不翻页，首页没有的行报 unmatched 跳过）
 
 依赖：
 - camoufox-cli（npm 全局）
@@ -28,7 +29,6 @@ import sqlite3
 import subprocess
 import sys
 import time
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -98,17 +98,18 @@ def lookup_published_row(row_id: int) -> dict | None:
         conn.close()
 
 
-def list_pending_wx_mp_rows(days: int) -> list[int]:
+def list_all_wx_mp_rows() -> list[int]:
+    """取 pub_wx_mp 全部行 id。
+
+    不按日期/指标过滤——发表记录页首页（count=20）本身就是天然窗口：
+    页内有什么解析什么，匹配上的行写库，匹配不上的报 unmatched 跳过
+    （老文章不在首页是常态，非错误）。"""
     if not PUBLISHED_TRACK_DB.exists():
         return []
-    threshold = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
     conn = sqlite3.connect(str(PUBLISHED_TRACK_DB))
     try:
         cur = conn.execute(
-            f"SELECT id FROM pub_{PLATFORM} "
-            f"WHERE publish_date >= ? AND reads = 0 "
-            f"ORDER BY publish_date DESC",
-            (threshold,),
+            f"SELECT id FROM pub_{PLATFORM} ORDER BY id DESC",
         )
         return [row[0] for row in cur.fetchall()]
     finally:
@@ -681,19 +682,22 @@ def cmd_fetch(args) -> None:
 
 
 def cmd_fetch_all(args) -> None:
-    """批量抓最近 days 天内未更新的所有 wx_mp 记录"""
-    if args.days <= 0:
-        sys.stderr.write("error: --days must be > 0\n")
-        sys.exit(1)
-    row_ids = list_pending_wx_mp_rows(args.days)
+    """批量刷新：打开首页一次，解析页内全部文章，匹配 pub_wx_mp 全部行写库。
+
+    不翻页——发表记录页首页（count=20）本身就是天然窗口：页内有什么解析什么，
+    匹配上的行写库，匹配不上的报 unmatched 跳过（老文章不在首页是常态，非错误）。
+    少操作一次页面就少一次风控暴露。
+    """
+    row_ids = list_all_wx_mp_rows()
     if not row_ids:
-        sys.stdout.write(json.dumps({"total": 0, "days": args.days, "results": []}, indent=2))
+        sys.stdout.write(json.dumps({"ok": True, "total": 0, "matched": 0, "unmatched": 0, "results": []}, indent=2))
         sys.stdout.write("\n")
         return
 
     _ensure_login()
     session = _prepare_session()
     results = []
+    n_matched = 0
     try:
         rows = fetch_article_list(session)
         for rid in row_ids:
@@ -703,15 +707,19 @@ def cmd_fetch_all(args) -> None:
                 continue
             matched = match_article(rows, row["title"] or "")
             if matched is None:
-                results.append({"row_id": rid, "ok": False, "error": "title not matched in list"})
+                # 不在首页（老文章超出 count=20 范围/已删除）——跳过，非错误
+                results.append({"row_id": rid, "ok": False, "error": "NOT_ON_FIRST_PAGE", "title": row["title"]})
                 continue
             upd = update_metrics_row(rid, matched["metrics"])
+            n_matched += 1
             results.append({"row_id": rid, "ok": upd.get("ok", True), "metrics": matched["metrics"]})
     finally:
         _cleanup_session(session)
     sys.stdout.write(json.dumps({
+        "ok": True,
         "total": len(row_ids),
-        "days": args.days,
+        "matched": n_matched,
+        "unmatched": len(row_ids) - n_matched,
         "results": results,
     }, ensure_ascii=False, indent=2))
     sys.stdout.write("\n")
@@ -738,9 +746,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--source-folder", type=str)
     p_fetch.set_defaults(func=cmd_fetch)
 
-    p_all = sub.add_parser("fetch-all", help="批量抓最近 N 天未更新的 row")
-    p_all.add_argument("--days", type=int, default=7)
-    p_all.set_defaults(func=cmd_fetch_all)
+    sub.add_parser("fetch-all", help="批量刷新（打开首页一次，匹配 pub_wx_mp 全部行写库；不翻页）").set_defaults(func=cmd_fetch_all)
 
     return p
 

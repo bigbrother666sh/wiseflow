@@ -10,6 +10,8 @@ CLI 形态：
     list                 列出 creator 后台所有笔记 + 5 列互动数
     fetch --row-id <id>  抓单条（从 pub_xhs 取该行 title 匹配 → update-metrics.sh 写库）
     fetch --title <t>    纯取数调试入口（按 title 匹配，只输出 JSON 不写库）
+    fetch-all            批量刷新（打开首页一次，解析页内全部笔记，匹配 pub_xhs
+                         全部行写库；不翻页，首页没有的行报 unmatched 跳过）
     probe                dump 截图/DOM/解析 JSON 到 ./xhs-engagement-probe/
 
 登录态（本 skill 不自管，只消费 session profile）：
@@ -143,6 +145,25 @@ def lookup_published_row(row_id: int) -> dict | None:
         )
         row = cur.fetchone()
         return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def list_all_xhs_rows() -> list[dict]:
+    """取 pub_xhs 全部行（id/title/publish_url）。
+
+    不按日期/指标过滤——后台列表首页本身就是天然窗口：页内有什么解析什么，
+    匹配上的行写库，匹配不上的报 unmatched 跳过（老作品不在首页是常态，非错误）。
+    """
+    if not PUBLISHED_TRACK_DB.exists():
+        return []
+    conn = sqlite3.connect(str(PUBLISHED_TRACK_DB))
+    conn.row_factory = sqlite3.Row
+    try:
+        cur = conn.execute(
+            "SELECT id, title, publish_url FROM pub_xhs ORDER BY id DESC"
+        )
+        return [dict(r) for r in cur.fetchall()]
     finally:
         conn.close()
 
@@ -423,6 +444,57 @@ def cmd_fetch(args) -> None:
     print_json(result)
 
 
+def cmd_fetch_all(args) -> None:
+    """批量刷新：打开首页一次，解析页内全部笔记，匹配 pub_xhs 全部行写库。
+
+    不翻页——首页本身就是天然窗口：页内有什么解析什么，匹配上的行写库，
+    匹配不上的报 unmatched 跳过（老作品不在首页是常态，非错误）。
+    少操作一次页面就少一次风控暴露。
+    """
+    rows = list_all_xhs_rows()
+    if not rows:
+        print_json({"ok": True, "platform": PLATFORM, "total": 0, "matched": 0, "unmatched": 0, "results": []})
+        return
+
+    try:
+        entries, _ = open_note_manager_and_wait()
+    except SessionExpired as e:
+        err_exit("SESSION_EXPIRED", str(e), 2)
+    except (CreatorBackendNoNotes, CreatorBackendParseFailed, RuntimeError) as e:
+        err_exit(type(e).__name__.upper(), str(e), 1)
+    finally:
+        camoufox_close()
+
+    results = []
+    n_matched = 0
+    for row in rows:
+        title = row.get("title") or ""
+        if not title:
+            results.append({"row_id": row["id"], "ok": False, "error": "ROW_TITLE_EMPTY"})
+            continue
+        matched = match_note_by_title(entries, title)
+        if matched is None:
+            # 不在首页（老作品/已删除/私密/标题歧义）——跳过，非错误
+            results.append({"row_id": row["id"], "ok": False, "error": "NOT_ON_FIRST_PAGE", "title": title})
+            continue
+        metrics = stats_to_metrics(matched.get("stats", []))
+        upd = update_metrics_row(row["id"], metrics)
+        n_matched += 1
+        results.append({
+            "row_id": row["id"], "ok": upd.get("ok", True),
+            "matched_title": matched["title"], "metrics": metrics,
+            **({"update_error": upd.get("error")} if not upd.get("ok", True) else {}),
+        })
+    print_json({
+        "ok": True,
+        "platform": PLATFORM,
+        "total": len(rows),
+        "matched": n_matched,
+        "unmatched": len(rows) - n_matched,
+        "results": results,
+    })
+
+
 def cmd_probe(args) -> None:
     """打开 creator 后台笔记管理页，dump 截图/DOM/解析 JSON"""
     PROBE_OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -465,6 +537,11 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--row-id", type=int, help="pub_xhs 行 id（从 DB 取 title 匹配，抓完写库）")
     g.add_argument("--title", type=str, help="直接按 title 匹配（纯取数，不写库）")
     p_fetch.set_defaults(func=cmd_fetch)
+
+    sub.add_parser(
+        "fetch-all",
+        help="批量刷新（打开首页一次，匹配 pub_xhs 全部行写库；不翻页）",
+    ).set_defaults(func=cmd_fetch_all)
 
     sub.add_parser("probe", help="dump 截图/DOM/解析 JSON 调试用").set_defaults(func=cmd_probe)
 

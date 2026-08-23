@@ -79,7 +79,7 @@ wx-channel-engagement login-confirm            # 验登录就位 + close session
 wx-channel-engagement probe                    # 打开视频号助手后台 dump DOM/截图/innerText，调试用
 wx-channel-engagement list                     # 列出后台所有视频号作品 + 行内 metrics
 wx-channel-engagement fetch --row-id <id>      # 抓单篇（按 row.title 在作品管理页匹配）
-wx-channel-engagement fetch-all --days 7       # 批量抓最近 N 天未更新的 wx_channel 记录
+wx-channel-engagement fetch-all                # 批量刷新（心跳用）：打开作品管理页首页一次，匹配 pub_wx_channel 全部行写库；不翻页，首页没有的行报 NOT_ON_FIRST_PAGE 跳过
 ```
 
 ---

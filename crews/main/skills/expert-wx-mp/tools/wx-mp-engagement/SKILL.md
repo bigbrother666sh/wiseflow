@@ -68,8 +68,9 @@ wx-mp-engagement list
 # 抓单篇（按 row.title 在列表页匹配）
 wx-mp-engagement fetch --row-id <pub_wx_mp.id>
 
-# 批量抓取最近 N 天未更新（reads=0）的所有 wx_mp 记录
-wx-mp-engagement fetch-all --days 7
+# 批量刷新（心跳用）：打开发表记录页首页一次，解析页内全部文章，
+# 匹配 pub_wx_mp 全部行写库；不翻页，首页没有的行报 NOT_ON_FIRST_PAGE 跳过
+wx-mp-engagement fetch-all
 ```
 
 ---

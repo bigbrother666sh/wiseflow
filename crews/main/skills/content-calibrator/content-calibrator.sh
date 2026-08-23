@@ -4,8 +4,18 @@
 # 每个子命令 exec 转发到 scripts/ 下对应脚本，不改语义。
 set -euo pipefail
 SELF="${BASH_SOURCE[0]}"
-# Resolve symlink (wrapper is ln -sfn'd into ~/.openclaw/bin) so SCRIPT_DIR points at the real skill dir.
-while [ -L "$SELF" ]; do SELF="$(readlink -f "$SELF")"; done
+# 只解析 ~/.openclaw/bin 软链一层（bin/<skill> -> <workspace>/skills/<skill>/<skill>.sh），
+# 不 readlink -f 继续展开 workspace 内 skills/<skill> 指向仓库模板的软链。
+# 子脚本用 dirname $0/../../.. 推导 workspace 根（ROOT/db/…），readlink -f 会把
+# workspace 折叠成仓库模板路径，导致 ROOT 解析到模板目录（无 db → 空结果）。
+# 保留字面 workspace 路径，ROOT 才能命中真实运行数据目录。
+if [ -L "$SELF" ]; then
+  _target="$(readlink "$SELF")"
+  case "$_target" in
+    /*) SELF="$_target" ;;
+    *)  SELF="$(cd "$(dirname "$SELF")" && pwd)/$_target" ;;
+  esac
+fi
 SCRIPT_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 
 cmd="${1:-}"

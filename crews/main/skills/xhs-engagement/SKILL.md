@@ -75,6 +75,10 @@ xhs-engagement check
 # 抓单条笔记互动数并写库（从 pub_xhs 取该行 title 匹配 → update-metrics.sh 写库）
 xhs-engagement fetch --row-id <pub_xhs.id>
 
+# 批量刷新（心跳用）：打开笔记管理页首页一次，解析页内全部笔记，
+# 匹配 pub_xhs 全部行写库；不翻页，首页没有的行报 NOT_ON_FIRST_PAGE 跳过
+xhs-engagement fetch-all
+
 # 纯取数调试入口（按 title 匹配，只输出 JSON 不写库）
 xhs-engagement fetch --title "笔记标题"
 
@@ -117,11 +121,13 @@ xhs-engagement probe
 
 2. **5 列互动数顺序**：creator 后台笔记管理页 stats 区 5 列数字顺序为 **阅读量 / 点赞数 / 收藏数 / 评论数 / 分享数**。这是小红书创作者后台的标准指标顺序。
 
-3. **title 匹配**：creator 后台方案按 title 匹配目标笔记。`fetch --row-id` 会自动从 DB 取该行 title；`fetch --title` 是纯取数调试入口（不写库）。笔记不在 creator 后台列表 → `NOTE_NOT_IN_CREATOR_BACKEND`。
+3. **首页即窗口，不翻页**：笔记管理页打开就是第一页，`fetch` / `fetch-all` 都只解析首页。页内有什么解析什么——匹配上的写库，匹配不上的（老作品超出首页范围）报 `NOT_ON_FIRST_PAGE` 跳过，**这是设计不是遗漏**。少操作一次页面就少一次风控暴露，**不要加翻页逻辑**。
 
-4. **Cookie 导入禁忌**：⚠️ **严禁** `camoufox-cli cookies import` 造会话（浏览器方案严禁 cookie 导入）。本 skill 复用既有 `xhs-browse` 持久化 session，camoufox-cli 命令统一 `--session xhs-browse --persistent`，登录态在 session profile 里已就位，**不开独立 session、不 import cookie**。
+4. **title 匹配**：creator 后台方案按 title 匹配目标笔记。`fetch --row-id` 会自动从 DB 取该行 title；`fetch --title` 是纯取数调试入口（不写库）。笔记不在 creator 后台列表 → `NOTE_NOT_IN_CREATOR_BACKEND`。
 
-5. **数据提取方式**：不依赖 innerText（creator 后台 innerText 结构复杂），直接用 DOM selector 解析。页面 DOM 结构清晰：
+5. **Cookie 导入禁忌**：⚠️ **严禁** `camoufox-cli cookies import` 造会话（浏览器方案严禁 cookie 导入）。本 skill 复用既有 `xhs-browse` 持久化 session，camoufox-cli 命令统一 `--session xhs-browse --persistent`，登录态在 session profile 里已就位，**不开独立 session、不 import cookie**。
+
+6. **数据提取方式**：不依赖 innerText（creator 后台 innerText 结构复杂），直接用 DOM selector 解析。页面 DOM 结构清晰：
    ```
    .note-card
      .note-card__body

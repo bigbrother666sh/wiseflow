@@ -459,7 +459,8 @@ if [ -f "$CONFIG_PATH" ]; then
         id: 'it-engineer',
         name: prev.name || 'IT Engineer',
         workspace: prev.workspace || openclawHome + '/workspace-it-engineer',
-        thinkingDefault: 'high',
+        // thinkingDefault 不显式设--与其他 crew 一致继承 agents.defaults.thinkingDefault；
+        // 若用户在 openclaw.json 手动给 it-engineer 设过则 prev 保留（...prev 已带）。
         reasoningDefault: 'off',
       };
       return applySkills(base, process.env.IT_SKILLS_RESULT);

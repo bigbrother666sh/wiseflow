@@ -9,14 +9,14 @@
 +./skills/customer-db/scripts/follow-up-mark-sent.sh
 +./skills/customer-db/scripts/follow-up-complete.sh
 +./skills/customer-db/scripts/follow-up-expire.sh
+# 有顶层 wrapper 的技能只放行 wrapper 名（wrapper 已暴露到 ~/.openclaw/bin，
+# 经 readlink -f 解析为真实脚本路径），不再重复放行内部脚本；
+# 也不放行 node 等通用解释器--等价于对外 crew 开任意代码执行。
 +exp-invite
-+./skills/exp-invite/scripts/invite.sh
 +proactive-send
-+./skills/proactive-send/scripts/send.mjs
 +nano-pdf
 +jq
 +rg
-+node
 # PDF image extraction utilities (added 2026-07-01 by IT Engineer, all 3 at /usr/bin/)
 +pdfimages
 +pdftoppm

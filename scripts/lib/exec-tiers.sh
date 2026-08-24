@@ -111,6 +111,15 @@ resolve_binary_path() {
       return
       ;;
   esac
+  # skill wrapper 裸名优先查 ~/.openclaw/bin：setup-crew 进程 PATH 可能不含该目录
+  # （首装时 rc 尚未 source），command -v 解析不到会把 allowlist 条目静默丢掉。
+  local wrapper_bin="${OPENCLAW_BIN_DIR:-$HOME/.openclaw/bin}/$cmd"
+  if [ -e "$wrapper_bin" ]; then
+    local real
+    real="$(_resolve_realpath "$wrapper_bin")"
+    echo "${real:-$wrapper_bin}"
+    return
+  fi
   # command -v 可能返回 shell builtin 名（无 /），此时尝试 which 或常见路径
   local resolved
   resolved="$(command -v "$cmd" 2>/dev/null || true)"

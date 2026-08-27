@@ -74,9 +74,6 @@ published-track query --platform douyin --limit 50
    ```bash
    xhs-engagement fetch-all
    ```
-
-   内部流程：camoufox 打开 creator 后台笔记管理页首页（`creator.xiaohongshu.com/new/note-manager`，复用 `xhs-browse` session 登录态；跳登录页 = 失效）→ eval 解析页内全部 `.note-card__body` → 与 pub_xhs 全部行按 title 匹配 → 匹配上的逐行 update-metrics.sh 写库（5 列：阅读/点赞/收藏/评论/分享），首页没有的行报 `NOT_ON_FIRST_PAGE` 跳过。本技能不导出 cookie——登录态在 `xhs-browse` session profile 里就位即可。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。重登是两步：login-manager 重登 www + `xhs-publish login-verify` 做 creator SSO（见 xhs-engagement SKILL.md）。白天临时补单条用 `xhs-engagement fetch --row-id <rowid>`。
-
    > ⚠️ 不要调 `published-track fetch-metrics --platform xhs`——该子命令对 xhs 直接 exit 1 报错提示走 xhs-engagement。两条链路独立维护，避免机制错配。
 
 3. **微信公众号 (wx_mp)** -- **走 `expert-wx-mp` 包内 `wx-mp-engagement` 工具**（PATH wrapper 同名），camoufox 抓创作者中心方案，与第 1 条三个平台的纯 HTTP+cookie 链路完全不同，两条路独立、不耦合：
@@ -84,9 +81,6 @@ published-track query --platform douyin --limit 50
    ```bash
    wx-mp-engagement fetch-all
    ```
-
-   内部流程：camoufox 打开创作者中心首页看 redirect URL 判登录态（跳 `/cgi-bin/home?token=xxx` = 就位，跳 `login`/`scanloginqrcode` = 失效）→ 从 redirect URL 提 token 拼「发表记录」页 URL → camoufox 抓发表记录页首页（count=20）→ 解析 innerText 与 pub_wx_mp 全部行按标题匹配 → 匹配上的逐行 update-metrics.sh 写库，首页没有的行报 `NOT_ON_FIRST_PAGE` 跳过。不导出 cookie/UA/token——登录态在 `wx_mp` session profile 里就位即可。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。白天临时补单条用 `wx-mp-engagement fetch --row-id <rowid>`。
-
    > ⚠️ 不要调 `published-track fetch-metrics --platform wx_mp`——该子命令对 wx_mp 直接 exit 1 报错提示走 wx-mp-engagement。两条链路独立维护，避免机制错配。
 
 4. **微信视频号 (wx_channel)** —— **走 `wx-channel-engagement` 技能**，camoufox 抓视频号助手后台方案，与 wx_mp 同源（camoufox + 解析 innerText）、与第 1 条三个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
@@ -94,9 +88,6 @@ published-track query --platform douyin --limit 50
    ```bash
    wx-channel-engagement fetch-all
    ```
-
-   内部流程：camoufox 打开视频号助手后台首页看 redirect URL 判登录态（跳 `/platform/home` 等后台路径 = 就位，跳 `login`/扫码页 = 失效）→ 打开作品管理页首页（`channels.weixin.qq.com/platform/post/list`）→ 解析 wujie shadow DOM innerText 与 pub_wx_channel 全部行按描述匹配 → 匹配上的逐行 update-metrics.sh 写库，首页没有的行报 `NOT_ON_FIRST_PAGE` 跳过。不导出 cookie/UA/token——登录态在 `wechat-channel` session profile 里就位即可。**与 `wechat-channels-publish` 共管 `wechat-channel` session**（靠 session 名字符串约定共享登录态）。SESSION_EXPIRED（exit 2）按通用规则跳过 + 记入 `EXPIRED_PLATFORMS`。白天临时补单条用 `wx-channel-engagement fetch --row-id <rowid>`。
-
    > ⚠️ 不要调 `published-track fetch-metrics --platform wx_channel`——该子命令对 wx_channel 直接 exit 1 报错提示走 wx-channel-engagement。两条链路独立维护，避免机制错配。
 
 **其他平台** —— 除 douyin / xhs / kuaishou / bilibili / wx_mp / wx_channel 外，其他平台暂不支持自动取数，直接跳过。

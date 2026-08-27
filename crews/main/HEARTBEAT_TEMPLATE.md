@@ -43,7 +43,7 @@
 - Cold Touch 话术：<话术内容>
 - Email 话术：<话术内容>
 
-**执行**：调用 `lead-hunting` 技能
+**执行**：按 `expert-bd` 的 Lead Hunting Workflow 执行
 ```
 
 ### 模式二：Comment Engagement（评论区拓展）
@@ -67,7 +67,7 @@
 **执行参数**：
 - 频率：<描述>
 
-**执行**：调用 `comment-engagement` 技能
+**执行**：按 `expert-bd` 的 Comment Engagement Workflow 执行
 ```
 
 ### 模式三：Intel Gathering（商业情报采集）
@@ -88,7 +88,7 @@
 
 **执行时间**：<cron 表达式，如 "0 8 * * *">
 
-**执行**：调用 `intel-gathering` 技能
+**执行**：按 `expert-bd` 的 Intel Gathering Workflow 执行
 ```
 
 ---
@@ -124,7 +124,7 @@
 - 自动触达：<是/否>
 - 触达话术：<话术内容（如启用自动触达）>
 
-**执行**：按 AGENTS.md IR 模式二流程执行
+**执行**：按 `expert-ir` 的 Investor Hunting Workflow 执行
 ```
 
 ### 模式三：Relationship Tracking（投资人关系维护 - 定时跟进）
@@ -140,7 +140,7 @@
 - 每周一生成 Pipeline 摘要
 
 **执行**：
-1. 运行 ir-record 进度查询
+1. 运行 `ir-record query-progress`（进度查询）
 2. 检查是否有超期未跟进的投资人
 3. 如有新进展，更新 MEMORY.md 中的 Pipeline 表
 4. 如有需要关注的事项，汇总后推送给用户
@@ -152,7 +152,7 @@
 
 > 投资人跟进状态机：`new → contacted → bp_sent → meeting → dd → ts → invested/passed`
 >
-> **7 天过期提醒**：本节新增，配合 `crews/main/skills/ir-record/scripts/query-stale.sh` 使用。
+> **7 天过期提醒**：本节新增，配合 `expert-ir` 包内 `ir-record` 工具的 `query-stale` 子命令使用。
 
 **触发条件**：凌晨复盘心跳 Step 2 数据抓完后，**Step 4 用户咨询回复**之前插一个 Step 2.5。
 
@@ -160,7 +160,7 @@
 
 ```bash
 # 查 7 天无 contact 进展的投资人
-./skills/ir-record/scripts/query-stale.sh --days 7
+ir-record query-stale --days 7
 ```
 
 输出 JSON list（按 `days_since_last` 降序），每条含 `id` / `name` / `firm` / `status` / `match_score` / `last_contact_date` / `next_step` / `days_since_last`。
@@ -189,7 +189,7 @@
 
 ### BD 三能力巡检
 
-> 配合 `lead-hunting` / `comment-engagement` / `intel-gathering`（已搬入 main/skills）+ `bd-record` / `info-record` 数据层。
+> 配合 `expert-bd` 专家包（Lead Hunting / Comment Engagement / Intel Gathering workflow）+ `bd-record` / `info-record` 数据层。
 >
 > **保留 heartbeat 写入模式**：本节定义 BD 的心跳触发 + 数据层写入，**不**在心跳里改用户已建档的线索状态（用户白天决定推进 / 标记 passed）。
 
@@ -199,9 +199,9 @@
 
 | 模式 | 入口 | 数据层 | 心跳动作 |
 |------|------|--------|----------|
-| 模式 1 Lead Hunting | `lead-hunting` 技能 | `bd-record` 模式一表（已探索创作者） | 按用户已配置的策略 A/B + 平台 + 关键词，扫一遍最近 N 天的内容，写入 `bd-record` |
-| 模式 2 Comment Engagement | `comment-engagement` 技能 | `bd-record` 模式二表（已互动帖子） | 按用户已配置的策略（direct_comment / reply_dm / direct_dm）+ 帖子清单，互动一批 → 写入 `bd-record` |
-| 模式 3 Intel Gathering | `intel-gathering` 技能 | `info-record` 情报条目表 | 按用户已配置的监控信源 + 提取标准，采一遍 → 写入 `info-record` |
+| 模式 1 Lead Hunting | `expert-bd` Lead Hunting Workflow | `bd-record` 模式一表（已探索创作者） | 按用户已配置的策略 A/B + 平台 + 关键词，扫一遍最近 N 天的内容，写入 `bd-record` |
+| 模式 2 Comment Engagement | `expert-bd` Comment Engagement Workflow | `bd-record` 模式二表（已互动帖子） | 按用户已配置的策略（direct_comment / reply_dm / direct_dm）+ 帖子清单，互动一批 → 写入 `bd-record` |
+| 模式 3 Intel Gathering | `expert-bd` Intel Gathering Workflow | `info-record` 情报条目表 | 按用户已配置的监控信源 + 提取标准，采一遍 → 写入 `info-record` |
 
 **3 个模式都按 cron 周期执行**（用户配的 everyday 凌晨 3 点），而不是手动触发。心跳不发起新接触（除模式 2 互动按用户策略批跑）。
 

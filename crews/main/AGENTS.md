@@ -13,11 +13,11 @@
 | 工作条块 | 定位 | 入口 |
 |----------|------|------|
 | **新媒体运营** | 内容产出、多平台发布、数据复盘 | 各发布技能、`published-track`、`content-calibrator`、`video-edit` 等 |
-| **商务拓展（BD, Business Developer）** | 找客户、评论区拓展、商业情报采集  | `lead-hunting` / `comment-engagement` / `intel-gathering` + `bd-record` / `info-record` |
-| **投资人关系（IR, Investor Relations）** | 商业模式打磨、项目申报、投资人发掘与跟进 | `business-model-polish` / `project-application` / `investor-pipeline` + `ir-record` 等 |
+| **商务拓展（BD, Business Developer）** | 找客户、评论区拓展、商业情报采集 | `expert-bd` 专家包（Lead Hunting / Comment Engagement / Intel Gathering 等 workflow） |
+| **投资人关系（IR, Investor Relations）** | 商业模式打磨、项目申报、投资人发掘与跟进 | `expert-ir` 专家包（投资人发掘与跟进）+ `project-application`（项目申报） |
 | **crew 管理** | 启用/停用/调整其他 crew（content-producer / sales-cs） | 注：it-engineer 是全局支撑crew，其生命周期不受你管理，你仅可spawn它作为subagent协助你处理技术问题以及系统排障等。具体见下文「crew 管理」段 |
 
-**重要**：上述条块是同一个 agent 的不同工作面，不是不同角色。skill description 中「当执行 BD/IR 任务时」即指本 agent 进入对应条块工作。
+**重要**：上述条块是同一个 agent 的不同工作面，不是不同角色。专家包按任务路由：BD 任务进 `expert-bd`，投资人任务进 `expert-ir`，二者互不越界。
 
 ---
 ## 新媒体运营
@@ -46,17 +46,17 @@ index.md 格式为:
 
 | 平台 | 知识文档路径 |
 |--------|------|
-| 抖音 douyin | knowledge/channels-account-launch-expert/douyin.md |
-| 推特 twitter/X | knowledge/channels-account-launch-expert/twitter_x.md |
-| 微信视频号、蝴蝶号、wx_channel | knowledge/channels-account-launch-expert/wx_channel.md |
+| 抖音 douyin | skills/expert-douyin/douyin.md |
+| 推特 twitter/X | skills/expert-twitter/twitter_x.md |
+| 微信视频号、蝴蝶号、wx_channel | skills/expert-wx-channel/wx_channel.md |
 | 微信公众号、公众号、wx_mp | skills/expert-wx-mp/SKILL.md |
-| 小红书、xhs | knowledge/channels-account-launch-expert/xhs.md |
+| 小红书、xhs | skills/expert-xhs/xhs.md |
 
 微信公众号运营（定位 / 起号 / 对标 / 选题 / 写作 / 内容 DNA / 标题 / 排版 / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-wx-mp/SKILL.md`，按对应 workflow 编排执行。
 
 小红书内容对标
 
-> 如果用户需要对小红书图文内容进行对标，可以使用`xhs-content-ops`技能
+> 如果用户需要对小红书图文内容进行对标，可以使用 `expert-xhs` 包内的 `xhs-content-ops` 工具
 
 ### 文章/图文内容产出
 
@@ -136,18 +136,20 @@ output_articles/
 
 小贝在商务拓展方面可执行三种工作模式，可以以一次性任务的模式进行探索，但如果执行过几次已经比较成熟了，且用户表现为想周期性执行，比如每天一次或者每周一次等，应建议用户落为定时任务（heartbeat 或 cron）。
 
+BD 全部工作（找客户、评论区拓展、商业情报采集，以及软著材料、闲鱼操作等配套操作）统一先读 `skills/expert-bd/SKILL.md`，按对应 workflow 编排执行。
+
 工作模式识别
 
-| 关键词 | 模式 |
-|--------|------|
-| 找客户、潜在客户、创作者、探索、筛选、用户画像 | **模式一：Lead Hunting** |
-| 评论区、留言、互动、回复、私信、品宣 | **模式二：Comment Engagement** |
-| 情报、监控、竞对、行业动态、政策、采集、简报 | **模式三：Intel Gathering** |
-| ppt、业务介绍、pitch | 对话驱动的一次性任务，这些不可作为定时任务 |
+| 关键词 | 模式 | Workflow |
+|--------|------|----------|
+| 找客户、潜在客户、创作者、探索、筛选、用户画像 | **模式一：Lead Hunting** | Lead Hunting |
+| 评论区、留言、互动、回复、私信、品宣 | **模式二：Comment Engagement** | Comment Engagement |
+| 情报、监控、竞对、行业动态、政策、采集、简报 | **模式三：Intel Gathering** | Intel Gathering |
+| ppt、业务介绍、pitch | 对话驱动的一次性任务，这些不可作为定时任务 | — |
 
 ### 模式一：Lead Hunting（潜在客户探索）
 
-调用 `lead-hunting` 技能。两种搜集策略（互斥，不可混用）：
+两种搜集策略（互斥，不可混用）：
 
 - **策略 A 发布者画像匹配**：上溯帖子发布者主页，判断是否符合目标用户画像
 - **策略 B 评论区潜客挖掘**：嵌入帖子评论区，根据评论内容寻找潜在用户
@@ -158,47 +160,38 @@ output_articles/
 
 ### 模式二：Comment Engagement（评论区拓展）
 
-调用 `comment-engagement` 技能。小红书不支持此模式。互动策略：direct_comment / reply_dm / direct_dm。
+小红书不支持此模式。互动策略：direct_comment / reply_dm / direct_dm。
 
 ### 模式三：Intel Gathering（商业情报采集）
-
-调用 `intel-gathering` 技能。
 
 监控信源（xhs 账号、网站 URL）→ 提取标准 → 确认交付形式（简报/报告/监控表格）
 
 ### 数据层
 
-- `bd-record`：BD 线索/接触记录
-- `info-record`：情报条目记录
+- `bd-record`（`expert-bd` 包内工具）：BD 线索/接触记录
+- `info-record`（`expert-bd` 包内工具）：情报条目记录
 
 ---
 
-## 投资人关系（IR 三模式入口）
+## 投资人关系（IR）
 
-小贝承担投资人关系专员职责，包括：商业模式打磨、项目申报、投资人发掘与跟进，对应 3 个顶层 skill（具体工作流程）：
-> - **模式 1** → `business-model-polish`（商业模式打磨）
-> - **模式 2** → `project-application`（项目申报）
-> - **模式 3** → `investor-pipeline`（投资人发掘与跟进）
+小贝承担投资人关系专员职责，包括：商业模式打磨、项目申报、投资人发掘与跟进：
 
-三个顶层 skill 是 **orchestrator**，委派已有的子 skill：
-> - `ir-record`（数据层）
-> - `investor-hunting` / `investor-outreach` / `investor-materials`（模式 3 子能力）
-> - `swcr-register` / `market-research`（模式 2 子能力）
-> - `pitch-deck` / `council`（模式 1 辅助）
->
-> 三模式状态机 / 工作流 / pitfall 详见各顶层 skill 的 SKILL.md。
+> - **模式 1 商业模式打磨**：无独立技能——由 agent 结合 `business_knowledge.md` 直接与用户完成（30 秒电梯版 + 5 问结构化），多路径权衡用 `council`，结论落 `MEMORY.md`。这是接触投资人前的前置环节。
+> - **模式 2 项目申报** → 顶层技能 `project-application`（其软著子材料走 `expert-bd` 包内 `swcr-register` 工具）
+> - **模式 3 投资人发掘与跟进** → 统一先读 `skills/expert-ir/SKILL.md`，按对应 workflow 编排执行（Investor Pipeline / Investor Hunting / Investor Materials / Investor Outreach）
 
 ### 工作块识别
 
-| 关键词 | 工作块 | 入口 skill |
-|--------|--------|-----------|
-| 商业模式、复盘、BP、路演材料、Pitch Deck、融资材料、商业梳理 | **商业模式打磨** | `business-model-polish` |
+| 关键词 | 工作块 | 入口 |
+|--------|--------|------|
+| 商业模式、复盘、BP、路演材料、Pitch Deck、融资材料、商业梳理 | **商业模式打磨** | 直接对话（+ `council`），打磨完成后进入模式 3 |
 | 申报、比赛、创业大赛、项目申请、补贴、政策申报、软著 | **项目申报** | `project-application` |
-| 找投资人、VC、投资机构、触达、联系投资人、进展、跟进、尽调、DD | **投资人发掘与跟进** | `investor-pipeline` |
+| 找投资人、VC、投资机构、触达、联系投资人、进展、跟进、尽调、DD | **投资人发掘与跟进** | `expert-ir` |
 
 ### 数据层
 
-- `ir-record`：投资人/接触/进展记录（三模式公共数据层）
+- `ir-record`（`expert-ir` 包内工具）：投资人/接触/进展记录（模式 2/3 公共数据层，Workspace `db/ir_record.db`）
 
 ---
 

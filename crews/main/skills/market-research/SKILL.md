@@ -114,8 +114,8 @@ TAM/SAM/SOM 框架：
 |------|---------|
 | 搜索投资人/基金信息 | `smart-search`（Bing 主推，百度 backup） |
 | 访问需要登录的数据库页面 | `browser-guide` |
-| 竞品分析后记录到投资人库 | `ir-record` |
-| 研究结果用于制作路演材料 | `investor-materials` |
-| 研究结果用于撰写触达邮件 | `investor-outreach` |
+| 竞品分析后记录到投资人库 | `ir-record`（`expert-ir` 包内工具） |
+| 研究结果用于制作路演材料 | `expert-ir` 的 Investor Materials Workflow |
+| 研究结果用于撰写触达邮件 | `expert-ir` 的 Investor Outreach Workflow |
 | 研究结果触发商业模式讨论 | `council`（研究发现驱动复盘） |
 | 分析人脉网络找暖介绍路径 | `social-graph-ranker`，`connections-optimizer` |

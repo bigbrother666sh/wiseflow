@@ -146,6 +146,7 @@ crews/main/
 - 专家包统一加 `expert-` 前缀，与「操作型技能」（如 `douyin-publish`）区分。
 - 专家包内不使用 `AGENTS.md` 作为文件名（避免与 workspace bootstrap 文件混淆，也避免被误解为会被自动注入）。
 - 专家包内不保存可变 DNA。运行期生成的 DNA report、DNA 文档和 DNA template 一律写入 Workspace 的 `dna/<platform>/<dna-id>/`；专家包只保留方法论、框架和工具。
+- 非内容平台专家包（`expert-bd` / `expert-ir`，2026-08-27 落地）没有 DNA 与数据复盘概念：不配 style-profiler，也不要求 4.7 的 6 类 workflow 基线集；workflow 按业务场景组织（如 Lead Hunting / Investor Pipeline），运行期数据只有 Workspace `db/` 下的 SQLite 库。其余分层原则同样适用：薄根 `SKILL.md`（入口 + 路由）+ `workflows/*.md`（场景编排）+ `tools/`（原子技能收纳，SKILL.md 瘦身为工具说明书）+ 顶层 `<tool>.sh` wrapper 暴露到 PATH（`skill-wrappers.sh` 的 `*/tools/*/` 扫描层）。
 
 ### 4.2 专家包与运行时资产分层原则
 
@@ -238,8 +239,8 @@ Workspace/
    | 小红书图文/账号运营/对标 | `expert-xhs` |
    | 抖音短视频账号运营 | `expert-douyin` |
    | 视频号运营 | `expert-wx-channel` |
-   | 商务拓展（BD） | （后续拆出 `expert-bd`） |
-   | 投资人关系（IR） | （后续拆出 `expert-ir`） |
+   | 商务拓展（BD） | `expert-bd` |
+   | 投资人关系（IR） | `expert-ir` |
 
 3. **兜底规则**：找不到专家包时的行为（询问用户 / 保守处理 / 不猜测 DNA）。
 

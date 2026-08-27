@@ -157,10 +157,10 @@ login-manager check douyin   # wrapper 在 PATH 中
 | wxwork-moments | scripts/post_moments.py | wrapper → py |
 | generate-wenyan-theme | scripts/collect-theme-sources.js | wrapper → js |
 | rss-reader | scripts/fetch-rss.mjs | wrapper → mjs |
-| sales-cs-enablement | scripts/symlink_business_knowledge.py | wrapper → py |
-| sales-cs-review | scripts/scan_feedback.py | wrapper → py |
+| sales-cs-enablement | scripts/symlink_business_knowledge.py | wrapper → py（2026-08-27 转子命令分发器：`link` / `check-channel`，随 sales-cs-manager 专家包收纳至 `crews/main/skills/sales-cs-manager/tools/sales-cs-enablement/`） |
+| sales-cs-review | scripts/scan_feedback.py | wrapper → py（2026-08-27 随 sales-cs-manager 专家包收纳至 `crews/main/skills/sales-cs-manager/tools/sales-cs-review/`） |
 
-**C 类清单（多并列脚本，暂不加分发器 wrapper，维持 SKILL.md 绝对路径调用）**：bd-record（5）、info-record（4）、ir-record（11）、work-channel-binding（7）、customer-db（7）、pitch-deck（3）、swcr-register（3）、video-product（6）、html-video（2，功能分裂）。（published-track、content-calibrator 已于 2026-08-21 转分发器 wrapper，见变更历史。）
+**C 类清单（多并列脚本，暂不加分发器 wrapper，维持 SKILL.md 绝对路径调用）**：bd-record（5）、info-record（4）、ir-record（11）、work-channel-binding（7）、customer-db（7）、pitch-deck（3）、video-product（6）、html-video（2，功能分裂）。（published-track、content-calibrator 已于 2026-08-21 转分发器 wrapper；swcr-register 已于 2026-08-27 转分发器 wrapper 并保持顶层位置（曾短暂折入 expert-bd/tools，同日移出），见变更历史。）
 
 > **为何 C 类不加**：分发器 wrapper（`<skill> <subcmd> ...` 呺由到对应脚本）是为每个 skill 单定制分发表，引入新子命令方言、agent 还要学一套；现 SKILL.md 已把 `./skills/<name>/scripts/<file>.sh` 绝对路径写死（CLAUDE.md 也强制要求），多并列脚本那种靠 SKILL.md 路径明文已治拼错。分发器是未来可选演进，本轮不做。
 
@@ -216,6 +216,8 @@ dev plan §Phase 7 续 写"验收"：
 ---
 
 ## 六、变更历史
+
+- **2026-08-27**：`swcr-register` 加子命令分发器 wrapper（`swcr-register <code-doc|manual|form-info>`，-> scripts 下三个 Python 脚本），移出 C 类清单。同日随 expert-bd 专家包落地时曾折入 `expert-bd/tools/`，当天移出回归顶层 `crews/main/skills/swcr-register/`（软著属项目申报配套，非 BD 领域专属，跨包复用保持顶层）。wrapper 为 `SCRIPT_DIR` 自定位写法，与所在层级无关，移入移出均无需改动；`expert-bd/SKILL.md` 工具清单与 AGENTS.md 路由同步去除包内引用。同日 sales-cs-enablement / sales-cs-review 随 `sales-cs-manager` 专家包收纳至 tools/ 层（见 §4.2 表注与 §8.2 条目 21），sales-cs-enablement 转子命令分发器。
 
 - **2026-08-21**：数据直连 DNA 改造连带 wrapper 补强：`published-track`（C 类转分发器 wrapper：`published-track <record|update-metrics|fetch-metrics|query|query-pending|check-published|set-distribute-status|get-xhs-user-id|init-db|migrate-v3>`）与 `content-calibrator`（`content-calibrator <eval|query-metrics|init>`）落顶层分发器 wrapper，SKILL.md / HEARTBEAT.md / AGENTS.md / expert-wx-mp workflows 全部 PATH 化，agent 零路径拼接。继 video-edit 之后第 2、3 个分发器 wrapper。
 
@@ -295,7 +297,7 @@ dev plan §Phase 7 续 写"验收"：
 
 **D. 1 个漏列补救的 skill**（2026-07-14 追加，属 C 类多并列脚本但已有顶层 wrapper，部分改 PATH 风格）：
 
-21. `crews/main/skills/sales-cs-enablement` — scripts 下并列两个脚本（`symlink_business_knowledge.py` 主入口 + `check_awada_channel.py` 诊断）。顶层 wrapper 只转发主入口。SKILL.md：Step 5 主入口调用改 `sales-cs-enablement` PATH 风格；Step 1 诊断脚本保留绝对路径直调（wrapper 不代理并列脚本），并显式标注此约束。
+21. `crews/main/skills/sales-cs-manager/tools/sales-cs-enablement`（2026-08-27 随 sales-cs-manager 专家包收纳，原路径 `crews/main/skills/sales-cs-enablement`） - scripts 下并列两个脚本（`symlink_business_knowledge.py` 主入口 + `check_awada_channel.py` 诊断）。2026-08-27 起顶层 wrapper 升级为子命令分发器：`link` 转发主入口（无参默认）、`check-channel` 转发诊断脚本，诊断脚本不再要求绝对路径直调；完整启用/复盘流程移入专家包 workflows/，工具 SKILL.md 瘦身为说明书。
 
 ### 8.3 `crews/sales-cs/ALLOWED_COMMANDS` 补放行
 

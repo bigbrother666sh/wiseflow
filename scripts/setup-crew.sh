@@ -304,7 +304,7 @@ done
 
 # ─── 1.5 业务知识软链：非 main crew 共享 main 的 business_knowledge（目录+md）──
 # sales-cs / content-producer 等需要业务上下文的 crew 通过软链读 main 的业务知识。
-# 原 sales-cs 走 sales-cs-enablement 技能手动建；此处统一幂等建好，新 crew 自动获得。
+# 原 sales-cs 走 sales-cs-manager 包内 sales-cs-enablement 工具手动建；此处统一幂等建好，新 crew 自动获得。
 MAIN_WS="$OPENCLAW_HOME/workspace-main"
 if [ -e "$MAIN_WS/business_knowledge" ]; then
   for ws in "$OPENCLAW_HOME"/workspace-*/; do

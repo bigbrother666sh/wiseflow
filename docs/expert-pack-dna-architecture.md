@@ -147,6 +147,7 @@ crews/main/
 - 专家包内不使用 `AGENTS.md` 作为文件名（避免与 workspace bootstrap 文件混淆，也避免被误解为会被自动注入）。
 - 专家包内不保存可变 DNA。运行期生成的 DNA report、DNA 文档和 DNA template 一律写入 Workspace 的 `dna/<platform>/<dna-id>/`；专家包只保留方法论、框架和工具。
 - 非内容平台专家包（`expert-bd` / `expert-ir`，2026-08-27 落地）没有 DNA 与数据复盘概念：不配 style-profiler，也不要求 4.7 的 6 类 workflow 基线集；workflow 按业务场景组织（如 Lead Hunting / Investor Pipeline），运行期数据只有 Workspace `db/` 下的 SQLite 库。其余分层原则同样适用：薄根 `SKILL.md`（入口 + 路由）+ `workflows/*.md`（场景编排）+ `tools/`（原子技能收纳，SKILL.md 瘦身为工具说明书）+ 顶层 `<tool>.sh` wrapper 暴露到 PATH（`skill-wrappers.sh` 的 `*/tools/*/` 扫描层）。
+- 既有非内容专家包命名统一 `expert-` 前缀；`sales-cs-manager`（2026-08-27 落地）是特例：crew 管理型专家包，同样无 DNA / style-profiler / workflow 基线集要求，只覆盖 sales-cs crew 的启用（Enablement）与复盘升级（Review）两个 workflow，且自身不落任何运行期数据（无 `db/`、无 Workspace 数据目录），运行期产物都在 sales-cs workspace（feedback/ 只读、business_knowledge 软链）。
 
 ### 4.2 专家包与运行时资产分层原则
 

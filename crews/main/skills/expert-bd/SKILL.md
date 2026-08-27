@@ -1,6 +1,6 @@
 ---
 name: expert-bd
-description: 商务拓展（BD）专家。承接找客户、评论区拓展（截流）、信息搜集、竞对监控、每日简报等完整商务拓展工作，也覆盖软著登记材料生成、闲鱼商品搜索与私信等配套操作。用户只需要说目标和给素材，具体流程和判定标准由专家自己把握。零散的记录、查询、采集等操作也可以直接做。不涉及投资人关系（找投资人/融资跟进走 expert-ir）、项目申报（走 project-application）。
+description: 商务拓展（BD）专家。承接找客户、评论区拓展（截流）、信息搜集、竞对监控、每日简报等完整商务拓展工作，也覆盖闲鱼商品搜索与私信等配套操作。用户只需要说目标和给素材，具体流程和判定标准由专家自己把握。零散的记录、查询、采集等操作也可以直接做。不涉及投资人关系（找投资人/融资跟进走 expert-ir）、项目申报（走 project-application）。
 metadata:
   openclaw:
     emoji: 💼
@@ -25,7 +25,7 @@ metadata:
 - 其他文档中出现的 `db/` 才是 Workspace 相对路径，统一从 Workspace 根目录解析。
 - 只有工具清单中明确列出的 wrapper 名称可以直接作为 shell 命令调用；其余 Tool 名称仅用于定位对应说明。
 
-零散操作（只想辅助软件著作权申报、只想采个 RSS、只想搜个闲鱼商品）直接用下面的工具。
+零散操作（只想采个 RSS、只想搜个闲鱼商品）直接用下面的工具。
 
 ## 工具清单
 
@@ -36,7 +36,6 @@ metadata:
 | `bd-record` | BD 线索 / 互动记录数据库（创作者探索 + 帖子互动去重） | `bd-record` |
 | `info-record` | 情报条目数据库（采集去重 + 按日查询） | `info-record` |
 | `rss-reader` | 发现并抓取网页 RSS/Atom feed | `rss-reader` |
-| `swcr-register` | 软著登记材料生成（源程序文档 / 操作手册 / 填报信息） | `swcr-register` |
 | `xianyu-ops` | 闲鱼商品搜索 / 详情 / 私信（配合包内说明操作） | `xianyu-ops` |
 
 跨领域通用技能：`smart-search`（构造各平台搜索 URL）、`browser-guide`（浏览器操作规范）、`email-ops`（邮件发送）。
@@ -51,4 +50,4 @@ metadata:
 
 - 找投资人 / 融资材料 / 投资人跟进 → `expert-ir`。
 - 项目申报 / 补贴 / 创业大赛 → `project-application` 技能
-- 著作权申请使用 `swcr-register` 工具生成材料。
+- 软著材料生成（著作权申请）走顶层技能 `swcr-register`，不在本包内。

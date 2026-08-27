@@ -94,7 +94,7 @@ ir-record update-application --id <rowid> --status <new>
 
 ## 与其他技能的关系
 
-- **swcr-register**（`expert-bd` 包内工具）：软著专用（模式 2 频繁需要的子材料）
+- **swcr-register**（顶层技能）：软著专用（模式 2 频繁需要的子材料）
 - **market-research**：行业数据（多个申报类型需要）
 - **investor-materials**（`expert-ir` 包内 Investor Materials Workflow）：BP / 加速器申请需要
 - **商业模式打磨**（IR 模式 1）：申报前先打磨商业模式（很多申报材料要先有清晰的商业故事）

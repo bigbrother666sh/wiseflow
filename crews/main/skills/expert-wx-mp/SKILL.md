@@ -42,7 +42,7 @@ metadata:
 | `wx-mp-publisher` | Markdown → 草稿箱（relay 发布） | `wx-mp-publisher` |
 | `wx-mp-engagement` | 创作者中心数据抓取 | `wx-mp-engagement` |
 
-跨领域通用技能：`wx-mp-hunter`（公众号文章与发布列表采集）、`content-calibrator`（DNA 表现评估）、`published-track`（发布记录与指标库）。
+跨领域通用技能：`wx-mp-hunter`（公众号文章与发布列表采集）、`smart-search`（跨平台搜索，选题调研优先走小红书 / 知乎 / 微博等社交平台，不用通用搜索引擎）、`content-calibrator`（DNA 表现评估）、`published-track`（发布记录与指标库）。
 
 ## 风格与 DNA
 

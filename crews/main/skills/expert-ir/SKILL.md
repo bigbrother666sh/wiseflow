@@ -1,6 +1,6 @@
 ---
 name: expert-ir
-description: 投资人关系（IR）专家。承接投资人发掘、融资沟通流水线（状态机跟进）的完整工作。用户只需要说目标和给素材，具体流程和节奏由专家自己把握。零散的投资人记录、进展查询等操作也可以直接做。不涉及商务获客（找客户/“截流”/商业情报走 expert-bd）。
+description: 投资人关系（IR）专家。承接投资人发掘、融资沟通流水线（状态机跟进）、项目申报（认定/补贴/大赛/资质）的完整工作。用户只需要说目标和给素材，具体流程和节奏由专家自己把握。零散的投资人记录、进展查询等操作也可以直接做。不涉及商务获客（找客户/“截流”/商业情报走 expert-bd）。
 metadata:
   openclaw:
     emoji: 📈
@@ -18,10 +18,15 @@ metadata:
 | 融资材料 | Investor Materials | Pitch Deck / One-Pager / 投资人备忘录 / 财务模型 / 加速器申请材料 |
 | 投资人触达 | Investor Outreach | 冷邮件、暖介绍请求、跟进邮件、投资人更新等沟通文案 |
 | 融资流水线 | Investor Pipeline | 完整的融资沟通编排：发掘 → 材料 → 触达 → 跟进 → 状态机推进 |
+| 项目申报 | Project Application | 高企认定 / 加速器申请 / 政府补贴 / 软著商标专利配套 / 行业奖项：材料准备 + 时间线 + 状态跟踪 |
+
+## 执行方式与定时任务
+
+所有 workflow 默认按**一次性任务**执行。**仅当用户明确希望周期性执行**时，才落为定时任务：写入模板、启用 / 停用流程与心跳批跑约束见包内 `scheduling.md`。不要主动建议或预填定时任务。
 
 ## 资源命名约定
 
-- Tools、Workflows 等名称是 `expert-ir` 技能包内的逻辑资源名，不是 Agent Workspace 路径，也不要拼成相对路径执行。
+- Tools、Workflows、`scheduling.md` 等名称是 `expert-ir` 技能包内的逻辑资源名，不是 Agent Workspace 路径，也不要拼成相对路径执行。
 - 技能部署后整个包通过软链进入运行环境；Agent 不要假设这些资源被展开到 Workspace 下。
 - 其他文档中出现的 `db/` 才是 Workspace 相对路径，统一从 Workspace 根目录解析。
 - 只有工具清单中明确列出的 wrapper 名称可以直接作为 shell 命令调用；其余 Tool 名称仅用于定位对应说明。
@@ -36,7 +41,7 @@ metadata:
 |------|------|------|
 | `ir-record` | 投资人档案 / 接触历史 / 项目申报数据库（状态机数据层） | `ir-record` |
 
-跨领域通用技能：`smart-search`（构造搜索 URL）、`browser-guide`（浏览器操作）、`email-ops`（邮件发送）、`market-research`（基金/竞品尽调）、`pitch-deck`（HTML 路演材料）、`council`（商业模式多视角复盘）、`project-application`（项目申报，独立顶层技能）。
+跨领域通用技能：`smart-search`（构造搜索 URL）、`browser-guide`（浏览器操作）、`email-ops`（邮件发送）、`market-research`（基金/竞品尽调）、`pitch-deck`（HTML 路演材料）、`council`（商业模式多视角复盘）、`swcr-register`（软著材料生成）。
 
 ## 数据与记录
 
@@ -48,7 +53,7 @@ metadata:
 ## 边界
 
 - 商业模式打磨（融资前的电梯版梳理 / 5 问结构化）：由 agent 结合 `business_knowledge.md` 直接与用户完成，多路径权衡用 `council`；打磨结论落 `MEMORY.md` 后才进入投资人接触。
-- 项目申报 / 补贴 / 创业大赛 / 软著申报 → `project-application` 技能（其数据同样落 `ir-record` 的 applications 表）。
+- 项目申报 / 补贴 / 创业大赛 → 包内 Project Application Workflow（数据落 `ir-record` 的 applications 表）；软著材料生成走顶层技能 `swcr-register`。
 - 商务获客（找客户 / 评论区 / 情报）→ `expert-bd`。
 
 ## 红线

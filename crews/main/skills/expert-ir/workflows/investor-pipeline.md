@@ -94,9 +94,9 @@ ir-record record-contact \
 | 投资人"发 TS" | → `ts` |
 | 投资人"打款" | → `invested` |
 
-### Step 6: HEARTBEAT 巡检
+### Step 6: 过期跟进提醒
 
-心跳任务会查过期投资人：`ir-record query-stale --days 7`（7 天无 contact 进展 → 提醒用户）。
+过期跟进默认靠用户反馈与主动查询：`ir-record query-stale --days 7`（7 天无 contact 进展的投资人）。用户希望自动提醒时，启用定时模式（见包内 `scheduling.md`），心跳会定期查过期投资人并提醒。
 
 ---
 
@@ -107,7 +107,7 @@ ir-record record-contact \
 - **Investor Outreach Workflow**：触达邮件 / 暖介绍文案
 - **`ir-record`**（数据层）：所有投资人档案 / 接触历史 / 状态机
 - **商业模式打磨**（Step 1）：投资人接触前必做
-- **`project-application`**（顶层技能）：与融资平行（项目申报 vs 融资）
+- **Project Application Workflow**（包内）：与融资平行（项目申报 vs 融资）
 
 ---
 
@@ -131,7 +131,7 @@ ir-record record-contact \
 ### pitfall: 7 天没进展未提醒
 
 - **症状**：投资人不回复，用户忘记跟进
-- **workaround**：HEARTBEAT 巡检 `ir-record query-stale` → 提醒用户
+- **workaround**：`ir-record query-stale` 主动查询 → 提醒用户；需要自动提醒时启用定时模式（见 `scheduling.md`）
 
 ### pitfall: 把"暖介绍"搞砸
 

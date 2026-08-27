@@ -193,11 +193,11 @@ ir-record query-applications [--status <状态>] [--upcoming <天数>]
    - 已在数据库中则跳过，除非有新信息需要更新
    - 新投资人立即用 `record-investor` 记录（status=new）
    - 首次接触后，用 `update-status` 更新状态，用 `record-contact` 记录接触
-   - HEARTBEAT 触发时运行 `query-stale --days 7` 检查超期未跟进
-   - 每周运行 `query-progress` 获取全局 Pipeline 视图
-2. **项目申报**（配合 `project-application` 技能）：
+   - 可随时运行 `query-stale --days 7` 检查超期未跟进；用户启用定时模式后（见 `expert-ir` 包内 `scheduling.md`），由心跳定期运行
+   - `query-progress` 获取全局 Pipeline 视图（按需或按用户约定周期运行）
+2. **项目申报**（配合 `expert-ir` 包内 Project Application workflow）：
    - 发现申报机会后，先用 `check-application` 判断是否已记录
    - 已在数据库中则跳过，避免重复申报
    - 确认申报后用 `record-application` 记录（status=planning）
    - 提交后更新 status 为 submitted
-   - HEARTBEAT 触发时运行 `query-applications --upcoming 7` 提醒即将截止的申报
+   - 可随时运行 `query-applications --upcoming 7` 查即将截止的申报；用户启用定时模式后由心跳定期提醒

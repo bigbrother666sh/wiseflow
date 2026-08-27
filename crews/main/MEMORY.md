@@ -22,7 +22,9 @@
 > 启用路径：
 > - **每日新媒体平台数据复盘**：内容已在 HEARTBEAT.md 中，需 spawn IT engineer 设
 >   cron 后启用。
-> - **BD / IR 定时模式**：用户确认启用某模式后，从 `HEARTBEAT_TEMPLATE.md` 复制对应
+> - **BD 定时模式**：用户确认启用某模式后，从 `expert-bd` 包内 `scheduling.md` 复制对应
+>   段落到 `HEARTBEAT.md`，再 spawn IT engineer 设 cron。
+> - **IR 定时模式**：用户确认启用某模式后，从 `expert-ir` 包内 `scheduling.md` 复制对应
 >   段落到 `HEARTBEAT.md`，再 spawn IT engineer 设 cron。各模式 cron 表达式见
 >   `HEARTBEAT.md` 中对应段的「执行时间 / 频率」。
 

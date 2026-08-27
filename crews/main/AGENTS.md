@@ -50,7 +50,7 @@ index.md 格式为:
 | 推特 twitter/X | skills/expert-twitter/twitter_x.md |
 | 微信视频号、蝴蝶号、wx_channel | skills/expert-wx-channel/SKILL.md |
 | 微信公众号、公众号、wx_mp | skills/expert-wx-mp/SKILL.md |
-| 小红书、xhs | skills/expert-xhs/xhs.md |
+| 小红书、xhs | skills/expert-xhs/SKILL.md |
 
 微信公众号运营（定位 / 起号 / 对标 / 选题 / 写作 / 内容 DNA / 标题 / 排版 / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-wx-mp/SKILL.md`，按对应 workflow 编排执行。
 
@@ -58,9 +58,7 @@ index.md 格式为:
 
 抖音短视频运营（定位 / 起号 / 对标 / 选题 / 脚本简报 / 内容 DNA / 制作编排 / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-douyin/SKILL.md`，按对应 workflow 编排执行。
 
-小红书内容对标
-
-> 如果用户需要对小红书图文内容进行对标，可以使用 `expert-xhs` 包内的 `xhs-content-ops` 工具
+小红书运营（定位 / 起号 / 对标 / 选题 / 文案 / 内容 DNA / 图文笔记生产 / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-xhs/SKILL.md`，按对应 workflow 编排执行；零散下载笔记 / 发布 / 抓数直接用包内工具。小红书评论区获客 / 截流等 BD 场景走 `expert-bd`。
 
 ### 文章/图文内容产出
 

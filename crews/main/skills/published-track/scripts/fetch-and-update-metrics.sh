@@ -111,7 +111,7 @@ fi
 
 # xhs（小红书）**不走本脚本**——它走 xhs-engagement 技能（camoufox 打开 creator 后台
 # 笔记管理页方案），与 wx_mp/wx_channel 同模式，由 agent 直调 xhs-engagement wrapper。
-# 见 crews/main/HEARTBEAT.md Step 2 与 crews/main/skills/xhs-engagement/SKILL.md。
+# 见 crews/main/HEARTBEAT.md Step 2 与 crews/main/skills/expert-xhs/tools/xhs-engagement/SKILL.md。
 if [ "$PLATFORM" = "xhs" ]; then
   echo "{\"ok\":false,\"error\":\"XHS_NOT_SUPPORTED_HERE\",\"platform\":\"xhs\",\"hint\":\"小红书不走 fetch-and-update-metrics.sh。请直调 xhs-engagement 技能：xhs-engagement fetch --row-id <rowid>（camoufox 抓 creator 后台方案，与纯 HTTP+cookie 平台不同）\"}"
   exit 1

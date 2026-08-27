@@ -10,7 +10,13 @@ metadata:
       - sqlite3
 ---
 
-# xhs-engagement — 小红书互动数抓取
+# xhs-engagement — 工具说明
+
+> 本文是 `expert-xhs` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow（数据复盘 / 每日采集）与 HEARTBEAT 指引调用。
+
+**用途**：抓取自己账号已发布小红书笔记的 5 列互动数（阅读/评论/点赞/收藏/分享），写入 published-track 的 `pub_xhs` 表。
+**输入**：`pub_xhs` 行 id（`fetch --row-id`）或笔记标题（`fetch --title`）；批量刷新无参数（`fetch-all`）。
+**输出**：JSON（互动数 + 写库结果）。
 
 通过 **camoufox-cli + xhs-browse 持久化 session + creator 创作服务平台后台爬虫**，从创作者后台「笔记管理」页抓已发布笔记的阅读/评论/点赞/收藏/分享。
 
@@ -24,9 +30,9 @@ metadata:
 
 ### 1. 登录态管理（共享 xhs-browse profile，创作者 cookie 自管）
 
-本技能的登录流程完全走 `xhs-publish` 技能的登录态管理章节。
+本工具的登录流程完全走 `xhs-publish` 工具的登录态管理章节。
 
-本 skill 消费的是 **xhs-browse session profile 里的 creator 登录态**（camoufox 打开 creator 后台时 SSO 态在 profile 里就位），自身**不需要导出任何 cookie**。
+本工具消费的是 **xhs-browse session profile 里的 creator 登录态**（camoufox 打开 creator 后台时 SSO 态在 profile 里就位），自身**不需要导出任何 cookie**。
 
 每次执行前的探活使用自己的脚本命令。
 
@@ -62,7 +68,7 @@ xhs-engagement check
 
 forked camoufox-cli 自 2026-08-22 起**默认不再 idle 自退**（`--timeout` 默认 0）。旧版有 60s 硬上限，会把等用户扫码/交互的 daemon 误杀掉，已移除；防浏览器进程堆积的兜底改为全局并发 daemon 上限 6（超了驱逐最老的）。
 
-**对本 skill 的约束**：保持「open → 立即连续 eval → close」一条龙——这仍是最高效、最不易撞风控的做法；用完必须 close，不要依赖驱逐兜底。
+**对本工具的约束**：保持「open → 立即连续 eval → close」一条龙——这仍是最高效、最不易撞风控的做法；用完必须 close，不要依赖驱逐兜底。
 
 ---
 
@@ -125,7 +131,7 @@ xhs-engagement probe
 
 4. **title 匹配**：creator 后台方案按 title 匹配目标笔记。`fetch --row-id` 会自动从 DB 取该行 title；`fetch --title` 是纯取数调试入口（不写库）。笔记不在 creator 后台列表 → `NOTE_NOT_IN_CREATOR_BACKEND`。
 
-5. **Cookie 导入禁忌**：⚠️ **严禁** `camoufox-cli cookies import` 造会话（浏览器方案严禁 cookie 导入）。本 skill 复用既有 `xhs-browse` 持久化 session，camoufox-cli 命令统一 `--session xhs-browse --persistent`，登录态在 session profile 里已就位，**不开独立 session、不 import cookie**。
+5. **Cookie 导入禁忌**：⚠️ **严禁** `camoufox-cli cookies import` 造会话（浏览器方案严禁 cookie 导入）。本工具复用既有 `xhs-browse` 持久化 session，camoufox-cli 命令统一 `--session xhs-browse --persistent`，登录态在 session profile 里已就位，**不开独立 session、不 import cookie**。
 
 6. **数据提取方式**：不依赖 innerText（creator 后台 innerText 结构复杂），直接用 DOM selector 解析。页面 DOM 结构清晰：
    ```
@@ -195,21 +201,21 @@ xhs-engagement probe
 
 ## 与 published-track 集成
 
-xhs 的互动数据抓取由本 skill 独立承担（camoufox 打开 creator 后台），**不走** `fetch-and-update-metrics.sh`——后者只管 bilibili/douyin/kuaishou 三个纯 HTTP+cookie 平台，收到 `--platform xhs` 会直接 exit 1 报错提示走本 skill（与 wx_mp/wx_channel 同模式，两条链路独立、不耦合）。
+xhs 的互动数据抓取由本工具独立承担（camoufox 打开 creator 后台），**不走** `fetch-and-update-metrics.sh`——后者只管 bilibili/douyin/kuaishou 三个纯 HTTP+cookie 平台，收到 `--platform xhs` 会直接 exit 1 报错提示走本工具（与 wx_mp/wx_channel 同模式，两条链路独立、不耦合）。
 
-agent 直调本 skill wrapper：
+agent 直调本工具 wrapper：
 
 ```bash
 xhs-engagement fetch --row-id <rowid>
 ```
 
-本 skill 内部流程：
+本工具内部流程：
 1. 从 pub_xhs 查该行 title / publish_url
 2. camoufox 打开 creator 后台笔记管理页判登录态（跳登录页 = 失效，exit 2）
 3. eval 解析笔记卡片，按 title 匹配拿 5 列互动数
 4. 委托 published-track 的 `update-metrics.sh`，以 `platform=xhs`、`id=<rowid>` 写 pub_xhs（collects 写 favorites 列）
 
-> `update-metrics.sh` 是 published-track 的纯写库脚本，本 skill 写库就走它（不直接 SQL 写）。
+> `update-metrics.sh` 是 published-track 的纯写库脚本，本工具写库就走它（不直接 SQL 写）。
 
 ---
 
@@ -233,7 +239,7 @@ xhs-engagement fetch --row-id <rowid>
 ### pitfall: camoufox-cli daemon 中途消失
 
 - **症状**：camoufox 打开 creator 后台后，eval 返回「session not found」或「page not found」
-- **workaround**：2026-08-22 起已默认关闭 idle 自退，但 daemon 仍可能被并发上限（6 个）驱逐或被 `close --all` 收尾误伤。本 skill 实现是「open → 立即连续 eval → close」一条龙，缩短 daemon 暴露窗口。
+- **workaround**：2026-08-22 起已默认关闭 idle 自退，但 daemon 仍可能被并发上限（6 个）驱逐或被 `close --all` 收尾误伤。本工具实现是「open → 立即连续 eval → close」一条龙，缩短 daemon 暴露窗口。
 
 ### pitfall: 只重登 www 没做 creator SSO
 
@@ -245,5 +251,5 @@ xhs-engagement fetch --row-id <rowid>
 ## Notes
 
 - **限频建议**：单账号每 24h 全量 ≤ 1 次；单篇按需触发
-- **camoufox-cli 注意**：本 skill 全部命令统一 `--session xhs-browse --persistent`（复用既有持久化 session），headless 是默认行为
+- **camoufox-cli 注意**：本工具全部命令统一 `--session xhs-browse --persistent`（复用既有持久化 session），headless 是默认行为
 - **报错约束**：调用方（agent）报告失败时必须原样转述脚本 stderr + exit code，禁止根据 DB 字段自行归因

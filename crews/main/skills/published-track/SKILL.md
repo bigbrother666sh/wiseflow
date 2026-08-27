@@ -135,7 +135,7 @@ published-track fetch-metrics \
 
 Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSION_EXPIRED。
 
-- **脚本支持**：bilibili、douyin、kuaishou（走 `fetch-retro-data.ts` 纯 HTTP + cookie + UA）。**xhs / wx_mp / wx_channel 均不走本技能的 fetch-metrics**（收到这三个平台直接 exit 1 指路）——xhs 走顶层 `xhs-engagement` 技能，wx_mp 走 `expert-wx-mp` 专家包内的 `wx-mp-engagement` 工具，wx_channel 走 `expert-wx-channel` 专家包内的 `wx-channel-engagement` 工具，三者都是 camoufox 抓平台后台方案，与纯 HTTP 链路机制不同。其他平台暂不支持自动抓取互动数据。
+- **脚本支持**：bilibili、douyin、kuaishou（走 `fetch-retro-data.ts` 纯 HTTP + cookie + UA）。**xhs / wx_mp / wx_channel 均不走本技能的 fetch-metrics**（收到这三个平台直接 exit 1 指路）——xhs 走 `expert-xhs` 专家包内的 `xhs-engagement` 工具，wx_mp 走 `expert-wx-mp` 专家包内的 `wx-mp-engagement` 工具，wx_channel 走 `expert-wx-channel` 专家包内的 `wx-channel-engagement` 工具，三者都是 camoufox 抓平台后台方案，与纯 HTTP 链路机制不同。其他平台暂不支持自动抓取互动数据。
 
 ### 流程 2B·用户提供数据（Agent 补录）
 

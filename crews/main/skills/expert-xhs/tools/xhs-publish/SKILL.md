@@ -11,9 +11,13 @@ metadata:
       - python3
 ---
 
-# 小红书发布（xhs-publish）
+# 小红书发布（xhs-publish）— 工具说明
 
-通过 creator 平台 COS 上传 + `/web_api/sns/v2/note` 创建笔记，支持图文和视频。**共享 camoufox profile**（session=xhs-browse），login-manager 管消费者域 www 登录，本技能在其上做创作者 SSO；两套 cookie 分别落 `xhs-browse.json` / `xhs-publish.json`，发布时合并。签名走 relay sign 服务。
+> 本文是 `expert-xhs` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow 指引调用。
+
+**用途**：发布图文 / 视频笔记到小红书。**输入**：标题（≤20 字）、正文（≤1000 字，内联 `#话题`）、图片（≤18 张）或视频文件。**输出**：发布结果 + 笔记链接。
+
+通过 creator 平台 COS 上传 + `/web_api/sns/v2/note` 创建笔记，支持图文和视频。**共享 camoufox profile**（session=xhs-browse），login-manager 管消费者域 www 登录，本工具在其上做创作者 SSO；两套 cookie 分别落 `xhs-browse.json` / `xhs-publish.json`，发布时合并。签名走 relay sign 服务。
 
 上传流程：① 取 COS 上传许可证 `creator.xiaohongshu.com/api/media/v1/upload/web/permit` → ② PUT 文件到 COS（大文件自动分片）→ ③ 创建笔记 `edith.xiaohongshu.com/web_api/sns/v2/note`。
 
@@ -88,6 +92,12 @@ xhs-publish --mode video --title "笔记标题" --body "正文内容" --video vi
 
 > **⚠️ `--body` 必须传实际文字，不能传文件路径或 `$(cat file)`**：exec sandbox 禁用 `$(...)` 命令替换，`--body post.md` 也会被当字面量字符串。把正文直接硬编码进命令。
 
+成功输出：
+
+```json
+{"ok": true, "note_id": "xxx", "url": "https://www.xiaohongshu.com/explore/xxx"}
+```
+
 ---
 
 ## 内容规范
@@ -99,15 +109,11 @@ xhs-publish --mode video --title "笔记标题" --body "正文内容" --video vi
 
 ---
 
-## Agent 工作流
+## 调用顺序
 
-1. 探活：`xhs-publish check`（exit 0 = 有效；批量只探活一次）
-2. 准备素材（图片/视频 + 标题 + 正文）
-3. 运行 `xhs-publish ...` 发布
-4. 看 stdout JSON：
-   - `{"ok": true, "note_id": "xxx", "url": "https://www.xiaohongshu.com/explore/xxx"}` → 成功
-   - `{"ok": false, "error": "AUTH_EXPIRED"}` → 走 Step 2 重登后重试一次
-   - `{"ok": false, "error": "..."}` → 反馈用户
+1. 探活：`xhs-publish check`（exit 0 = 有效；批量发布只探活一次）
+2. 运行 `xhs-publish ...` 发布
+3. 看 stdout JSON：`ok: true` → 成功；`error: AUTH_EXPIRED` → 走 Step 2 重登后重试一次；其他 `error` → 原样转述给用户，不自行归因
 
 ---
 

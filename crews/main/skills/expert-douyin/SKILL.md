@@ -38,6 +38,7 @@ metadata:
 | 工具 | 用途 | 命令 |
 |------|------|------|
 | `douyin-style-profiler` | 生成单条视频 17 维 DNA report，并聚合 DNA 文档与 DNA template | `douyin-style-profiler` |
+| `douyin-comments` | 抓取抖音视频评论（对标分析 / 标签反推用，纯 HTTP 不起浏览器） | `douyin-comments` |
 | `douyin-publish` | 成片 → 抖音创作者中心发布（浏览器自动化） | `douyin-publish` |
 
 跨领域通用技能：`viral-chaser`（抖音 / B站 / 小红书视频下载拆解，DNA 采样与仿写参考的取数主力）、`smart-search`（跨平台搜索，选题调研优先走社交平台，不用通用搜索引擎）、`content-calibrator`（DNA 表现评估）、`published-track`（发布记录与指标库）、`login-manager`（抖音登录态维护）。

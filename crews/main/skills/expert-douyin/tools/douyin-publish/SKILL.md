@@ -19,7 +19,7 @@ metadata:
 **输入**：本地视频文件（mp4 / mov，时长 ≤ 15 分钟，建议 < 100MB）、标题（≤ 30 字）、描述文案（含话题标签）。
 **输出**：发布结果 + 作品链接（`https://www.douyin.com/video/<aweme_id>`）。
 
-> 纯浏览器操作方案：本工具自身不吃 cookie，**严禁** `cookies import` 造登录会话——浏览器操作一律走 `login-manager` 真实登录后的持久化 session `douyin`（登录态 + 指纹冻结在 session profile 里）。探活 / 有头登录 / 导出 cookie+UA 全归 `login-manager`，本工具只复用持久化 session 做发布操作，不导出 cookie / UA。
+> 纯浏览器操作方案：登录态 + 指纹冻结在持久化 session 的磁盘 profile 里。**严禁** `cookies import` 造登录会话，会触发平台风控。
 
 ---
 
@@ -50,7 +50,7 @@ douyin-publish run --video /path/to/video.mp4 --title "标题" --caption "描述
 
 ## 登录失效处理
 
-判定为未登录、或运行中得到 exit 2 时，走 `login-manager` 重登，复用 `douyin` 持久化 session：
+判定为未登录、或运行中得到 exit 2 时，重登后重新走「发布前置」：
 
 ```bash
 camoufox-cli --session douyin --persistent --headed --json open "https://www.douyin.com"
@@ -58,7 +58,7 @@ camoufox-cli --session douyin --persistent --headed --json open "https://www.dou
 login-manager --platform douyin
 ```
 
-`login-manager` 一条命令闭环导出+验证+落中央存储+close session。重登后重新走「发布前置」。本工具**没有 `login` 子命令、也没有 `cleanup` 子命令**。
+本工具**没有 `login` 子命令、也没有 `cleanup` 子命令**。
 
 ---
 
@@ -93,21 +93,12 @@ douyin-publish publish --session <s>
 douyin-publish get-link --session <s>
 ```
 
-### get-link 取链接策略
+### 行为说明
 
-发布走 form / 导航（非 fetch / XHR），发布页拦截器抓不到 aweme_id，主路是发布后直接打作品管理 list API `creator.douyin.com/janus/douyin/creator/pc/work_list`：
-
-1. `publish` 记 `publish_start` 时刻。
-2. `work_list` 拿 `aweme_list`，**按 `create_time` 排序取最新**（列表不按时间排，必须自排），筛 `create_time >= publish_start - 120` 锁定本次作品，拼 `https://www.douyin.com/video/<aweme_id>`。
-3. 结果落 `localStorage.douyin_last_aweme_id` 供 `get-link` 复用。`get-link` 三级策略：① localStorage ② work_list 取全局最新 ③ 管理页 DOM 兜底。
-4. `work_list` 偶发 `status_code=8`（间歇鉴权失败，非掉登），helper 内置 3 次重试；3 次全 8 才 exit 2 交重登。
-5. `run` 全流程在 `close` session 之前就拿到链接，不依赖 close 后重开。
-
-### 其他行为说明
-
-- `upload` open 上传页后会检测「你还有上次未发布的视频，是否继续编辑？」草稿恢复框并点「放弃」清掉，给新发布一个干净上传页。旧草稿在场时新视频上传/发布会被带偏。
-- `publish` 阶段注入 fetch / XHR 拦截器作为兜底，全量捕获发布期间请求响应深度搜索 `aweme_id`，并把请求 URL / method / status / 响应片段记到 `localStorage.douyin_publish_debug`，发布后落盘 `/tmp/dy-publish-debug-<ts>.json` 供排查。
-- **aweme_id 未捕获即 `exit 3`，不再误报发布成功。**
+- `run` 在 close session 之前就拿到作品链接；`get-link` 锁定本次发布的作品（按发布时间窗口筛最新），链接不可得时按 exit 3 处理。
+- `upload` 会自动清掉「上次未发布的视频」草稿恢复框，给新发布一个干净上传页；旧草稿在场时新视频上传/发布会被带偏。
+- `fill` 内置自主声明"内容由AI生成"选择与确认步骤；声明下拉不存在时不阻断。
+- **aweme_id 未捕获即 `exit 3`，不再误报发布成功。** 排查材料在 `/tmp/dy-publish-debug-<ts>.json`。
 
 ---
 
@@ -124,14 +115,13 @@ douyin-publish get-link --session <s>
 - **用完即 close 持久化 session `douyin`**——登录态 + 指纹冻结在磁盘 profile，不留进程占内存；下次发布 `--session douyin --persistent` 重起无头即恢复。只在 session 卡死时 `camoufox-cli --session douyin --json close` teardown。
 - 同 session 已有命令在跑时，新命令 fail-first（返回 `session douyin 正忙,请等待当前操作完成后再试`）——读到这条文本就等当前操作完成再重试，不要盲试。
 - **严禁 `cookies import`**：不开临时 session 再 import cookie，会触发平台风控。
-- 执行过程中任何时候发现登录态已失效，走 `login-manager` 有头重登流。
 - 限频：单抖音号每 24h ≤ 5 条发布；触发风控立即降级，30 分钟内不重试。
 
 ### Exit codes
 
 | code | 含义 | 调用方动作 |
 |------|------|-----------|
-| `0` | 发布成功，aweme_id 已捕获 | 继续下游记录 |
+| `0` | 发布成功，aweme_id 已捕获 | 继续发布后的记录流程 |
 | `1` | 参数错 / crash / DOM 改版（按钮/input 未找到）/ 上传转码超时 | 排查后重试 |
 | `2` | 未登录或登录态失效 | 走 `login-manager --platform douyin` 有头重登后重试 |
 | `3` | 发布流程走完但未捕获到 aweme_id——发布可能未真正成功 | **人工到管理页核实是否真有新作品**；把 `/tmp/dy-publish-debug-*.json` 回传给研发定位真实发布 API |

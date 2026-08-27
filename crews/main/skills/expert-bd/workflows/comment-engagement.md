@@ -2,7 +2,7 @@
 
 通过自媒体平台搜索特定关键词内容，进入内容评论区按预设互动策略进行留言、回复或私信，拓展潜在客户或做品牌宣传。（俗称“截流”）
 
-**依赖**：`smart-search`（构造搜索 URL）、`browser-guide`（浏览器操作）、`bd-record`（去重记录）、`xhs-interact`（小红书专用互动）。
+**依赖**：`smart-search`（构造搜索 URL）、`browser-guide`（浏览器操作）、`bd-record`（去重记录）、`xhs-interact`（小红书互动）、`twitter-interact`（Twitter/X 点赞/转推/关注）、`twitter-post`（Twitter/X 回复，收纳在 `expert-twitter` 包内）。
 
 > ⚠️ 小红书不支持本 workflow 的批量自动化（风控严格）；小红书评论互动走 `xhs-interact` 并严格控制频次。
 
@@ -10,7 +10,7 @@
 
 ## 前置条件
 
-执行前需确认以下信息（周期性执行时来自 HEARTBEAT.md 配置）：
+执行前需确认以下信息（一次性任务与用户对话确认；定时任务从 HEARTBEAT.md 配置读取）：
 - 目标平台列表及对应的搜索关键词
 - 互动策略（direct_comment / reply_dm / direct_dm）
 - 互动话术（用户指定或已确认的自动生成话术）
@@ -121,7 +121,7 @@
 | 抖音 | browser 直接操作 | 评论内容避免包含网址和外链 |
 | B站 | browser 直接操作 | 评论区支持链接 |
 | 微博 | browser 直接操作 | 评论支持链接和 @ |
-| Twitter/X | 使用 `twitter-interact` | 公开回复和 DM 均可 |
+| Twitter/X | 回复走 `twitter-post` Reply workflow；点赞/转推/关注走 `twitter-interact` | 公开回复和 DM 均可 |
 | Facebook | browser 直接操作 | 公开评论和 Messenger 均可 |
 
 ---

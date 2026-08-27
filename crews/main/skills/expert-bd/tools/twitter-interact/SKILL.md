@@ -1,6 +1,6 @@
 ---
 name: twitter-interact
-description: Twitter/X 互动操作技能——支持点赞 / 取消点赞 / 转推 / 取消转推 / 收藏 / 取消收藏 / 关注 / 取关。camoufox-cli 主推路径 + 持久化 session `twitter`（与 twitter-post 共用，自管探活登录）+ 频率限制。
+description: Twitter/X 互动操作——点赞 / 取消点赞 / 转推 / 取消转推 / 收藏 / 取消收藏 / 关注 / 取关。camoufox-cli 持久化 session `twitter`（与 `twitter-post` 共用，自管探活登录）+ 频率限制。
 metadata:
   openclaw:
     emoji: 💬
@@ -10,25 +10,22 @@ metadata:
       - camoufox-cli
 ---
 
-# Twitter/X 互动操作（twitter-interact）
+# twitter-interact — 工具说明
 
-> **Reply / Quote** 不在本 skill（属于 `twitter-post` 的 Quote Tweet / Reply to Tweet 流程）。
+> 本文是 `expert-bd` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow 指引调用。
+
+在 Twitter/X 上执行互动操作：点赞 / 取消点赞 / 转推 / 取消转推 / 收藏 / 取消收藏 / 关注 / 取关。
+
+**输入**：推文 URL（`https://x.com/<user>/status/<id>`）或用户 handle（`@xxx` / 主页 URL）+ 动作类型。
+**输出**：`{ok, tweet_id|user, action, session}` JSON；已处于目标态时输出 `note: 已...` + exit 0。
+
+> Reply / Quote 属于 `twitter-post` 的发布范畴，不在本工具能力范围内。
 >
-> 本 skill 与 login-manager **完全无关**——Twitter 互动是纯浏览器操作，走持久化 session `twitter`（与 `twitter-post` 共用同一个 session），登录态在 session profile 里闭环，**不导出 cookie/UA 落中央存储**。探活 + 登录流程在本 skill 自管，见下方「探活与登录」段。
+> 本工具与 login-manager **完全无关**——互动是纯浏览器操作，走持久化 session `twitter`（与 `twitter-post` 共用同一个 session），登录态在 session profile 里闭环，**不导出 cookie/UA 落中央存储**。
 
 ---
 
-## 适用场景
-
-- 用户："帮我给这条推点赞"
-- 用户："转推一下这个"
-- 用户："关注 @xxx"
-- BD 场景：监控 mentions → 智能回复 + 互动
-- 内容运营：批量收藏 / 点赞目标内容
-
----
-
-## 8 个子命令
+## 9 个子命令
 
 | 子命令 | 目标 | 频率限制 |
 |--------|------|----------------|
@@ -48,9 +45,9 @@ metadata:
 
 ## 前置条件
 
-### 1. 探活与登录（本 skill 自管，不走 login-manager）
+### 1. 探活与登录（本工具自管，不走 login-manager）
 
-走持久化 session `twitter`（与 `twitter-post` 共用同一个 session 名 `twitter`，靠 session 名字符串约定共享同一 profile 目录与登录态——任一技能登录后另一个不需重登）。探活方式：开 session open 平台首页 + snapshot 看是否跳登录页。
+走持久化 session `twitter`（与 `twitter-post` 共用同一个 session 名 `twitter`，靠 session 名字符串约定共享同一 profile 目录与登录态——任一工具登录后另一个不需重登）。探活方式：开 session open 平台首页 + snapshot 看是否跳登录页。
 
 `run` 子命令在脚本内自动探活（`_check_session_alive`）；单条子命令（`like` / `retweet` / ...）不内嵌探活，调用方（agent）按下方流程先探活再调单条。
 
@@ -64,17 +61,17 @@ camoufox-cli --session twitter --json snapshot
 # → 跳到登录页 / 出现登录按钮 = 登录态失效，走重登
 ```
 
-重登流程（失效时）——登录流程按 `browser-guide` skill 走有头手动登录（手机号+验证码 / Twitter APP 扫码），登录后**close session**——登录态落磁盘 profile，不留进程占内存。本 skill 做互动操作 + `twitter-post` 做发布操作时用 `--session twitter --persistent` 重起无头即恢复，用完再 close。只在 session 卡死时由调用方手动 `camoufox-cli --session twitter --json close` teardown。
+重登流程（失效时）——登录流程按 `browser-guide` skill 走有头手动登录（手机号+验证码 / Twitter APP 扫码），登录后**close session**——登录态落磁盘 profile，不留进程占内存。互动操作用 `--session twitter --persistent` 重起无头即恢复，用完再 close。只在 session 卡死时由调用方手动 `camoufox-cli --session twitter --json close` teardown。
 
 ```bash
 # X 登录风控对无头 + QR 识别严格，有头人工登录最稳
 camoufox-cli --session twitter --persistent --headed --json open "https://x.com/login"
 # 告知用户「**Twitter/X** 浏览器已打开，请在窗口里手动完成登录（账号密码 / 手机 APP 扫码），完成后告诉我」
 # 等用户回复后 snapshot 验登录态就位
-# 登录就位后 close session——登录态落磁盘 profile，本 skill + twitter-post 按需重起无头复用
+# 登录就位后 close session——登录态落磁盘 profile，按需重起无头复用
 ```
 
-**不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本 skill 不调用 `cookies export` / `identity export`。
+**不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本工具不调用 `cookies export` / `identity export`。
 
 ### 2. 频率跟踪文件（首次自动创建）
 
@@ -84,33 +81,33 @@ camoufox-cli --session twitter --persistent --headed --json open "https://x.com/
 
 所有互动操作共享同一个 `--persistent` session `twitter`（指纹冻结 + cookie 留 profile）。并发调用由 forked cli 的 **fail-first 队列**串行拒绝——脚本不自动排队、不自动等待，读到 `session twitter 正忙` 文本时 exit 3，调用方（agent）应等待当前操作完成后再试。
 
-**与 `twitter-post` 共 session**：两个技能都用 `--session twitter`，所以共享同一 profile 目录与登录态——twitter-post 登录后 twitter-interact 不需重登，反之亦然。靠 session 名字符串约定即可，无需别的机制。
+**与 `twitter-post` 共 session**：两者都用 `--session twitter`，共享同一 profile 目录与登录态——一方登录后另一方不需重登。靠 session 名字符串约定即可，无需别的机制。
 
 ---
 
-## 使用方式
+## 调用方式
 
 ### 单条操作
 
 ```bash
 # 点赞
-twitter_interact like https://x.com/username/status/1234567890
+twitter-interact like https://x.com/username/status/1234567890
 
 # 转推
-twitter_interact retweet https://x.com/username/status/1234567890
+twitter-interact retweet https://x.com/username/status/1234567890
 
 # 关注
-twitter_interact follow @openai
+twitter-interact follow @openai
 # 或
-twitter_interact follow https://x.com/openai
+twitter-interact follow https://x.com/openai
 ```
 
 ### 一键跑
 
 ```bash
 # 一键：login 探活 → 操作
-twitter_interact run --tweet-url <url> --action <like|retweet|bookmark>
-twitter_interact run --user <handle> --action <follow|unfollow>
+twitter-interact run --tweet-url <url> --action <like|retweet|bookmark>
+twitter-interact run --user <handle> --action <follow|unfollow>
 ```
 
 ### 并发约束（fail-first，不并行）
@@ -123,9 +120,9 @@ twitter_interact run --user <handle> --action <follow|unfollow>
 
 ---
 
-## 工作流程
+## 脚本实现要点
 
-> **实现要点**：脚本 `twitter_interact.py` 内置三个模式，agent 无需手写 eval：
+> `twitter_interact.py` 内置三个模式，agent 无需手写 eval：
 > 1. **article-scoped 探针**：按 tweet_id 定位含 `a[href*="/status/<id>"]` 的 article，按钮查找限定其内——会话页有多 article，bare `querySelector('[data-testid="like"]')` 会抓第一个（父推）误操作。
 > 2. **testid 确认菜单**：retweet→`[data-testid="retweetConfirm"]`、unretweet→`unretweetConfirm`、unfollow→`confirmationSheetConfirm`，比 text match 稳且不受本地化影响。
 > 3. **晚水合轮询**：Python 侧 20×500ms 找按钮 / article，确认菜单 20×250ms。
@@ -143,7 +140,7 @@ twitter_interact run --user <handle> --action <follow|unfollow>
    ├─ like 在 → _click_scoped(tid,"like") → _poll_probe(tid,["unlike"]) 验翻转 → record + 输出
    └─ 10s 内都没找到 → exit 1（DOM 未加载或未登录）
 4. check_freq_limit（操作前已校验）→ 通过则 record_action
-5. close session（登录态在磁盘 profile，下次 / twitter-post 按需重起无头复用）
+5. close session（登录态在磁盘 profile，下次按需重起无头复用）
 6. 输出 {ok, tweet_id, action, session}
 ```
 
@@ -205,6 +202,8 @@ twitter_interact run --user <handle> --action <follow|unfollow>
 }
 ```
 
+**风控告警阈值**：日累计 50% 上限时输出 warning（不是 hard block）。
+
 ---
 
 ## 错误处理
@@ -256,22 +255,13 @@ twitter_interact run --user <handle> --action <follow|unfollow>
 ### pitfall: X UI 改版 → testid 失效
 
 - **症状**：`[data-testid="like"]` / `retweetConfirm` 等找不到
-- **workaround**：本 skill 的 testid 积植自 OpenCLI `clis/twitter/`（实战维护中），比公开推测稳；仍需部署后真机验证（见 `docs/post-deploy-verification.md`）。main agent 看到 exit 1 时**应**触发 selector 检查
-
----
-
-## 相关 skill
-
-- `twitter-post`（Quote / Reply / Long post 在那边，用 forked cli `upload` 命令传媒体）
-- `twitter-post` 共用 session `twitter`（靠 session 名约定共享登录态，无需别的机制）
+- **workaround**：本工具的 testid 积淀自 OpenCLI `clis/twitter/`（实战维护中），比公开推测稳；仍需部署后真机验证。看到 exit 1 时应触发 selector 检查
 
 ---
 
 ## Notes
 
-- **Reply / Quote 流程在 twitter-post**（typed publish 是"发布"范畴，不在本 skill）
-- **发布频率与互动频率分开追踪**（不互相影响）
-- **不**与 published-track 共享频率统计（本 skill 自有 FREQ_TRACKER_PATH）
-- **BD 场景主推**：关注目标用户（follow）+ 点赞目标推（like）+ 收藏（bookmark）— 这三个是 BD 自动化常用组合
-- **风控告警阈值**：日累计 50% 上限时输出 warning（不是 hard block）
-- **forked cli 新命令**：`upload`（本 skill 不用，无媒体）/ fail-first 队列（本 skill 依赖，串行化并发）——本 skill 不导出 cookie/UA，故不用 `identity export`
+- 发布频率与互动频率分开追踪，互不影响
+- 不与 published-track 共享频率统计（本工具自有 FREQ_TRACKER_PATH）
+- BD 常用组合：关注目标用户（follow）+ 点赞目标推（like）+ 收藏（bookmark）
+- 不导出 cookie/UA，不用 `identity export`

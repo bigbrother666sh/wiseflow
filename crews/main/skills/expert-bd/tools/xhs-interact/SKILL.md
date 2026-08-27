@@ -1,6 +1,6 @@
 ---
 name: xhs-interact
-description: 小红书社交互动技能。发表评论、回复评论、点赞、关注。当用户要求评论、回复、点赞或关注小红书用户时触发。
+description: 小红书社交互动——发表评论、回复评论、点赞、取消点赞、关注、取关。camoufox-cli 纯浏览器操作，复用 `xhs-browse` 持久化 session。
 metadata:
   openclaw:
     emoji: 💬
@@ -9,11 +9,18 @@ metadata:
       - camoufox-cli
 ---
 
-# 小红书社交互动
+# xhs-interact — 工具说明
 
-通过 **camoufox-cli** 完成（纯浏览器操作技能）——**复用 `xhs-browse` 持久化 session**（消费者域 `www.xiaohongshu.com`，与 `xhs-content-ops` / `viral-chaser` / `published-track` 共用）。同一 session 一个且只有一个持久化实例，fail-first 队列：同 session 已有命令在跑时新命令直接 fail，浏览器操作 skill 串行排队。
+> 本文是 `expert-bd` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow 指引调用。
 
-**关键边界**：本技能是**纯 camoufox-cli 浏览器操作技能**，登录态直接复用 `xhs-browse` 持久化 session（登录态 + 指纹冻结在 session profile 里）——**不开独立临时 session、不 import cookie**。每次登录后导出的 cookie + UA 是给**其他脚本类技能**（`xhs-content-ops` / `viral-chaser` / `published-track` 等）做 raw HTTP 抓取用的，**本技能自身不消费 cookie 文件**。
+在小红书上执行互动操作：发表评论、回复评论、点赞 / 取消点赞、关注 / 取关。
+
+**输入**：笔记 URL（含 `feed_id` + `xsec_token`）或用户主页（`user_id`）+ 操作内容（评论 / 回复文本等）。
+**输出**：操作结果（以 snapshot 验证状态变化为准）。
+
+通过 **camoufox-cli** 完成（纯浏览器操作）——**复用 `xhs-browse` 持久化 session**（消费者域 `www.xiaohongshu.com`，与 `xhs-content-ops` / `viral-chaser` / `published-track` 共用）。同一 session 一个且只有一个持久化实例，fail-first 队列：同 session 已有命令在跑时新命令直接 fail，浏览器操作串行排队。
+
+**关键边界**：登录态直接复用 `xhs-browse` 持久化 session（登录态 + 指纹冻结在 session profile 里）——**不开独立临时 session、不 import cookie**。登录后导出的 cookie + UA 是给**其他脚本类技能**（`xhs-content-ops` / `viral-chaser` / `published-track` 等）做 raw HTTP 抓取用的，**本工具自身不消费 cookie 文件**。
 
 ---
 
@@ -27,20 +34,20 @@ camoufox-cli --session xhs-browse --persistent --headed --json open "https://www
 login-manager --platform xhs-browse
 ```
 
-login-manager 一条命令闭环导出+验证+落中央存储（供其他脚本类技能消费，非本技能自用）+ close session。
+login-manager 一条命令闭环导出+验证+落中央存储（供其他脚本类技能消费，非本工具自用）+ close session。
 
 ---
 
-## 互动流程：直接复用 xhs-browse 持久化 session
+## session 使用约定
 
-互动操作**直接在 `xhs-browse` 持久化 session 上跑**——不开独立 session、不 import cookie（camoufox-cli 浏览器方案严禁 `cookies import` 造会话）。下文所有 `camoufox-cli` 命令统一用 `--session xhs-browse --persistent`，若该 session 正被其他浏览器操作 skill 占用（fail-first 拒绝 → 命令报 session 正忙），等其完成再串行接力，**不要**自动 close 正在跑的 session。
+互动操作**直接在 `xhs-browse` 持久化 session 上跑**——不开独立 session、不 import cookie（camoufox-cli 浏览器方案严禁 `cookies import` 造会话）。下文所有 `camoufox-cli` 命令统一用 `--session xhs-browse --persistent`，若该 session 正被其他浏览器操作占用（fail-first 拒绝 → 命令报 session 正忙），等其完成再串行接力，**不要**自动 close 正在跑的 session。
 
 ```bash
 # 全文下方 $SESSION 一律指 xhs-browse 持久化 session
 SESSION="xhs-browse"
 ```
 
-任务结束后**close 该 session**——持久化 session 登录态在磁盘 profile，不留进程占内存；后续自己 / 其他浏览器操作技能用 `--session <平台 key> --persistent` 重起无头即恢复。互动过程中任何时候发现登录已失效则走 login-manager 有头重登流。
+任务结束后**close 该 session**——持久化 session 登录态在磁盘 profile，不留进程占内存；后续用 `--session xhs-browse --persistent` 重起无头即恢复。互动过程中任何时候发现登录已失效则走 login-manager 有头重登流。
 
 ---
 
@@ -63,6 +70,12 @@ camoufox 拿当前 URL：
 camoufox-cli --session "$SESSION" --json eval "window.location.href"
 ```
 
+## Feed 详情页 URL 格式
+
+```
+https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_source=pc_feed
+```
+
 ---
 
 ## 必做约束
@@ -72,17 +85,9 @@ camoufox-cli --session "$SESSION" --json eval "window.location.href"
 
 ---
 
-## Feed 详情页 URL 格式
+## 操作流程（camoufox-cli 版本）
 
-```
-https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_source=pc_feed
-```
-
----
-
-## 工作流程（camoufox-cli 版本）
-
-> **模式说明**：以下每条操作都用 `camoufox-cli` 的 `snapshot` / `eval` / `click` / `type` 子命令实现，**统一在 `xhs-browse` 持久化 session 上跑**（`$SESSION` = `xhs-browse`，见上文「互动流程」段，不开独立 session、不 import cookie）。
+> 每条操作都用 `camoufox-cli` 的 `snapshot` / `eval` / `click` / `type` 子命令实现，**统一在 `xhs-browse` 持久化 session 上跑**（`$SESSION` = `xhs-browse`，不开独立 session、不 import cookie）。
 >
 > 找不到元素时**不要**盲试：先 `snapshot` 看 DOM 真实结构，再决定 selector 改写。
 
@@ -196,9 +201,9 @@ https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_sourc
 
 ### pitfall: session_busy_fail_first
 
-- **触发**：`xhs-browse` 持久化 session 正被其他浏览器操作技能（`xhs-content-ops` 等）占用，新命令撞 fail-first 队列
+- **触发**：`xhs-browse` 持久化 session 正被其他浏览器操作（`xhs-content-ops` 等）占用，新命令撞 fail-first 队列
 - **症状**：命令报「session xhs-browse 正忙」/ 类似 SessionBusy 错误
-- **workaround**：这是**预期行为**（原则 1 + fail-first 队列）。等当前占用方完成再串行接力，**不要**自动 close 正在跑的 session（close 会 tear down 别人的操作）。
+- **workaround**：这是**预期行为**（单一持久化 session + fail-first 队列）。等当前占用方完成再串行接力，**不要**自动 close 正在跑的 session（close 会 tear down 别人的操作）。
 
 ### pitfall: cookie_expired_during_interaction
 
@@ -215,6 +220,6 @@ https://www.xiaohongshu.com/explore/{feed_id}?xsec_token={xsec_token}&xsec_sourc
 | 页面出现登录墙 | 同上重走 login-manager 登录流 |
 | 点赞状态未变化 | 重试一次，仍未变化则报告错误 |
 | camoufox click/eval 失败 / 超时 | 改用 `eval` 走 JS 方式（最稳）；再失败 → 等 60s 后在同一 session 上重试（不开新 session、不 import cookie） |
-| `xhs-browse` session 正忙（fail-first 拒绝） | 这是预期行为（原则 1），等当前占用方完成再串行接力，不自动 close 正在跑的 session |
+| `xhs-browse` session 正忙（fail-first 拒绝） | 这是预期行为，等当前占用方完成再串行接力，不自动 close 正在跑的 session |
 | xsec_token 缺失/无效 | 从搜索结果链接中重新获取 signed URL，不要手拼 |
 | 安全限制/访问异常 | 停止操作 60 秒后重试，或换笔记操作 |

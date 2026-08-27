@@ -1,6 +1,6 @@
 ---
 name: rss-reader
-description: Discover the RSS/Atom feed URL for a website, then fetch and parse articles from the feed.
+description: 发现网站的 RSS/Atom feed URL，然后抓取并解析 feed 中的文章。
 metadata:
   openclaw:
     emoji: "📡"
@@ -9,38 +9,18 @@ metadata:
       - node
 ---
 
-# RSS / Atom Feed Reader
+# rss-reader — 工具说明
 
-发现网站的 RSS/Atom feed URL，然后抓取并解析 feed 中的文章。适合监控网站更新、批量采集同一信源的多篇文章（无需逐页访问）。
+> 本文是 `expert-bd` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow 指引调用。
 
-通过 PATH 调用 wrapper：`rss-reader <feed_url> [选项]`，无需拼接脚本路径。
+发现网站的 RSS/Atom feed URL，抓取并解析 feed 中的文章。适合监控网站更新、批量采集同一信源的多篇文章（无需逐页访问）。
 
----
+**输入**：feed URL（未知时先按下方「发现 feed URL」找到）；可选 `--limit` / `--skip`。
+**输出**：markdown，分两段——全文文章（可直接处理，无需访问原文 URL）与摘要链接（需访问原文取全文）。
 
-## Step 1 — Discover the feed URL
+## 调用方式
 
-If you already have an RSS/Atom URL, skip to Step 2.
-
-**Method A — page source**
-Navigate to the website, take a snapshot, and look for `<link rel="alternate">` tags in `<head>`:
-```html
-<link rel="alternate" type="application/rss+xml" href="/feed">
-<link rel="alternate" type="application/atom+xml" href="/atom.xml">
-```
-
-**Method B — common paths** (try one at a time until one returns XML)
-```
-/feed  /feed.xml  /rss  /rss.xml  /atom.xml  /index.xml
-/?feed=rss2  /feeds/posts/default
-```
-
-**Method C** — look for RSS icons 🟠 or links labelled "RSS", "Subscribe", "Feed".
-
-A valid feed URL returns XML starting with `<rss`, `<feed`, or `<rdf:RDF`.
-
----
-
-## Step 2 — Run the script
+通过 PATH 调用 wrapper，无需拼接脚本路径：
 
 ```bash
 rss-reader <feed_url> [--limit N] [--skip url1,url2,...]
@@ -51,17 +31,34 @@ rss-reader <feed_url> [--limit N] [--skip url1,url2,...]
 | `--limit N` | Max entries to return (default: 20) |
 | `--skip url1,url2,...` | Skip entries whose URLs are already processed (deduplication) |
 
-**Output** is markdown with two sections:
-1. **Full-content articles** — entries where the feed includes the complete article body (>200 chars). Process these directly; **no need to visit the article URL**.
-2. **Summary-only links** — entries with only a short snippet. Visit each URL to retrieve the full content.
+输出两段的处理：
+
+- **Full-content articles**（正文 >200 字符）：直接提取 title / author / date / content，**无需访问文章 URL**。
+- **Summary-only links**（仅短摘要）：逐条访问 URL 获取全文（浏览器或 web_fetch）。
 
 ---
 
-## Step 3 — Handle results
+## 发现 feed URL
 
-- For full-content articles: extract title, author, date, and content directly from the script output.
-- For summary-only links: use `browser.navigate(url)` to fetch each article page.
-- Pass the script output directly to the user or to your processing pipeline.
+已有 RSS/Atom URL 时跳过本节。
+
+**方法 A — 页面源码**：导航到网站 snapshot，找 `<head>` 里的 `<link rel="alternate">`：
+
+```html
+<link rel="alternate" type="application/rss+xml" href="/feed">
+<link rel="alternate" type="application/atom+xml" href="/atom.xml">
+```
+
+**方法 B — 常见路径**（逐个试，直到返回 XML）：
+
+```
+/feed  /feed.xml  /rss  /rss.xml  /atom.xml  /index.xml
+/?feed=rss2  /feeds/posts/default
+```
+
+**方法 C** — 找页面上的 RSS 图标 🟠 或 "RSS" / "Subscribe" / "Feed" 链接。
+
+有效 feed URL 返回以 `<rss`、`<feed` 或 `<rdf:RDF` 开头的 XML。
 
 ---
 
@@ -69,7 +66,7 @@ rss-reader <feed_url> [--limit N] [--skip url1,url2,...]
 
 | Situation | Action |
 |-----------|--------|
-| Feed returns 404 | Try alternative paths from Step 1 |
+| Feed returns 404 | Try alternative paths from 「发现 feed URL」 |
 | Feed requires login | Follow the **browser-guide** skill |
 | Script error "Failed to parse feed" | Feed XML may be malformed; report the URL to the user |
 | Empty feed | Report: "This RSS feed has no entries." |

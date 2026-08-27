@@ -167,7 +167,7 @@ def twitter_session():
     """单一持久化 session `twitter` 的生命周期（单一 session）。
 
     - 正常退出 / 一般错误：**close** session——登录态在磁盘 profile，不留进程占内存；
-      下次操作（本 skill / twitter-post）按需重起无头 session，profile 桥接登录态。
+      下次操作（本工具 / twitter-post）按需重起无头 session，profile 桥接登录态。
     - SessionBusyError：**不 close**（close 会 tear down 正在跑的另一个操作），透传 exit 3
     """
     session = TWITTER_SESSION

@@ -47,7 +47,7 @@ index.md 格式为:
 | 平台 | 知识文档路径 |
 |--------|------|
 | 抖音 douyin | skills/expert-douyin/SKILL.md |
-| 推特 twitter/X | skills/expert-twitter/twitter_x.md |
+| 推特 twitter/X | skills/expert-twitter/SKILL.md |
 | 微信视频号、蝴蝶号、wx_channel | skills/expert-wx-channel/SKILL.md |
 | 微信公众号、公众号、wx_mp | skills/expert-wx-mp/SKILL.md |
 | 小红书、xhs | skills/expert-xhs/SKILL.md |
@@ -57,6 +57,8 @@ index.md 格式为:
 微信视频号运营（定位 / 起号 / 对标 / 选题 / 脚本 / 内容 DNA / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-wx-channel/SKILL.md`，按对应 workflow 编排执行。
 
 抖音短视频运营（定位 / 起号 / 对标 / 选题 / 脚本简报 / 内容 DNA / 制作编排 / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-douyin/SKILL.md`，按对应 workflow 编排执行。
+
+X/Twitter 运营（定位 / 起号 / 账号重做 / 发帖编排）统一先读 `skills/expert-twitter/SKILL.md`，按对应 workflow 编排执行；零散发推直接用包内 `twitter-post` 工具。推特评论区获客 / 截流等 BD 场景走 `expert-bd`。
 
 小红书运营（定位 / 起号 / 对标 / 选题 / 文案 / 内容 DNA / 图文笔记生产 / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-xhs/SKILL.md`，按对应 workflow 编排执行；零散下载笔记 / 发布 / 抓数直接用包内工具。小红书评论区获客 / 截流等 BD 场景走 `expert-bd`。
 
@@ -136,9 +138,9 @@ output_articles/
 
 ## 商务拓展（BD）
 
-小贝在商务拓展方面可执行三种工作模式，可以以一次性任务的模式进行探索，但如果执行过几次已经比较成熟了，且用户表现为想周期性执行，比如每天一次或者每周一次等，应建议用户落为定时任务（heartbeat 或 cron）。
+小贝在商务拓展方面可执行四种工作模式，可以以一次性任务的模式进行探索，但如果执行过几次已经比较成熟了，且用户表现为想周期性执行，比如每天一次或者每周一次等，应建议用户落为定时任务（heartbeat 或 cron）。
 
-BD 全部工作（找客户、评论区拓展、商业情报采集，以及闲鱼操作等配套操作）统一先读 `skills/expert-bd/SKILL.md`，按对应 workflow 编排执行。
+BD 全部工作（找客户、评论区拓展、商业情报采集、动向监控，以及推特/小红书互动、闲鱼操作等配套操作）统一先读 `skills/expert-bd/SKILL.md`，按对应 workflow 编排执行。
 
 工作模式识别
 
@@ -146,7 +148,8 @@ BD 全部工作（找客户、评论区拓展、商业情报采集，以及闲�
 |--------|------|----------|
 | 找客户、潜在客户、创作者、探索、筛选、用户画像 | **模式一：Lead Hunting** | Lead Hunting |
 | 评论区、留言、互动、回复、私信、品宣 | **模式二：Comment Engagement** | Comment Engagement |
-| 情报、监控、竞对、行业动态、政策、采集、简报 | **模式三：Intel Gathering** | Intel Gathering |
+| 情报、信源、行业动态、政策、采集、简报 | **模式三：Intel Gathering** | Intel Gathering |
+| 竞对、竞争对手、重点客户动向、对手监控 | **模式四：Competitor Watch** | Competitor Watch |
 | ppt、业务介绍、pitch | 对话驱动的一次性任务，这些不可作为定时任务 | — |
 
 ### 模式一：Lead Hunting（潜在客户探索）
@@ -167,6 +170,10 @@ BD 全部工作（找客户、评论区拓展、商业情报采集，以及闲�
 ### 模式三：Intel Gathering（商业情报采集）
 
 监控信源（xhs 账号、网站 URL）→ 提取标准 → 确认交付形式（简报/报告/监控表格）
+
+### 模式四：Competitor Watch（竞争对手 / 重点客户动向监控）
+
+以对象为中心（竞品 / 重点客户）：对象与信源 → 动向提取标准 → 交付形式（重大动向即时告警 + 定期简报）。与模式三的分工：模式三按信源采信息，模式四按对象识别动向并分级。
 
 ### 数据层
 

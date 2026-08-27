@@ -6,26 +6,31 @@ metadata:
     emoji: 🐟
 ---
 
-# 闲鱼操作
+# xianyu-ops — 工具说明
+
+> 本文是 `expert-bd` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow 指引调用。
 
 通过 **camoufox-cli** 持久化 session `xianyu`（一个且只有一个持久化 session，fail-first 队列：同 session 已有命令在跑时新命令直接 fail）在闲鱼（goofish.com）上完成商品搜索、详情查看、私信管理。
 
+**输入**：搜索关键词（+ 可选价格区间 / 地区筛选）、商品 `item_id`、私信会话标识或消息文本。
+**输出**：搜索结果 / 商品详情 / 私信列表与内容（JSON 或 snapshot 提取结果）。
+
 > **主力后端 = `target=camoufox`**。下方命令 / 示例只针对 `target=camoufox`。
-> **`target=host` / `target=node`**：只按本 skill 的「流程 + 提示事项」走——何时有头 / 何时无头 / 频率限制 / 错误处理约定是**后端无关**的，照本 skill 执行。不要照搬 `camoufox-cli ...` 命令，用你当前后端自带的浏览器工具语义调用即可。
+> **`target=host` / `target=node`**：只按本工具的「流程 + 提示事项」走——何时有头 / 何时无头 / 频率限制 / 错误处理约定是**后端无关**的，照本工具执行。不要照搬 `camoufox-cli ...` 命令，用你当前后端自带的浏览器工具语义调用即可。
 
 ---
 
 ## 前置条件
 
-1. 持久化 session `xianyu` 已登录（登录态存 session profile 里）。本 skill 与 login-manager **完全无关**——自管探活 + 登录，**不导出 cookie/UA 落中央存储**。xianyu 不在 login-manager 支持的 5 平台之列。
+1. 持久化 session `xianyu` 已登录（登录态存 session profile 里）。本工具与 login-manager **完全无关**——自管探活 + 登录，**不导出 cookie/UA 落中央存储**。xianyu 不在 login-manager 支持的 5 平台之列。
 2. 首次使用 / 登录态失效时，走自管**有头手动**登录流：
    - `camoufox-cli --session xianyu --persistent --headed --viewport 1920x1080 --json open "https://www.goofish.com"`
    - `--viewport 1920x1080`：camoufox 默认按指纹给移动端窗口比例，二维码看不全；强制桌面 1920×1080
    - 告知用户「**闲鱼** 浏览器已打开，请在窗口里手动扫码登录，完成后告诉我」
    - 等用户回复后 `snapshot` 零登录态就位
-   - 登录后**close session**——登录态落磁盘 profile，不留进程占内存；本 skill 下次 `--session xianyu --persistent` 重起无头即恢复，用完再 close。
+   - 登录后**close session**——登录态落磁盘 profile，不留进程占内存；本工具下次 `--session xianyu --persistent` 重起无头即恢复，用完再 close。
 
-> **不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本 skill 不调用 `cookies export` / `identity export` / `cookies import`。
+> **不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本工具不调用 `cookies export` / `identity export` / `cookies import`。
 
 ---
 

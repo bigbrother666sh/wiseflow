@@ -1,29 +1,33 @@
 ---
 name: twitter-post
-description: Compose and publish a post (text, image, or video) to Twitter/X using
-  camoufox-cli (headless browser automation; built-in browser tool only as fallback).
-  Supports single posts, threads, quote tweets, reply tweets, and long posts
-  (Premium/Blue up to 25,000 chars).
+description: 通过 camoufox-cli 浏览器自动化发布推文到 Twitter/X。支持文本、图片、视频、串推、引用、回复、长文（Premium/Blue 25,000 字符）。
 metadata:
   openclaw:
     emoji: 🐦
 ---
 
-# Twitter/X 发布技能
+# twitter-post — 工具说明
 
-Use this skill when:
-- The user wants to post text, images, or video to Twitter/X
-- You need to share a created article excerpt or key insights on X
-- You need to cross-post content to international audiences
-- You need to **quote tweet** another post with your own comment
-- You need to **reply** to a specific tweet (engagement use case)
-- You have a Premium/Blue account and need **long post** (up to 25,000 chars)
+> 本文是 `expert-twitter` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow 指引调用。
 
-**Prerequisites**: camoufox-cli session 已登录 x.com（登录态持久化在 session profile 里）。冷会话先访问一次首页预热。本 skill 与 login-manager **完全无关**——Twitter 发布是纯浏览器操作，走持久化 session `twitter`（与 `twitter-interact` **共用同一个 session 名 `twitter`**，靠 session 名字符串约定共享同一 profile 目录与登录态——twitter-interact 登录后 twitter-post 不需重登，反之亦然），登录态在 session profile 里闭环，不导出 cookie/UA 落中央存储。
+通过 **camoufox-cli** 持久化 session `twitter` 在 Twitter/X 上发布推文（文本 / 图片 / 视频 / 串推 / 引用 / 回复 / 长文）。
 
-### 探活与登录（本 skill 自管，不走 login-manager）
+**输入**：推文正文（标准账号 ≤ 280 字符，Premium/Blue ≤ 25,000 字符）、可选媒体文件（图片 ≤ 4 张 / 视频 ≤ 512MB 且 ≤ 2m20s / GIF ≤ 15MB）；引用 / 回复场景另需源推 URL。
+**输出**：发布结果 + 推文链接 + 即时 stats（view / reply / retweet / like / bookmark）。
 
-走持久化 session `twitter`（与 `twitter-interact` 共用）。探活方式：开 session open 平台首页 + snapshot 看是否跳登录页。
+> 纯浏览器操作方案：登录态 + 指纹冻结在持久化 session 的磁盘 profile 里。**严禁** `cookies import` 造登录会话，会触发平台风控。本工具与 `twitter-interact` **共用同一个 session 名 `twitter`**，靠 session 名字符串约定共享同一 profile 目录与登录态——一方登录后另一方不需重登。登录态只在 session profile 里闭环，**不导出 cookie/UA 落中央存储**（不调用 `cookies export` / `identity export`）。
+
+---
+
+## 浏览器方案（重要）
+
+**优先 camoufox-cli，且除了登录外，其他都可以默认的无头方式进行**
+
+> 下面 workflow 步骤（Navigate / Click / snapshot eval / upload）默认用 camoufox-cli 执行。若 camoufox-cli 在 X 上持续触发风控，等 60s 后开新 session 重试；仍触发则报告用户该平台当日风控未解，择日再试。
+
+### 探活与登录（本工具自管，不走 login-manager）
+
+探活方式：开 session open 平台首页 + snapshot 看是否跳登录页。
 
 ```bash
 # 探活（默认无头模式）
@@ -35,25 +39,15 @@ camoufox-cli --session twitter --json snapshot
 # → 跳到登录页 / 出现登录按钮 = 登录态失效，走重登
 ```
 
-重登流程（失效时）——登录流程按 `browser-guide` skill 走有头手动登录（手机号+验证码 / Twitter APP 扫码），登录导出后**close session**——登录态落磁盘 profile + 中央存储，不留进程占内存。本 skill 做发布操作 + `twitter-interact` 做互动操作时用 `--session twitter --persistent` 重起无头即恢复，用完再 close。只在 session 卡死时由调用方手动 `camoufox-cli --session twitter --json close` teardown。
+重登流程（失效时）——登录流程按 `browser-guide` skill 走有头手动登录（手机号+验证码 / Twitter APP 扫码），登录完成后**close session**——登录态落磁盘 profile，不留进程占内存。发布操作时用 `--session twitter --persistent` 重起无头即恢复，用完再 close。只在 session 卡死时由调用方手动 `camoufox-cli --session twitter --json close` teardown。
 
 ```bash
 # X 登录风控对无头 + QR 识别严格，有头人工登录最稳
 camoufox-cli --session twitter --persistent --headed --json open "https://x.com/login"
 # 告知用户「**Twitter/X** 浏览器已打开，请在窗口里手动完成登录（账号密码 / 手机 APP 扫码），完成后告诉我」
 # 等用户回复后 snapshot 验登录态就位
-# 登录就位后 close session——登录态落磁盘 profile，本 skill + twitter-interact 按需重起无头复用
+# 登录就位后 close session——登录态落磁盘 profile，按需重起无头复用
 ```
-
-**不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本 skill 不调用 `cookies export` / `identity export`。
-
----
-
-## 浏览器方案（重要）
-
-**优先 camoufox-cli，且除了登录外，其他都可以默认的无头方式进行**
-
-> 下面 workflow 步骤（Navigate / Click / snapshot eval / upload）默认用 camoufox-cli 执行。若 camoufox-cli 在 X 上持续触发风控，等 60s 后开新 session 重试；仍触发则报告用户该平台当日风控未解，择日再试。
 
 ---
 
@@ -143,7 +137,7 @@ X compose 页面有**两个** `<input type="file" data-testid="fileInput">` 元�
 camoufox-cli --session twitter --persistent --json upload "[data-testid=fileInput] >> nth=0" /path/to/image.jpg
 ```
 
-> forked cli 的 `upload` 命令底层走 Playwright `setInputFiles`，#穿透 shadow DOM，无需 `locator.drop()` hack。
+> forked cli 的 `upload` 命令底层走 Playwright `setInputFiles`，穿透 shadow DOM，无需 `locator.drop()` hack。
 
 ---
 
@@ -210,8 +204,6 @@ camoufox-cli --session twitter --persistent --json upload "[data-testid=fileInpu
 ---
 
 ## Workflow: Reply to Tweet
-
-**场景**：BD 监控 mentions → 智能回复（也可作 twitter-interact skill 的入口）
 
 ```
 1. Navigate to source tweet URL（如 https://x.com/username/status/1234567890）
@@ -285,11 +277,11 @@ snapshot eval: document.querySelector('[data-testid="icon-verified"]') !== null
 **注意**：
 - view 数 Premium 账号可见；普通账号无
 - 30 min 后 stats 才稳定（X 算法）
-- 嵌入 evaluate 走 `document.querySelector('selector')?.innerText` —— selector 可能因 X UI 改版变，部署后真机验证（见 `docs/post-deploy-verification.md`）
+- 嵌入 evaluate 走 `document.querySelector('selector')?.innerText` —— selector 可能因 X UI 改版变，部署后真机验证
 
 ---
 
-## Frequency Tracker（**新**）
+## Frequency Tracker
 
 ```python
 # ~/.openclaw/agents/main/sessions/twitter-frequency.json
@@ -353,7 +345,7 @@ snapshot eval: document.querySelector('[data-testid="icon-verified"]') !== null
 - If posting on behalf of company: verify the content tone matches the company voice in MEMORY.md
 - 抓 stats 仅在 post 成功页有效；不要在 compose 页面（还没有 stats）
 - Quote / Reply 都要先**确认是哪种按钮**（X UI 把 "Repost" 和 "Quote" 放一起）
-- 频率统计：本 skill 只采集 stats，不做评分
+- 频率统计：本工具只采集 stats，不做评分
 
 ---
 

@@ -46,13 +46,17 @@ index.md 格式为:
 
 | 平台 | 知识文档路径 |
 |--------|------|
-| 抖音 douyin | skills/expert-douyin/douyin.md |
+| 抖音 douyin | skills/expert-douyin/SKILL.md |
 | 推特 twitter/X | skills/expert-twitter/twitter_x.md |
-| 微信视频号、蝴蝶号、wx_channel | skills/expert-wx-channel/wx_channel.md |
+| 微信视频号、蝴蝶号、wx_channel | skills/expert-wx-channel/SKILL.md |
 | 微信公众号、公众号、wx_mp | skills/expert-wx-mp/SKILL.md |
 | 小红书、xhs | skills/expert-xhs/xhs.md |
 
 微信公众号运营（定位 / 起号 / 对标 / 选题 / 写作 / 内容 DNA / 标题 / 排版 / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-wx-mp/SKILL.md`，按对应 workflow 编排执行。
+
+微信视频号运营（定位 / 起号 / 对标 / 选题 / 脚本 / 内容 DNA / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-wx-channel/SKILL.md`，按对应 workflow 编排执行。
+
+抖音短视频运营（定位 / 起号 / 对标 / 选题 / 脚本简报 / 内容 DNA / 制作编排 / 发布 / 互动数据 / 复盘）统一先读 `skills/expert-douyin/SKILL.md`，按对应 workflow 编排执行。
 
 小红书内容对标
 
@@ -95,7 +99,7 @@ output_articles/
 
 ### 视频发布流程
 
-> 发布记录命令（`published-track record`）来自 `published-track` 技能，发布则依据各个平台发布技能。视频暂无 DNA 体系，记录时 `dna_id` 留空，不参与 DNA 表现评估。
+> 发布记录命令（`published-track record`）来自 `published-track` 技能，发布则依据各个平台发布技能。尚无 DNA 体系的视频平台记录时 `dna_id` 留空，不参与 DNA 表现评估；微信视频号已有 DNA 体系，全链路（含发布）走 `expert-wx-channel` 专家包，不走本节通用流程；抖音已有 DNA 体系，内容生产与发布编排走 `expert-douyin` 专家包（Content Production Workflow，含 DNA 绑定与记录），多平台分发场景下抖音这条仍走本节流程（`douyin-publish`），`dna_id` 经作品目录 `dna-meta.json` 自动关联。
 
 当用户确认成片后，先根据成片内容与用户诉求草拟视频发布的题目和简介以及hashtag。视频简介中应提及提及我们的产品或业务，但不要有明显引流信息，更加禁止放二维码、联系方式等，可以引导用户在平台内外进行主动搜索或者点头像看主页详情等。
 
@@ -127,9 +131,9 @@ output_articles/
 - **分发状态设置**：`published-track set-distribute-status`（`--status 0/1/2`、`--mark-all-distributed`）
 - **通用查询**：`published-track query`、`published-track check-published`（按需自查是否已发布、读记录）
 
-**DNA 表现评估**：引擎是 `content-calibrator` 技能（消费发布记录与互动数据，按量触发——每平台每 DNA 累积 ≥5 条成熟记录评估一轮，趋势优先、按账号基线归一化，产出评估报告与优化建议）。有专家包的平台（如 wx_mp），heartbeat 触发与用户临时发起的复盘**统一走专家包内的 review workflow**（平台归因方法 + 编排，调用 content-calibrator 与 published-track）；建议经用户逐条确认后走对应专家包的 style-dna workflow 回写 DNA，Agent 不得自动改 DNA。平台初始化（baseline / 受众 / 对标数据目录）见 `content-calibrator` 技能。
+**DNA 表现评估**：引擎是 `content-calibrator` 技能（消费发布记录与互动数据，按量触发——每平台每 DNA 累积 ≥5 条成熟记录评估一轮，趋势优先、按账号基线归一化，产出评估报告与优化建议）。有专家包的平台（如 wx_mp / douyin），heartbeat 触发与用户临时发起的复盘**统一走专家包内的 review workflow**（平台归因方法 + 编排，调用 content-calibrator 与 published-track）；建议经用户逐条确认后走对应专家包的 style-dna workflow 回写 DNA，Agent 不得自动改 DNA。平台初始化（baseline / 受众 / 对标数据目录）见 `content-calibrator` 技能。
 
-**复盘不取数**：复盘 workflow 自身不做取数动作——互动数据的新鲜度由每日凌晨 heartbeat 的采集任务（见 HEARTBEAT.md Step 2）统一保证，复盘直接基于库内已有数据做。用户临时发起复盘时也不要顺手取数；仅当用户明确要求「先更新数据」时，才先单独取数（脚本类平台 `published-track fetch-metrics`；wx_mp 走 `wx-mp-engagement`）再进入复盘。
+**复盘不取数**：复盘 workflow 自身不做取数动作——互动数据的新鲜度由每日凌晨 heartbeat 的采集任务（见 HEARTBEAT.md Step 2）统一保证，复盘直接基于库内已有数据做。用户临时发起复盘时也不要顺手取数；仅当用户明确要求「先更新数据」时，才先单独取数（脚本类平台 `published-track fetch-metrics`；wx_mp 走 `wx-mp-engagement`；wx_channel 走 `wx-channel-engagement`）再进入复盘。
 ---
 
 ## 商务拓展（BD）

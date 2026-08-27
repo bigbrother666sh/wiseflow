@@ -8,26 +8,23 @@ from statistics import median
 
 SENTENCE_SPLIT = re.compile(r"[。！？!?]+")
 PARAGRAPH_SPLIT = re.compile(r"\n\s*\n")
-TOKEN_RE = re.compile(r"[\u4e00-\u9fffA-Za-z0-9_]+")
+TOKEN_RE = re.compile(r"[一-鿿A-Za-z0-9_]+")
 ENGLISH_WORD_RE = re.compile(r"[A-Za-z0-9_]+")
 SECOND_PERSON_RE = re.compile(r"你们?|you", re.IGNORECASE)
-FIRST_PERSON_PLURAL_RE = re.compile(r"我们|we", re.IGNORECASE)
 QUESTION_RE = re.compile(r"[？?]")
 EXCLAMATION_RE = re.compile(r"[！!]")
-EM_DASH_RE = re.compile(r"--|──|-|–|-")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
 SOURCE_BLOCK_RE = re.compile(r"<!-- source-article\n(?P<path>.*?)\n-->", re.DOTALL)
 REPORT_BLOCK_RE = re.compile(r"<!-- dna-reports\n(?P<paths>.*?)\n-->", re.DOTALL)
+
+PLATFORM = "wx_channel"
 
 STATISTICS_METRICS = [
     "avg_sentence_tokens",
     "avg_paragraph_tokens",
     "avg_sentences_per_paragraph",
-    "paragraphs_over_3_sentences_ratio",
     "question_density_per_100_sentences",
     "second_person_density_per_100_sentences",
-    "first_person_plural_density_per_100_sentences",
-    "em_dash_density_per_1000_characters",
     "exclamation_density_per_1000_characters",
 ]
 
@@ -37,16 +34,37 @@ STOP_TERMS = {
     "a", "an", "is", "are", "and", "or", "of", "in", "for", "on", "with", "you", "we",
 }
 
+# DNA 维度 v0（2026-08-27 用户确认定稿）。调整维度需升版本，
+# 并同步 references/video-dna-dimensions.md 与 SKILL.md 的 Focus ID 表。
 DIMENSION_GROUPS = {
-    "选题特征": [
+    "选题与包装": [
         ("topic-angle", "选题角度"),
-        ("title-style", "标题特征"),
+        ("title-desc", "标题与描述文案"),
         ("cover-image", "封面图"),
     ],
-    "表层特征": [("word-habit", "用词习惯"), ("vocabulary-syntax", "词汇与句式"), ("sentence-rhythm", "句式节奏"), ("tone", "语气与基调")],
-    "结构特征": [("paragraph-structure", "段落结构"), ("article-structure", "文章结构模式"), ("argument-logic", "论证逻辑")],
-    "深层特征": [("rhythm", "节奏感"), ("rhetoric", "修辞手法"), ("emotion", "情感表达"), ("thinking", "思维特征")],
-    "独特标记": [("professionalism", "专业度体现"), ("signature", "签名式标记"), ("narrative-micro-operations", "起承转合微操")],
+    "钩子与开场": [
+        ("hook-design", "前3秒钩子"),
+        ("opening-pace", "开场节奏与身份信号"),
+    ],
+    "口播与表达": [
+        ("narration-language", "口播语言"),
+        ("tone-persona", "语气与人设基调"),
+        ("signature-expression", "签名式标记"),
+    ],
+    "结构与节奏": [
+        ("script-structure", "脚本结构"),
+        ("visual-pacing", "画面与节奏"),
+        ("duration-form", "时长与形态"),
+    ],
+    "信任与价值": [
+        ("credibility-proof", "信任状"),
+        ("value-density", "价值密度"),
+    ],
+    "互动与转化": [
+        ("interaction-design", "互动设计"),
+        ("share-motive", "转发动机设计"),
+        ("cta-funnel", "收尾与转化"),
+    ],
 }
 DIMENSIONS = []
 number = 1
@@ -124,20 +142,11 @@ def document_metrics(path: Path, text: str) -> dict:
         "avg_sentence_tokens": average([float(value) for value in sentence_lengths]),
         "avg_paragraph_tokens": average([float(value) for value in paragraph_lengths]),
         "avg_sentences_per_paragraph": average([float(value) for value in paragraph_sentence_counts]),
-        "paragraphs_over_3_sentences_ratio": safe_ratio(
-            sum(value > 3 for value in paragraph_sentence_counts), paragraph_count
-        ),
         "question_density_per_100_sentences": safe_ratio(
             len(QUESTION_RE.findall(text)), sentence_count, 100
         ),
         "second_person_density_per_100_sentences": safe_ratio(
             len(SECOND_PERSON_RE.findall(text)), sentence_count, 100
-        ),
-        "first_person_plural_density_per_100_sentences": safe_ratio(
-            len(FIRST_PERSON_PLURAL_RE.findall(text)), sentence_count, 100
-        ),
-        "em_dash_density_per_1000_characters": safe_ratio(
-            len(EM_DASH_RE.findall(text)), character_count, 1000
         ),
         "exclamation_density_per_1000_characters": safe_ratio(
             len(EXCLAMATION_RE.findall(text)), character_count, 1000
@@ -194,13 +203,10 @@ def generated_at() -> str:
 def metric_label(metric_name: str) -> str:
     labels = {
         "avg_sentence_tokens": "平均句长（token）",
-        "avg_paragraph_tokens": "平均段落长度（token）",
-        "avg_sentences_per_paragraph": "平均每段句数",
-        "paragraphs_over_3_sentences_ratio": "超过 3 句段落占比",
+        "avg_paragraph_tokens": "平均每段/每镜长度（token）",
+        "avg_sentences_per_paragraph": "平均每段/每镜句数",
         "question_density_per_100_sentences": "问句密度 / 百句",
         "second_person_density_per_100_sentences": "第二人称密度 / 百句",
-        "first_person_plural_density_per_100_sentences": "我们密度 / 百句",
-        "em_dash_density_per_1000_characters": "破折号密度 / 千字",
         "exclamation_density_per_1000_characters": "感叹号密度 / 千字",
     }
     return labels.get(metric_name, metric_name)
@@ -376,17 +382,17 @@ def report_dimension_markdown(dimension: dict) -> str:
             "- 色彩体系：待 Agent 补齐。\n"
             "- 光线与质感：待 Agent 补齐。\n"
             "- 风格与媒介：待 Agent 补齐。\n"
-            "- 文字视觉与图文关系：待 Agent 补齐。\n"
+            "- 文字视觉与图文关系（封面三要素：身份/痛点/方案）：待 Agent 补齐。\n"
             "- 品牌识别元素：待 Agent 补齐。\n"
             "- 避免项：待 Agent 补齐。\n\n"
             "**AIGC 复现提示词要素：**待 Agent 补齐；要求能据此生成风格高度一致的封面图。\n\n"
-            "**可复用写作信号：**待 Agent 补齐。"
+            "**可复用创作信号：**待 Agent 补齐。"
         )
     return (
         f"{heading}\n\n"
         "**单篇结论：**待 Agent 补齐。\n\n"
-        "**原文证据：**待 Agent 补齐。\n\n"
-        "**可复用写作信号：**待 Agent 补齐。"
+        "**脚本与画面证据：**待 Agent 补齐。\n\n"
+        "**可复用创作信号：**待 Agent 补齐。"
     )
 
 
@@ -397,6 +403,7 @@ def report_markdown(
     focus: list[str],
     document: dict,
     cover_image: str,
+    source_video: str,
 ) -> str:
     dimensions = []
     for dimension in DIMENSIONS:
@@ -409,20 +416,23 @@ def report_markdown(
             "type: dna-report\n"
             f"title: {yaml_value(document['title_candidates'][-1])}\n"
             f"source-article: {yaml_value(document['source_article'])}\n"
+            f"source-video: {yaml_value(source_video)}\n"
             f"cover-image: {yaml_value(cover_image)}\n"
             f"weight: {weight}\n"
             f"focus: {yaml_value(focus)}\n"
             "sample_count: 1\n"
             f"generated_at: {yaml_value(generated_at())}\n"
             "---",
-            f"# {document['title_candidates'][-1]} 单篇 DNA Report",
-            "本文件只描述这一篇文章。它不是聚合后的 DNA 文档，也不直接作为写作模板。",
+            f"# {document['title_candidates'][-1]} 单条视频 DNA Report",
+            "本文件只描述这一条视频。它不是聚合后的 DNA 文档，也不直接作为创作模板。",
             "## 单篇统计",
-            f"- 字符：{document['characters']}\n- 句子：{document['sentences']}\n- 段落：{document['paragraphs']}\n- 标题候选：{' / '.join(document['title_candidates'])}\n- 封面图：{cover_image or '未提供'}",
+            f"- 字符：{document['characters']}\n- 句子：{document['sentences']}\n- 段落/镜次：{document['paragraphs']}\n- 标题候选：{' / '.join(document['title_candidates'])}\n- 封面图：{cover_image or '未提供'}\n- 源视频：{source_video or '未提供'}",
+            "## 视频信息（待 Agent 结合原视频 / 用户提供信息补齐）",
+            "- 时长：待 Agent 补齐。\n- 视频形态：待 Agent 补齐（竖屏/横屏，真人出镜 / 配音解说 / 素材剪辑 / AIGC）。\n- 真人出镜占比：待 Agent 补齐。\n- 镜头与字幕要点：待 Agent 补齐。\n- BGM 与音效：待 Agent 补齐。\n- 数据线索（可选，播放 / 互动等）：待 Agent 补齐，不得编造。",
             f"## {len(DIMENSIONS)} 维单篇分析",
             "\n\n".join(dimensions),
             "## 单篇边界",
-            "- 这里记录本文的可复用信号，不判断跨篇稳定性。\n- 聚合时由 Agent 根据 DNA report、权重和 focus 判断共性、偏好和例外。",
+            "- 这里记录本条视频的可复用信号，不判断跨篇稳定性。\n- 聚合时由 Agent 根据 DNA report、权重和 focus 判断共性、偏好和例外。",
             f"<!-- source-article\n{document['source_article']}\n-->",
             *( [f"<!-- source-cover\n{cover_image}\n-->"] if cover_image else [] ),
         ]
@@ -438,7 +448,7 @@ def user_input_markdown(user_inputs: list[str], existing_body: str | None = None
             f"### 输入 {index}\n"
             f"- raw_input: {yaml_value(user_input)}\n"
             f"- affected_dimensions: 待 Agent 映射到 {len(DIMENSIONS)} 个维度 ID\n"
-            "- dna_document_change: 待 Agent 转译为聚合结论 / 报告依据 / 写作规则\n"
+            "- dna_document_change: 待 Agent 转译为聚合结论 / 报告依据 / 创作规则\n"
             "- template_change: 待 Agent 转译为具体执行规则\n"
             "- status: pending"
         )
@@ -459,9 +469,6 @@ def dna_document_markdown(
     for dimension in DIMENSIONS:
         heading = f"### {dimension['number']}. {dimension['name']}"
         body = old_sections.get(heading)
-        if body is None and dimension["number"] > 3:
-            legacy_heading = f"### {dimension['number'] - 1}. {dimension['name']}"
-            body = old_sections.get(legacy_heading)
         if body:
             dimensions.append(f"{heading}\n\n{body}")
         else:
@@ -476,7 +483,7 @@ def dna_document_markdown(
                 dimensions.append(
                     f"{heading}\n\n**聚合结论：**待 Agent 补齐。\n\n"
                     "**报告依据：**待 Agent 列出使用的 DNA report、权重和 focus。\n\n"
-                    "**写作规则：**待 Agent 补齐。"
+                    "**创作规则：**待 Agent 补齐。"
                 )
     report_paths = "\n".join(report["report_path"] for report in reports)
     existing_user_inputs = (
@@ -493,7 +500,7 @@ def dna_document_markdown(
             f"generated_at: {yaml_value(generated_at())}\n"
             "---",
             f"# {dna_id} DNA 文档",
-            "本文件聚合历史 DNA report。它是账号/作者当前采用的风格与选题规则，也必须能推导出写作模板。",
+            "本文件聚合历史 DNA report。它是账号/作者当前采用的视频号内容风格与选题规则，也必须能推导出生产模板。",
             "## 报告与权重",
             "\n".join(
                 f"- `{report['report_path']}`：weight `{report['weight']}`，focus `{', '.join(report['focus']) or 'all'}`"
@@ -505,7 +512,7 @@ def dna_document_markdown(
             "## 用户输入转译区",
             user_input_markdown(user_inputs or [], existing_user_inputs),
             "## 推导规则",
-            "- 聚合结论必须能追溯到 DNA report。\n- 用户输入必须先映射到具体维度，再修改聚合结论和写作规则；不得把原话直接当成 DNA 规则。\n- 模板必须由本文件推导，不能引入本文件未确认的规则。",
+            "- 聚合结论必须能追溯到 DNA report。\n- 用户输入必须先映射到具体维度，再修改聚合结论和创作规则；不得把原话直接当成 DNA 规则。\n- 模板必须由本文件推导，不能引入本文件未确认的规则。",
             f"<!-- dna-reports\n{report_paths}\n-->",
         ]
     ) + "\n"
@@ -555,56 +562,46 @@ def extract_named_section(markdown: str, heading: str) -> str:
     return "\n".join(body).strip()
 
 
-TEMPLATE_STAGES = ("起", "承", "转", "合", "CTA")
+TEMPLATE_STAGES = ("钩子", "共情", "信任状", "价值", "收尾")
 
 TEMPLATE_STAGE_FIELDS = {
-    "起": (
+    "钩子": (
         "本段任务",
-        "切入角度",
-        "段落结构",
-        "句式节奏",
-        "语气与基调",
-        "素材或论据",
-        "必须做",
-        "避免",
-    ),
-    "承": (
-        "本段任务",
-        "推进逻辑 / 论证逻辑",
-        "文章结构模式",
-        "用词习惯",
-        "词汇与句式",
-        "节奏感",
-        "专业度体现",
-        "论证素材",
-        "必须做",
-        "避免",
-    ),
-    "转": (
-        "本段任务",
-        "转折触发",
-        "修辞手法",
-        "情感表达",
-        "思维特征",
+        "钩子类型",
+        "冲突与身份信号",
         "句式节奏",
         "必须做",
         "避免",
     ),
-    "合": (
+    "共情": (
         "本段任务",
-        "收束方式",
-        "情绪强度曲线",
-        "高潮与回落方式",
-        "签名式标记",
-        "语气",
+        "共情方式",
+        "场景具体性",
+        "语言风格",
         "必须做",
         "避免",
     ),
-    "CTA": (
+    "信任状": (
+        "本段任务",
+        "信任状类型",
+        "呈现方式",
+        "真实性边界",
+        "必须做",
+        "避免",
+    ),
+    "价值": (
+        "本段任务",
+        "信息密度与节奏",
+        "演示方式",
+        "字幕与字卡",
+        "必须做",
+        "避免",
+    ),
+    "收尾": (
         "行动目标",
-        "表达方式",
-        "位置与密度",
-        "受众关联",
+        "互动引导方式",
+        "转发引导",
+        "语气",
         "必须做",
         "避免",
     ),
@@ -624,13 +621,6 @@ def template_stage_from_heading(heading: str) -> str | None:
     for stage in TEMPLATE_STAGES:
         if heading.startswith(f"[{stage}部分]"):
             return stage
-    chinese_numbers = {"一": 1, "二": 2, "三": 3, "四": 4}
-    chinese_match = re.match(r"^\[第([一二三四])段\]", heading)
-    if chinese_match:
-        return TEMPLATE_STAGES[chinese_numbers[chinese_match.group(1)] - 1]
-    arabic_match = re.match(r"^\[第([1-4])段\]", heading)
-    if arabic_match:
-        return TEMPLATE_STAGES[int(arabic_match.group(1)) - 1]
     return None
 
 
@@ -652,10 +642,8 @@ def extract_topic_title_body(previous_template: str | None) -> str:
             continue
         topic_title_lines = []
         for line in body.splitlines():
-            # 选题/标题块内含 "[标题]" 行，只在真正的语义分段 "[X部分]" / "[第X段]" 处截断
-            if re.match(r"^\[[^\]]+部分\]$", line) or re.match(
-                r"^\[第[一二三四1-4]段\]", line
-            ):
+            # 选题/标题块内含 "[标题]" 行，只在真正的语义分段 "[X部分]" 处截断
+            if re.match(r"^\[[^\]]+部分\]$", line):
                 break
             topic_title_lines.append(line)
         rendered = "\n".join(topic_title_lines).strip()
@@ -664,69 +652,14 @@ def extract_topic_title_body(previous_template: str | None) -> str:
     return ""
 
 
-def stage_values_from_template(
-    old_sections: dict[str, str], previous_template: str | None
-) -> dict[str, dict[str, str]]:
+def stage_values_from_template(old_sections: dict[str, str]) -> dict[str, dict[str, str]]:
     values = {stage: {} for stage in TEMPLATE_STAGES}
-    legacy_field_maps = {
-        "起": {
-            "从什么起步": "切入角度",
-            "句式与长短": "句式节奏",
-            "语气": "语气与基调",
-        },
-        "承": {"素材或论据": "论证素材"},
-        "转": {},
-        "合": {},
-    }
     for heading in sorted(old_sections, key=template_order):
         stage = template_stage_from_heading(heading)
         if not stage:
             continue
         for field, value in parse_template_fields(old_sections[heading]).items():
             values[stage][field] = value
-            if field in legacy_field_maps.get(stage, {}):
-                values[stage][legacy_field_maps[stage][field]] = value
-
-    if previous_template:
-        global_field_map = {
-            "句式节奏": ("起", "句式节奏"),
-            "语气与基调": ("起", "语气与基调"),
-            "段落结构": ("起", "段落结构"),
-            "文章结构模式": ("承", "文章结构模式"),
-            "用词习惯": ("承", "用词习惯"),
-            "词汇与句式": ("承", "词汇与句式"),
-            "节奏感": ("承", "节奏感"),
-            "专业度体现": ("承", "专业度体现"),
-            "论证逻辑": ("承", "推进逻辑 / 论证逻辑"),
-            "修辞手法": ("转", "修辞手法"),
-            "情感表达": ("转", "情感表达"),
-            "思维特征": ("转", "思维特征"),
-            "情绪强度曲线": ("合", "情绪强度曲线"),
-            "高潮与回落方式": ("合", "高潮与回落方式"),
-            "签名式标记": ("合", "签名式标记"),
-        }
-        for field, (stage, target_field) in global_field_map.items():
-            if target_field in values[stage]:
-                continue
-            for line in previous_template.splitlines():
-                match = re.match(rf"^（{re.escape(field)}：(?P<value>.+)）$", line.strip())
-                if match:
-                    values[stage][target_field] = match.group("value")
-                    break
-
-        micro_operation_map = {
-            "起": ("起", "切入角度"),
-            "承": ("承", "推进逻辑 / 论证逻辑"),
-            "转": ("转", "转折触发"),
-            "合": ("合", "收束方式"),
-        }
-        for line in previous_template.splitlines():
-            match = re.match(r"^-\s*(?P<stage>起|承|转|合)：(?P<value>.+)$", line.strip())
-            if not match:
-                continue
-            stage, field = micro_operation_map[match.group("stage")]
-            if field not in values[stage]:
-                values[stage][field] = match.group("value")
     return values
 
 
@@ -736,7 +669,7 @@ def template_markdown(
     previous_template: str | None = None,
 ) -> str:
     old_sections = extract_template_sections(previous_template)
-    stage_values = stage_values_from_template(old_sections, previous_template)
+    stage_values = stage_values_from_template(old_sections)
     segments = [template_segment(stage, stage_values[stage]) for stage in TEMPLATE_STAGES]
     topic_title = extract_topic_title_body(previous_template) or (
         "（选题角度推荐：待 Agent 补齐。）\n"
@@ -744,11 +677,17 @@ def template_markdown(
         "\n"
         "[标题]（类型为主：待 Agent 补齐。）\n"
         "（参考：待 Agent 补齐。）\n"
+        "（短标题：待 Agent 补齐——6-16 字，最长约 30 字。）\n"
+        "（描述文案：待 Agent 补齐——作品展示文本，含话题标签，最长约 300 字。）\n"
         "（封面图风格：待 Agent 补齐。）\n"
-        "（封面 AIGC 提示词要素：待 Agent 补齐。）"
+        "（封面 AIGC 提示词要素：待 Agent 补齐。）\n"
+        "\n"
+        "（时长与节奏：待 Agent 补齐。）\n"
+        "（镜头与真人出镜：待 Agent 补齐。）\n"
+        "（BGM 与音效：待 Agent 补齐。）"
     )
     if previous_template:
-        for field in ("（封面图风格：", "（封面 AIGC 提示词要素："):
+        for field in ("（封面图风格：", "（封面 AIGC 提示词要素：", "（描述文案："):
             if field not in topic_title:
                 topic_title += f"\n{field}待 Agent 补齐。）"
     section_defaults = [
@@ -760,13 +699,13 @@ def template_markdown(
             "## 用户输入转译后的执行规则",
             "- （来自用户输入：待 Agent 补齐来源。）\n"
             f"- （影响维度：待 Agent 映射到 {len(DIMENSIONS)} 维 ID。）\n"
-            "- （执行规则：待 Agent 写成写稿时可直接执行的要求。）",
+            "- （执行规则：待 Agent 写成创作时可直接执行的要求。）",
         ),
         (
             "## 使用检查",
-            "- 选题与标题是否符合 DNA 文档的选题角度、受众关联和标题类型。\n"
-            "- 起、承、转、合、CTA 五个部分是否完成各自任务。\n"
-            "- 每个部分是否反映 DNA 文档中对应的用词、句式、结构、论证、节奏、修辞、情绪、专业度和签名标记。\n"
+            "- 选题与标题（含描述文案、封面）是否符合 DNA 文档的选题角度、受众关联和标题/描述规则。\n"
+            "- 钩子、共情、信任状、价值、收尾各部分是否完成各自任务。\n"
+            "- 每个部分是否反映 DNA 文档中对应的钩子设计、开场节奏、口播语言、语气人设、信任状、价值密度、互动设计、转发动机与签名标记。\n"
             "- 用户输入是否已转译为具体执行规则。",
         ),
     ]
@@ -790,7 +729,7 @@ def template_markdown(
             f"generated_at: {yaml_value(generated_at())}\n"
             "---",
             f"# {dna_id} DNA Template",
-            "本模板是写稿时直接执行的 production template，必须由 DNA 文档推导；不得引入 DNA 文档未确认的规则。",
+            "本模板是创作视频时直接执行的 production template，必须由 DNA 文档推导；不得引入 DNA 文档未确认的规则。",
             *rendered_sections,
         ]
     ) + "\n"
@@ -804,9 +743,7 @@ def extract_template_sections(markdown: str | None) -> dict[str, str]:
     lines = []
     in_segment = False
     for line in markdown.splitlines():
-        if re.match(r"^\[[^\]]+部分\]$", line.strip()) or re.match(
-            r"^\[第[一二三四1-4]段\](?:（.+\）)?$", line.strip()
-        ):
+        if re.match(r"^\[[^\]]+部分\]$", line.strip()):
             if current:
                 sections[current] = "\n".join(lines).strip()
             current = line
@@ -864,11 +801,11 @@ def report_command(args: argparse.Namespace) -> None:
         raise SystemExit("--weight must be a positive finite number")
     paths = collect_input_paths(inputs_from_args(args), {".md", ".txt"})
     if len(paths) != 1:
-        raise SystemExit("report command accepts exactly one article; use build to aggregate reports")
+        raise SystemExit("report command accepts exactly one script/transcript; use build to aggregate reports")
     document = document_metrics(
         paths[0], paths[0].read_text(encoding="utf-8", errors="ignore")
     )
-    output_dir = Path(args.output_dir or f"dna/wx_mp/{args.dna_id}/reports")
+    output_dir = Path(args.output_dir or f"dna/{PLATFORM}/{args.dna_id}/reports")
     cover_image = ""
     if args.cover_image:
         source_cover = validate_cover_image(args.cover_image)
@@ -879,15 +816,16 @@ def report_command(args: argparse.Namespace) -> None:
     write_text(
         output,
         report_markdown(
-            args.dna_id, args.sample_id, weight, args.focus, document, cover_image
+            args.dna_id, args.sample_id, weight, args.focus, document, cover_image,
+            args.source_video or "",
         ),
     )
-    print(f"Wrote single-article DNA report: {output}")
+    print(f"Wrote single-video DNA report: {output}")
 
 
 def build_command(args: argparse.Namespace) -> None:
     validate_id(args.dna_id, "--dna-id")
-    input_values = args.input or [f"dna/wx_mp/{args.dna_id}/reports"]
+    input_values = args.input or [f"dna/{PLATFORM}/{args.dna_id}/reports"]
     paths = collect_input_paths(input_values, {".md"})
     report_paths = [path for path in paths if path.name.endswith(".report.md")]
     if not report_paths:
@@ -899,7 +837,7 @@ def build_command(args: argparse.Namespace) -> None:
             f"Reports belong to another dna-id: {', '.join(foreign_reports)}"
         )
     statistics = build_statistics(reports)
-    output_dir = Path(args.output_dir or f"dna/wx_mp/{args.dna_id}")
+    output_dir = Path(args.output_dir or f"dna/{PLATFORM}/{args.dna_id}")
     dna_path = output_dir / f"{args.dna_id}.dna.md"
     template_path = output_dir / f"{args.dna_id}.template.md"
     write_text(
@@ -958,12 +896,13 @@ def update_command(args: argparse.Namespace) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build qualitative 17D WeChat MP DNA assets")
+    parser = argparse.ArgumentParser(description="Build qualitative WeChat Channels (视频号) video DNA assets")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    report = subparsers.add_parser("report", help="Create one single-article DNA report")
+    report = subparsers.add_parser("report", help="Create one single-video DNA report")
     report.add_argument("--input", action="append", required=True)
     report.add_argument("--cover-image", help="Local cover image used by visual-model analysis")
+    report.add_argument("--source-video", help="Optional source video URL or local path, recorded in frontmatter")
     report.add_argument("--dna-id", required=True)
     report.add_argument("--sample-id", required=True)
     report.add_argument("--weight", default="1")

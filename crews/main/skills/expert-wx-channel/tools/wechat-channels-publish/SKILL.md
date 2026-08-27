@@ -6,27 +6,32 @@ metadata:
     emoji: 📺
 ---
 
-# 微信视频号发布
+# wechat-channels-publish — 工具说明
+
+> 本文是 `expert-wx-channel` 专家包内的工具说明书，不独立出现在技能列表中。由相关 Workflow 指引调用。
 
 通过 **camoufox-cli** 持久化 session `wechat-channel`（有且只有一个，fail-first 队列：同 session 已有命令在跑时新命令直接 fail）在微信视频号创作者中心发布视频。视频号创作者中心使用 **wujie 微前端**，所有表单元素在 `<wujie-app>::shadow-root` 内——camoufox-cli 的 `snapshot` 默认穿透 shadow DOM 拿 ref，后续 `click` / `type` / `upload` 按 ref 操作即可，无需 CDP hack。
 
+**输入**：本地视频文件（`.mp4` / `.mov` / `.avi` / `.webm`）、短标题（6-16 字，最长约 30 字）、描述文案（含话题标签，最长约 300 字）。
+**输出**：视频号已发布作品；能取到时附带公开链接（`https://weixin.qq.com/sph/xxxx`）。
+
 > **主力后端 = `target=camoufox`**。下方命令 / 示例只针对 `target=camoufox`。
-> **`target=host` / `target=node`**：只按本 skill 的「流程 + 提示事项」走——全部无头 / 频率限制 / 错误处理约定是**后端无关**的，照本 skill 执行。不要照搬 `camoufox-cli ...` 命令，用你当前后端自带的浏览器工具语义调用即可。
+> **`target=host` / `target=node`**：只按本说明书的「流程 + 提示事项」走——全部无头 / 频率限制 / 错误处理约定是**后端无关**的，照本说明书执行。不要照搬 `camoufox-cli ...` 命令，用你当前后端自带的浏览器工具语义调用即可。
 
 ---
 
 ## 前置条件
 
-1. 持久化 session `wechat-channel` 已登录（登录态存 session profile 里）。本 skill 与 login-manager **完全无关**——自管探活 + 登录，**不导出 cookie/UA 落中央存储**。登录和发布**全部走无头模式**（camoufox-cli 默认即 headless）。
-2. 首次使用 / 登录态失效时，走**无头截图扫码**登录流（与 wx-mp-engagement 同机制）：
+1. 持久化 session `wechat-channel` 已登录（登录态存 session profile 里）。本工具自管探活 + 登录，**不导出 cookie/UA 落中央存储**。登录和发布**全部走无头模式**（camoufox-cli 默认即 headless）。
+2. 首次使用 / 登录态失效时，走**无头截图扫码**登录流：
    - `camoufox-cli --session wechat-channel --persistent --json open "https://channels.weixin.qq.com/platform/home"`
    - 等登录页 QR 二维码 `<img>` 注入完成（轮询 `eval` 检查 `document.querySelectorAll('img')` 有 `src` 以 `data:image` 开头的元素，最多等 10s）
    - `camoufox-cli --session wechat-channel --persistent --json screenshot /tmp/qr-wechat-channel.png` 截 QR PNG
    - 发 QR PNG 给用户，告知「**微信视频号** 登录已失效，请用微信扫码确认，完成后回复"已扫码"」
    - **Stop and wait**，用户回复后轮询当前 URL（`camoufox-cli --session wechat-channel --json url`），确认已跳走登录页（URL 含 `platform/home` 且不含 `login`）即登录就位
-   - 登录后**close session**——登录态落磁盘 profile，不留进程占内存；本 skill 下次 `--session wechat-channel --persistent` 重起无头即恢复，用完再 close。
+   - 登录后**close session**——登录态落磁盘 profile，不留进程占内存；下次 `--session wechat-channel --persistent` 重起无头即恢复，用完再 close。
 
-> **不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本 skill 不调用 `cookies export` / `identity export`。
+> **不导出 cookie/UA**——登录态只在 session profile 里闭环，不落 `~/.openclaw/logins/`。本工具不调用 `cookies export` / `identity export`。
 
 ---
 
@@ -53,8 +58,6 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 4. camoufox-cli --session wechat-channel --persistent --json upload <input-ref> <video.mp4>
    - camoufox-cli upload 命令底层走 Playwright setInputFiles，穿透 shadow DOM，无需 CDP setFileInput / base64 hack
 ```
-
-**支持的视频格式**：`.mp4`、`.mov`、`.avi`、`.webm`
 
 ### Step 4: 等待上传+转码完成
 
@@ -140,15 +143,13 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 ---
 
-## Session 共享约束（与 wx-channel-engagement 共管）
+## Session 共享约束（与 `wx-channel-engagement` 共管）
 
-本 skill 与 `wx-channel-engagement` **共用同一个 `wechat-channel` 持久化 session**，靠 session 名字符串约定共享同一 profile 目录与登录态——任一技能登录后另一个不需重登，反之亦然。单一 session、单一 IP、单一 profile，避免多 session 多 IP 的风控风险。
+本工具与 `wx-channel-engagement` **共用同一个 `wechat-channel` 持久化 session**，靠 session 名字符串约定共享同一 profile 目录与登录态——任一工具登录后另一个不需重登，反之亦然。单一 session、单一 IP、单一 profile，避免多 session 多 IP 的风控风险。
 
 - **fail-first 队列**：同 session 已有命令在跑时，新命令直接 fail。读到 `session wechat-channel 正忙` → exit 3，调用方（agent）等待当前操作完成后再试，不自动排队、不自动 close 正在跑的 session。
-- **登录态闭环**：不导出 cookie/UA/token——登录态在 `wechat-channel` session profile 里就位即可。失效时走本 skill 前置条件的无头截图扫码重登流，或由 `wx-channel-engagement` 自己的重登流触发。
-- **与 login-manager 完全无关**：本 skill 自管 `wechat-channel` session 的探活 + 登录 + 重登。`wx-channel-engagement` 同理自管，不调 login-manager。
-
-> 参考：`twitter-post` + `twitter-interact` 的 session 共享模式（靠 session 名字符串约定共享同一 profile 目录与登录态）。
+- **登录态闭环**：不导出 cookie/UA/token——登录态在 `wechat-channel` session profile 里就位即可。失效时走本工具前置条件的无头截图扫码重登流，或由 `wx-channel-engagement` 自己的重登流触发。
+- **不走 login-manager**：本工具自管 `wechat-channel` session 的探活 + 登录 + 重登。
 
 ---
 
@@ -170,7 +171,7 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 - **触发**：访问视频号页面未登录
 - **症状**：跳转到扫码登录页，无用户名/密码选项
-- **workaround**：走前置条件的无头截图扫码流程（screenshot QR PNG → 发用户扫码 → 轮询 URL 确认登录就位），与 wx-mp-engagement 同机制
+- **workaround**：走前置条件的无头截图扫码流程（screenshot QR PNG → 发用户扫码 → 轮询 URL 确认登录就位）
 
 ### pitfall: form_reset_on_idle
 
@@ -193,10 +194,10 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 ---
 
-## 发布后入库约束（record.sh）
+## 入库衔接约束
 
-本技能只管发布到视频号后台，**不调 `record.sh`**——入库走 main crew 工作流（`AGENTS.md` 的「发布后数据记录流程」段）。但调用方需注意：
+本工具只管发布到视频号后台，**不做发布记录入库**；入库由 Content Production Workflow 编排（调 `published-track record`）。调用方必须注意：
 
-> **`record.sh --platform wx_channel --title` 必须传 Step 6 填的完整描述文案**（含 hashtag，最长约 300 字），**不要传 Step 5 的短标题**。
+> **`published-track record --platform wx_channel --title` 必须传 Step 6 填的完整描述文案**（含 hashtag，最长约 300 字），**不要传 Step 5 的短标题**。
 
-原因：视频号作品没有「标题」概念，作品管理页展示与 `wx-channel-engagement` 抓取匹配用的都是描述文案。`pub_wx_channel.title` 列存的就是完整 desc，`wx-channel-engagement fetch` 按它匹配后台才能成功。传短标题会导致抓取匹配全部失败。
+原因：视频号作品没有「标题」概念，作品管理页展示与 `wx-channel-engagement` 抓取匹配用的都是描述文案。`pub_wx_channel.title` 列存的就是完整 desc，传短标题会导致后续抓取匹配全部失败。

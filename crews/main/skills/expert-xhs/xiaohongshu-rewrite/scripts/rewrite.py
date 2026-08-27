@@ -4,24 +4,15 @@
 xiaohongshu-rewriting/scripts/rewrite.py
 
 小红书文案改写辅助脚本
-用途：上报改写记录接口
-
-记录接口：https://redfox.hk/story/api/skill/record/save
-网络实现：原生 urllib，默认 SSL 证书验证
-说明：接口仅用于记录，无需鉴权
+用途：输出小红书改写规则 prompt（改写本身由 AI 模型按规则执行，脚本不做网络请求）
 
 用法：
   python rewrite.py prompt                  # 输出小红书改写规则 prompt
-  python rewrite.py "<文案内容>"           # 上报改写记录
 """
 
 import sys
 import os
 import re
-import json
-import urllib.request
-import urllib.error
-from typing import Dict, Any
 
 # ── 路径 ──────────────────────────────────────────────────────────────────────
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -29,9 +20,6 @@ RULES_FILE = os.path.join(SCRIPT_DIR, '..', 'assets', 'platform-rules.md')
 
 # ── 平台 ──────────────────────────────────────────────────────────────────────
 PLATFORM = '小红书'
-
-# ── 记录接口配置 ───────────────────────────────────────────────────────────────
-RECORD_URL = 'https://redfox.hk/story/api/skill/record/save'
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -56,54 +44,6 @@ def extract_platform_rules() -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 记录接口：原生 urllib，默认 SSL 证书验证（无需鉴权）
-# ─────────────────────────────────────────────────────────────────────────────
-
-def report_rewrite(content: str) -> Dict[str, Any]:
-    """
-    向记录接口发送 POST 请求。
-
-    技术要点：
-      - 使用原生 urllib.request，默认 SSL 证书验证
-      - 接口仅用于记录，无需鉴权
-    """
-    payload = json.dumps(
-        {'source': '小红书文案改写-Workbuddy'},
-        ensure_ascii=False
-    ).encode('utf-8')
-
-    req = urllib.request.Request(
-        RECORD_URL,
-        data=payload,
-        headers={
-            'Content-Type': 'application/json; charset=utf-8',
-            'User-Agent': 'xiaohongshu-rewriting/1.0',
-        },
-        method='POST',
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return {
-                'ok': True,
-                'status_code': resp.status,
-                'status_line': f'HTTP {resp.status}',
-            }
-    except urllib.error.HTTPError as e:
-        return {
-            'ok': False,
-            'status_code': e.code,
-            'status_line': f'HTTP {e.code}',
-            'error': str(e),
-        }
-    except Exception as e:
-        return {
-            'ok': False,
-            'error': str(e),
-        }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # CLI 命令
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -120,29 +60,12 @@ def cmd_prompt() -> None:
     print(rules)
 
 
-def cmd_report(content: str) -> None:
-    """上报改写记录。"""
-    print(f'\n📡 上报改写记录…')
-    result = report_rewrite(content)
-    if result.get('ok'):
-        print(f'✅ 上报成功（HTTP {result.get("status_code")}）')
-    else:
-        print(
-            f'⚠️  上报失败：{result.get("error") or result.get("status_line")}',
-            file=sys.stderr
-        )
-
-
 def print_help() -> None:
     print(f"""
 📝 小红书文案改写辅助脚本
 
 用法：
   python rewrite.py prompt                    # 输出小红书改写规则 prompt
-  python rewrite.py "<文案内容>"              # 上报改写记录
-
-注意：
-  记录接口使用原生 urllib，默认 SSL 证书验证，无需鉴权。
 """)
 
 
@@ -164,9 +87,9 @@ def main() -> None:
         cmd_prompt()
         return
 
-    # ── 上报记录 ────────────────────────────────────────────────────────────
-    content = ' '.join(args)
-    cmd_report(content)
+    print(f'❌ 未知命令：{args[0]}', file=sys.stderr)
+    print_help()
+    sys.exit(1)
 
 
 if __name__ == '__main__':

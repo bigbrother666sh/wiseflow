@@ -83,7 +83,7 @@ published-track query --platform douyin --limit 50
    ```
    > ⚠️ 不要调 `published-track fetch-metrics --platform wx_mp`——该子命令对 wx_mp 直接 exit 1 报错提示走 wx-mp-engagement。两条链路独立维护，避免机制错配。
 
-4. **微信视频号 (wx_channel)** —— **走 `wx-channel-engagement` 技能**，camoufox 抓视频号助手后台方案，与 wx_mp 同源（camoufox + 解析 innerText）、与第 1 条三个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
+4. **微信视频号 (wx_channel)** —— **走 `expert-wx-channel` 包内 `wx-channel-engagement` 工具**（PATH wrapper 同名），camoufox 抓视频号助手后台方案，与 wx_mp 同源（camoufox + 解析 innerText）、与第 1 条三个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
 
    ```bash
    wx-channel-engagement fetch-all
@@ -127,6 +127,7 @@ content-calibrator eval --platform <platform> --check
 触发的 DNA 属于哪个平台，就按该平台专家包的 review workflow 执行完整复盘（聚合、平台归因、写报告、标记全在 workflow 内；**workflow 不取数**——本轮数据已在 Step 2 采集就位）：
 
 - **wx_mp** → expert-wx-mp 的 Review Workflow（`skills/expert-wx-mp/workflows/review.md`）
+- **douyin** → expert-douyin 的 Review Workflow（`skills/expert-douyin/workflows/review.md`）
 
 ##### Step 3b: 无专家包 review workflow 的平台 → 通用流程
 

@@ -26,17 +26,13 @@ description: 小红书文案改写能力；当用户需要将文案改写为小�
 
 ### 特色亮点
 - **⚡ 即输即用**：输入原文案，直接输出改写结果，无需询问
-- **📊 改写记录上报**：调用红狐 API 自动记录改写次数
 - **🔧 规则可定制**：通过 `assets/platform-rules.md` 自定义改写规则
 
 ## 一键安装
 
 ### 前置条件
 - Python 3（路径：`/usr/bin/python3`）
-- 无额外依赖，仅使用 Python 标准库（`urllib`、`json`、`re` 等）
-
-### 鉴权
-记录接口仅用于使用统计，**无需鉴权**，无需配置 API Key。
+- 无额外依赖，仅使用 Python 标准库（`re` 等）
 
 ### 安装方式
 将项目克隆到 Qoder skills 目录即可：
@@ -58,15 +54,8 @@ git clone <repo-url> ~/.qoder/skills/xiaohongshu-rewrite
 
 文案可以包含产品介绍、使用体验、攻略分享等各类内容。
 
-#### 第2步：自动上报记录
-脚本自动向记录接口上报改写记录（上报成功后再进行改写输出，上报失败不影响主流程）：
-
-```bash
-python scripts/rewrite.py "这款面霜保湿效果很好，用了一周皮肤明显变水润了"
-```
-
-#### 第3步：获取改写结果
-Agent 读取 `assets/platform-rules.md` 中的完整规则，严格按照小红书的 **Profile**（角色定位）、**WritingSkills**（写作技巧）、**Rules**（改写规则）、**Workflow**（工作流程）进行文案风格改写，并直接输出结果：
+#### 第2步：获取改写结果
+Agent 读取 `assets/platform-rules.md` 中的完整规则（可用 `python scripts/rewrite.py prompt` 输出规则块），严格按照小红书的 **Profile**（角色定位）、**WritingSkills**（写作技巧）、**Rules**（改写规则）、**Workflow**（工作流程）进行文案风格改写，并直接输出结果：
 
 - 内容包含吸引人的标题
 - 文中使用 emoji 表情符号（至少5个不重复的 emoji）
@@ -80,18 +69,6 @@ Agent 读取 `assets/platform-rules.md` 中的完整规则，严格按照小红�
 | 命令 | 说明 |
 |------|------|
 | `python scripts/rewrite.py prompt` | 输出小红书改写规则 prompt |
-| `python scripts/rewrite.py "<文案内容>"` | 上报改写记录 |
-
-### 记录接口说明
-
-| 项目 | 详情 |
-|------|------|
-| 接口地址 | `https://redfox.hk/story/api/skill/record/save` |
-| 调用时机 | 输出改写结果之前 |
-| 接口参数 | `source` 固定值 `"小红书文案改写-Workbuddy"` |
-| 网络实现 | 原生 `urllib`，默认 SSL 证书验证 |
-| 鉴权 | 无需鉴权，接口仅用于记录 |
-| 失败处理 | 仅打印警告，不影响主流程输出 |
 
 ## 使用场景
 
@@ -130,7 +107,7 @@ xiaohongshu-rewrite/
 ├── assets/
 │   └── platform-rules.md      # 小红书改写规则（Profile、WritingSkills、Rules、Workflow）
 └── scripts/
-    └── rewrite.py             # 辅助脚本（规则提取 + 记录上报）
+    └── rewrite.py             # 辅助脚本（规则提取）
 ```
 
 ### 核心模块说明
@@ -138,19 +115,17 @@ xiaohongshu-rewrite/
 | 模块 | 文件 | 说明 |
 |------|------|------|
 | 改写规则 | `assets/platform-rules.md` | 定义小红书角色定位、写作技巧、改写规则和工作流程 |
-| 辅助脚本 | `scripts/rewrite.py` | 提取平台规则 prompt + 上报改写记录到红狐接口（原生 urllib，默认 SSL 验证） |
-| 记录来源 | `source` 参数 | 固定值 `"小红书文案改写-Workbuddy"`，用于统计来源 |
+| 辅助脚本 | `scripts/rewrite.py` | 提取平台规则 prompt（纯本地，无网络请求） |
 
 ### 技术栈
 
 | 技术 | 用途 |
 |------|------|
 | Python 3 | 脚本运行环境 |
-| urllib | 原生 HTTP 请求（记录上报） |
 | regex | 规则文件解析 |
 
 ### 资源索引
-- 脚本：`scripts/rewrite.py`（用途：上报改写记录；参数：`prompt` / `<文案内容>`）
+- 脚本：`scripts/rewrite.py`（用途：输出改写规则；参数：`prompt`）
 - 参考：`assets/platform-rules.md`（何时读取：进行文案改写时）
 
 ## 常见问答
@@ -170,12 +145,5 @@ A: 改写完成后直接输出结果，不提供二次调整。如有不满意�
 A: 是的，小红书文案必须包含至少5个不重复的 emoji 表情符号。
 
 ### 故障排除
-**Q: 上报记录失败怎么办？**
-A: 上报失败不影响主流程，仅打印警告信息，改写结果照常输出。
-
 **Q: 规则文件找不到怎么办？**
 A: 确认 `assets/platform-rules.md` 文件存在且路径正确。
-
-### 安全与许可
-**Q: 上报接口是否需要 API Key？**
-A: 不需要。记录接口仅用于使用统计，无需鉴权。

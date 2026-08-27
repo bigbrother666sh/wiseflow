@@ -76,7 +76,7 @@ BACKEND_PATHS = (
 # 持久化 profile 目录（登录态落盘位置）
 PROFILE_DIR = Path.home() / ".camoufox-cli" / "profiles" / SESSION_NAME
 
-# 登录流程常量（本技能自管 wechat-channel session 的扫码登录）
+# 登录流程常量（本工具自管 wechat-channel session 的扫码登录）
 QR_FILE = "/tmp/qr-wx-channel.png"
 # Stop-and-wait 模式（对齐 login-manager）：agent 在对话里等用户「已扫码/已完成」
 # 信号后才调 login-confirm；confirm 只做短窗口 settle 验证（吸收扫码确认后
@@ -151,14 +151,14 @@ def update_metrics_row(row_id: int, metrics: dict) -> dict:
 
 # ── camoufox-cli 集成 ───────────────────────────────────────────────────────
 #
-# 本技能与 wechat-channels-publish 共管 wechat-channel 持久化 session：
+# 本工具与 wechat-channels-publish 共管 wechat-channel 持久化 session：
 # - 靠 session 名字符串约定共享同一 profile 目录与登录态
 # - fail-first 队列串行拒绝（不自动排队、不自动 close 正在跑的 session）
 # - 登录态在 wechat-channel session profile 里就位即可，不导出 cookie/UA/token
 # ────────────────────────────────────────────────────────────────────────────
 
 def session_name() -> str:
-    """返回本技能与 wechat-channels-publish 共管的固定 session 名。"""
+    """返回本工具与 wechat-channels-publish 共管的固定 session 名。"""
     return SESSION_NAME
 
 
@@ -220,9 +220,9 @@ def camoufox_close(session: str) -> None:
     camoufox_run(["--session", session, "close"], timeout=10)
 
 
-# ── 登录流程（本技能自管 wechat-channel session）─────────────────────────────
+# ── 登录流程（本工具自管 wechat-channel session）─────────────────────────────
 #
-# 本技能自己负责 wechat-channel session 的扫码登录 + 验登录就位。
+# 本工具自己负责 wechat-channel session 的扫码登录 + 验登录就位。
 # 登录态在 wechat-channel session profile 里就位即可，不导出 cookie/UA/token。
 # 与 wechat-channels-publish 共 session——任一技能登录后另一个不需重登。
 
@@ -458,7 +458,7 @@ def _prepare_session() -> str:
     """复用 wechat-channel 持久化 session。
 
     不再开独立 nonce session、不再 import cookie——wechat-channel session profile
-    里登录态已就位（由本技能 login 流程或 wechat-channels-publish login 流程落），
+    里登录态已就位（由本工具 login 流程或 wechat-channels-publish login 流程落），
     camoufox-cli 直接用即可。返回固定 session 名 SESSION_NAME。"""
     return SESSION_NAME
 

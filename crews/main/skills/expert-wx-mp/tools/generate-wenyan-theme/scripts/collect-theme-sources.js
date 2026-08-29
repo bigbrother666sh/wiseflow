@@ -118,7 +118,7 @@ function workspaceOutputPath(filePath) {
   if (filePath.startsWith(sep)) {
     fail("--output 不能是绝对路径");
   }
-  // 允许工作区内的相对路径（可含子目录，如 wenyan-theme/sources.json），禁止 .. 上跳。
+  // 允许工作区内的相对路径（可含子目录，如 wx_mp/wenyan-theme/sources.json），禁止 .. 上跳。
   const cwd = resolve(process.cwd());
   const absolute = resolve(cwd, filePath);
   const relativePrefix = `${cwd}${sep}`;

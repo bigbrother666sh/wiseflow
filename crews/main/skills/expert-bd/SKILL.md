@@ -52,10 +52,10 @@ metadata:
 - BD 数据层只有两个库，都在 Workspace `db/` 下：`db/bd_record.db`（线索与互动）、`db/info_record.db`（情报条目），使用前如果数据库文件不存在，先调对应工具 `init-db`（幂等）初始化。
 - 去重检查（`check-*`）必须在打开详情页 / 执行互动之前做。
 - 定时批跑（仅用户启用后）只按用户已配置的策略执行并写入记录，不修改用户已建档的条目、不主动发起配置外的接触（完整约束见 `scheduling.md`）。
+- 未有明确约定的文件、产出物以及中间产物，统一存放在 Workspace 根目录下的 `bd/` 文件夹下，不要散落在 Workspace 下。
 
 ## 边界
 
 - 找投资人 / 融资材料 / 投资人跟进 → `expert-ir`。
 - 项目申报 / 补贴 / 创业大赛 → `expert-ir` 专家包（Project Application Workflow）。
-- 软著材料生成（著作权申请）走顶层技能 `swcr-register`，不在本包内。
 - X/Twitter 起号、定位、发帖编排走 `expert-twitter`；本包只承担其互动与获客场景。

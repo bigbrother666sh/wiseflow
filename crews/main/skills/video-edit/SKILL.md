@@ -35,7 +35,7 @@ metadata:
 
 ## 工作区目录准备
 
-在 `output_videos/` 下创建项目文件夹，如 `output_videos/<topic-en-slug>/`，作为 project-dir。
+平台内容直接用对应平台运营项目目录 `<platform>/outputs/<video-name>/` 作为 project-dir（平台专家包 workflow 已建好）；其他零散任务在 `output_videos/` 下创建项目文件夹，如 `output_videos/<topic-en-slug>/`。
 
 工作区结构：
 

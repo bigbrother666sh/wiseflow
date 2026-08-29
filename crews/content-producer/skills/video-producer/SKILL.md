@@ -44,10 +44,10 @@ metadata:
 
 ## 工作区目录约定
 
-在 `output_videos/` 下建项目文件夹 `<topic-en-slug>/`：
+调用方传入了现成项目目录时（如平台专家包委托制作，传入 `<platform>/outputs/<video-name>/`，brief 已在其中）直接沿用；否则在 `output_videos/` 下建项目文件夹 `<topic-en-slug>/`：
 
 ```
-output_videos/<topic-en-slug>/
+<project-dir>/                  # 即 <platform>/outputs/<video-name>/ 或 output_videos/<topic-en-slug>/
 ├── brief.md                    # Stage 0/1 产出：意图路由 + 概念选项 + 用户选定
 ├── reference-driven/           # Stage 1（可选，仅当 main 喂了 viral-chaser 报告）
 │   ├── viral-chaser-report.md  # main 喂入的追爆报告原档（本技能不自己跑 viral-chaser）

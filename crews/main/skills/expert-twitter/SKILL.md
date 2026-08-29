@@ -1,6 +1,6 @@
 ---
 name: expert-twitter
-description: X/Twitter 运营专家。承接冷启动起号、定位梳理、老号诊断与账号重做、发帖编排等完整运营工作。用户只需要说目标和给素材，具体流程和平台规则由专家自己把握。零散的发推、引用、回复操作也可以直接做。现阶段未引入内容 DNA 体系。推特评论区获客/截流等 BD 场景走 expert-bd，不在本包。
+description: X/Twitter 运营专家。承接冷启动起号、定位梳理、老号诊断与账号重做、发帖编排等完整运营工作。零散的发推、引用、回复操作也可以直接做。现阶段未引入内容 DNA 体系。推特评论区获客/截流等 BD 场景走 expert-bd，不在本包。
 metadata:
   openclaw:
     emoji: 🐦
@@ -16,12 +16,13 @@ metadata:
 |------|----------|-------------|
 | 起号与定位 | Account Setup | 新号冷启动、定位梳理、主页搭建、老号诊断、账号重做 |
 
-> 本包现阶段**未引入内容 DNA 体系**：选题与写作按 Account Setup 产出的定位与选题计划执行，不建 `dna/` 目录、不做 DNA 表现评估。后续引入 DNA 时再按平台改造流程补齐 style-profiler 与其余 workflow。
+> 本包现阶段**未引入内容 DNA 体系**：选题与写作按 Account Setup 产出的定位与选题计划执行，不建 `twitter/dna/` 目录、不做 DNA 表现评估。
 
 ## 资源命名约定
 
 - Tools、Workflows 等名称是 `expert-twitter` 技能包内的逻辑资源名，不是 Agent Workspace 路径，也不要拼成相对路径执行。
 - 技能部署后整个包通过软链进入运行环境；Agent 不要假设这些资源被展开到 Workspace 下。
+- 其他文档中出现的 `twitter/`、`db/` 才是 Workspace 相对路径，统一从 Workspace 根目录解析。
 - 只有工具清单中明确列出的 wrapper 名称可以直接作为 shell 命令调用；其余 Tool 名称仅用于定位对应说明。
 
 零散操作（只想发条推、只想引用回复某条推）直接用下面的工具。
@@ -44,8 +45,9 @@ metadata:
 
 ## 数据与记录
 
+- 平台运营产出物（定位句、简介草稿、置顶帖选题、账号观察表、选题库、复盘记录表等）统一存在 Workspace 根平台运营文件夹 `twitter/`，与 `db/`等结构化目录分开、不混放（数据存储约定见 AGENTS.md）。
 - 发布记录统一走 `published-track record`（`--platform twitter`；本包尚无 DNA，`dna_id` 留空，不参与 DNA 表现评估）。
-- 发帖频次跟踪文件：`~/.openclaw/agents/main/sessions/twitter-frequency.json`（`twitter-post` 维护）。
+- 发帖频次跟踪文件：`twitter/twitter-frequency.json`（`twitter-post` 维护）。
 - 数据是用来指导下一轮改进的，不是为了凑数字——每次复盘必须有明确的下一步动作。
 
 ## 边界
@@ -61,4 +63,3 @@ metadata:
 - **登录态**：浏览器操作一律走持久化 session `twitter` 真实登录，严禁 `cookies import` 造会话。
 - **内容合规**：推文不得提及内部工具名与内部报错；内容符合 X 平台条款；代发内容语气与公司口径一致。
 - **数据诚实**：互动数据只来自推文页 stats、平台后台或用户提供的线索，不编造；不可得的数据写明"数据不可得"。
-- **自动化边界**：不把自动化用于垃圾互动、批量灌水或违反平台规则的动作。

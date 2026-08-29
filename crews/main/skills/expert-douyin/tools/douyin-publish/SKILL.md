@@ -1,13 +1,6 @@
 ---
 name: douyin-publish
 description: 通过浏览器自动化发布视频到抖音创作者中心。纯浏览器操作方案。
-metadata:
-  openclaw:
-    emoji: 🎤
-    requires:
-      bins:
-      - python3
-      - camoufox-cli
 ---
 
 # douyin-publish — 工具说明
@@ -50,7 +43,7 @@ douyin-publish run --video /path/to/video.mp4 --title "标题" --caption "描述
 
 ## 登录失效处理
 
-判定为未登录、或运行中得到 exit 2 时，重登后重新走「发布前置」：
+判定为未登录、或运行中得到 exit 2 时，走 `login-manager` 重登，复用 `douyin` 持久化 session：
 
 ```bash
 camoufox-cli --session douyin --persistent --headed --json open "https://www.douyin.com"
@@ -58,7 +51,7 @@ camoufox-cli --session douyin --persistent --headed --json open "https://www.dou
 login-manager --platform douyin
 ```
 
-本工具**没有 `login` 子命令、也没有 `cleanup` 子命令**。
+`login-manager` 一条命令闭环导出+验证+落中央存储+close session。重登后重新走「发布前置」。本工具**没有 `login` 子命令、也没有 `cleanup` 子命令**。
 
 ---
 
@@ -114,7 +107,7 @@ douyin-publish get-link --session <s>
 
 - **用完即 close 持久化 session `douyin`**——登录态 + 指纹冻结在磁盘 profile，不留进程占内存；下次发布 `--session douyin --persistent` 重起无头即恢复。只在 session 卡死时 `camoufox-cli --session douyin --json close` teardown。
 - 同 session 已有命令在跑时，新命令 fail-first（返回 `session douyin 正忙,请等待当前操作完成后再试`）——读到这条文本就等当前操作完成再重试，不要盲试。
-- **严禁 `cookies import`**：不开临时 session 再 import cookie，会触发平台风控。
+- **严禁 `cookies import`**：不开临时 session 再 import cookie，会触发平台风控。执行过程中任何时候发现登录态已失效，走 `login-manager` 有头重登流。
 - 限频：单抖音号每 24h ≤ 5 条发布；触发风控立即降级，30 分钟内不重试。
 
 ### Exit codes

@@ -1,9 +1,6 @@
 ---
 name: wechat-style-profiler
 description: 为单篇文章提取 17 维 DNA report，按 DNA ID 聚合历史 report 生成 DNA 文档，并推导完整的 DNA template。
-metadata:
-  openclaw:
-    emoji: 🧬
 ---
 
 # wechat-style-profiler
@@ -25,7 +22,7 @@ DNA 文档 -> DNA template
 DNA 以 DNA ID 为主体存储，一个 DNA 可以持续放入任意数量文章，文章可以来自一个或多个参考账号。
 
 ```text
-dna/wx_mp/{dna-id}/
+wx_mp/dna/{dna-id}/
   reports/
     {sample-id}.report.md
   covers/
@@ -34,7 +31,7 @@ dna/wx_mp/{dna-id}/
   {dna-id}.template.md
 ```
 
-原始资料（文章正文）可以临时来自任何位置；生成后的 DNA report 必须进入对应 DNA 的 `reports/` 目录。
+原始资料（文章正文）可以临时来自任何位置（建议 `wx_mp/ref/{dna-id}/articles/`）；生成后的 DNA report 必须进入对应 DNA 的 `reports/` 目录。
 
 ## 职责边界
 
@@ -57,7 +54,7 @@ wechat-style-profiler report \
 默认输出：
 
 ```text
-dna/wx_mp/{dna-id}/reports/{sample-id}.report.md
+wx_mp/dna/{dna-id}/reports/{sample-id}.report.md
 ```
 
 可配置权重：
@@ -85,14 +82,14 @@ wechat-style-profiler build --dna-id {dna-id}
 默认读取：
 
 ```text
-dna/wx_mp/{dna-id}/reports/
+wx_mp/dna/{dna-id}/reports/
 ```
 
 默认输出：
 
 ```text
-dna/wx_mp/{dna-id}/{dna-id}.dna.md
-dna/wx_mp/{dna-id}/{dna-id}.template.md
+wx_mp/dna/{dna-id}/{dna-id}.dna.md
+wx_mp/dna/{dna-id}/{dna-id}.template.md
 ```
 
 也可显式传入一个或多个 report 文件/目录：
@@ -136,9 +133,9 @@ Template 是生产模板，不是概念解释。必须从 DNA 文档的 17 个�
 
 ```bash
 wechat-style-profiler update \
-  --input dna/wx_mp/{dna-id}/reports/{new-sample}.report.md \
-  --dna dna/wx_mp/{dna-id}/{dna-id}.dna.md \
-  --template dna/wx_mp/{dna-id}/{dna-id}.template.md
+  --input wx_mp/dna/{dna-id}/reports/{new-sample}.report.md \
+  --dna wx_mp/dna/{dna-id}/{dna-id}.dna.md \
+  --template wx_mp/dna/{dna-id}/{dna-id}.template.md
 ```
 
 脚本会合并 DNA 文档记录的历史 report 与新 report，重新计算加权统计，并保留 Agent 已完成内容。Agent 仍需重新审视聚合结论，再同步修订 DNA 文档和 template。

@@ -80,12 +80,12 @@ content-calibrator eval --platform wx_channel --dna-id <id>      # 指定 DNA
 
 1. 判定只看比值与走向，绝对值只作上下文。
 2. 逐条排除平台混杂因素，特别注意长尾效应——近 3-7 天发布的数据成熟度不足时降级为观察。
-3. 回读 `dna/wx_channel/<dna-id>/<dna-id>.dna.md` / `.template.md` 与待评估作品脚本（`source_folder` 内 `script.md`），把趋势变化落到 template 部分与 16 维。
+3. 回读 `wx_channel/dna/<dna-id>/<dna-id>.dna.md` / `.template.md` 与待评估作品脚本（`source_folder` 内 `script.md`），把趋势变化落到 template 部分与 16 维。
 4. 分享率异常（过高或过低）时优先核对转发动机设计是否命中，这是视频号区别于其他平台的第一归因点。
 
 ### Step 3 - 报告与标记
 
-1. 写评估报告到 `dna/wx_channel/<dna-id>/evals/{YYYY-MM-DD}.eval.md`，结构按 `content-calibrator` 的评估产物要求（整体判定 / 趋势表 / template 归因 / 逐条建议 / 观察区）。
+1. 写评估报告到 `wx_channel/dna/<dna-id>/evals/{YYYY-MM-DD}.eval.md`，结构按 `content-calibrator` 的评估产物要求（整体判定 / 趋势表 / template 归因 / 逐条建议 / 观察区）。
 2. 标记覆盖的记录，防下轮重复评估：
 
 ```bash

@@ -50,8 +50,8 @@
 写前必须读取两份文件：
 
 ```text
-dna/xhs/{dna-id}/{dna-id}.dna.md
-dna/xhs/{dna-id}/{dna-id}.template.md
+xhs/dna/{dna-id}/{dna-id}.dna.md
+xhs/dna/{dna-id}/{dna-id}.template.md
 ```
 
 DNA template 是选题、标题、开头钩子、正文结构、语气、图组和互动路线的直接执行依据；DNA 文档用于理解稳定性、例外和适用条件。委托 `content-producer` 制作视频笔记时，把 template 的执行要求写进制作简报。
@@ -95,10 +95,10 @@ DNA 约束的是选题、标题、开头、正文结构、语气、视觉和互�
 
 ## Step 2 - 素材获取与整理
 
-先建立笔记目录 `output_articles/<note-name>/`（note-name 用主题的短 slug；选题尚未确定时可先用暂代名，选题确定后随之定名），下设 `materials/` 子目录，获取到的素材统一放入 `materials/`。
+先建立笔记目录 `xhs/outputs/<note-name>/`（note-name 用主题的短 slug；选题尚未确定时可先用暂代名，选题确定后随之定名），下设 `materials/` 子目录，获取到的素材统一放入 `materials/`。
 
 1. 按类型获取输入：
-   - 小红书图文笔记链接 -> `xhs-content-ops --url <url> --output-dir output_articles/<note-name>/materials/` 下载正文与图片（仿照制作时它就是参考素材）。
+   - 小红书图文笔记链接 -> `xhs-content-ops --url <url> --output-dir xhs/outputs/<note-name>/materials/` 下载正文与图片（仿照制作时它就是参考素材）。
    - 小红书视频笔记链接 -> self-spawn subagent 走 `viral-chaser` 拆解。
    - 其他来源链接 -> 用 web_fetch 或浏览器工具读取正文。
    - 本地图片 / 文案 -> 复制进 `materials/`。
@@ -167,7 +167,7 @@ DNA 约束的是选题、标题、开头、正文结构、语气、视觉和互�
 
 ## Step 5 - 正文
 
-初稿直接写入 `output_articles/<note-name>/note.md`（首个一级标题行写标题，正文保留换行节奏）。
+初稿直接写入 `xhs/outputs/<note-name>/note.md`（首个一级标题行写标题，正文保留换行节奏）。
 
 1. 严格按 DNA template 写：开头、承、结尾、CTA 各部分的任务、句式节奏、语气与执行方式。
 2. 开头 1-2 行必须兑现标题与封面的承诺，按 template 钩子类型起步。
@@ -181,7 +181,7 @@ DNA 约束的是选题、标题、开头、正文结构、语气、视觉和互�
 
 1. 读取 DNA template 的图组部分与封面图风格、封面 AIGC 提示词要素。
 2. 图片来源优先级（与 workspace 约定一致）：
-   - 用户提供的素材（优先使用，确认后复制进 `output_articles/<note-name>/`）。
+   - 用户提供的素材（优先使用，确认后复制进 `xhs/outputs/<note-name>/`）。
    - `campaign_assets/` 积累的素材图。
    - 技能生成：`siliconflow-img-gen` 优先；不可用时 `pexels-footage` / `pixabay-footage` 下载免版权图。
 3. 封面图（首图）必须存在：按 template 的封面承诺与版式要求准备；生成图发用户确认。
@@ -194,7 +194,7 @@ DNA 约束的是选题、标题、开头、正文结构、语气、视觉和互�
 
 ## Step 7 - 存文件
 
-定稿笔记目录 `output_articles/<note-name>/`：
+定稿笔记目录 `xhs/outputs/<note-name>/`：
 
 - `note.md`（首个一级标题行 = 标题，正文含内联 `#话题`）
 - 封面图与图组图片（与 note.md 同目录，文件名互不重名）
@@ -227,5 +227,5 @@ xhs-publish --mode video --title "标题" --body "正文" --video video.mp4 --co
 
 发布成功（拿到笔记链接）后入库：
 
-1. 调 `published-track record`：`--platform xhs`、`--source-folder output_articles/<note-name>/`、`--account <发布所用账号 alias>`、`--publish-url <xhs-publish 返回的 url>`（`dna_id` 自动从 `dna-meta.json` 读取）。
+1. 调 `published-track record`：`--platform xhs`、`--source-folder xhs/outputs/<note-name>/`、`--account <发布所用账号 alias>`、`--publish-url <xhs-publish 返回的 url>`（`dna_id` 自动从 `dna-meta.json` 读取）。
 2. 发布流程到此结束；互动数据由每日定时采集任务统一抓取（`xhs-engagement`），复盘走 `review.md`。

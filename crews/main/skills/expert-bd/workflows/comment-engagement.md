@@ -1,6 +1,6 @@
 # Comment Engagement（评论区拓展）
 
-通过自媒体平台搜索特定关键词内容，进入内容评论区按预设互动策略进行留言、回复或私信，拓展潜在客户或做品牌宣传。（俗称“截流”）
+通过自媒体平台搜索特定关键词内容，进入内容评论区按预设互动策略进行留言、回复或私信，拓展潜在客户或做品牌宣传（俗称“截流”）。
 
 **依赖**：`smart-search`（构造搜索 URL）、`browser-guide`（浏览器操作）、`bd-record`（去重记录）、`xhs-interact`（小红书互动）、`twitter-interact`（Twitter/X 点赞/转推/关注）、`twitter-post`（Twitter/X 回复，收纳在 `expert-twitter` 包内）。
 

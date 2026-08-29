@@ -88,9 +88,12 @@ def ensure_safe_path(raw_path: str, allowed_dirs: tuple[Path, ...], purpose: str
 
     resolved_root = workspace_root(root)
     resolved = (resolved_root / path).resolve()
-    if not any(resolved == (resolved_root / base).resolve() or resolved.is_relative_to((resolved_root / base).resolve()) for base in allowed_dirs):
+    under_allowed = any(resolved == (resolved_root / base).resolve() or resolved.is_relative_to((resolved_root / base).resolve()) for base in allowed_dirs)
+    # 平台运营文件夹约定：允许 <platform>/outputs/...（平台内容项目目录）
+    under_platform_outputs = "outputs" in path.parts[:-1]
+    if not (under_allowed or under_platform_outputs):
         allowed = ", ".join(str(base) for base in allowed_dirs)
-        die(f"{purpose} path must be under one of: {allowed}")
+        die(f"{purpose} path must be under one of: {allowed}, or a platform ops folder <platform>/outputs/")
     return resolved
 
 
@@ -429,8 +432,8 @@ def main() -> None:
     parser.add_argument("--speech-rate", type=float, default=None, help="Speech rate [-50, 100], 0=default, 100=2x, -50=0.5x")
     parser.add_argument("--loudness", type=float, default=None, dest="loudness_rate", help="Loudness [-50, 100], 0=default")
     parser.add_argument("--context-text", default=None, dest="context_text", help="情感控制上下文文本（如 '用撒娇甜蜜的语气'）")
-    parser.add_argument("--output", default=None, help="Exact output file path under assets/audio, tmp, output_videos, or fragments")
-    parser.add_argument("--out-dir", default=None, dest="out_dir", help="Output directory under assets/audio, tmp, output_videos, or fragments")
+    parser.add_argument("--output", default=None, help="Exact output file path under assets/audio, tmp, output_videos, fragments, or <platform>/outputs/")
+    parser.add_argument("--out-dir", default=None, dest="out_dir", help="Output directory under assets/audio, tmp, output_videos, fragments, or <platform>/outputs/")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
     parser.add_argument("--no-asr-check", action="store_true", dest="no_asr_check", help="Skip ASR self-check after TTS generation")
     parser.add_argument("--enable-subtitle", action="store_true", dest="enable_subtitle", help="让火山单向流式 HTTP 原生返回字级时间戳（sentence.words 带 startTime/endTime，秒）")

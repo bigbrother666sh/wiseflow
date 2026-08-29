@@ -2,7 +2,7 @@
 
 监控特定信源（自媒体账号或网页），按预设提取标准采集商业情报，生成简报/报告交付用户。默认一次性采集；定时监控是用户可选项（见 `scheduling.md`）。
 
-**依赖**：`smart-search`（构造搜索 URL）、`browser-guide`（浏览器操作）、`rss-reader`（网页 RSS 监控）、`info-record`（采集记录与去重）。
+**依赖**：`smart-search`（构造搜索 URL）、`browser-guide`（浏览器操作）、`rss-reader`（网页 RSS 监控）、`wx-mp-hunter`(微信公众号内容获取)、`info-record`（采集记录与去重）。
 
 ---
 
@@ -35,7 +35,7 @@
    - 如无法精确筛选日期，则取前 10 条内容
 
 3. 对每条内容：
-   a. 提取内容标识（source=平台-账号, title, author, publish_date）
+   a. 提取内容标识（平台, title, author, publish_date）
 
    b. 去重检查：
       ```bash
@@ -53,7 +53,7 @@
    e. 记录采集结果：
       ```bash
       info-record record-content \
-        --source <内容URL> \
+        --source <内容URL or 平台-账号> \
         --source-type <平台标识> \
         --title <标题> \
         --author <作者> \
@@ -122,5 +122,5 @@
 ## 注意事项
 
 - 视频内容通过视频简介/描述文字分析，不下载视频
-- 微信公众号内容可能需要通过搜狗微信搜索或其他渠道访问
+- 微信公众号内容使用 `wx-mp-hunter` 技能，不要使用浏览器
 - 部分平台可能需要登录才能查看完整内容（遵循 `browser-guide`）

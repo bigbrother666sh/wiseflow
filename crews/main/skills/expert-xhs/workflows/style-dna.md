@@ -42,7 +42,7 @@ DNA 描述选题、标题、开头钩子、正文结构、语气、视觉与互�
 ## 存储结构
 
 ```text
-dna/xhs/{dna-id}/
+xhs/dna/{dna-id}/
   reports/
     {sample-id}.report.md
   covers/
@@ -51,7 +51,7 @@ dna/xhs/{dna-id}/
   {dna-id}.template.md
 ```
 
-- 原始笔记文本可以临时保存在 `xhs_ref/{dna-id}/notes/`，也可以来自用户提供的路径。
+- 原始笔记文本可以临时保存在 `xhs/ref/{dna-id}/notes/`，也可以来自用户提供的路径。
 - 生成后的 DNA report 必须进入目标 DNA 的 `reports/` 目录。
 - `sample-id` 必须可读且稳定；覆盖同名 report 前，先向用户说明该文件会被重算。
 
@@ -61,7 +61,7 @@ dna/xhs/{dna-id}/
 
 | 来源 | 处理 |
 | --- | --- |
-| 小红书图文笔记链接（`xiaohongshu.com/explore/...` / `xhslink.com` 短链） | `xhs-content-ops --url <url> --output-dir xhs_ref/{dna-id}/notes/{sample-id}/` 下载正文、图片与互动数据 |
+| 小红书图文笔记链接（`xiaohongshu.com/explore/...` / `xhslink.com` 短链） | `xhs-content-ops --url <url> --output-dir xhs/ref/{dna-id}/notes/{sample-id}/` 下载正文、图片与互动数据 |
 | 小红书视频笔记链接 | self-spawn subagent 走 `viral-chaser` 拆解（转录、封面、互动线索），转录整理为笔记文本 |
 | 用户提供的文字稿 / 笔记草稿 / 口述要点 | Agent 整理为样本 `.md` 后直接作为 profiler 输入 |
 | 用户直接的想法 / 偏好 | 不生成 report，按"用户偏好"转译进入目标 DNA |
@@ -114,8 +114,8 @@ xhs-style-profiler build --dna-id {dna-id}
 Agent 聚合时必须读取全部 report，结合权重、focus、高频共性、高权重偏好、孤例和例外，修订：
 
 ```text
-dna/xhs/{dna-id}/{dna-id}.dna.md
-dna/xhs/{dna-id}/{dna-id}.template.md
+xhs/dna/{dna-id}/{dna-id}.dna.md
+xhs/dna/{dna-id}/{dna-id}.template.md
 ```
 
 Template 聚合要求：
@@ -139,9 +139,9 @@ Template 聚合要求：
 
 ```bash
 xhs-style-profiler update \
-  --input dna/xhs/{dna-id}/reports/{sample-id}.report.md \
-  --dna dna/xhs/{dna-id}/{dna-id}.dna.md \
-  --template dna/xhs/{dna-id}/{dna-id}.template.md
+  --input xhs/dna/{dna-id}/reports/{sample-id}.report.md \
+  --dna xhs/dna/{dna-id}/{dna-id}.dna.md \
+  --template xhs/dna/{dna-id}/{dna-id}.template.md
 ```
 
 3. Agent 根据新的加权统计和 16 维证据，同步修订 DNA 文档与 template。
@@ -170,7 +170,7 @@ xhs-style-profiler update \
 
 ### 表现反馈
 
-来源：`content-calibrator` 的 DNA 表现评估报告（`dna/xhs/{dna-id}/evals/*.eval.md`）。评估回答"这个 DNA 好不好、哪些部分好/不好"，本 workflow 负责把**用户确认采纳**的评估结论转译进 DNA。
+来源：`content-calibrator` 的 DNA 表现评估报告（`xhs/dna/{dna-id}/evals/*.eval.md`）。评估回答"这个 DNA 好不好、哪些部分好/不好"，本 workflow 负责把**用户确认采纳**的评估结论转译进 DNA。
 
 1. 前提：评估报告已存在，且用户逐条确认了要采纳的建议（未确认的建议不动 DNA）。
 2. 每条采纳建议按参考输入处理：转译到具体维度和执行要求（如"收藏持续走低，清单结构不够可执行"→ 正文结构维度 + 承部分信息密度），经 `xhs-style-profiler update --user-input` 传入。
@@ -180,7 +180,7 @@ xhs-style-profiler update \
 
 ## DNA 使用接口
 
-本 Workflow 不描述如何用 DNA 生产：生产 workflow 自行读取 `dna/xhs/{dna-id}/{dna-id}.dna.md` 与 `{dna-id}.template.md`，按 template 七部分执行，见 `content-production.md` / `editing.md`。
+本 Workflow 不描述如何用 DNA 生产：生产 workflow 自行读取 `xhs/dna/{dna-id}/{dna-id}.dna.md` 与 `{dna-id}.template.md`，按 template 七部分执行，见 `content-production.md` / `editing.md`。
 
 反馈回流判定：来自生产、改稿或复盘的成品修改意见，先判断是否可复用偏好——只有可复用偏好才经本 workflow「更新已有 DNA」进入 DNA；单次修改留在稿件审阅记录，不动 DNA。参考笔记的风格吸收（"把这篇的风格融入到我们的 DNA"）属于本 workflow 的新增样本 / 局部借鉴场景，不是生产流程的一部分。发布数据驱动的风格优化走「表现反馈」：`content-calibrator` 评估产出建议 → 用户逐条确认 → 本 workflow 转译进 DNA；评估本身不改 DNA。
 

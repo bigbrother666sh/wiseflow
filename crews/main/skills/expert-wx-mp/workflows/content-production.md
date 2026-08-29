@@ -46,8 +46,8 @@
 写前必须读取两份文件：
 
 ```text
-dna/wx_mp/{dna-id}/{dna-id}.dna.md
-dna/wx_mp/{dna-id}/{dna-id}.template.md
+wx_mp/dna/{dna-id}/{dna-id}.dna.md
+wx_mp/dna/{dna-id}/{dna-id}.template.md
 ```
 
 DNA template 是选题、标题、段落结构、句式、语气和表达路线的直接执行依据；DNA 文档用于理解稳定性、例外和适用条件。
@@ -92,7 +92,7 @@ DNA 约束的是选题角度、标题、结构、句式、语气和表达方式�
 
 ## Step 2 - 素材获取与整理
 
-先建立文章目录 `output_articles/<article-name>/`（article-name 用主题的短 slug；选题尚未确定时可先用暂代名，选题确定后随之定名），下设 `materials/` 子目录，获取到的素材统一放入 `materials/`。
+先建立文章目录 `wx_mp/outputs/<article-name>/`（article-name 用主题的短 slug；选题尚未确定时可先用暂代名，选题确定后随之定名），下设 `materials/` 子目录，获取到的素材统一放入 `materials/`。
 
 1. 按类型获取输入：
    - `mp.weixin.qq.com` 链接 -> 调 `wx-mp-hunter fetch` 获取正文（需要封面时加 `--download-cover`）。
@@ -171,13 +171,13 @@ DNA 约束的是选题角度、标题、结构、句式、语气和表达方式�
 2. 结合最终标题、目标读者和本文核心收益，补齐本次封面的主体、场景、构图、色彩、光线、质感、文字视觉和负向约束。
 3. 使用 `siliconflow-img-gen` 生成封面图。
 4. 用户已提供封面或封面素材时，可以基于用户已提供的封面或封面素材做编辑，补充必要要素。如果用户提供的不足以成为封面图，比如说尺寸偏小，元素不全等，则作为生成的参考。如果用户明确说：就按照他提供的，那就直接使用。
-5. 生成的封面图发给用户确认，确认后保存到 `output_articles/<article-name>/cover.jpg`。
+5. 生成的封面图发给用户确认，确认后保存到 `wx_mp/outputs/<article-name>/cover.jpg`。
 
 ### 小绿书
 
 1. 小绿书不强制封面：按用户要求额外生成或不生成。
 2. 用户一张图也未提供时，必须至少生成一张图，可按 DNA template 的封面要求生成。
-3. 用户提供的图片全部进入 `image_list`（最多 20 张，首张为封面）；确认使用的图片统一复制到 `output_articles/<article-name>/`。
+3. 用户提供的图片全部进入 `image_list`（最多 20 张，首张为封面）；确认使用的图片统一复制到 `wx_mp/outputs/<article-name>/`。
 
 ## 【确认】封面
 
@@ -185,7 +185,7 @@ DNA 约束的是选题角度、标题、结构、句式、语气和表达方式�
 
 ## Step 6 - 初稿
 
-初稿直接写入 `output_articles/<article-name>/article.md`。
+初稿直接写入 `wx_mp/outputs/<article-name>/article.md`。
 
 ### 公众号长文
 
@@ -203,7 +203,7 @@ DNA 约束的是选题角度、标题、结构、句式、语气和表达方式�
 
 ### 文章配图准备规则
 
-文章配图（含封面图），必须放置 `output_articles/<article-name>/`（与`article.md`同目录），并按以下规则引用：
+文章配图（含封面图），必须放置 `wx_mp/outputs/<article-name>/`（与`article.md`同目录），并按以下规则引用：
 
 1. 正文图片写 `![说明](filename.jpg)`
 2. `cover` 写 `cover: cover.jpg`
@@ -253,7 +253,7 @@ image_list:
 
 ## Step 8 - 存文件
 
-定稿文章目录 `output_articles/<article-name>/`：
+定稿文章目录 `wx_mp/outputs/<article-name>/`：
 
 - `article.md`（含 frontmatter）
 - 封面图与配图（与 article.md 同目录）
@@ -283,7 +283,7 @@ image_list:
 
 `wx-mp-publisher` 只能把文章发布到微信公众号后台草稿箱，正式发布必须由用户手动至微信公众号后台操作：
 
-1. 调用成功后 relay 返回草稿的 `media_id`；暂时将 `media_id` 作为文章 url 占位，先调 `published-track record` 完成入库：`--platform wx_mp`、`--source-folder output_articles/<article-name>/`、`--account <发布所用账号 alias>`（`dna_id` 自动从 `dna-meta.json` 读取）。
+1. 调用成功后 relay 返回草稿的 `media_id`；暂时将 `media_id` 作为文章 url 占位，先调 `published-track record` 完成入库：`--platform wx_mp`、`--source-folder wx_mp/outputs/<article-name>/`、`--account <发布所用账号 alias>`（`dna_id` 自动从 `dna-meta.json` 读取）。
 2. 告诉用户去公众号后台草稿箱正式发布。
 3. 后续用户完成正式发布并提供了正式 URL 时，用相同 `--source-folder`、`--publish-date` 重跑 `published-track record` 并传入正式 `--publish-url`——upsert 语义会升级对应记录的 URL，不重复插行。
 

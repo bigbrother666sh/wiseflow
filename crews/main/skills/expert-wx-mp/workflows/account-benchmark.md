@@ -66,8 +66,8 @@ wechat-style-profiler build --dna-id {benchmark-dna-id}
 Agent 必须回读原文，补齐 report，并基于全部 report 修订：
 
 ```text
-dna/wx_mp/{benchmark-dna-id}/{benchmark-dna-id}.dna.md
-dna/wx_mp/{benchmark-dna-id}/{benchmark-dna-id}.template.md
+wx_mp/dna/{benchmark-dna-id}/{benchmark-dna-id}.dna.md
+wx_mp/dna/{benchmark-dna-id}/{benchmark-dna-id}.template.md
 ```
 
 对标 DNA template 也必须固定为七个部分：选题、标题、起、承、转、合、CTA。后半五个部分是语义结构，不限制实际自然段数量；每一部分都要能从对标 DNA 文档推导。
@@ -77,8 +77,8 @@ dna/wx_mp/{benchmark-dna-id}/{benchmark-dna-id}.template.md
 读取：
 
 ```text
-dna/wx_mp/{base-dna-id}/{base-dna-id}.dna.md
-dna/wx_mp/{base-dna-id}/{base-dna-id}.template.md
+wx_mp/dna/{base-dna-id}/{base-dna-id}.dna.md
+wx_mp/dna/{base-dna-id}/{base-dna-id}.template.md
 ```
 
 默认 `{base-dna-id}` 为 `dna-0`。若 `dna-0` 不存在，先停止比较并提示用户走 `account-setup.md` 初始化，或由用户明确指定另一个基线。
@@ -124,8 +124,8 @@ dna/wx_mp/{base-dna-id}/{base-dna-id}.template.md
 
 ```bash
 wechat-style-profiler update \
-  --dna dna/wx_mp/{base-dna-id}/{base-dna-id}.dna.md \
-  --template dna/wx_mp/{base-dna-id}/{base-dna-id}.template.md \
+  --dna wx_mp/dna/{base-dna-id}/{base-dna-id}.dna.md \
+  --template wx_mp/dna/{base-dna-id}/{base-dna-id}.template.md \
   --user-input "采纳 {benchmark-dna-id} 的标题部分：xxx"
 ```
 

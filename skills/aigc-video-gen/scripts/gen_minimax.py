@@ -347,13 +347,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_video.add_argument("--ratio", default="9:16", help="宽高比，默认 9:16")
     p_video.add_argument("--resolution", default="720P", choices=["720P", "1080P"], help="分辨率，默认 720P")
     p_video.add_argument("--model", default=None, help="指定模型 id（关闭候选链 fallback）")
-    p_video.add_argument("--output", required=True, help="输出 MP4 路径（相对工作区，须在 output_videos/tmp/fragments/artifacts 下）")
+    p_video.add_argument("--output", required=True, help="输出 MP4 路径（相对工作区，须在 output_videos/tmp/fragments/artifacts 或 <platform>/outputs/ 下）")
 
     # ── music 子命令：minimax 背景音乐生成 ──
     p_music = sub.add_parser("music", help="MiniMax 背景音乐生成(需 MINIMAX_API_KEY)")
     p_music.add_argument("--prompt", required=True, help="音乐描述(风格/情绪/乐器)")
     p_music.add_argument("--duration", type=int, default=None, dest="music_duration", help="音乐时长(秒),不传走模型默认")
-    p_music.add_argument("--output", required=True, help="输出音频路径(相对工作区,须在 output_videos/tmp/fragments/artifacts 下)")
+    p_music.add_argument("--output", required=True, help="输出音频路径(相对工作区,须在 output_videos/tmp/fragments/artifacts 或 <platform>/outputs/ 下)")
 
     return parser
 

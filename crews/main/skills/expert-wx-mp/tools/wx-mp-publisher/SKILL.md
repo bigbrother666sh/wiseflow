@@ -1,11 +1,6 @@
 ---
 name: wx-mp-publisher
 description: 通过 relay 将 Markdown 排版并推送到微信公众号草稿箱。支持多账号和小绿书，凭据存在 accounts.json。
-metadata:
-  openclaw:
-    requires:
-      bins:
-      - python3
 ---
 
 # wx-mp-publisher — 工具说明

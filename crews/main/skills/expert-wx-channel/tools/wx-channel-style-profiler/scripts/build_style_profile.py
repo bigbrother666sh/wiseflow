@@ -805,7 +805,7 @@ def report_command(args: argparse.Namespace) -> None:
     document = document_metrics(
         paths[0], paths[0].read_text(encoding="utf-8", errors="ignore")
     )
-    output_dir = Path(args.output_dir or f"dna/{PLATFORM}/{args.dna_id}/reports")
+    output_dir = Path(args.output_dir or f"{PLATFORM}/dna/{args.dna_id}/reports")
     cover_image = ""
     if args.cover_image:
         source_cover = validate_cover_image(args.cover_image)
@@ -825,7 +825,7 @@ def report_command(args: argparse.Namespace) -> None:
 
 def build_command(args: argparse.Namespace) -> None:
     validate_id(args.dna_id, "--dna-id")
-    input_values = args.input or [f"dna/{PLATFORM}/{args.dna_id}/reports"]
+    input_values = args.input or [f"{PLATFORM}/dna/{args.dna_id}/reports"]
     paths = collect_input_paths(input_values, {".md"})
     report_paths = [path for path in paths if path.name.endswith(".report.md")]
     if not report_paths:
@@ -837,7 +837,7 @@ def build_command(args: argparse.Namespace) -> None:
             f"Reports belong to another dna-id: {', '.join(foreign_reports)}"
         )
     statistics = build_statistics(reports)
-    output_dir = Path(args.output_dir or f"dna/{PLATFORM}/{args.dna_id}")
+    output_dir = Path(args.output_dir or f"{PLATFORM}/dna/{args.dna_id}")
     dna_path = output_dir / f"{args.dna_id}.dna.md"
     template_path = output_dir / f"{args.dna_id}.template.md"
     write_text(

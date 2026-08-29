@@ -1,9 +1,6 @@
 ---
 name: twitter-post
 description: 通过 camoufox-cli 浏览器自动化发布推文到 Twitter/X。支持文本、图片、视频、串推、引用、回复、长文（Premium/Blue 25,000 字符）。
-metadata:
-  openclaw:
-    emoji: 🐦
 ---
 
 # twitter-post — 工具说明
@@ -69,7 +66,7 @@ camoufox-cli --session twitter --persistent --headed --json open "https://x.com/
 - 单日 ≤ 50 帖（含 reply / quote / retweet / 长帖）
 - 单周 ≤ 200 帖
 - 触发风控后 24h 静默
-- 频次跟踪：写到 `~/.openclaw/agents/main/sessions/twitter-frequency.json`（每次 post 后 append）
+- 频次跟踪：写到 Workspace 根平台运营文件夹 `twitter/twitter-frequency.json`（每次 post 后 append，不存在则初始化）
 
 ---
 
@@ -284,7 +281,7 @@ snapshot eval: document.querySelector('[data-testid="icon-verified"]') !== null
 ## Frequency Tracker
 
 ```python
-# ~/.openclaw/agents/main/sessions/twitter-frequency.json
+# <Workspace 根>/twitter/twitter-frequency.json
 {
   "last_post_at": "2026-07-05T09:30:00+08:00",
   "today_count": 5,

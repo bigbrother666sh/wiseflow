@@ -1,12 +1,6 @@
 ---
 name: douyin-comments
 description: 抓取抖音视频的评论列表（纯 HTTP + cookie + 签名，不起浏览器），输出 JSON 与按点赞排序的 markdown 摘要。
-metadata:
-  openclaw:
-    emoji: 💬
-    requires:
-      bins:
-      - node
 ---
 
 # douyin-comments — 工具说明
@@ -30,7 +24,7 @@ douyin-comments fetch --aweme-id 7389012345678901234
 douyin-comments fetch \
   --url "https://www.douyin.com/video/7389012345678901234" \
   --limit 60 \
-  --output douyin_ref/dna-0/comments/sample-1.comments.md
+  --output douyin/ref/dna-0/comments/sample-1.comments.md
 ```
 
 参数说明：

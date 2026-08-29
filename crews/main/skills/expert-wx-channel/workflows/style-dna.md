@@ -44,7 +44,7 @@ DNA 描述选题、标题与描述文案、封面、脚本结构与表达策略�
 ## 存储结构
 
 ```text
-dna/wx_channel/{dna-id}/
+wx_channel/dna/{dna-id}/
   reports/
     {sample-id}.report.md
   covers/
@@ -53,7 +53,7 @@ dna/wx_channel/{dna-id}/
   {dna-id}.template.md
 ```
 
-- 原始文字稿（口播脚本 / 逐字稿）可以临时来自任何位置，也可以由 Agent 转写后临时保存。
+- 原始文字稿（口播脚本 / 逐字稿）可以临时保存在 `wx_channel/ref/{dna-id}/transcripts/`；也可以来自用户提供的任何位置，或由 Agent 转写后保存。
 - 生成后的 DNA report 必须进入目标 DNA 的 `reports/` 目录。
 - `sample-id` 必须可读且稳定；覆盖同名 report 前，先向用户说明该文件会被重算。
 
@@ -116,8 +116,8 @@ wx-channel-style-profiler build --dna-id {dna-id}
 Agent 聚合时必须读取全部 report，结合权重、focus、高频共性、高权重偏好、孤例和例外，修订：
 
 ```text
-dna/wx_channel/{dna-id}/{dna-id}.dna.md
-dna/wx_channel/{dna-id}/{dna-id}.template.md
+wx_channel/dna/{dna-id}/{dna-id}.dna.md
+wx_channel/dna/{dna-id}/{dna-id}.template.md
 ```
 
 Template 聚合要求：
@@ -140,9 +140,9 @@ Template 聚合要求：
 
 ```bash
 wx-channel-style-profiler update \
-  --input dna/wx_channel/{dna-id}/reports/{sample-id}.report.md \
-  --dna dna/wx_channel/{dna-id}/{dna-id}.dna.md \
-  --template dna/wx_channel/{dna-id}/{dna-id}.template.md
+  --input wx_channel/dna/{dna-id}/reports/{sample-id}.report.md \
+  --dna wx_channel/dna/{dna-id}/{dna-id}.dna.md \
+  --template wx_channel/dna/{dna-id}/{dna-id}.template.md
 ```
 
 3. Agent 根据新的加权统计和 16 维证据，同步修订 DNA 文档与 template。
@@ -171,7 +171,7 @@ wx-channel-style-profiler update \
 
 ### 表现反馈
 
-来源：`content-calibrator` 的 DNA 表现评估报告（`dna/wx_channel/{dna-id}/evals/*.eval.md`）。评估回答「这个 DNA 好不好、哪些部分好/不好」，本 workflow 负责把**用户确认采纳**的评估结论转译进 DNA。
+来源：`content-calibrator` 的 DNA 表现评估报告（`wx_channel/dna/{dna-id}/evals/*.eval.md`）。评估回答「这个 DNA 好不好、哪些部分好/不好」，本 workflow 负责把**用户确认采纳**的评估结论转译进 DNA。
 
 1. 前提：评估报告已存在，且用户逐条确认了要采纳的建议（未确认的建议不动 DNA）。
 2. 每条采纳建议按参考输入处理：转译到具体维度和执行要求（如「分享率持续走低，内容缺社交价值」→ 转发动机设计 + 价值密度维度），经 `wx-channel-style-profiler update --user-input` 传入。
@@ -181,7 +181,7 @@ wx-channel-style-profiler update \
 
 ## DNA 使用接口
 
-本 Workflow 不描述如何用 DNA 生产：生产 workflow 自行读取 `dna/wx_channel/{dna-id}/{dna-id}.dna.md` 与 `{dna-id}.template.md`，按 template 执行，见 `content-production.md` / `editing.md`。
+本 Workflow 不描述如何用 DNA 生产：生产 workflow 自行读取 `wx_channel/dna/{dna-id}/{dna-id}.dna.md` 与 `{dna-id}.template.md`，按 template 执行，见 `content-production.md` / `editing.md`。
 
 反馈回流判定：来自生产、改稿或复盘的成片/脚本修改意见，先判断是否可复用偏好——只有可复用偏好才经本 workflow「更新已有 DNA」进入 DNA；单次修改留在制作记录，不动 DNA。参考视频的风格吸收（“把这条的风格融入到我们的 DNA”）属于本 workflow 的新增样本 / 局部借鉴场景，不是生产流程的一部分。发布数据驱动的风格优化走「表现反馈」：`content-calibrator` 评估产出建议 → 用户逐条确认 → 本 workflow 转译进 DNA；评估本身不改 DNA。
 

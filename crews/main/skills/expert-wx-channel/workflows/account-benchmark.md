@@ -64,8 +64,8 @@ wx-channel-style-profiler build --dna-id {benchmark-dna-id}
 Agent 必须回读文字稿，补齐 report，并基于全部 report 修订：
 
 ```text
-dna/wx_channel/{benchmark-dna-id}/{benchmark-dna-id}.dna.md
-dna/wx_channel/{benchmark-dna-id}/{benchmark-dna-id}.template.md
+wx_channel/dna/{benchmark-dna-id}/{benchmark-dna-id}.dna.md
+wx_channel/dna/{benchmark-dna-id}/{benchmark-dna-id}.template.md
 ```
 
 对标 DNA template 开头两项固定为选题、标题（含封面图与描述文案）；脚本分段默认五个语义部分（钩子、共情、信任状、价值、收尾），分段数量以对对标 DNA 文档的结构结论为准；每一部分都要能从对标 DNA 文档推导。
@@ -75,8 +75,8 @@ dna/wx_channel/{benchmark-dna-id}/{benchmark-dna-id}.template.md
 读取：
 
 ```text
-dna/wx_channel/{base-dna-id}/{base-dna-id}.dna.md
-dna/wx_channel/{base-dna-id}/{base-dna-id}.template.md
+wx_channel/dna/{base-dna-id}/{base-dna-id}.dna.md
+wx_channel/dna/{base-dna-id}/{base-dna-id}.template.md
 ```
 
 默认 `{base-dna-id}` 为 `dna-0`。若 `dna-0` 不存在，先停止比较并提示用户走 `account-setup.md` 初始化，或由用户明确指定另一个基线。
@@ -124,8 +124,8 @@ dna/wx_channel/{base-dna-id}/{base-dna-id}.template.md
 
 ```bash
 wx-channel-style-profiler update \
-  --dna dna/wx_channel/{base-dna-id}/{base-dna-id}.dna.md \
-  --template dna/wx_channel/{base-dna-id}/{base-dna-id}.template.md \
+  --dna wx_channel/dna/{base-dna-id}/{base-dna-id}.dna.md \
+  --template wx_channel/dna/{base-dna-id}/{base-dna-id}.template.md \
   --user-input "采纳 {benchmark-dna-id} 的钩子部分：xxx"
 ```
 
@@ -134,4 +134,4 @@ wx-channel-style-profiler update \
 
 更新后必须同步修订基线 DNA 文档与 template，并保留来源说明。
 
-对标分析的过程记录（样本清单、数据线索来源、比较结论）落盘 `calibration/wx_channel/`，供后续复盘引用。
+对标分析的过程记录（样本清单、数据线索来源、比较结论）落盘 `wx_channel/calibration/`，供后续复盘引用。

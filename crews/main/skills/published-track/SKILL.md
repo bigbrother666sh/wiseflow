@@ -49,7 +49,7 @@ published-track init-db
 
 ## 表结构
 
-每张表共享通用字段：`id`（自增主键）、`title`、`content_type`（article/video/post）、`source_folder`（原始文件夹，如 `output_articles/xxx`，**不做唯一约束，同内容可同平台多次发布**）、`publish_url`、`publish_date`（YYYY-MM-DD）、`distribute_status`（0=待分发，1=无需分发，2=已分发）、`notes`、`created_at`、`updated_at`。各平台特有互动指标默认 0，另有 `top_comment`（主要留言摘要）。
+每张表共享通用字段：`id`（自增主键）、`title`、`content_type`（article/video/post）、`source_folder`（原始文件夹，如 `wx_mp/outputs/xxx`，**不做唯一约束，同内容可同平台多次发布**）、`publish_url`、`publish_date`（YYYY-MM-DD）、`distribute_status`（0=待分发，1=无需分发，2=已分发）、`notes`、`created_at`、`updated_at`。各平台特有互动指标默认 0，另有 `top_comment`（主要留言摘要）。
 
 > **视频号（`pub_wx_channel`）特例**：视频号作品没有「标题」概念，只有描述文案——`title` 列存的是**完整描述文案**（含 hashtag，最长约 300 字），即 `wechat-channels-publish` Step 6 填的描述。`wx-channel-engagement` 抓取按它匹配后台作品管理页。调用方调 `record.sh --platform wx_channel --title` 必须传完整描述，不要传短标题。
 
@@ -77,7 +77,7 @@ published-track init-db
 
 - `--account ALIAS`：传发布时所用账号（如 wx_mp `accounts.json` 的 alias）。DNA 表现评估按账号归一化基线，**多账号平台务必传**。
 - `--dna-id`：显式覆盖 DNA 归属（优先级高于 dna-meta.json）。
-- `--source-folder` 必须是作品目录（per-work 的 `<work>`）：普通文章 `output_articles/<title>/`，视频 `output_videos/<name>/`。
+- `--source-folder` 必须是作品目录（per-work 的 `<work>`）：统一为平台运营文件夹下的 `<platform>/outputs/<work>/`（如 `wx_mp/outputs/<title>/`、`douyin/outputs/<name>/`）。
 - **落库语义 = upsert**：去重键 `(source_folder, publish_date)`。同一篇 + 同一平台 + 同一发布日重跑 `record.sh`（重发 / record 被重调）→ **更新旧行**（覆盖 title/url/dna_id/account/distribute_status），不重复插行；不同 `publish_date`（真正再发布 / 补发历史）仍新建行。返回 JSON 的 `action` 字段为 `inserted` 或 `updated`。⚠️ 这只管 DB 层去重——自媒体平台内容是更新还是去重, 由发布技能自己管。
 
 ```bash
@@ -86,7 +86,7 @@ published-track record \
   --platform wx_mp \
   --title "标题" \
   --content-type article \
-  --source-folder "output_articles/xxx" \
+  --source-folder "wx_mp/outputs/xxx" \
   --publish-url "https://mp.weixin.qq.com/s/xxx" \
   --account xiaobei-main
 
@@ -95,7 +95,7 @@ published-track record \
   --platform xhs \
   --title "标题" \
   --content-type post \
-  --source-folder "output_articles/xxx/post" \
+  --source-folder "xhs/outputs/xxx/post" \
   --publish-url "https://www.xiaohongshu.com/xxx" \
   --notes "历史补录"
 ```
@@ -117,7 +117,7 @@ published-track record \
 ```bash
 # 通过 source-folder 从 DB 查 publish_url → 抓取 → 写入
 published-track fetch-metrics \
-  --platform <platform> --source-folder "output_articles/xxx"
+  --platform <platform> --source-folder "<platform>/outputs/xxx"
 
 # 按 id 逐条抓（同 folder 多条记录各自独立统计，推荐）
 published-track fetch-metrics \
@@ -145,13 +145,13 @@ Exit codes：0=成功/浏览器/手动（非错误），1=一般错误，2=SESSI
 # 1) 录入基础信息（历史补录无 dna-meta.json → dna_id 自动留 NULL）
 published-track record \
   --platform wx_mp --title "用户提供的标题" --content-type article \
-  --source-folder "output_articles/xxx" \
+  --source-folder "wx_mp/outputs/xxx" \
   --publish-url "https://mp.weixin.qq.com/s/xxx" \
   --publish-date "2026-06-14" --distribute-status 1 --notes "用户手动录入"
 
 # 2) 补录互动数据（只传用户提供的字段，其余保持不变）
 published-track update-metrics \
-  --platform wx_mp --source-folder "output_articles/xxx" \
+  --platform wx_mp --source-folder "wx_mp/outputs/xxx" \
   --reads 1234 --likes 56 --shares 12
 ```
 
@@ -176,7 +176,7 @@ published-track query-pending --platform wx_mp # 单平台
 
 ```bash
 published-track set-distribute-status \
-  --platform wx_mp --source-folder "output_articles/xxx" --status 2
+  --platform wx_mp --source-folder "wx_mp/outputs/xxx" --status 2
 published-track set-distribute-status \
   --platform wx_mp --id 3 --status 2
 published-track set-distribute-status \
@@ -189,7 +189,7 @@ published-track set-distribute-status \
 published-track query --platform zhihu            # 某平台全部记录
 published-track query --platform zhihu --limit 10 # 最近 N 条
 published-track check-published \
-  --platform zhihu --source-folder "output_articles/xxx"              # 是否已发布
+  --platform zhihu --source-folder "zhihu/outputs/xxx"              # 是否已发布
 ```
 
 ### 流程 3D·DNA 表现评估（凌晨 heartbeat 用）

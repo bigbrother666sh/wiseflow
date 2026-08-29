@@ -1,14 +1,6 @@
 ---
 name: wx-channel-engagement
 description: 微信视频号已发布作品数据抓取，写入 published-track 的 pub_wx_channel 表。wechat-channel session 登录。
-metadata:
-  openclaw:
-    emoji: 📺
-    requires:
-      bins:
-      - python3
-      - camoufox-cli
-      - sqlite3
 ---
 
 # wx-channel-engagement — 工具说明

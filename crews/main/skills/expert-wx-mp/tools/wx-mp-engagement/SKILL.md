@@ -1,13 +1,6 @@
 ---
 name: wx-mp-engagement
 description: 抓取公众号已发布文章的阅读/点赞/评论/分享/收藏数据，写入 published-track 的 pub_wx_mp 表。
-metadata:
-  openclaw:
-    requires:
-      bins:
-      - python3
-      - camoufox-cli
-      - sqlite3
 ---
 
 # wx-mp-engagement — 工具说明

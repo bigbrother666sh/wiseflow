@@ -2,7 +2,7 @@
 
 ## 平台策略与品牌上下文
 
-<!-- 由 BOOTSTRAP 首次收集写入，后续运行中持续更新 -->
+见 `business_knowledge.md`
 
 ## crew 列表
 
@@ -14,30 +14,42 @@
 - **sales-cs**：销售客服，绑 awada 通道；**默认 seed 不在 openclaw.json**，启用与启用后的调整统一走 `sales-cs-manager` 专家包（Enablement workflow：检查 awada → channel 选择 → 派 IT engineer 配置 → 初始化AGENTS.md/IDENTITY.md/SOUL.md → 软链 `business_knowledge.md` + `business_knowledge/`；Review workflow：反馈复盘与话术/手册升级）
 - 旧版产品中的 selfmedia-operator / business-developer / designer / hrbp 全部合入main agent（小贝）
 
-## 已启用的定时任务
+---
 
-> 本段登记 main agent 当前已启用的所有定时任务（cron）。**默认全部未启用**——启用需
-> spawn IT engineer 设 cron。停用时同步从本段移除并让 IT engineer 撤 cron。
->
-> 启用路径：
-> - **每日新媒体平台数据复盘**：内容已在 HEARTBEAT.md 中，需 spawn IT engineer 设
->   cron 后启用。
-> - **BD 定时模式**：用户确认启用某模式后，从 `expert-bd` 包内 `scheduling.md` 复制对应
->   段落到 `HEARTBEAT.md`，再 spawn IT engineer 设 cron。
-> - **IR 定时模式**：用户确认启用某模式后，从 `expert-ir` 包内 `scheduling.md` 复制对应
->   段落到 `HEARTBEAT.md`，再 spawn IT engineer 设 cron。各模式 cron 表达式见
->   `HEARTBEAT.md` 中对应段的「执行时间 / 频率」。
+## 各平台运营要求
 
-| 任务名 | 工作条块 | cron 表达式 | 启用日期 | 状态 |
-|--------|----------|-------------|----------|----------|
-| _（默认空，启用后由 main agent 登记）_ | | | | |
+<!-- 运行中持续更新 -->
 
-<!-- 启用示例（勿预填）：
-| 每日新媒体数据复盘 | 新媒体运营 | 17 8 * * * | 2026-07-06 | 启用 |
-| Lead Hunting | BD | 0 9,21 * * * | 2026-07-06 | 启用 |
-| Investor Hunting | IR | 0 10 * * 1-5 | 2026-07-06 | 启用 |
--->
+---
+
+## 近期宣传重点与营销活动记录
+
+<!-- 运行中持续更新 -->
+
+---
 
 ## Notes
 
-<!-- 运行中持续更新 -->
+### 🚨 铁律:严格按技能流程执行,技能走不通要汇报,不自己摸索绕过
+
+**必须严格遵守技能规定的流程,不能想当然绕开或自己摸索。**
+
+### 🚨 企业微信朋友圈只支持 JPG
+
+PNG 要先转(JPEG 模式 → Image.open → RGB → save quality=92)。
+
+### 🚨 铁律:禁止修改 openclaw.json(2026.6.6 教训)
+
+**绝对禁止自己修改 `~/.openclaw/openclaw.json`(或任何 OpenClaw 系统配置文件)。**
+
+- 没有任何问题需要通过改 `openclaw.json` 来解决。
+- **遇到任何系统配置相关的问题**(浏览器、CDP、gateway、agent、cron 等)→ **spawn IT Engineer 解决**。
+- 这条规则没有例外,**即使看起来是个小改动**。
+
+任务中遇到问题时的正确路径(按 HEARTBEAT.md 和各 skill 的 Error Handling):
+1. 先彻底关闭浏览器再重新打开(默认 `openclaw` profile)
+2. 不行 → spawn IT Engineer
+3. 仍不行 → 跳过当前任务,继续后续步骤
+4. **绝对不能自己改 `openclaw.json`**
+
+### 🚨 铁律:任务遇错先看 skill 的 Error Handling(2026.6.6 教训二)

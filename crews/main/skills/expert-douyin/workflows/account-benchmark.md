@@ -31,7 +31,7 @@
 | 来源 | 工具 |
 | --- | --- |
 | 视频链接（对标账号代表作） | self-spawn subagent 走 `viral-chaser`（转录 + 时长 + 标题/描述 + 互动线索 + 关键帧） |
-| 对标视频评论 | `douyin-comments fetch --url <视频链接>` 直接抓取（默认前 40 条热度评论；摘要落 `douyin_ref/{benchmark-dna-id}/comments/{sample-id}.comments.md`），不依赖用户提供截图 |
+| 对标视频评论 | `douyin-comments fetch --url <视频链接>` 直接抓取（默认前 40 条热度评论；摘要落 `douyin/ref/{benchmark-dna-id}/comments/{sample-id}.comments.md`） |
 | 本地文字稿 / 脚本 | 整理为 `.md` 直接输入 profiler |
 | 用户提供的截图 / 数据 | 作为互动信号线索保留，不编造 |
 
@@ -66,8 +66,8 @@ douyin-style-profiler build --dna-id {benchmark-dna-id}
 Agent 必须回读转录原文与关键帧，补齐 report，并基于全部 report 修订：
 
 ```text
-dna/douyin/{benchmark-dna-id}/{benchmark-dna-id}.dna.md
-dna/douyin/{benchmark-dna-id}/{benchmark-dna-id}.template.md
+douyin/dna/{benchmark-dna-id}/{benchmark-dna-id}.dna.md
+douyin/dna/{benchmark-dna-id}/{benchmark-dna-id}.template.md
 ```
 
 对标 DNA template 也必须固定为七个部分：选题、标题（含封面）、起、承、转、合、CTA。后五个部分是语义结构，不限制实际时长占比；每一部分都要能从对标 DNA 文档推导。
@@ -87,8 +87,8 @@ dna/douyin/{benchmark-dna-id}/{benchmark-dna-id}.template.md
 读取：
 
 ```text
-dna/douyin/{base-dna-id}/{base-dna-id}.dna.md
-dna/douyin/{base-dna-id}/{base-dna-id}.template.md
+douyin/dna/{base-dna-id}/{base-dna-id}.dna.md
+douyin/dna/{base-dna-id}/{base-dna-id}.template.md
 ```
 
 默认 `{base-dna-id}` 为 `dna-0`。若 `dna-0` 不存在，先停止比较并提示用户走 `account-setup.md` 初始化，或由用户明确指定另一个基线。
@@ -134,8 +134,8 @@ dna/douyin/{base-dna-id}/{base-dna-id}.template.md
 
 ```bash
 douyin-style-profiler update \
-  --dna dna/douyin/{base-dna-id}/{base-dna-id}.dna.md \
-  --template dna/douyin/{base-dna-id}/{base-dna-id}.template.md \
+  --dna douyin/dna/{base-dna-id}/{base-dna-id}.dna.md \
+  --template douyin/dna/{base-dna-id}/{base-dna-id}.template.md \
   --user-input "采纳 {benchmark-dna-id} 的钩子部分：xxx"
 ```
 

@@ -1,14 +1,6 @@
 ---
 name: xhs-publish
-description: Publish image-text notes and video notes to Xiaohongshu (小红书) via
-  creator COS upload + web_api v2. Supports image posts (up to 18 images),
-  video posts, topics/hashtags. 
-metadata:
-  openclaw:
-    emoji: 📕
-    requires:
-      bins:
-      - python3
+description: Publish image-text notes and video notes to Xiaohongshu (小红书) via creator COS upload + web_api v2. Supports image posts (up to 18 images), video posts, topics/hashtags. 
 ---
 
 # 小红书发布（xhs-publish）— 工具说明

@@ -1,13 +1,6 @@
 ---
 name: xhs-content-ops
 description: 下载小红书图文笔记（正文 / 图片 / 作者 / 互动数据）。输入笔记 URL 或 note-id + xsec_token，输出 JSON + 本地文件。
-metadata:
-  openclaw:
-    emoji: 📊
-    requires:
-      bins:
-      - python3
-      - node
 ---
 
 # xhs-content-ops — 工具说明
@@ -61,7 +54,7 @@ xhs-content-ops \
 | `--note-id` | 二选一 | 小红书笔记 ID（与 `--url` 二选一） |
 | `--xsec-token` | `--note-id` 时必填 | xsec_token（用 `--note-id` 时必传，否则 HTML 路线拿空页；用 `--url` 时脚本自动提取） |
 | `--xsec-source` | 否 | xsec_source，默认 `pc_feed` |
-| `--output-dir` | 是 | 输出目录，**必须工作区相对路径**（如 `xhs_ref/<dna-id>/<sample-id>/` 或 `campaign_assets/<slug>/`），图片和正文保存到此 |
+| `--output-dir` | 是 | 输出目录，**必须工作区相对路径**（如 `xhs/ref/<dna-id>/<sample-id>/` 或 `campaign_assets/<slug>/`），图片和正文保存到此 |
 
 > **⚠️ `--output-dir` 必须用工作区相对路径，不要用 `/tmp`**。后续要用 image 工具读取下载的图片做视觉分析，而 image 工具只能读允许目录（工作区）下的文件，`/tmp` 下的图片会被拒绝（`Local media path is not under an allowed directory`），导致整轮分析白跑。
 

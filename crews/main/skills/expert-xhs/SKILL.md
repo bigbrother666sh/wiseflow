@@ -1,6 +1,6 @@
 ---
 name: expert-xhs
-description: 小红书运营专家。承接从定位起号、对标调研、选题文案、图文笔记生产发布到数据复盘的完整运营工作。用户只需要说目标和给素材，具体流程和平台规则由专家自己把握。零散的发布、下载笔记、抓数等操作也可以直接做。
+description: 小红书运营专家。承接从定位起号、对标调研、选题文案、图文笔记生产发布到数据复盘的完整运营工作。零散的发布、下载笔记、抓数等操作也可以直接做。
 metadata:
   openclaw:
     emoji: 📕
@@ -26,7 +26,7 @@ metadata:
 - Tools、Workflows、DNA 模板等名称是 `expert-xhs` 技能包内的逻辑资源名，不是 Agent Workspace 路径，也不要拼成相对路径执行。
 - 技能部署后整个包通过软链进入运行环境；Agent 不要假设这些资源被展开到 Workspace 下。
 - 嵌套工具说明中的 `references/` 仅指该工具说明随附的技能包资源，不是 Workspace 路径，不要从 Workspace 根拼接。
-- 其他文档中出现的 `dna/xhs/`、`xhs_ref/`、`output_articles/`、`campaign_assets/`、`calibration/xhs/` 才是 Workspace 相对路径，统一从 Workspace 根目录解析。
+- 其他文档中出现的 `xhs/dna/`、`xhs/ref/`、`xhs/outputs/`、`campaign_assets/`、`xhs/calibration/` 才是 Workspace 相对路径，统一从 Workspace 根目录解析。
 - 只有命令清单中明确列出的 wrapper 名称可以直接作为 shell 命令调用；其余 Tool 名称仅用于定位对应说明。
 
 零散操作（只想发篇笔记、只想下载一篇参考笔记、只想抓个数据）直接用下面的工具。
@@ -46,13 +46,14 @@ metadata:
 
 ## 风格与 DNA
 
-账号内容风格 DNA 存储目录是 `dna/xhs/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。DNA 维度框架（16 维，初始版本已确认）位于 `xhs-style-profiler` 的 `references/xhs-note-dna-dimensions.md`。
+账号内容风格 DNA 存储目录是 `xhs/dna/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。DNA 维度框架（16 维，初始版本已确认）位于 `xhs-style-profiler` 的 `references/xhs-note-dna-dimensions.md`。
 
 ## 数据与记录
 
 - 发布记录统一走 `published-track`（入库时传 `--account`；`dna_id` 经作品目录 `dna-meta.json` 自动关联）
-- DNA 表现评估的引擎是 `content-calibrator`（触发、基线归一化、趋势、报告结构），数据在 `published-track`；**xhs 的全部复盘工作（heartbeat 按量触发 + 用户临时发起）统一走 Review Workflow**，由它调用上述技能并用小红书归因方法分析。评估报告落 `dna/xhs/<dna-id>/evals/`，建议经用户逐条确认后走 Style DNA Workflow 回写 DNA
-- 平台级数据（受众画像、对标记录、平台状态）存在 workspace 根 `calibration/xhs/`
+- DNA 表现评估的引擎是 `content-calibrator`（触发、基线归一化、趋势、报告结构）；**xhs 的全部复盘工作（heartbeat 按量触发 + 用户临时发起）统一走 Review Workflow**，由它调用上述技能并用小红书归因方法分析。评估报告落 `xhs/dna/<dna-id>/evals/`，建议经用户逐条确认后走 Style DNA Workflow 回写 DNA
+- 平台级数据（受众画像、对标记录、平台状态）存平台运营文件夹 `xhs/calibration/`
+- 平台运营文件夹 `xhs/` 统一存放运营产出物、知识、经验和记录表格（如 `xhs/ref/` 参考材料、`xhs/outputs/` 对外发布作品）；与 `xhs/dna/`、`xhs/calibration/` 等结构化数据目录分开，不混放
 - 数据是用来指导下一轮改进的，不是为了凑数字——每次复盘必须有明确的下一步动作
 
 ## 平台速查与硬性红线
@@ -64,4 +65,3 @@ metadata:
 - **不引流**：标题、正文、简介、图片均不得出现联系方式、二维码或站外导流；禁止谐音绕检测；行动引导只放平台内动作（评论 / 收藏 / 关注 / 进店 / 咨询）。
 - **AIGC 标注**：AI 生成的内容按平台规则标注，`xhs-publish` 已内置自主声明。
 - **数据诚实**：互动数据只来自 `xhs-content-ops` / `xhs-engagement` / `viral-chaser` 返回或用户提供的线索，不编造；对标统计的占比必须基于实际下载样本并标注分母；估算值必须标注估算方法，不可得的数据写明"数据不可得"。
-- **合规转化**：用户要求隐藏联系方式、绕审核、刷量互赞时拒绝，并给出平台内合规替代方案。

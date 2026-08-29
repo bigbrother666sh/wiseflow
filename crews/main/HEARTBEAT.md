@@ -69,7 +69,7 @@ published-track query --platform douyin --limit 50
 
    脚本封装了完整流程，返回统一 JSON 结果。**xhs / wx_mp / wx_channel 不走这个脚本**——机制不同，见下方第 2/3/4 条。
 
-2. **小红书 (xhs)** —— **走 `xhs-engagement` 技能**（PATH wrapper 同名），camoufox 抓 creator 创作服务平台后台方案，与第 1 条三个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
+2. **小红书 (xhs)** —— **走 `expert-xhs` 包内 `xhs-engagement` 技能**（PATH wrapper 同名），camoufox 抓 creator 创作服务平台后台方案，与第 1 条三个纯 HTTP+cookie 平台机制完全不同，两条路独立、不耦合：
 
    ```bash
    xhs-engagement fetch-all
@@ -90,7 +90,7 @@ published-track query --platform douyin --limit 50
    ```
    > ⚠️ 不要调 `published-track fetch-metrics --platform wx_channel`——该子命令对 wx_channel 直接 exit 1 报错提示走 wx-channel-engagement。两条链路独立维护，避免机制错配。
 
-**其他平台** —— 除 douyin / xhs / kuaishou / bilibili / wx_mp / wx_channel 外，其他平台暂不支持自动取数，直接跳过。
+5. **其他平台**(如有) —— 除 douyin / xhs / kuaishou / bilibili / wx_mp / wx_channel 外，其他平台暂不支持自动取数，直接跳过。
 
 ##### 取数时效窗口
 
@@ -122,24 +122,14 @@ content-calibrator eval --platform <platform> --check
 - 全部 `triggered=false` → 本轮评估跳过，不消耗后续 token
 - 有 `triggered=true` 的 DNA → 进入 Step 3a
 
-##### Step 3a: 有专家包的平台 → 走该平台 review workflow
+**对于douyin/wx_mp/wx_channel/xhs平台** → 走该平台专家包内的 review workflow
 
-触发的 DNA 属于哪个平台，就按该平台专家包的 review workflow 执行完整复盘（聚合、平台归因、写报告、标记全在 workflow 内；**workflow 不取数**——本轮数据已在 Step 2 采集就位）：
+> 触发的 DNA 属于哪个平台，就按该平台专家包的 review workflow 执行完整复盘（聚合、平台归因、写报告、标记全在 workflow 内；**workflow 不取数**——本轮数据已在 Step 2 采集就位）：
 
-- **wx_mp** → expert-wx-mp 的 Review Workflow（`skills/expert-wx-mp/workflows/review.md`）
-- **douyin** → expert-douyin 的 Review Workflow（`skills/expert-douyin/workflows/review.md`）
+> - **wx_mp** → expert-wx-mp 的 Review Workflow（`skills/expert-wx-mp/workflows/review.md`）
+> - **douyin** → expert-douyin 的 Review Workflow（`skills/expert-douyin/workflows/review.md`）
 
-##### Step 3b: 无专家包 review workflow 的平台 → 通用流程
-
-按 `content-calibrator/SKILL.md` 的共性归因步骤执行：聚合 → 回读 DNA 文档与作品原文 → 写 `dna/<platform>/<dna-id>/evals/{YYYY-MM-DD}.eval.md` → 标记：
-
-```bash
-content-calibrator eval --platform <platform> --mark-evaluated --ids <本轮覆盖的记录 id，逗号分隔>
-```
-
-无平台归因方法时结论只写「观察」级。
-
-**Step 2 取数失败时评估不跳过**：若 DB 里已有历史互动数据（reads/likes/plays 等 > 0），评估**必须用已有数据做**；只有完全没有数据（全 0）且取数也失败时才跳过。
+**对于其他平台** → 尚未匹配DNA系统，直接跳过此步
 
 **Agent 不得自动更新 DNA**——评估建议经 Step 5 上报，用户逐条确认后走对应平台专家包的 style-dna workflow 回写。
 
@@ -171,13 +161,7 @@ content-calibrator eval --platform <platform> --mark-evaluated --ids <本轮覆�
    > - douyin（抖音）
    > - xhs-browse（小红书浏览端）
    > - wechat-channel（微信视频号)
-   >
-   > **xhs 重登是两步**（见 `xhs-engagement/SKILL.md`）：① login-manager 有头重登 www（导出 `xhs-browse.json`）；
-   > ② `xhs-publish login-verify` 做 creator SSO（导出 `xhs-publish.json`）——xhs 取数走 creator 后台，
-   > 只做第①步不做第②步 creator 域 cookie 不会落，取数仍会跳登录页。
-   >
-   > **只报告取数端登录态**。**不要报告、也不要探测 `xhs-publish` 导出 cookie 本身**：
-   > 那是发布侧产物，健康与否由发布任务（xhs-publish 技能）自己管，不在本复盘心跳职责内。
+
 3. DNA 表现评估摘要（如有）：列出本轮评估的 DNA（平台 / dna-id / 覆盖篇数）+ 整体判定（改善 / 平稳 / 下滑）+ 关键归因；无触发 DNA 时写「无 DNA 达到评估阈值」并附各 DNA 待评估计数。
 4. **DNA 优化建议待确认（如有）**：列出评估报告中的逐条建议（建议内容 + 目标维度/template 部分 + 证据篇目）。**Agent 不得自动更新 DNA**。用户白天逐条确认后，指示走对应平台专家包的 style-dna workflow 回写 DNA。
 5. 用户咨询回复摘要。

@@ -26,7 +26,7 @@ metadata:
 | 角色 | 回答什么 | 产出 |
 |------|---------|------|
 | `published-track` | 数据在哪 | 发布记录 + 互动指标（每日采集入库） |
-| **本技能** | **这个 DNA 好不好、该怎么改**（共性引擎） | 触发规则、基线归一化与趋势证据、评估报告结构；`dna/<platform>/<dna-id>/evals/*.eval.md` |
+| **本技能** | **这个 DNA 好不好、该怎么改**（共性引擎） | 触发规则、基线归一化与趋势证据、评估报告结构；`<platform>/dna/<dna-id>/evals/*.eval.md` |
 | 各平台专家包 `review` workflow | 该平台的数据复盘怎么做（平台特性） | 平台归因方法（指标语义、映射、混杂因素）+ 复盘编排；heartbeat 与用户临时发起的该平台复盘都走它 |
 
 本技能只给**共性归因步骤与原则**，不含任何平台特有归因方法，平台归因方法一律由该平台专家包 review workflow 提供。本技能的结论**必须落到 DNA 动作**（保持 / 调整某维度规则 / 调整 template 某部分），经用户逐条确认后走对应平台的 style-dna workflow 更新。
@@ -57,7 +57,7 @@ metadata:
 **共性步骤**：
 
 1. 读 `content-calibrator eval` 聚合 JSON：每篇绝对值 + 同账号比值 + 每指标趋势走向。
-2. 对照 `calibration/<platform>/.platform-state.json`、`audience.md` 了解账号阶段与受众背景。
+2. 对照 `<platform>/calibration/platform-state.json`、`audience.md` 了解账号阶段与受众背景。
 3. 按该平台 review workflow 的归因方法，把趋势变化落到 DNA 的具体部分与维度（需回读 `{dna-id}.dna.md` / `{dna-id}.template.md` 与待评估作品原文，`source_folder` 可定位）。
 4. 混杂排不掉 → 写「观察」；能归因 → 写「结论 + 建议」，每条建议注明改哪个维度 / template 部分。
 
@@ -68,7 +68,7 @@ metadata:
 评估报告写入 Workspace：
 
 ```text
-dna/<platform>/<dna-id>/evals/{YYYY-MM-DD}.eval.md
+<platform>/dna/<dna-id>/evals/{YYYY-MM-DD}.eval.md
 ```
 
 报告结构：
@@ -119,7 +119,7 @@ content-calibrator query-metrics --platform <platform> --source-folder <work 目
 content-calibrator init --platform <platform_id>
 ```
 
-幂等。创建 `calibration/<platform>/`（`.platform-state.json` baseline 兜底参考 + `audience.md` + `benchmark.md`）。
+幂等。创建 `<platform>/calibration/`，默认只含 `platform-state.json`（baseline 兜底参考）+ `audience.md`；存量旧点号文件 `.platform-state.json` 自动改名。对标记录（如 `benchmark.md`）不在默认初始化内，由 `account-benchmark` workflow 按需生成。
 
 ---
 
@@ -143,11 +143,11 @@ content-calibrator init --platform <platform_id>
 
 【平台】<platform>：baseline 未定 / 已定
 【待评估】<dna-id>：3/5 条成熟记录（未触发）
-【最近评估】dna/<platform>/<dna-id>/evals/<date>.eval.md — 判定：改善
+【最近评估】<platform>/dna/<dna-id>/evals/<date>.eval.md — 判定：改善
 【待确认建议】2 条
 ```
 
-数据来源：`content-calibrator eval --check` + `dna/<platform>/*/evals/` 目录。
+数据来源：`content-calibrator eval --check` + `<platform>/dna/*/evals/` 目录。
 
 ---
 

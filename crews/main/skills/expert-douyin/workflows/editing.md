@@ -23,11 +23,11 @@
 
 1. 目标 DNA 不确定时先确认（用户指定或默认 `dna-0`）。
 2. 标题 ≤ 30 字；简介与话题按 template 策略；禁止引流信息。
-3. 给 2-3 个候选并说明各自侧重的标题类型，用户选定后更新 `output_videos/<video-name>/` 的文案记录。
+3. 给 2-3 个候选并说明各自侧重的标题类型，用户选定后更新 `douyin/outputs/<video-name>/` 的文案记录。
 
 ## 轻剪层与加工层
 
-改前确认素材位置（`output_videos/<video-name>/` 下的成片与原始素材）。
+改前确认素材位置（`douyin/outputs/<video-name>/` 下的成片与原始素材）。
 
 - 口播类去口水、剪高光 -> `talking-head-cut`，剪拼结果交给 `video-edit apply-cut`。
 - 加旁白 / BGM / 字幕 / 抽段拼接 -> `video-edit`。

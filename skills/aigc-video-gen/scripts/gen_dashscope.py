@@ -244,7 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_video.add_argument("--ratio", default="9:16", help="宽高比，默认 9:16")
     p_video.add_argument("--resolution", default="720P", choices=["720P", "1080P"], help="分辨率，默认 720P")
     p_video.add_argument("--model", default=None, help="指定模型 id（关闭候选链 fallback）")
-    p_video.add_argument("--output", required=True, help="输出 MP4 路径（相对工作区，须在 output_videos/tmp/fragments/artifacts 下）")
+    p_video.add_argument("--output", required=True, help="输出 MP4 路径（相对工作区，须在 output_videos/tmp/fragments/artifacts 或 <platform>/outputs/ 下）")
 
     return parser
 

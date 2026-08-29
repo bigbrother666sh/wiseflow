@@ -21,7 +21,7 @@
 1. 默认 DNA 固定为 `dna-0`。
 2. 除 `account-benchmark.md` 分流的对标样本外，用户不指定 DNA 时，参考文章和后续新增样本默认累积到 `dna-0`。
 3. `dna-0` 可以由参考账号、参考文章、用户想法和 `business_knowledge.md` 共同形成，不绑定单一账号名。
-4. 若 `dna/wx_mp/dna-0/dna-0.dna.md` 已存在，不覆盖重建；新资料按 `style-dna.md` 的更新流程进入。
+4. 若 `wx_mp/dna/dna-0/dna-0.dna.md` 已存在，不覆盖重建；新资料按 `style-dna.md` 的更新流程进入。
 5. 独立对标样本不直接写入 `dna-0`，必须走 `account-benchmark.md` 并进入独立 DNA；用户明确采纳的局部规则可通过局部 DNA 融合更新 `dna-0`。
 
 ### Step 1 - 业务信息检查
@@ -111,8 +111,8 @@ Agent 基于 `business_knowledge.md` 提炼搜索关键词，建议用户到微�
 2. Agent 直接按 17 维框架编写：
 
 ```text
-dna/wx_mp/dna-0/dna-0.dna.md
-dna/wx_mp/dna-0/dna-0.template.md
+wx_mp/dna/dna-0/dna-0.dna.md
+wx_mp/dna/dna-0/dna-0.template.md
 ```
 
 3. DNA 文档必须标明来源是“业务信息 + 用户指定方向”，没有文章样本统计。
@@ -127,10 +127,10 @@ dna/wx_mp/dna-0/dna-0.template.md
 完成路径 A / B / C 后，确认以下文件存在且互相一致：
 
 ```text
-dna/wx_mp/dna-0/reports/
-dna/wx_mp/dna-0/covers/
-dna/wx_mp/dna-0/dna-0.dna.md
-dna/wx_mp/dna-0/dna-0.template.md
+wx_mp/dna/dna-0/reports/
+wx_mp/dna/dna-0/covers/
+wx_mp/dna/dna-0/dna-0.dna.md
+wx_mp/dna/dna-0/dna-0.template.md
 ```
 
 检查要求：

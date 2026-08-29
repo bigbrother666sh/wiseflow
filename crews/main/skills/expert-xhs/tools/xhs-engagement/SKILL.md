@@ -1,13 +1,6 @@
 ---
 name: xhs-engagement
 description: 抓取小红书已发布笔记的阅读/评论/点赞/收藏/分享数据，写入 published-track 的 pub_xhs 表。
-metadata:
-  openclaw:
-    requires:
-      bins:
-      - python3
-      - camoufox-cli
-      - sqlite3
 ---
 
 # xhs-engagement — 工具说明

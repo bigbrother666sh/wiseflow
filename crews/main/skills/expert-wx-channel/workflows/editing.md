@@ -50,7 +50,7 @@
 
 1. 读目标 DNA 的封面图维度（封面三要素：身份 + 痛点 + 解决方案）。
 2. 按新主题出 2-3 个候选：素材截帧优先，无合适素材走 `siliconflow-img-gen` 生成。
-3. 用户确认后替换 `output_videos/<video-name>/cover.jpg`。
+3. 用户确认后替换 `wx_channel/outputs/<video-name>/cover.jpg`。
 
 ## 压缩 / 展开时长
 
@@ -70,5 +70,5 @@
 用户要求改完后发布 / 重新发布时，走 `content-production.md` 的成片后流程（Step 7-10）：
 
 1. **成片同步**：脚本改动涉及画面或口播的，按 `content-production.md` Step 7 重新走视频制作（已有成片只需轻剪辑时走 `talking-head-cut` / `video-edit`）。
-2. **存文件**：脚本与成片归位 `output_videos/<video-name>/`，同步更新 `script.md`、`cover.jpg` 与 `dna-meta.json`。
+2. **存文件**：脚本与成片归位 `wx_channel/outputs/<video-name>/`，同步更新 `script.md`、`cover.jpg` 与 `dna-meta.json`。
 3. **发布 + 入库**：按 `wechat-channels-publish` 工具说明发布，再按 `content-production.md` Step 10 调 `published-track record` 入库——`--title` 仍传完整描述文案；描述文案改过的，用新文案重跑记录。

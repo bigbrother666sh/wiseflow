@@ -4,7 +4,7 @@
 
 与 Intel Gathering 的分工：Intel Gathering 以**信源**为中心（账号 / 网页采什么信息）；Competitor Watch 以**对象**为中心——一个对象可能横跨多个信源（社媒账号、官网、博客、招聘页），采集后多一步动向识别与分级。纯信源监控走 Intel Gathering，对象级动向监控走本 workflow。
 
-**依赖**：`smart-search`（构造搜索 URL / 发现信源）、`browser-guide`（浏览器操作）、`rss-reader`（网页 RSS 监控）、`info-record`（采集记录与去重）。
+**依赖**：`smart-search`（构造搜索 URL / 发现信源）、`browser-guide`（浏览器操作）、`rss-reader`（网页 RSS 监控）、`wx-mp-hunter`(微信公众号内容获取)、`info-record`（采集记录与去重）。
 
 ---
 
@@ -99,6 +99,6 @@
 
 ## 注意事项
 
-- 只采集**公开信息**；重点客户动向监控不涉及客户非公开信息或个人隐私。
+- 微信公众号内容使用 `wx-mp-hunter` 技能，不要使用浏览器
 - 与 Intel Gathering 共用 `info-record` 库，靠 `--content` 中的对象标注区分；日常查询用 `info-record query-today`。
 - 定时执行时遵守定时任务约束（凌晨不扫码登录等），见 `scheduling.md`。

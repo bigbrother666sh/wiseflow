@@ -27,7 +27,7 @@ DNA 文档 -> DNA template
 DNA 以 DNA ID 为主体存储，一个 DNA 可以持续放入任意数量视频样本，样本可以来自一个或多个账号，甚至来自用户提供的脚本想法。
 
 ```text
-dna/wx_channel/{dna-id}/
+wx_channel/dna/{dna-id}/
   reports/
     {sample-id}.report.md
   covers/
@@ -36,7 +36,7 @@ dna/wx_channel/{dna-id}/
   {dna-id}.template.md
 ```
 
-原始资料（口播脚本 / 逐字稿文本）可以临时来自任何位置；生成后的 DNA report 必须进入对应 DNA 的 `reports/` 目录。
+原始资料（口播脚本 / 逐字稿文本）可以临时来自任何位置（建议 `wx_channel/ref/{dna-id}/transcripts/`）；生成后的 DNA report 必须进入对应 DNA 的 `reports/` 目录。
 
 ## 职责边界
 
@@ -60,7 +60,7 @@ wx-channel-style-profiler report \
 默认输出：
 
 ```text
-dna/wx_channel/{dna-id}/reports/{sample-id}.report.md
+wx_channel/dna/{dna-id}/reports/{sample-id}.report.md
 ```
 
 可配置权重：
@@ -90,14 +90,14 @@ wx-channel-style-profiler build --dna-id {dna-id}
 默认读取：
 
 ```text
-dna/wx_channel/{dna-id}/reports/
+wx_channel/dna/{dna-id}/reports/
 ```
 
 默认输出：
 
 ```text
-dna/wx_channel/{dna-id}/{dna-id}.dna.md
-dna/wx_channel/{dna-id}/{dna-id}.template.md
+wx_channel/dna/{dna-id}/{dna-id}.dna.md
+wx_channel/dna/{dna-id}/{dna-id}.template.md
 ```
 
 也可显式传入一个或多个 report 文件/目录：
@@ -142,9 +142,9 @@ Template 是创作模板，不是概念解释。必须从 DNA 文档的 16 个�
 
 ```bash
 wx-channel-style-profiler update \
-  --input dna/wx_channel/{dna-id}/reports/{new-sample}.report.md \
-  --dna dna/wx_channel/{dna-id}/{dna-id}.dna.md \
-  --template dna/wx_channel/{dna-id}/{dna-id}.template.md
+  --input wx_channel/dna/{dna-id}/reports/{new-sample}.report.md \
+  --dna wx_channel/dna/{dna-id}/{dna-id}.dna.md \
+  --template wx_channel/dna/{dna-id}/{dna-id}.template.md
 ```
 
 脚本会合并 DNA 文档记录的历史 report 与新 report，重新计算加权统计，并保留 Agent 已完成内容。Agent 仍需重新审视聚合结论，再同步修订 DNA 文档和 template。

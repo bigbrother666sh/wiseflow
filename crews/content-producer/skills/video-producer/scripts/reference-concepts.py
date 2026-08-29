@@ -6,7 +6,7 @@
 Usage:
   python3 scripts/reference-concepts.py <project_dir> --report-file path
 
-入：project_dir（output_videos/<topic>/）+ viral-chaser 报告路径
+入：project_dir（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）+ viral-chaser 报告路径
 出：project_dir/reference-driven/concepts.md（2–3 差异化概念 + 成本 + 备选路径）
 
 无报告则跳过本阶段，agent 直入 Stage 2 story-develop（本脚本不报错退出）。
@@ -18,7 +18,7 @@ from pathlib import Path
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 1 reference-concepts")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument("--report-file", default=None, help="main 喂入的 viral-chaser 报告路径")
     args = parser.parse_args()
 

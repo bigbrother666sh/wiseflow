@@ -1,4 +1,22 @@
-# v5.7.0 (2026-08-21)
+# v5.7.0 (2026-08-31)
+
+### 专家包（Expert Pack）架构
+
+> 解决 `AGENTS.md` 膨胀到 257 行 / 19,094 字符逼近注入上限、平台流程互相干扰、运营风格无法结构化复用的问题。详见 `docs/expert-pack-dna-architecture.md`。
+
+- **改造后形态**：一个 crew = 薄 `AGENTS.md`（通用准则 + 专家包路由表）+ 多套专家包（工作流 + 技能组合 + 知识库 + DNA）+ DNA 库 + 共享的 `SOUL` / `TOOLS` / `IDENTITY` / `USER` / `MEMORY`。同一个 crew 保持一个 workspace、一套记忆、一个人格；专家包只是「工作面」，不是子 crew。
+- **基于 OpenClaw Skill 按需加载**：源码验证 bootstrap 文件每轮全量注入、`bootstrap-extra-files` hook 也是全量注入、祖先链加载不会发现任意子目录——均不适合承载专家包。Skill 机制只注入 `name + description + 路径`，agent 任务匹配时才 read 全文，是原生的按需加载通道。
+- **技能收纳规则**：只被一个领域使用的技能整体迁入对应专家包 `tools/`，从路由面消失；跨领域复用的保持顶层。收纳后技能总数不增反降，路由更准。技术依据：workspace 扫描器发现 `SKILL.md` 后停止深入，包内 `tools/*/SKILL.md` 不会被注册为独立技能。
+- **薄 `AGENTS.md` 职责边界**：只保留通用准则（品牌红线、素材治理）、专家包路由表（任务特征 → 专家包名）、兜底规则。各平台具体流程全部下沉到对应专家包。
+- **专家包内六大 workflow**：`style-dna`（DNA 创建与更新）、`content-production`（内容生产）、`account-setup`（起号与定位）、`account-benchmark`（对标比较）、`editing`（改稿与调整）、`review`（数据复盘）。workflow 每一步必须能落到工具或明确标注为 agent 推理任务，严禁"专家进行 XX"空话。
+- **首个改造对象**：`crews/main`（小贝），已完成 `expert-wx-mp` 专家包。
+
+### DNA（内容风格 DNA）
+
+- **三层产物**：单篇文章 → DNA report（单篇定性提取）→ DNA 文档（聚合同一 DNA 目录下全部 report 的生产规则）→ DNA template（写稿时直接执行的结构化要求）。
+- **存储结构**：运行时保存在平台运营文件夹下，按平台和 DNA ID 分层——`<platform>/dna/<dna-id>/reports/`、`covers/`、`{dna-id}.dna.md`、`{dna-id}.template.md`。`dna/` 与 `calibration/` 由集中目录下沉进各平台运营文件夹。
+- **数据直连 DNA（废除 rubric）**：`pub_*` 表新增 `dna_id` / `account` / `perf_evaluated` 列，作品与 DNA 直接挂钩。评估按量触发（每平台每 DNA 累积 ≥5 条成熟记录），归因走趋势优先（同账号相对值），复盘一律针对 DNA 无单篇复盘。旧 rubric 脚本与 seed 文件已删除。
+- **跨平台 style-profiler 统一规范**：每个平台专家包必须有对应 profiler tool，命令模式（`report` / `build` / `update`）、存储模式、三层产物、权重/focus、用户输入转译、统计边界统一；仅维度定义、分组命名、template 第三项起的分段结构允许平台自定义。
 
 ### openclaw 上游同步 v2026.7.1 → v2026.7.1-2
 
@@ -27,13 +45,6 @@
   - 修复之前老用户升级后全局 `camoufox-cli` 还是旧版、浏览器二进制不更新的缺口。
 - **未引入多 tab 架构**：上游 0.7.3 的 `browser.ts` 引入 `TabState` + `tabs` Map + ref-counted close（多 agent 共享浏览器指纹），跟 fork 的单 page + fail-first 队列架构冲突。wiseflow 当前"一个 session 一个 agent"场景不需要多 tab，保留 fork 现状。
 - **保留的 fork 独有功能**：`shortenSession()`（支持 cron 长 session 名）、`recoverOrphanBrowser()`/`killDaemon()`/`termThenKill()`（孤儿浏览器进程树回收）、`--viewport` 参数（weibo/xianyu 二维码登录用）、fail-first 队列、`upload`/`identity` 三件套。
-
-### 验证
-
-- `cd patches/camoufox-cli && npm run build`（tsc）→ 0 errors
-- `bash patches/camoufox-cli/build.sh` → 全局装好 `0.7.3-wiseflow.1`
-- `camoufox-cli install` → `Camoufox v152.0.4-beta.28 is already up to date` → `Browser installed`
-- `scripts/update.sh` 语法检查（`bash -n`）→ OK
 
 ---
 

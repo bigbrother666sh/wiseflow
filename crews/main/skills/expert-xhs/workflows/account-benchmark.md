@@ -85,11 +85,11 @@ camoufox-cli --session xhs-browse --persistent --json open "https://www.xiaohong
 
 ```bash
 xhs-content-ops --note-id <note_id> --xsec-token <token> --xsec-source pc_feed \
-  --output-dir xhs_ref/{benchmark-dna-id}/{sample-id}/
+  --output-dir xhs/ref/{benchmark-dna-id}/{sample-id}/
 ```
 
 - 已有完整链接（含 `xhslink.com` 短链）时直接 `--url <url>`，脚本自动解析。
-- `--output-dir` 必须用 Workspace 相对路径（`xhs_ref/...`），不要用 `/tmp`——后续视觉分析要读这些图片。
+- `--output-dir` 必须用 Workspace 相对路径（`xhs/ref/...`），不要用 `/tmp`——后续视觉分析要读这些图片。
 - 脚本返回正文、图片列表、作者、`stats`（点赞/收藏/评论/分享）；`noteType: video` 会报错提示走 `viral-chaser`。
 - cookie 回退仍失败（exit 2）-> 走 `login-manager` 重登后重试一次；笔记不可访问（已删除/私密）-> 跳过。
 
@@ -117,8 +117,8 @@ xhs-style-profiler build --dna-id {benchmark-dna-id}
 Agent 必须回读笔记原文与图片，补齐 report，并基于全部 report 修订：
 
 ```text
-dna/xhs/{benchmark-dna-id}/{benchmark-dna-id}.dna.md
-dna/xhs/{benchmark-dna-id}/{benchmark-dna-id}.template.md
+xhs/dna/{benchmark-dna-id}/{benchmark-dna-id}.dna.md
+xhs/dna/{benchmark-dna-id}/{benchmark-dna-id}.template.md
 ```
 
 对标 DNA template 也必须固定为七个部分：选题、标题（含封面图）、开头、承、结尾、CTA、图组。后五个部分是语义结构，不限制实际字数占比；每一部分都要能从对标 DNA 文档推导。
@@ -157,8 +157,8 @@ dna/xhs/{benchmark-dna-id}/{benchmark-dna-id}.template.md
 读取：
 
 ```text
-dna/xhs/{base-dna-id}/{base-dna-id}.dna.md
-dna/xhs/{base-dna-id}/{base-dna-id}.template.md
+xhs/dna/{base-dna-id}/{base-dna-id}.dna.md
+xhs/dna/{base-dna-id}/{base-dna-id}.template.md
 ```
 
 默认 `{base-dna-id}` 为 `dna-0`。若 `dna-0` 不存在，先停止比较并提示用户走 `account-setup.md` 初始化，或由用户明确指定另一个基线。
@@ -204,8 +204,8 @@ dna/xhs/{base-dna-id}/{base-dna-id}.template.md
 
 ```bash
 xhs-style-profiler update \
-  --dna dna/xhs/{base-dna-id}/{base-dna-id}.dna.md \
-  --template dna/xhs/{base-dna-id}/{base-dna-id}.template.md \
+  --dna xhs/dna/{base-dna-id}/{base-dna-id}.dna.md \
+  --template xhs/dna/{base-dna-id}/{base-dna-id}.template.md \
   --user-input "采纳 {benchmark-dna-id} 的开头部分：xxx"
 ```
 

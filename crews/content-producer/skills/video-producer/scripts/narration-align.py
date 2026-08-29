@@ -154,7 +154,7 @@ def main() -> None:
     load_env_file()
 
     parser = argparse.ArgumentParser(description="Stage 11b narration-align")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument(
         "--audio",
         default=None,

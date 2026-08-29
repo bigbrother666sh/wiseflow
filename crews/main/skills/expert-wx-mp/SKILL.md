@@ -26,7 +26,7 @@ metadata:
 - Tools、Workflows、DNA 模板等名称是 `expert-wx-mp` 技能包内的逻辑资源名，不是 Agent Workspace 路径，也不要拼成相对路径执行。
 - 技能部署后整个包通过软链进入运行环境；Agent 不要假设这些资源被展开到 Workspace 下。
 - 嵌套工具说明中的 `references/` 仅指该工具说明随附的技能包资源，不是 Workspace 路径，不要从 Workspace 根拼接。
-- 其他文档中出现的 `dna/wx_mp/`、`wx_mp_ref/`、`wenyan-theme/`、`calibration/wx_mp/` 才是 Workspace 相对路径，统一从 Workspace 根目录解析。
+- 其他文档中出现的 `wx_mp/dna/`、`wx_mp/ref/`、`wx_mp/outputs/`、`wx_mp/wenyan-theme/`、`wx_mp/calibration/` 才是 Workspace 相对路径，统一从 Workspace 根目录解析。
 - 只有命令清单中明确列出的 wrapper 名称可以直接作为 shell 命令调用；其余 Tool 名称仅用于定位对应说明。
 
 零散操作（只想发个稿、只想抓个数据、只想生成个主题）直接用下面的工具。
@@ -46,11 +46,12 @@ metadata:
 
 ## 风格与 DNA
 
-账号内容风格DNA 存储目录是 `dna/wx_mp/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。排版主题不属于 DNA，统一存入 `wenyan-theme/` 管理。
+账号内容风格DNA 存储目录是 `wx_mp/dna/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。排版主题不属于 DNA，统一存入 `wx_mp/wenyan-theme/` 管理。
 
 ## 数据与记录
 
 - 发布记录统一走 `published-track`（入库时传 `--account`；`dna_id` 经作品目录 `dna-meta.json` 自动关联）
-- DNA 表现评估的引擎是 `content-calibrator`（触发、基线归一化、趋势、报告结构），数据在 `published-track`；**wx_mp 的全部复盘工作（heartbeat 按量触发 + 用户临时发起）统一走 Review Workflow**，由它调用上述技能并用公众号归因方法分析。评估报告落 `dna/wx_mp/<dna-id>/evals/`，建议经用户逐条确认后走 Style DNA Workflow 回写 DNA
-- 平台级数据（受众画像、对标记录、平台状态）存在 workspace 根 `calibration/wx_mp/`
+- DNA 表现评估的引擎是 `content-calibrator`（触发、基线归一化、趋势、报告结构）；**wx_mp 的全部复盘工作（heartbeat 按量触发 + 用户临时发起）统一走 Review Workflow**，由它调用上述技能并用公众号归因方法分析。评估报告落 `wx_mp/dna/<dna-id>/evals/`，建议经用户逐条确认后走 Style DNA Workflow 回写 DNA
+- 平台级数据（受众画像、对标记录、平台状态）存平台运营文件夹 `wx_mp/calibration/`
+- 平台运营文件夹 `wx_mp/` 统一存放运营产出物、知识、经验和记录表格（如 `wx_mp/ref/` 参考材料、`wx_mp/outputs/` 文章与图片、`wx_mp/wenyan-theme/` 排版主题）；与 `wx_mp/dna/`、`wx_mp/calibration/` 等结构化数据目录分开，不混放
 - 数据是用来指导下一轮改进的，不是为了凑数字——每次复盘必须有明确的下一步动作

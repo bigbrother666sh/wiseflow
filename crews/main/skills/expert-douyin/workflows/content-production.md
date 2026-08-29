@@ -50,8 +50,8 @@
 写前必须读取两份文件：
 
 ```text
-dna/douyin/{dna-id}/{dna-id}.dna.md
-dna/douyin/{dna-id}/{dna-id}.template.md
+douyin/dna/{dna-id}/{dna-id}.dna.md
+douyin/dna/{dna-id}/{dna-id}.template.md
 ```
 
 DNA template 是选题、标题、钩子、结构、口播、画面和互动路线的直接执行依据；DNA 文档用于理解稳定性、例外和适用条件。委托 `content-producer` 时，把 template 的执行要求写进制作简报，让制作方按 DNA 生产。
@@ -95,10 +95,10 @@ DNA 约束的是选题、钩子、结构、口播、画面和互动方式；不�
 
 ## Step 2 - 素材获取与整理
 
-先建立视频目录 `output_videos/<video-name>/`（video-name 用主题的短 slug；选题尚未确定时可先用暂代名，选题确定后随之定名），下设 `materials/` 子目录，获取到的素材统一放入 `materials/`。
+先建立视频目录 `douyin/outputs/<video-name>/`（video-name 用主题的短 slug；选题尚未确定时可先用暂代名，选题确定后随之定名），下设 `materials/` 子目录，获取到的素材统一放入 `materials/`。
 
 1. 按类型获取输入：
-   - 抖音参考视频链接 -> self-spawn subagent 走 `viral-chaser` 拆解，转录、关键帧、时长、互动线索落入 `output_videos/<video-name>/references/`（仿照制作时它就是参考素材）。
+   - 抖音参考视频链接 -> self-spawn subagent 走 `viral-chaser` 拆解，转录、关键帧、时长、互动线索落入 `douyin/outputs/<video-name>/references/`（仿照制作时它就是参考素材）。
    - 本地视频 / 图片 / 音频素材 -> 复制进 `materials/`。
    - 用户文字输入（想法、脚本、要点）-> 保存为 `.md` 放入 `materials/`。
 2. 建立素材清单：用户原话、事实、数据、案例、画面素材、可用观点、待确认信息。
@@ -168,7 +168,7 @@ DNA 约束的是选题、钩子、结构、口播、画面和互动方式；不�
 
 ## Step 5 - 制作
 
-按 Step 0 判定的路线执行。所有路线的成品最终落在 `output_videos/<video-name>/`。
+按 Step 0 判定的路线执行。所有路线的成品最终落在 `douyin/outputs/<video-name>/`。
 
 ### 路线 A：素材组装 / 轻剪辑（main 直接做）
 
@@ -182,10 +182,10 @@ DNA 约束的是选题、钩子、结构、口播、画面和互动方式；不�
 
 ### 路线 B / C：委托 content-producer 制作
 
-1. 产出**制作简报** `output_videos/<video-name>/brief.md`，至少包含：选题与观看理由、标题与文案、DNA template 各部分执行要求（钩子类型与开场口播、结构与节奏、画面与镜头、声音、互动引导）、素材清单（如有）、时长带、验收标准（钩子兑现、结构完整、DNA 检查项）。
+1. 产出**制作简报** `douyin/outputs/<video-name>/brief.md`，至少包含：选题与观看理由、标题与文案、DNA template 各部分执行要求（钩子类型与开场口播、结构与节奏、画面与镜头、声音、互动引导）、素材清单（如有）、时长带、验收标准（钩子兑现、结构完整、DNA 检查项）。
 2. 参考模式附上 `viral-chaser` 拆解报告路径，作为 brief 的一部分。
 3. spawn `content-producer` 作为 subagent（或提示用户直接委托 content-producer），由其出脚本并完成端到端制作；脚本讨论也直接找 content-producer，main 不代写完整脚本。
-4. 跟进制作进展，避免长时间卡住；成品视频回传 `output_videos/<video-name>/`。
+4. 跟进制作进展，避免长时间卡住；成品视频回传 `douyin/outputs/<video-name>/`。
 
 ## Step 6 - 成片自检
 
@@ -201,7 +201,7 @@ DNA 约束的是选题、钩子、结构、口播、画面和互动方式；不�
 2. 结合最终标题、目标观众和本条核心收益，补齐本次封面的主体、场景、构图、色彩、文字视觉和负向约束。
 3. 优先从成片中选帧作为封面（与内容一致）；需要更强视觉冲击时用 `siliconflow-img-gen` 生成。
 4. 用户已提供封面时直接使用；用户提供素材不足时作为生成参考。
-5. 封面图发用户确认，确认后保存为 `output_videos/<video-name>/cover.jpg`。
+5. 封面图发用户确认，确认后保存为 `douyin/outputs/<video-name>/cover.jpg`。
 
 ## 【确认】成片与封面
 
@@ -217,7 +217,7 @@ douyin-publish open-page
 # 用页面元素（用户头像/用户名）判定登录态；未登录走 login-manager --platform douyin 有头重登
 
 # 2. 发布
-douyin-publish run --video output_videos/<video-name>/<成片文件> --title "标题" --caption "简介 #话题1 #话题2"
+douyin-publish run --video douyin/outputs/<video-name>/<成片文件> --title "标题" --caption "简介 #话题1 #话题2"
 ```
 
 - 发布前必做 `open-page` + 登录态判定，否则可能因 cookie 未预热而不生效。
@@ -230,11 +230,11 @@ douyin-publish run --video output_videos/<video-name>/<成片文件> --title "�
 
 发布成功（拿到视频链接）后入库：
 
-1. 写 `output_videos/<video-name>/dna-meta.json`：
+1. 写 `douyin/outputs/<video-name>/dna-meta.json`：
 
 ```json
 {"platform": "douyin", "dna_id": "<dna-id>"}
 ```
 
-2. 调 `published-track record`：`--platform douyin`、`--source-folder output_videos/<video-name>/`、`--account <发布所用账号 alias>`、`--publish-url <douyin-publish get-link 返回的链接>`（`dna_id` 自动从 `dna-meta.json` 读取）。
+2. 调 `published-track record`：`--platform douyin`、`--source-folder douyin/outputs/<video-name>/`、`--account <发布所用账号 alias>`、`--publish-url <douyin-publish get-link 返回的链接>`（`dna_id` 自动从 `dna-meta.json` 读取）。
 3. 发布流程到此结束；互动数据由每日定时采集任务统一抓取，复盘走 `review.md`。

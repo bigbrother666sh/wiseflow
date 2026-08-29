@@ -30,7 +30,7 @@ def die(msg: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 10 render-shot")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument("--shot-id", default=None, help="只渲某镜，不传则提示 agent 逐镜跑")
     parser.add_argument("--dry-run", action="store_true", help="只打印调用计划不真渲")
     args = parser.parse_args()

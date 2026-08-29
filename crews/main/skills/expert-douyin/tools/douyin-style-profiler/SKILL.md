@@ -1,9 +1,6 @@
 ---
 name: douyin-style-profiler
 description: 为单条抖音视频提取 17 维 DNA report，按 DNA ID 聚合历史 report 生成 DNA 文档，并推导完整的 DNA template。
-metadata:
-  openclaw:
-    emoji: 🧬
 ---
 
 # douyin-style-profiler
@@ -27,7 +24,7 @@ DNA 文档 -> DNA template
 DNA 以 DNA ID 为主体存储，一个 DNA 可以持续放入任意数量视频，样本可以来自一个或多个参考账号，甚至来自用户直接的想法。
 
 ```text
-dna/douyin/{dna-id}/
+douyin/dna/{dna-id}/
   reports/
     {sample-id}.report.md
   covers/
@@ -36,7 +33,7 @@ dna/douyin/{dna-id}/
   {dna-id}.template.md
 ```
 
-原始转录文本可以临时来自任何位置（建议 `douyin_ref/{dna-id}/transcripts/`）；生成后的 DNA report 必须进入对应 DNA 的 `reports/` 目录。
+原始转录文本可以临时来自任何位置（建议 `douyin/ref/{dna-id}/transcripts/`）；生成后的 DNA report 必须进入对应 DNA 的 `reports/` 目录。
 
 ## 职责边界
 
@@ -61,7 +58,7 @@ douyin-style-profiler report \
 默认输出：
 
 ```text
-dna/douyin/{dna-id}/reports/{sample-id}.report.md
+douyin/dna/{dna-id}/reports/{sample-id}.report.md
 ```
 
 参数说明：
@@ -95,14 +92,14 @@ douyin-style-profiler build --dna-id {dna-id}
 默认读取：
 
 ```text
-dna/douyin/{dna-id}/reports/
+douyin/dna/{dna-id}/reports/
 ```
 
 默认输出：
 
 ```text
-dna/douyin/{dna-id}/{dna-id}.dna.md
-dna/douyin/{dna-id}/{dna-id}.template.md
+douyin/dna/{dna-id}/{dna-id}.dna.md
+douyin/dna/{dna-id}/{dna-id}.template.md
 ```
 
 也可显式传入一个或多个 report 文件/目录：
@@ -146,9 +143,9 @@ Template 是生产模板，不是概念解释。必须从 DNA 文档的 17 个�
 
 ```bash
 douyin-style-profiler update \
-  --input dna/douyin/{dna-id}/reports/{new-sample}.report.md \
-  --dna dna/douyin/{dna-id}/{dna-id}.dna.md \
-  --template dna/douyin/{dna-id}/{dna-id}.template.md
+  --input douyin/dna/{dna-id}/reports/{new-sample}.report.md \
+  --dna douyin/dna/{dna-id}/{dna-id}.dna.md \
+  --template douyin/dna/{dna-id}/{dna-id}.template.md
 ```
 
 脚本会合并 DNA 文档记录的历史 report 与新 report，重新计算加权统计，并保留 Agent 已完成内容。Agent 仍需重新审视聚合结论，再同步修订 DNA 文档和 template。

@@ -1,6 +1,6 @@
 ---
 name: expert-wx-channel
-description: 微信视频号运营专家。承接从定位起号、视频选题脚本、制作发布到数据复盘的完整运营工作。用户只需要说目标和给素材，具体流程和平台规则由专家自己把握。零散的发布、取数等操作也可以直接做。不接公众号图文（走 expert-wx-mp）、抖音（走 expert-douyin）、小红书（走 expert-xhs）。
+description: 微信视频号运营专家。承接从定位起号、视频选题脚本、制作发布到数据复盘的完整运营工作。零散的发布、取数等操作也可以直接做。
 metadata:
   openclaw:
     emoji: 📺
@@ -26,7 +26,7 @@ metadata:
 - Tools、Workflows、DNA 模板等名称是 `expert-wx-channel` 技能包内的逻辑资源名，不是 Agent Workspace 路径，也不要拼成相对路径执行。
 - 技能部署后整个包通过软链进入运行环境；Agent 不要假设这些资源被展开到 Workspace 下。
 - 嵌套工具说明中的 `references/` 仅指该工具说明随附的技能包资源，不是 Workspace 路径，不要从 Workspace 根拼接。
-- 其他文档中出现的 `dna/wx_channel/`、`output_videos/`、`calibration/wx_channel/` 才是 Workspace 相对路径，统一从 Workspace 根目录解析。
+- 其他文档中出现的 `wx_channel/dna/`、`wx_channel/ref/`、`wx_channel/outputs/`、`wx_channel/calibration/` 才是 Workspace 相对路径，统一从 Workspace 根目录解析。
 - 只有命令清单中明确列出的 wrapper 名称可以直接作为 shell 命令调用；其余 Tool 名称仅用于定位对应说明。
 
 零散操作（只想发个视频、只想抓个数据）直接用下面的工具。
@@ -58,12 +58,13 @@ metadata:
 
 ## 风格与 DNA
 
-账号内容风格 DNA 存储目录是 `dna/wx_channel/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。
+账号内容风格 DNA 存储目录是 `wx_channel/dna/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。
 
 ## 数据与记录
 
 - 发布记录统一走 `published-track`（入库时传 `--account`；`dna_id` 经作品目录 `dna-meta.json` 自动关联）
-- DNA 表现评估的引擎是 `content-calibrator`（触发、基线归一化、趋势、报告结构），数据在 `published-track`；**wx_channel 的全部复盘工作（heartbeat 按量触发 + 用户临时发起）统一走 Review Workflow**，由它调用上述技能并用视频号归因方法分析。评估报告落 `dna/wx_channel/<dna-id>/evals/`，建议经用户逐条确认后走 Style DNA Workflow 回写 DNA
+- DNA 表现评估的引擎是 `content-calibrator`（触发、基线归一化、趋势、报告结构）；**wx_channel 的全部复盘工作（heartbeat 按量触发 + 用户临时发起）统一走 Review Workflow**，由它调用上述技能并用视频号归因方法分析。评估报告落 `wx_channel/dna/<dna-id>/evals/`，建议经用户逐条确认后走 Style DNA Workflow 回写 DNA
 - 数据新鲜度由每日定时采集任务（`wx-channel-engagement fetch-all`）保证，仅抓作品管理页首页最近 20 条
-- 平台级数据（对标记录、账号审计）存在 workspace 根 `calibration/wx_channel/`
+- 平台级数据（对标记录、账号审计）存平台运营文件夹 `wx_channel/calibration/`
+- 平台运营文件夹 `wx_channel/` 统一存放运营产出物、知识、经验和记录表格（如 `wx_channel/ref/` 参考材料、`wx_channel/outputs/` 成片与素材）；与 `wx_channel/dna/`、`wx_channel/calibration/` 等结构化数据目录分开，不混放
 - 数据是用来指导下一轮改进的，不是为了凑数字——每次复盘必须有明确的下一步动作

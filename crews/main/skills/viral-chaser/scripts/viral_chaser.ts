@@ -41,7 +41,7 @@ function errExit(msg: string, code = 1): never {
 }
 
 function getTmpDir(contentId: string): string {
-  // Honor OUTPUT_DIR env var (SKILL.md sets it to output_videos/<slug>/references).
+  // Honor OUTPUT_DIR env var (SKILL.md sets it to <platform>/ref/<slug>/references).
   // Fall back to a per-id tmp dir when unset.
   if (process.env.OUTPUT_DIR && process.env.OUTPUT_DIR.trim()) {
     return process.env.OUTPUT_DIR.trim()

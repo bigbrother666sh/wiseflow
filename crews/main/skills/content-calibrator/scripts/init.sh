@@ -6,7 +6,6 @@
 set -euo pipefail
 
 WORKSPACE="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../../.." &> /dev/null && pwd )"
-CAL_ROOT="$WORKSPACE/calibration"
 
 PLATFORM=""
 
@@ -41,18 +40,25 @@ if ! echo "$VALID_PLATFORMS" | grep -qw "$PLATFORM"; then
   exit 1
 fi
 
+CAL_DIR="$WORKSPACE/$PLATFORM/calibration"
+
 echo "🔧 初始化 Content Calibrator（DNA 表现评估）— $PLATFORM"
 echo "   工作区: $WORKSPACE"
+echo "   校准目录: $CAL_DIR"
 echo ""
 
-mkdir -p "$CAL_ROOT"
-CAL_DIR="$CAL_ROOT/$PLATFORM"
 mkdir -p "$CAL_DIR"
 
-if [[ -f "$CAL_DIR/.platform-state.json" ]]; then
-  echo "✅ 平台 $PLATFORM 已初始化（.platform-state.json 已存在）"
+# 兼容旧点号命名：存量 .platform-state.json 自动改名（幂等）
+if [[ -f "$CAL_DIR/.platform-state.json" && ! -f "$CAL_DIR/platform-state.json" ]]; then
+  mv "$CAL_DIR/.platform-state.json" "$CAL_DIR/platform-state.json"
+  echo "  迁移 .platform-state.json → platform-state.json"
+fi
+
+if [[ -f "$CAL_DIR/platform-state.json" ]]; then
+  echo "✅ 平台 $PLATFORM 已初始化（platform-state.json 已存在）"
 else
-  cat > "$CAL_DIR/.platform-state.json" <<PSSTATE
+  cat > "$CAL_DIR/platform-state.json" <<PSSTATE
 {
   "schema_version": 3,
   "scope": "platform",
@@ -64,7 +70,7 @@ else
   "enabled_perf_adapters": ["$PLATFORM"]
 }
 PSSTATE
-  echo "  创建 .platform-state.json（baseline 兜底参考，账号无历史数据时使用）"
+  echo "  创建 platform-state.json（baseline 兜底参考，账号无历史数据时使用）"
 fi
 
 if [[ ! -f "$CAL_DIR/audience.md" ]]; then
@@ -82,23 +88,6 @@ if [[ ! -f "$CAL_DIR/audience.md" ]]; then
 （哪些类型的内容获得更多互动？哪些评论模因反复出现？）
 AUD
   echo "  创建 audience.md"
-fi
-
-if [[ ! -f "$CAL_DIR/benchmark.md" ]]; then
-  cat > "$CAL_DIR/benchmark.md" <<'BM'
-# Benchmark — 对标账号
-
-> 对标分析记录。对标流程见各平台专家包的 account-benchmark workflow。
-
-## 对标账号列表
-
-（暂无。）
-
-## Pattern 提炼
-
-（从对标内容中提取的结构 pattern。）
-BM
-  echo "  创建 benchmark.md"
 fi
 
 echo "✅ 初始化完成 — 平台: $PLATFORM"

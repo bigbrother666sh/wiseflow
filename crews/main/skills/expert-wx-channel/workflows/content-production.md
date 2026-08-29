@@ -39,8 +39,8 @@
 写前必须读取两份文件：
 
 ```text
-dna/wx_channel/{dna-id}/{dna-id}.dna.md
-dna/wx_channel/{dna-id}/{dna-id}.template.md
+wx_channel/dna/{dna-id}/{dna-id}.dna.md
+wx_channel/dna/{dna-id}/{dna-id}.template.md
 ```
 
 DNA template 是选题、标题与描述文案、封面、脚本分段、句式、语气和表达路线的直接执行依据；DNA 文档用于理解稳定性、例外和适用条件。
@@ -84,7 +84,7 @@ DNA 约束的是选题角度、标题文案、结构、句式、语气和表达�
 
 ## Step 2 - 素材获取与整理
 
-先建立作品目录 `output_videos/<video-name>/`（video-name 用主题的短 slug；选题尚未确定时可先用暂代名，选题确定后随之定名），下设 `materials/` 子目录，获取到的素材统一放入 `materials/`。
+先建立作品目录 `wx_channel/outputs/<video-name>/`（video-name 用主题的短 slug；选题尚未确定时可先用暂代名，选题确定后随之定名），下设 `materials/` 子目录，获取到的素材统一放入 `materials/`。
 
 1. 按类型获取输入：
    - 抖音 / B站 / 小红书视频链接 -> 调顶层 `viral-chaser` 下载、转写与拆解，拆解报告与逐字稿进 `materials/`。
@@ -169,7 +169,7 @@ DNA 约束的是选题角度、标题文案、结构、句式、语气和表达�
    - 有实拍 / 成片素材 -> 从素材中截取候选帧，交用户挑选。
    - 无合适素材 -> 使用 `siliconflow-img-gen` 生成。
 4. 用户已提供封面或封面素材时，可基于其做编辑补充必要要素；不足以成为封面（尺寸偏小、元素不全）时作为生成参考；用户明确说就按他提供的，直接使用。
-5. 生成的封面图发给用户确认，确认后保存到 `output_videos/<video-name>/cover.jpg`。
+5. 生成的封面图发给用户确认，确认后保存到 `wx_channel/outputs/<video-name>/cover.jpg`。
 
 ## 【确认】封面
 
@@ -177,7 +177,7 @@ DNA 约束的是选题角度、标题文案、结构、句式、语气和表达�
 
 ## Step 6 - 简报与脚本初稿
 
-每条视频先写简报，再写脚本。简报与脚本都写入 `output_videos/<video-name>/script.md`（简报在前，脚本在后）。
+每条视频先写简报，再写脚本。简报与脚本都写入 `wx_channel/outputs/<video-name>/script.md`（简报在前，脚本在后）。
 
 ### 简报字段
 
@@ -220,7 +220,7 @@ DNA 约束的是选题角度、标题文案、结构、句式、语气和表达�
 
 ## Step 7 - 视频制作
 
-脚本定稿后取得成片 `output_videos/<video-name>/video.mp4`：
+脚本定稿后取得成片 `wx_channel/outputs/<video-name>/video.mp4`：
 
 | 情况 | 处理 |
 | --- | --- |
@@ -232,7 +232,7 @@ DNA 约束的是选题角度、标题文案、结构、句式、语气和表达�
 
 ## Step 8 - 存文件
 
-定稿作品目录 `output_videos/<video-name>/`：
+定稿作品目录 `wx_channel/outputs/<video-name>/`：
 
 - `script.md`（简报 + 定稿脚本）
 - `video.mp4` 成片（或 `.mov` / `.avi` / `.webm`）
@@ -260,7 +260,7 @@ DNA 约束的是选题角度、标题文案、结构、句式、语气和表达�
 ```bash
 published-track record \
   --platform wx_channel \
-  --source-folder output_videos/<video-name>/ \
+  --source-folder wx_channel/outputs/<video-name>/ \
   --account <发布所用账号> \
   --title "<Step 4 定稿的完整描述文案>" \
   --publish-url "<sph 链接，拿到时传>"

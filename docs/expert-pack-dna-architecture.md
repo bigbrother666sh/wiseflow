@@ -1,8 +1,6 @@
 # 专家包（Expert Pack）+ DNA 架构规划
 
-> 日期：2026-08-14；2026-08-18 更新 DNA 生产模式与跨平台 profiler 规范；2026-08-20 明确跨平台 DNA 维度边界与 template 通用开头；2026-08-20 废除 rubric、数据直连 DNA（见第 11 节）
-> 分析基准：内置 openclaw `v2026.7.1`（commit `2d2ddc43`）
-> 目标版本：`v2026.7.1-2`（commit `0790d9f`，待网络可用后升级）
+> 日期：2026-08-14；2026-08-18 更新 DNA 生产模式与跨平台 profiler 规范；2026-08-20 明确跨平台 DNA 维度边界与 template 通用开头；2026-08-20 废除 rubric、数据直连 DNA（见第 11 节）；2026-08-29 新增平台运营文件夹规范（见 4.2 节）；2026-08-29 `dna/` 与 `calibration/` 由集中目录下沉进各平台运营文件夹（见 4.2 节）
 > 首个改造对象：`crews/main`（小贝 / main agent）
 
 ---
@@ -111,13 +109,17 @@
 crews/main/
   AGENTS.md                      # 薄化：通用准则 + 专家包路由表（目标 < 120 行）
   SOUL.md / TOOLS.md / IDENTITY.md / USER.md / MEMORY.md   # 不变
-  dna/                           # Workspace 运行时 DNA，统一按平台分目录
-    wx_mp/
+  wx_mp/                         # 平台运营文件夹（每个启动运营的平台一个）
+    ref/                         # 参考材料
+    outputs/                     # 成片、素材、封面、简报等
+    dna/                         # 运行时 DNA
       {dna-id}/
         reports/
           {sample-id}.report.md
         {dna-id}.dna.md
         {dna-id}.template.md
+    calibration/                 # 校准与复盘数据
+    wenyan-theme/                 # 平台排版主题（wx_mp独有）
   skills/
     expert-wx-mp/                # 专家包：微信公众号运营
       SKILL.md                   # 第一层：专家身份 + 交互原则 + 平台速查 + workflow 清单 + 工具清单
@@ -145,7 +147,7 @@ crews/main/
 
 - 专家包统一加 `expert-` 前缀，与「操作型技能」（如 `douyin-publish`）区分。
 - 专家包内不使用 `AGENTS.md` 作为文件名（避免与 workspace bootstrap 文件混淆，也避免被误解为会被自动注入）。
-- 专家包内不保存可变 DNA。运行期生成的 DNA report、DNA 文档和 DNA template 一律写入 Workspace 的 `dna/<platform>/<dna-id>/`；专家包只保留方法论、框架和工具。
+- 专家包内不保存可变 DNA。运行期生成的 DNA report、DNA 文档和 DNA template 一律写入 Workspace 的 `<platform>/dna/<dna-id>/`；专家包只保留方法论、框架和工具。
 - 非内容平台专家包（`expert-bd` / `expert-ir`，2026-08-27 落地）没有 DNA 与数据复盘概念：不配 style-profiler，也不要求 4.7 的 6 类 workflow 基线集；workflow 按业务场景组织（如 Lead Hunting / Investor Pipeline），运行期数据只有 Workspace `db/` 下的 SQLite 库。其余分层原则同样适用：薄根 `SKILL.md`（入口 + 路由）+ `workflows/*.md`（场景编排）+ `tools/`（原子技能收纳，SKILL.md 瘦身为工具说明书）+ 顶层 `<tool>.sh` wrapper 暴露到 PATH（`skill-wrappers.sh` 的 `*/tools/*/` 扫描层）。
 - 既有非内容专家包命名统一 `expert-` 前缀；`sales-cs-manager`（2026-08-27 落地）是特例：crew 管理型专家包，同样无 DNA / style-profiler / workflow 基线集要求，只覆盖 sales-cs crew 的启用（Enablement）与复盘升级（Review）两个 workflow，且自身不落任何运行期数据（无 `db/`、无 Workspace 数据目录），运行期产物都在 sales-cs workspace（feedback/ 只读、business_knowledge 软链）。
 
@@ -173,19 +175,21 @@ expert-<platform>/
 
 ```text
 Workspace/
-  dna/<platform>/<dna-id>/
-    reports/{sample-id}.report.md
-    {dna-id}.dna.md
-    {dna-id}.template.md
-  wenyan-theme/                 # 平台排版主题
-  calibration/<platform>/       # 平台校准与复盘数据
+  <platform>/                   # 平台运营文件夹（产出物、知识、经验、记录表格）
+    ref/                        #   参考材料（转录文本、评论摘要等）
+    outputs/                    #   成片、素材、封面、简报等
+    dna/<dna-id>/               #   DNA 运行资产
+      reports/{sample-id}.report.md
+      {dna-id}.dna.md
+      {dna-id}.template.md
+    calibration/                #   校准与复盘数据（默认 audience.md + platform-state.json；对标记录按需生成）
 ```
 
 | 数据 | 归属 |
 |------|------|
-| DNA report / DNA 文档 / DNA template | `dna/<platform>/<dna-id>/` |
+| DNA report / DNA 文档 / DNA template | `<platform>/dna/<dna-id>/` |
 | 排版主题 | 平台主题目录，例如 `wenyan-theme/` |
-| 校准、复盘、抓取结果 | 对应平台运行时数据目录 |
+| 校准、复盘、抓取结果 | `<platform>/calibration/` |
 
 硬性边界：
 
@@ -265,10 +269,10 @@ DNA 文档 -> DNA template
 
 #### 4.6.1 存储结构
 
-运行时统一保存在 Workspace 根目录，按平台和 DNA ID 分层：
+运行时统一保存在 Workspace 的平台运营文件夹下，按平台和 DNA ID 分层：
 
 ```text
-dna/<platform>/<dna-id>/
+<platform>/dna/<dna-id>/
   reports/
     {sample-id}.report.md
   covers/
@@ -280,10 +284,10 @@ dna/<platform>/<dna-id>/
 以微信公众号为例：
 
 ```text
-dna/wx_mp/{dna-id}/reports/{sample-id}.report.md
-dna/wx_mp/{dna-id}/covers/{sample-id}.{ext}
-dna/wx_mp/{dna-id}/{dna-id}.dna.md
-dna/wx_mp/{dna-id}/{dna-id}.template.md
+wx_mp/dna/{dna-id}/reports/{sample-id}.report.md
+wx_mp/dna/{dna-id}/covers/{sample-id}.{ext}
+wx_mp/dna/{dna-id}/{dna-id}.dna.md
+wx_mp/dna/{dna-id}/{dna-id}.template.md
 ```
 
 硬性边界：
@@ -383,7 +387,7 @@ crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
 结构、模式、形态、流程必须与 `wechat-style-profiler` 一致：
 
 1. **命令模式**：`report` / `build` / `update`。
-2. **存储模式**：`dna/<platform>/<dna-id>/reports/`、`<dna-id>.dna.md`、`<dna-id>.template.md`。
+2. **存储模式**：`<platform>/dna/<dna-id>/reports/`、`<dna-id>.dna.md`、`<dna-id>.template.md`。
 3. **生产模式**：单篇 report -> 聚合 DNA 文档 -> 推导 DNA template。
 4. **权重与 focus**：支持单篇权重和维度级 focus。
 5. **用户输入**：进入转译区，由 Agent 映射到平台维度后同步 DNA 文档与 template。
@@ -418,9 +422,9 @@ crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
    - 只有工具清单中明确列出的 wrapper 名称可以直接作为 shell 命令调用；未暴露 wrapper 的 Tool 名称仅用于定位工具说明，不得拼成脚本路径。
 
 2. **运行期数据只能写 Workspace**。
-   - DNA report、DNA 文档、DNA template、主题 CSS、抓取结果、校准数据等生成物，都必须保存到 Workspace 下的平台数据目录（例如 `dna/wx_mp/`、`wenyan-theme/`、`calibration/wx_mp/`）。
+   - DNA report、DNA 文档、DNA template、主题 CSS、抓取结果、校准数据等生成物，都必须保存到 Workspace 下的平台数据目录（例如 `wx_mp/dna/`、`wenyan-theme/`、`wx_mp/calibration/`）。
    - 不得写入专家包的 `dna/`、`references/`、`tools/` 或其他包内目录。专家包是可替换、可重建、可软链的代码与规则资产；运行期写入会造成实例状态和源仓状态耦合， reinstall / 重建 / 升级时也容易丢失。
-   - 专家包只发布方法论、框架和工具；DNA 生成结果保存在 Workspace `dna/<platform>/<dna-id>/`，不通过索引登记。
+   - 专家包只发布方法论、框架和工具；DNA 生成结果保存在 Workspace `<platform>/dna/<dna-id>/`，不通过索引登记。
 
 ---
 
@@ -503,54 +507,19 @@ crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
 
 ---
 
-## 8. 升级到 v2026.7.1-2 的核对点
-
-本次分析基于 `2026.7.1`。网络恢复后执行：
-
-```bash
-source openclaw.version
-git -C openclaw fetch origin tag v2026.7.1-2 --no-tags
-git -C openclaw checkout 0790d9f
-```
-
-并更新 `openclaw.version` 中的 `OPENCLAW_VERSION` / `OPENCLAW_COMMIT`。升级后只需复核：
-
-1. `src/skills/loading/skill-contract.ts` -- `<available_skills>` 是否仍只注入元数据；
-2. `src/hooks/bundled/bootstrap-extra-files/handler.ts` -- basename 白名单是否变化；
-3. `src/agents/workspace.ts` -- bootstrap 文件集合与预算默认值；
-4. skill 数量 / 字符上限（150 / 18,000）是否调整。
-
-这些均为 patch 级差异的低风险核对项，预计不影响本方案结论。
-
----
-
-## 9. 验收标准
-
-- `crews/main/AGENTS.md` < 120 行且不含任何平台专属流程细节。
-- 典型任务路由到正确专家包（description 承接触发词）。
-- 专家包 `SKILL.md` 未被任务触发时不进入上下文（仅 name/description 常驻）。
-- 被收纳技能不再出现在 `<available_skills>`；技能总数较改造前下降（净减 = 收纳数 - 1 个专家包）。
-- 专家包结构清晰：`SKILL.md`（接口 + 速查）、`workflows/`（流程）、`tools/`（原子级技能）--没有独立 knowledge 层。
-- 每个平台专家包至少包含 6 类 workflow：style-dna / content-production / account-setup / account-benchmark / editing / review（wx_mp 现状即此 6 个）；每个 workflow 各对应一类用户需求，互不重叠，覆盖完整，平台特有场景可按需增加。
-- style-profiler 支持 `report / build / update`，并能生成 DNA 文档与 DNA template。
-- DNA 存储符合 `dna/<platform>/<dna-id>/reports/`，并在 DNA 目录下交付 `.dna.md` 与 `.template.md` 两个核心文件。
-- wrapper 扫描支持 `tools/` 嵌套层，收纳后的工具命令调用方式不变。
-- 部署脚本（`apply-addons.sh` / `setup-crew.sh`）无需结构性改动即可安装专家包。
-
-
-## 10. 案例：微信公众号专家包改造（wx_mp）
+## 9. 案例：微信公众号专家包改造（wx_mp）
 
 > 首个落地的专家包。2026-08-15 完成初始改造，2026-08-18 升级为三层 DNA 生产模式，2026-08-20 合并内容生产 workflow，可作为其他平台改造的参考模板。
 
-### 10.1 改造前基线
+### 9.1 改造前基线
 
 - 顶层技能数：3 个（`wx-mp-hunter` / `wx-mp-publisher` / `wx-mp-engagement`）+ 1 个排版（`generate-wenyan-theme`）
 - AGENTS.md 中公众号相关段落：约占新媒体运营章节的 40%
 - 散落知识文件：`knowledge/channels-account-launch-expert/wx_mp.md`（270 行起号手册）
-- 散落数据文件：`calibration/wx_mp/`（audience / benchmark / platform-state）
+- 散落数据文件：`wx_mp/calibration/`（audience / benchmark / platform-state）
 - 外部移植素材：一个 `expert-wx-mp/` 目录（含 1 份 persona + 5 个工具技能）
 
-### 10.2 改造决策一览
+### 9.2 改造决策一览
 
 | 决策点 | 结论 | 理由 |
 |--------|------|------|
@@ -564,7 +533,7 @@ git -C openclaw checkout 0790d9f
 | calibration 数据 | 不随迁，留原位 | 是数据记录文件，不是专家知识 |
 | wrapper 兼容 | 扩展 expose_skill_wrappers 扫描 tools/ 层 | 命令调用方式零变化，收纳无感 |
 
-### 10.3 改造后的目录
+### 9.3 改造后的目录
 
 ```
 expert-wx-mp/
@@ -585,7 +554,7 @@ expert-wx-mp/
 
 **净值变化**：顶层技能从 4 个（wx-mp-publisher / wx-mp-engagement / generate-wenyan-theme + wx-mp-hunter）变成 2 个（expert-wx-mp + wx-mp-hunter），净减 2 个路由候选。
 
-### 10.4 踩过的坑
+### 9.4 踩过的坑
 
 1. **子目录里的 SKILL.md 不会自动消失** — 必须把技能目录移进专家包的 `tools/` 下，利用"扫描器遇到 SKILL.md 就不再深入"的机制才能真正收纳。如果只是在 description 上写"这是子技能"，没用，它还是会出现在 available_skills 里。
 
@@ -601,11 +570,11 @@ expert-wx-mp/
 
 ---
 
-## 11. 数据直连 DNA：废除 rubric（2026-08-20）
+## 10. 数据直连 DNA：废除 rubric（2026-08-20）
 
 expert-wx-mp 改造的最后一块：把 `content-calibrator` × `published-track` 的数据闭环从「进化判断准则（rubric）」改为「直接评估并优化 DNA」。
 
-### 11.1 决策一览
+### 10.1 决策一览
 
 | 决策点 | 结论 | 理由 |
 |--------|------|------|
@@ -617,12 +586,12 @@ expert-wx-mp 改造的最后一块：把 `content-calibrator` × `published-trac
 | 更新权限 | 评估报告 → 用户逐条确认 → style-dna workflow 转译进 DNA（新增「表现反馈区」） | 与既有 DNA 更新习惯一致，防噪声带偏 |
 | 单篇复盘（prediction.md / retro.md） | 废除 | 复盘一律针对 DNA、无单篇复盘；单篇数据疑问由 agent 在账号/DNA 上下文直接回答 |
 
-### 11.2 职责边界（review vs content-calibrator）
+### 10.2 职责边界（review vs content-calibrator）
 
 - `review` workflow（专家包内）= 该平台的**全部数据复盘工作**（heartbeat 按量触发 + 用户临时发起），一律根据数据针对 DNA 做，无单篇复盘；提供平台归因方法（指标语义、互动路径映射、混杂因素），过程中调用 `content-calibrator` 与 `published-track`。
-- `content-calibrator`（顶层跨平台技能）= 共性评估引擎：触发规则、账号基线归一化、趋势计算、报告结构；只给共性归因步骤与原则，**不含任何平台特有归因方法**；产出 `dna/<platform>/<dna-id>/evals/{date}.eval.md` 与 DNA 更新建议；结论必须落到 DNA 动作。
+- `content-calibrator`（顶层跨平台技能）= 共性评估引擎：触发规则、账号基线归一化、趋势计算、报告结构；只给共性归因步骤与原则，**不含任何平台特有归因方法**；产出 `<platform>/dna/<dna-id>/evals/{date}.eval.md` 与 DNA 更新建议；结论必须落到 DNA 动作。
 
-### 11.3 新闭环
+### 10.3 新闭环
 
 ```
 生产绑定 DNA（dna-meta.json）→ 发布 → record.sh 落 dna_id/account
@@ -633,7 +602,7 @@ expert-wx-mp 改造的最后一块：把 `content-calibrator` × `published-trac
 
 脚本入口走 PATH wrapper（D21 分发器 wrapper）：`content-calibrator eval`（`--check` / 聚合 / `--force` / `--mark-evaluated`）、`published-track record|update-metrics|fetch-metrics|...`，agent 零路径拼接。旧 rubric 脚本（score-only / commit-prediction / cal-toggle / detect-bump-signals / validate-rubric 等）与 seed 文件（rubric_notes.md / rubric-memo.md / .cheat-state.json）已删除；`cal_*` DB 列保留做历史兼容，停写。
 
-### 11.4 review 与引擎的落位（2026-08-21 补充）
+### 10.4 review 与引擎的落位（2026-08-21 补充）
 
 - **复盘全走平台 review workflow**：该平台的 heartbeat 评估与用户临时复盘统一入口，复盘一律针对 DNA，无单篇复盘；单篇数据疑问由 agent 在账号/DNA 上下文直接回答，发现系统性问题再引导发起评估。
 - **引擎无归因方法**：`content-calibrator` 只给共性归因步骤与原则（趋势优先、证据可追溯、先排混杂）；平台归因方法（指标语义、互动路径与名词、维度映射、混杂清单）全部在平台 review workflow——不同平台连名词都不同（图文讲打开/完读，短视频讲完播），引擎不得特化。

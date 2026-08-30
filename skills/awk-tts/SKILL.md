@@ -77,15 +77,15 @@ awk-tts \
 |------|---------|-------------|
 | `fragment_dir` | — | Optional fragment directory under `fragments/`; when set, reads `tts_requirement.md` and defaults output to `artifacts/speech.<format>` |
 | `--text` | — | Text to synthesize. Required unless `--text-file` or `fragment_dir` is set |
-| `--text-file` | — | UTF-8 text file to synthesize. Must be relative and under `scripts`, `assets`, `tmp`, `output_videos`, or `fragments` |
+| `--text-file` | — | UTF-8 text file to synthesize. Must be relative and under `scripts`, `assets`, `tmp`, `output_videos`, `fragments`, or `<platform>/outputs/` |
 | `--voice` | `zh_female_shuangkuaisisi_uranus_bigtts` | Speaker ID（火山音色，见下表） |
 | `--format` | `mp3` | Audio format: `mp3`, `pcm`, `ogg_opus`, `wav` |
 | `--sample-rate` | — | Optional sample rate: 8000/16000/22050/24000/32000/44100/48000 |
 | `--speech-rate` | — | Optional speech rate, range `-50`–`100`（0=默认, 100=2x, -50=0.5x） |
 | `--loudness` | — | Optional loudness, range `-50`–`100`（0=默认） |
 | `--context-text` | — | Optional 情感控制上下文（如 '用撒娇甜蜜的语气'，仅 2.0/克隆音色支持） |
-| `--output` | — | Exact output file path under `assets/audio`, `tmp`, `output_videos`, or `fragments` |
-| `--out-dir` | `./tmp/awk-tts-<ts>` | Output directory under `assets/audio`, `tmp`, `output_videos`, or `fragments` when `--output` is not set |
+| `--output` | — | Exact output file path under `assets/audio`, `tmp`, `output_videos`, `fragments`, or `<platform>/outputs/` |
+| `--out-dir` | `./tmp/awk-tts-<ts>` | Output directory under `assets/audio`, `tmp`, `output_videos`, `fragments`, or `<platform>/outputs/` when `--output` is not set |
 | `--overwrite` | off | Overwrite existing output audio/metadata files |
 | `--no-asr-check` | off | Skip ASR self-check after TTS generation |
 

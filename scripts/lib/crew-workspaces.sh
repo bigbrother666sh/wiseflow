@@ -58,21 +58,33 @@ sync_crew_skills() {
     case "$skill_name" in _*) is_shared=true;; esac
     if [ -f "${skill_dir}SKILL.md" ] || [ "$is_shared" = true ]; then
       rm -rf "$dest_skills/$skill_name"
-      ln -s "${skill_dir%/}" "$dest_skills/$skill_name"
+      # 优先用软链（skill 在仓里改完即生效），失败则回退拷贝。
+      # Windows 小白用户通常非管理员、未开开发者模式，ln -s 会 "Operation not permitted"。
+      # 若 set -e 下 ln 失败直接退出脚本，导致 main/it-engineer 等 workspace 缺失。
+      # 用 || cp -rf 回退：功能可用，代价是仓库 skill 改动不自动同步到 workspace。
+      if ln -s "${skill_dir%/}" "$dest_skills/$skill_name" 2>/dev/null; then
+        :
+      else
+        cp -rf "${skill_dir%/}" "$dest_skills/$skill_name"
+        echo "  ⚠️  symlink failed for '$skill_name', used copy instead (admin/dev-mode needed for symlinks)" >&2
+      fi
       synced=$((synced + 1))
     fi
   done
 
   [ "$synced" -gt 0 ] && echo "  ✅ synced $synced crew skill(s) → $(basename "$dest_ws")"
 
-  # D21 wrapper 暴露：把 src_skills 下顶层 wrapper 暴露到 ~/.openclaw/bin/
-  # （不走 dest_ws/skills，因 dest 是软链、链回 src；扫描 src 直接命中真 wrapper 文件）
+  # D21 wrapper 暴露：把 dest_ws/skills 下顶层 wrapper 暴露到 ~/.openclaw/bin/。
+  # 必须扫 dest_ws 而非 src：wrapper 软链目标需指向 workspace 字面路径——子脚本用
+  # dirname $0/../../.. 推导 workspace 根（ROOT/db/…），若指向 src（仓库模板），
+  # 解析后 ROOT 落在模板目录，找不到运行数据（DB 为空 / 查询返回 []）。
+  # dest_ws 内 skill 是链回 src 的软链，wrapper 经软链命中真实文件，行为一致。
   if ! _skill_wrappers_sourced; then
     local _script_dir
     _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     [ -f "$_script_dir/skill-wrappers.sh" ] && source "$_script_dir/skill-wrappers.sh"
   fi
-  type expose_skill_wrappers &>/dev/null && expose_skill_wrappers "$src_skills"
+  type expose_skill_wrappers &>/dev/null && expose_skill_wrappers "$dest_skills"
 }
 
 ensure_soul_crew_type() {

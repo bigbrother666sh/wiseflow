@@ -35,7 +35,7 @@ TONE_SLOT_TABLE = {
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 7 slot-plan")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument("--tone", default=None, choices=sorted(TONE_SLOT_TABLE), help="调性，不传走 narrative 默认")
     args = parser.parse_args()
 

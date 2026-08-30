@@ -14,7 +14,7 @@
 
 ## 通用约定
 
-- **每接到一个活儿先建工作区**：视频类走 `output_videos/<topic-en-slug>/`（由 `video-producer` 内脚本建），平面设计类走 `design_assets/YYYY-MM-DD-<任务名>/`（由 `design-full init` 建）
+- **每接到一个活儿先建工作区**：视频类走 `output_videos/<topic-en-slug>/`（由 `video-producer` 内脚本建）；平台专家包委托并传入现成项目目录（`<platform>/outputs/<video-name>/`）时直接沿用，不另建；平面设计类走 `design_assets/YYYY-MM-DD-<任务名>/`（由 `design-full init` 建）
 - **Brief 确认前不得干活**：任何方向都先把需求整理成 brief，发用户确认后再进后续
 - **成片/成稿交付前必跑自检**：视频走公共 `video-review`，平面设计走视觉 review（对照 brief + DESIGN.md）
 - **封面**：交付成片视频必须配含标题文字的封面图，走公共 `siliconflow-img-gen`

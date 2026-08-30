@@ -67,12 +67,15 @@ Use this skill when:
 
 ### Step 1 — Create workspace
 
-Before anything else, create the working directory for this video under `output_videos/`:
+Before anything else, create the working directory for this video under the source platform's 平台运营文件夹 `<platform>/ref/`（`<platform>` 取视频来源平台代号：douyin / bilibili / xhs）:
 
 ```bash
+PLATFORM="douyin"  # 视频来源平台代号：douyin / bilibili / xhs
 VIDEO_SLUG="<platform>-<contentId>"  # e.g. douyin-7389abc or bilibili-BV1xx
-mkdir -p "output_videos/${VIDEO_SLUG}/references"
+mkdir -p "${PLATFORM}/ref/${VIDEO_SLUG}/references"
 ```
+
+若调用方 workflow 指定了产出落点（如把参考素材收进在制作品目录 `<platform>/outputs/<work>/references/`），则按指定位置建工作目录，内部结构不变。
 
 All downloaded files, analysis results, and generated reports will be saved under this directory. The `references/` subdirectory holds the raw assets (video, audio, key frames) downloaded by the analyzer script.
 
@@ -113,11 +116,11 @@ The script outputs a **JSON object to stdout**. Read it and proceed with analysi
     "segments": [{ "start": 0.0, "end": 5.2, "text": "开场文案" }],
     "estimated": false
   },
-  "frames": ["output_videos/<slug>/references/frames/frame_00_0s.jpg", "..."],
+  "frames": ["<platform>/ref/<slug>/references/frames/frame_00_0s.jpg", "..."],
   "localPaths": {
-    "video": "output_videos/<slug>/references/video.mp4",
-    "audio": "output_videos/<slug>/references/audio.wav",
-    "tmpDir": "output_videos/<slug>/references"
+    "video": "<platform>/ref/<slug>/references/video.mp4",
+    "audio": "<platform>/ref/<slug>/references/audio.wav",
+    "tmpDir": "<platform>/ref/<slug>/references"
   }
 }
 ```
@@ -134,8 +137,8 @@ The script outputs a **JSON object to stdout**. Read it and proceed with analysi
 For each path in `frames`, use the `Read` tool to load the image and analyze it visually.
 
 ```
-Read: output_videos/<slug>/references/frames/frame_00_0s.jpg
-Read: output_videos/<slug>/references/frames/frame_01_3s.jpg
+Read: <platform>/ref/<slug>/references/frames/frame_00_0s.jpg
+Read: <platform>/ref/<slug>/references/frames/frame_01_3s.jpg
 ...
 ```
 
@@ -143,7 +146,7 @@ Read: output_videos/<slug>/references/frames/frame_01_3s.jpg
 
 ## Analysis Framework
 
-After receiving the JSON output and reading the frames, generate a **追爆报告** in Markdown and save it to `output_videos/<slug>/raw_article.md`.
+After receiving the JSON output and reading the frames, generate a **追爆报告** in Markdown and save it to `<platform>/ref/<slug>/raw_article.md`.
 
 ### 1. 内容摘要
 1–2 sentences: what core value does this video deliver to viewers?
@@ -197,7 +200,7 @@ One sentence describing the primary audience persona.
 
 ## Notes
 
-- **Workspace files** are stored in `output_videos/<slug>/` — all downloaded assets and analysis reports are kept together. The `references/` subdirectory contains raw assets from the analyzer.
+- **Workspace files** are stored in `<platform>/ref/<slug>/` — all downloaded assets and analysis reports are kept together. The `references/` subdirectory contains raw assets from the analyzer.
 - **Bilibili DASH format**: if `mediaFormat` is `DASH`, the video and audio streams are separate. The downloaded `video.mp4` contains the video stream only; audio is in `audio.wav` after extraction. This is transparent to the analysis workflow.
 - **XHS video notes only**: 小红书图文笔记（image-only）不含视频，viral-chaser 会报错并提示。只有视频笔记（type=video）才能下载和分析。
 - **XHS 取数走 SSR HTML 路线（无 cookie 优先）**：`platforms/xhs.ts` 直接 GET `www.xiaohongshu.com/explore/{note_id}?xsec_token=...` 笔记详情页 HTML，解析 og:meta + `window.__INITIAL_STATE__` 拿标题/封面/视频地址/时长/互动计数（`_shared/xhs-html-note.ts`）。**不走 feed API**（`/api/sns/web/v1/feed` 需 xRap relay 签名，极易 406/500/滑块，且探活 user/me 通过不代表 feed 签名路径被接受，会出现「探活绿、feed 红」假绿）。输入必须是带 `xsec_token` 的分享链接（`xhslink.com/...` 或 `www.xiaohongshu.com/explore/...?xsec_token=...`），脚本从短链展开后的 URL 抽 token。无 cookie 抓不到（滑块/空页）时，若本机有 `xhs-browse` cookie 则用同指纹 UA + cookie 回退重试一次。

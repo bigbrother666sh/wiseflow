@@ -172,6 +172,8 @@ camoufox-cli --session wx_mp --persistent --json identity export ~/.openclaw/log
 
 `fetch-and-update-metrics.sh --platform wx_mp --id <rowid>` 内部 exec `wx-mp-engagement.sh fetch --row-id <rowid>`——已实现这条路径（fetch-and-update-metrics.sh 现状已对），不动。但 wx-mp-engagement 内部要改：现状调的是不存在的 `login-manager.sh check wx-mp`（login-manager 是纯指导文件无脚本），要改成走 wx-mp-hunter 那套共用 camoufox-cli session + 无头 QR 流程（§4）。
 
+> **2026-08-21 更新**：wx_mp 取数已从 fetch-and-update-metrics.sh 移出——该脚本对 `--platform wx_mp` 直接 exit 1 报错，agent 直调 `wx-mp-engagement fetch --row-id <rowid>`（PATH wrapper；工具已随专家包收纳迁至 `crews/main/skills/expert-wx-mp/tools/wx-mp-engagement/`，wrapper 名不变）。两条链路（纯 HTTP+cookie 四平台 vs camoufox 抓创作者中心）独立维护，见 HEARTBEAT.md Step 2。
+
 ### 情况 3 — 直接使用浏览器（其他平台）
 
 对没有脚本支持的平台，明确讲：**应用对应平台的持久化 session 进入创作者列表页面即可**——browser 导航到创作者中心列表页 → snapshot 读行内互动指标 → 调 `update-metrics.sh` 写库。

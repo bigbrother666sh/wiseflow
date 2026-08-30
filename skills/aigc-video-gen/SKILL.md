@@ -168,7 +168,7 @@ aigc-video-gen music \
 | `--no-audio` | off | 关闭声画同出（默认开启）；col-broll 拼贴动画等要抽无声交付时用 |
 | `--platform` | auto | 覆盖平台自动检测：`volcengine` / `dashscope` / `minimax`；不指定则按 env 自动判 |
 | `--model` | auto | 显式指定模型 ID（关闭候选链 fallback）；不指定则按模式走首选 + 候选链 |
-| `--output` | required | 输出 MP4 路径（必须在 `output_videos/` 下，供应商脚本内部 `ensure_safe_output` 校验） |
+| `--output` | required | 输出 MP4 路径（必须在 `output_videos/` 或 `<platform>/outputs/` 下，供应商脚本内部 `ensure_safe_output` 校验） |
 
 ### 背景音乐生成参数（music 子命令）
 
@@ -176,7 +176,7 @@ aigc-video-gen music \
 |------|---------|-------------|
 | `--prompt` | required | 音乐描述（风格/情绪/乐器，中文） |
 | `--duration` | — | 音乐时长（秒），不传走模型默认 |
-| `--output` | required | 输出音频路径（须在 `output_videos/tmp/fragments/artifacts` 下） |
+| `--output` | required | 输出音频路径（须在 `output_videos/tmp/fragments/artifacts` 或 `<platform>/outputs/` 下） |
 
 ## Output
 

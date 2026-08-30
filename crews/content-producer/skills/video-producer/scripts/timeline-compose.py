@@ -74,7 +74,7 @@ def probe_duration(path: Path) -> float:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="timeline-compose 时间轴合成")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument("--timeline", required=True, help="时间轴 JSON 路径（相对 project_dir 或绝对）")
     parser.add_argument("--output", default="video.mp4", help="输出合成片段名（相对 project_dir，默认 video.mp4）")
     parser.add_argument("--transition", default="hard", choices=["hard", "fade", "dissolve", "xfade"])

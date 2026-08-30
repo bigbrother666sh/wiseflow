@@ -47,13 +47,13 @@ awada-channel-setup
 
 脚本行为：
 - 读 `openclaw-awada-sample.json` 作为模板
-- 提示输入 `relayBaseUrl` / `ofbKey` / `lane` / `platform`（带默认值，可回车接受）
+- 提示输入 `awadaKey`（必填）；`lane` 可选（留空 = 服务器默认 `User`）；`relayBaseUrl` 缺省时回退到官方 relay 域名 `https://relay.openclaw-for-business.com`
 - 合并进 `~/.openclaw/openclaw.json` 的 `channels.awada` 与 `plugins`（customerDB
   hook 默认 `enabled: true`，agentId=`sales-cs`）
 - 原子写回（temp + os.replace），先备份 `.bak-<ts>`
 - 不重启 Gateway（由步骤 3 人工确认）
 
-> `relayBaseUrl` / `ofbKey` 由 relay admin 签发（OFB_KEY 须含 `awada:lane:<laneId>` scope）。客户端不持 Redis 凭据。
+> `awadaKey` 由 relay admin 签发（须含 `awada:lane:<laneId>` scope），与签名用的 `OFB_KEY` 是两份独立凭证。`lane` 在 relay 侧 provision 时已绑死 platform，客户端不发 `platform`。客户端不持 Redis 凭据。客户端最小配置只需 `awadaKey`。
 
 ### 3. 建议重启 Gateway
 
@@ -77,9 +77,9 @@ it-engineer MEMORY「binding routing 坑 2」）：
 ## 排障检查单
 
 1. `Cannot find module 'ws'` → 步骤 1 预装未就位（Docker 镜像 build 漏装 / 源码部署 apply-addons.sh 没跑）；手动 `cd <PROJECT_ROOT>/awada && pnpm install --prod` 补装
-2. 网关连接失败 / 401 → 检查 `relayBaseUrl` 可达性 + `ofbKey` 是否含 `awada:lane:<lane>` scope
+2. 网关连接失败 / 401 → 检查 `relayBaseUrl` 可达性 + `awadaKey` 是否含 `awada:lane:<lane>` scope
 3. awada-server（relay 侧）进程存活 + Redis 连通性（relay 内部，客户端不直接碰）
 4. webhook 回调地址与平台后台一致
-5. `channels.awada` 的 `lane/platform` 与 relay 侧 bot 配置匹配
+5. `channels.awada` 的 `lane`（若配）与 relay 侧 provision 的 lane 一致；不配则 server 默认 `User`（platform 由 lane 绑定，客户端不配）
 6. binding 写了但消息仍走 default agent → 见 it-engineer MEMORY「binding routing 坑 1」：
    binding 必须写 `accountId`（通配用 `"*"`）

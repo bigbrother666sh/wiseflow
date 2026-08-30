@@ -459,11 +459,12 @@ inject_file_edit_guide() {
 GUIDE
 }
 
+# 向 AGENTS.md 追加富媒体发送规范（幂等：已存在同标题 section 则跳过，不覆盖用户编辑的内容）
 inject_media_send_guide() {
-  local user_md="$1"
-  [ -f "$user_md" ] || return 0
-  grep -qF "## 发送图片/文件/视频等富媒体注意事项" "$user_md" && return 0
-  cat >> "$user_md" << 'GUIDE'
+  local agents_md="$1"
+  [ -f "$agents_md" ] || return 0
+  grep -qF "## 发送图片/文件/视频等富媒体注意事项" "$agents_md" && return 0
+  cat >> "$agents_md" << 'GUIDE'
 
 ## 发送图片/文件/视频等富媒体注意事项
 

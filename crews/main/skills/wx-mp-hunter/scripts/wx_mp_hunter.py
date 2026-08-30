@@ -10,7 +10,8 @@
    captcha / 登录态。
 
 2. **账号 posts-list**：从本机微信客户端容器的 biz 消息库（SQLCipher 加密 +
-   Zstd 压缩）扫过去 N 小时的 49 号文章消息，按账号白名单过滤、按 url 去重。
+   Zstd 压缩）扫 49 号文章消息，支持过去 N 小时或最新 N 条，按账号白名单
+   过滤、按 url 去重。
    仅能拿到容器客户端已登录微信账号**已关注**的公众号推送。
 
 3. **专题页流程（mp/homepage）**：camoufox-cli 无头浏览器打开专题页，
@@ -70,21 +71,20 @@ CAMOUFOX_BIN = os.environ.get("CAMOUFOX_CLI", "camoufox-cli")
 HOMEPAGE_SESSION = "wx_mp_hunter_homepage"
 
 # ── biz 消息库扫库常量 ───────────────────────────────────────────────────────
-# 依赖本机微信客户端容器，相关路径通过环境变量注入。
-WX_BIZ_CONTAINER = os.environ.get("WX_BIZ_CONTAINER")
-WX_BIZ_USER_DIR = os.environ.get("WX_BIZ_USER_DIR")
-WX_BIZ_KEYS_FILE = os.environ.get(
-    "WX_BIZ_KEYS_FILE",
-    "/home/wechat/.xwechat/wechat_keys.json",
-)
-WX_BIZ_DB_REL = os.environ.get(
-    "WX_BIZ_DB_REL",
-    "db_storage/message/biz_message_0.db",
-)
-WX_BIZ_DB_KEY_NAME = os.environ.get(
-    "WX_BIZ_DB_KEY_NAME",
-    "message/biz_message_0.db",
-)
+# 依赖本机微信客户端容器（MimicWX-Linux 镜像）。容器名可 override，
+# 其余路径全部硬编码/自动探测（复刻 MimicWX-Linux 的 find_db_dir 逻辑）。
+WX_BIZ_CONTAINER = os.environ.get("WX_BIZ_CONTAINER", "mimicwx-linux")
+
+# 硬编码常量（由 MimicWX-Linux 镜像布局和微信客户端数据库约定决定，不让用户配置）
+WX_BIZ_KEYS_FILE = "/home/wechat/.xwechat/wechat_keys.json"
+WX_BIZ_KEYS_FILE_COMPAT = "/tmp/wechat_keys.json"
+WX_BIZ_DB_REL = "db_storage/message/biz_message_0.db"
+WX_BIZ_DB_KEY_NAME = "message/biz_message_0.db"
+
+# MimicWX-Linux 用户数据目录的搜索根（由 Dockerfile 里 `useradd -m wechat` 决定）
+WX_BIZ_XWECHAT_ROOT = "/home/wechat/Documents/xwechat_files"
+# 旧路径兜底
+WX_BIZ_OLD_DATA_ROOT = "/home/wechat/.local/share/weixin/data"
 
 # ── 单篇 fetch：微信客户端 UA 直访 ──────────────────────────────────────────
 
@@ -116,18 +116,75 @@ def err_exit(msg: str, code: int = 1) -> None:
     sys.exit(code)
 
 
+def positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("必须为正整数")
+    return parsed
+
+
 # ── biz 消息库扫库 ───────────────────────────────────────────────────────────
 
-def _require_biz_container_env() -> None:
+def _require_biz_container_env() -> str:
     """posts-list 才检查容器环境是否就位；普通 fetch 不检查。
 
-    仅校验容器名是否被显式配置或保持默认值，避免在不需要扫库时误报。
-    真正的容器可达性检查在 ``_scan_biz_messages`` 里做。
+    返回自动探测到的 user_dir（wxid 那层目录，即 db_storage 的父目录）。
+    失败直接 err_exit 报清晰错误。
+
+    探测逻辑复刻 MimicWX-Linux 的 ``find_db_dir``：
+    - 主搜索根：``/home/wechat/Documents/xwechat_files/*``（遍历所有子目录，不限定 ``wxid_*``）
+    - 旧路径兜底：``/home/wechat/.local/share/weixin/data/db_storage``
+    - 多账号场景取 ``db_storage/message`` mtime 最新的那个（最近活跃账号）
     """
-    if not WX_BIZ_CONTAINER:
+    # 1. 校验容器可达
+    try:
+        _docker_exec(["true"], timeout=10.0)
+    except RuntimeError:
         err_exit(
-            "缺少环境变量 WX_BIZ_CONTAINER：posts-list 依赖本机微信客户端容器，"
-            "请先在环境中设置该变量指向运行中的容器名"
+            f"容器 {WX_BIZ_CONTAINER} 不可达：posts-list 依赖本机运行的微信客户端容器，"
+            f"请确认容器已启动（docker ps | grep {WX_BIZ_CONTAINER}）"
+        )
+
+    # 2. 自动探测 user_dir（复刻 MimicWX-Linux find_db_dir）
+    probe_script = (
+        "import os, time\n"
+        "candidates = []\n"
+        f"root = {WX_BIZ_XWECHAT_ROOT!r}\n"
+        "if os.path.isdir(root):\n"
+        "    for entry in os.listdir(root):\n"
+        "        db_storage = os.path.join(root, entry, 'db_storage')\n"
+        "        if os.path.isdir(db_storage):\n"
+        "            msg_dir = os.path.join(db_storage, 'message')\n"
+        "            try:\n"
+        "                mtime = os.path.getmtime(msg_dir)\n"
+        "            except OSError:\n"
+        "                mtime = 0\n"
+        "            candidates.append((db_storage, mtime))\n"
+        f"old = {WX_BIZ_OLD_DATA_ROOT!r}\n"
+        "if os.path.isdir(old):\n"
+        "    db_storage = os.path.join(old, 'db_storage')\n"
+        "    if os.path.isdir(db_storage):\n"
+        "        try:\n"
+        "            mtime = os.path.getmtime(os.path.join(db_storage, 'message'))\n"
+        "        except OSError:\n"
+        "            mtime = 0\n"
+        "        candidates.append((db_storage, mtime))\n"
+        "if not candidates:\n"
+        "    raise SystemExit('no db_storage found')\n"
+        "candidates.sort(key=lambda x: x[1], reverse=True)\n"
+        "print(os.path.dirname(candidates[0][0]))\n"
+    )
+    try:
+        out = _docker_exec(["python3", "-c", probe_script], timeout=15.0)
+        user_dir = out.decode("utf-8", errors="replace").strip()
+        if not user_dir:
+            raise RuntimeError("probe returned empty user_dir")
+        return user_dir
+    except RuntimeError as e:
+        err_exit(
+            f"自动探测用户数据目录失败：{e}\n"
+            f"请确认容器 {WX_BIZ_CONTAINER} 内已登录微信账号、"
+            f"且 {WX_BIZ_XWECHAT_ROOT} 下存在带 db_storage 的账号目录"
         )
 
 
@@ -153,20 +210,40 @@ def _docker_cp(src: str, dst: str, timeout: float = 60.0) -> None:
 
 
 def _read_biz_db_key() -> str:
-    """从容器内密钥文件读取 biz 消息库的密钥（hex 字符串）。"""
-    raw = _docker_exec(["cat", WX_BIZ_KEYS_FILE])
-    keys = json.loads(raw)
-    key = keys.get(WX_BIZ_DB_KEY_NAME) or keys.get(WX_BIZ_DB_REL)
-    if not key:
-        raise RuntimeError(
-            f"key for {WX_BIZ_DB_KEY_NAME} (or {WX_BIZ_DB_REL}) not found in {WX_BIZ_KEYS_FILE}"
-        )
-    return key
+    """从容器内硬编码密钥文件读取 biz 消息库的密钥（hex 字符串）。
+
+    主路径 ``/home/wechat/.xwechat/wechat_keys.json``，失败再试
+    ``/tmp/wechat_keys.json``。从 JSON 里取 ``message/biz_message_0.db``
+    对应的密钥；若 key 不存在，fallback 扫所有 key 找 basename 匹配
+    ``biz_message_0.db`` 的（复刻 MimicWX lookup_db_key 的 fallback 逻辑）。
+    """
+    for keys_path in (WX_BIZ_KEYS_FILE, WX_BIZ_KEYS_FILE_COMPAT):
+        try:
+            raw = _docker_exec(["cat", keys_path])
+            keys = json.loads(raw)
+            # 1. 精确匹配
+            key = keys.get(WX_BIZ_DB_KEY_NAME)
+            if key:
+                return key
+            # 2. basename fallback
+            for k, v in keys.items():
+                if k.endswith("biz_message_0.db"):
+                    return v
+        except RuntimeError:
+            continue
+    raise RuntimeError(
+        f"无法从容器 {WX_BIZ_CONTAINER} 读取 biz 消息库密钥："
+        f"主路径 {WX_BIZ_KEYS_FILE} 和兜底路径 {WX_BIZ_KEYS_FILE_COMPAT} 都失败。"
+        f"请确认容器内微信已登录、extract_key.py 已产出密钥文件。"
+    )
 
 
-def _copy_biz_db(tmp_dir: Path) -> Path:
-    """从容器拷出 biz 消息库（含 -wal / -shm），返回拷贝后的 .db 路径。"""
-    container_db = os.path.join(WX_BIZ_USER_DIR, WX_BIZ_DB_REL)
+def _copy_biz_db(tmp_dir: Path, user_dir: str) -> Path:
+    """从容器拷出 biz 消息库（含 -wal / -shm），返回拷贝后的 .db 路径。
+
+    user_dir 由 ``_require_biz_container_env`` 自动探测得到（wxid 那层目录）。
+    """
+    container_db = os.path.join(user_dir, WX_BIZ_DB_REL)
     db_name = Path(WX_BIZ_DB_REL).name
     for suffix in ("", "-wal", "-shm"):
         src = f"{container_db}{suffix}"
@@ -271,28 +348,33 @@ def _parse_49_message(content_bytes: bytes) -> Optional[dict[str, Any]]:
 
 
 def _scan_biz_messages(
-    limit_hours: int,
+    limit_hours: Optional[int],
     account_whitelist: Optional[set[str]] = None,
+    recent_limit: Optional[int] = None,
 ) -> list[dict[str, Any]]:
-    """扫描 biz 消息库，返回过去 limit_hours 小时内的 49 号文章消息。
+    """扫描 biz 消息库，返回时间窗口或最近 N 条 49 号文章消息。
 
     Args:
-        limit_hours: 时间窗口（小时）
+        limit_hours: 时间窗口（小时）；recent 模式传 None
         account_whitelist: 公众号白名单（公众号名，即 author）。
             若为 None 则返回全部；若非空则只保留 author 在白名单内的消息。
+        recent_limit: recent 模式保留的最新消息条数；非 recent 模式传 None
 
     Returns:
         List[Dict]，每个 dict 含 title/url/author/publish_time/cover。
-        按 publish_time 倒序，已按 url 去重。
+        按消息接收时间倒序，已按 url 去重。
     """
-    cutoff_ts = time.time() - limit_hours * 3600
+    cutoff_ts = 0 if limit_hours is None else time.time() - limit_hours * 3600
     results: list[dict[str, Any]] = []
-    seen_urls: set[str] = set()
+    url_indexes: dict[str, int] = {}
+
+    # 自动探测 user_dir（校验容器可达 + 复刻 MimicWX find_db_dir）
+    user_dir = _require_biz_container_env()
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="bizscan_"))
     try:
         key_hex = _read_biz_db_key()
-        db_path = _copy_biz_db(tmp_dir)
+        db_path = _copy_biz_db(tmp_dir, user_dir)
         conn = _open_sqlcipher(db_path, key_hex)
         try:
             cur = conn.cursor()
@@ -320,10 +402,13 @@ def _scan_biz_messages(
                         continue
                     if account_whitelist and msg["author"] not in account_whitelist:
                         continue
-                    if msg["url"] in seen_urls:
-                        continue
-                    seen_urls.add(msg["url"])
-                    results.append(msg)
+                    msg["_message_time"] = int(_create_time)
+                    existing_index = url_indexes.get(msg["url"])
+                    if existing_index is None:
+                        url_indexes[msg["url"]] = len(results)
+                        results.append(msg)
+                    elif msg["_message_time"] > results[existing_index]["_message_time"]:
+                        results[existing_index] = msg
         finally:
             conn.close()
     except Exception as e:
@@ -331,12 +416,19 @@ def _scan_biz_messages(
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    def _sort_key(m: dict[str, Any]) -> Any:
-        pt = m.get("publish_time", "")
-        return pt if pt else "0000-00-00"
+    return _sort_and_limit_recent_messages(results, recent_limit)
 
-    results.sort(key=_sort_key, reverse=True)
-    return results
+
+def _sort_and_limit_recent_messages(
+    messages: list[dict[str, Any]],
+    recent_limit: Optional[int],
+) -> list[dict[str, Any]]:
+    messages.sort(key=lambda msg: msg["_message_time"], reverse=True)
+    if recent_limit is not None:
+        messages = messages[:recent_limit]
+    for msg in messages:
+        msg.pop("_message_time", None)
+    return messages
 
 
 # ── 单篇 fetch：MicroMessenger UA 直访 ──────────────────────────────────────
@@ -498,6 +590,34 @@ def _strip_tags(html_fragment: str) -> str:
     return re.sub(r"<[^>]+>", "", html_fragment)
 
 
+def _extract_cover_url(html: str) -> str:
+    """提取文章分享封面 URL；og:image 通常是分享卡片封面。"""
+    candidates: list[str] = []
+    og_image = re.search(
+        r'<meta[^>]*property=["\']og:image["\'][^>]*content=["\']([^"\']+)["\']',
+        html,
+    )
+    if og_image:
+        candidates.append(og_image.group(1))
+    twitter_image = re.search(
+        r'<meta[^>]*name=["\']twitter:image["\'][^>]*content=["\']([^"\']+)["\']',
+        html,
+    )
+    if twitter_image:
+        candidates.append(twitter_image.group(1))
+    msg_cdn_url = re.search(
+        r'var\s+msg_cdn_url\s*=\s*["\']([^"\']+)["\']',
+        html,
+    )
+    if msg_cdn_url:
+        candidates.append(msg_cdn_url.group(1))
+    for candidate in candidates:
+        normalized = _normalize_img_url(html_module.unescape(candidate).strip())
+        if normalized:
+            return normalized
+    return ""
+
+
 def _extract_article_fields(html: str) -> dict[str, Any]:
     """从文章 HTML 提取 title / author / publish_time / content_text /
     content_markdown / images / error_msg。
@@ -525,8 +645,10 @@ def _extract_article_fields(html: str) -> dict[str, Any]:
         "content_text": "",
         "content_markdown": "",
         "images": [],
+        "cover_url": "",
         "error_msg": "",
     }
+    result["cover_url"] = _extract_cover_url(html)
 
     # ── publish_time: 多路兜底（已在上一轮实现，保留）──────────────────────
     # 1. <em id="publish_time">xxxx年xx月xx日</em>（PC 端常见）
@@ -795,6 +917,7 @@ async def _download_image(
     url: str,
     dest_dir: Path,
     max_bytes: int = 5 * 1024 * 1024,
+    destination_subdir: str = "images",
 ) -> Optional[Path]:
     """下载单张图片到 dest_dir/images/<hash>.<ext>，返回本地路径。"""
     try:
@@ -824,7 +947,7 @@ async def _download_image(
                 ext = "gif"
             elif url_lower.endswith(".webp"):
                 ext = "webp"
-        dest = dest_dir / "images" / f"{h}.{ext}"
+        dest = dest_dir / destination_subdir / f"{h}.{ext}"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
         return dest
@@ -865,6 +988,19 @@ async def _download_images(
         await asyncio.gather(*[_one(u) for u in images])
 
     return url_to_path
+
+
+async def _download_cover_image(cover_url: str, output_dir: Path) -> Optional[Path]:
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        headers={"User-Agent": WX_MICROMESSENGER_UA},
+    ) as client:
+        return await _download_image(
+            client,
+            cover_url,
+            output_dir,
+            destination_subdir="covers",
+        )
 
 
 def _rewrite_md_images(
@@ -949,6 +1085,7 @@ async def cmd_fetch(args: argparse.Namespace) -> int:
         "content_text": fields["content_text"],
         "content_markdown": fields["content_markdown"],
         "images": fields["images"],
+        "cover_url": fields["cover_url"],
     }
 
     # 透传多类型识别的 error_msg（new_type_article type ... / it's a deleted page 等）
@@ -958,14 +1095,26 @@ async def cmd_fetch(args: argparse.Namespace) -> int:
         print_json(result)
         return 1
 
-    # 图片本地化
-    if args.download_images:
+    # 图片/封面本地化
+    if args.download_images or args.download_cover:
         output_dir = Path(args.output_dir or ".").resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.download_images:
         url_to_path = await _download_images(fields["images"], output_dir)
         result["content_markdown"] = _rewrite_md_images(
             result["content_markdown"], url_to_path, output_dir
         )
+
+    if args.download_cover:
+        if fields["cover_url"]:
+            cover_path = await _download_cover_image(fields["cover_url"], output_dir)
+            result["cover_local_path"] = str(cover_path.resolve()) if cover_path else ""
+            result["cover_download_ok"] = cover_path is not None
+        else:
+            result["cover_local_path"] = ""
+            result["cover_download_ok"] = False
+            result["cover_download_error"] = "cover url not found"
 
     # 返回原始 HTML（可选）
     if args.html:
@@ -976,22 +1125,20 @@ async def cmd_fetch(args: argparse.Namespace) -> int:
 
 
 def cmd_posts_list(args: argparse.Namespace) -> int:
-    """扫 biz 消息库拿过去 N 小时某账号（或全部）的文章推送列表。
+    """扫 biz 消息库拿时间窗口或最近 N 条文章推送列表。
 
     仅能拿到容器客户端已登录微信账号**已关注**的公众号推送。扫不到某账号
     时提示用户可能是未关注 / 该账号在此时间窗口内未发布。
     """
-    # 仅此命令检查容器环境
-    _require_biz_container_env()
-
-    limit_hours = args.hours
+    recent_mode = args.recent is not None
+    limit_hours = None if recent_mode else args.hours
     accounts_arg = args.accounts
 
     whitelist: Optional[set[str]] = None
     if accounts_arg:
         whitelist = {a.strip() for a in accounts_arg.split(",") if a.strip()}
 
-    posts = _scan_biz_messages(limit_hours, whitelist)
+    posts = _scan_biz_messages(limit_hours, whitelist, args.recent)
 
     # 健康度诊断：用户指定但未命中的账号
     missing_accounts: list[str] = []
@@ -1001,18 +1148,29 @@ def cmd_posts_list(args: argparse.Namespace) -> int:
 
     result: dict[str, Any] = {
         "ok": True,
-        "limit_hours": limit_hours,
+        "mode": "recent" if recent_mode else "hours",
         "total": len(posts),
         "posts": posts,
     }
+    if recent_mode:
+        result["recent_limit"] = args.recent
+    else:
+        result["limit_hours"] = limit_hours
     if missing_accounts:
         result["missing_accounts"] = missing_accounts
-        result["hint"] = (
-            f"以下账号过去 {limit_hours}h 未在消息库中扫到文章（共 {len(missing_accounts)} 个）："
-            f"{'、'.join(missing_accounts)}。"
-            f"可能是该公众号在此时间窗口内未发布，也可能是本机微信客户端未关注该公众号。"
-            f"若需稳定接收该公众号推送，请确认本机微信客户端已关注该公众号。"
-        )
+        if recent_mode:
+            result["hint"] = (
+                f"以下账号未出现在最近 {args.recent} 条文章中（共 {len(missing_accounts)} 个）："
+                f"{'、'.join(missing_accounts)}。"
+                f"可能是本机微信客户端未关注该公众号、近期未收到推送，或其消息被更新推送挤出前 {args.recent} 条。"
+            )
+        else:
+            result["hint"] = (
+                f"以下账号过去 {limit_hours}h 未在消息库中扫到文章（共 {len(missing_accounts)} 个）："
+                f"{'、'.join(missing_accounts)}。"
+                f"可能是该公众号在此时间窗口内未发布，也可能是本机微信客户端未关注该公众号。"
+                f"若需稳定接收该公众号推送，请确认本机微信客户端已关注该公众号。"
+            )
 
     print_json(result)
     return 0
@@ -1172,14 +1330,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="把正文图片下载到本地，content_markdown 中 URL 替换为本地相对路径",
     )
     p_fetch.add_argument(
+        "--download-cover", action="store_true",
+        help="下载文章分享封面到 covers/<hash>.<ext>",
+    )
+    p_fetch.add_argument(
         "--output-dir", default="",
         help="图片下载目标目录（配合 --download-images；默认当前目录）",
     )
     p_fetch.set_defaults(func=cmd_fetch)
 
     # posts-list
-    p_pl = sub.add_parser("posts-list", help="扫消息库拿过去 N 小时的文章推送列表")
-    p_pl.add_argument("--hours", type=int, default=24, help="时间窗口（小时，默认 24）")
+    p_pl = sub.add_parser("posts-list", help="扫消息库拿时间窗口或最近 N 条文章推送列表")
+    mode_group = p_pl.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--hours", type=positive_int, default=24,
+        help="时间窗口模式：取过去 N 小时（默认 24）",
+    )
+    mode_group.add_argument(
+        "--recent", type=positive_int, metavar="N",
+        help="最近发布模式：取消息库中最新 N 条",
+    )
     p_pl.add_argument(
         "--accounts", default="",
         help="公众号名白名单，逗号分隔；不传则返回全部",

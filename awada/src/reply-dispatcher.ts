@@ -17,7 +17,7 @@ export type CreateAwadaReplyDispatcherParams = {
   agentId: string;
   runtime: RuntimeEnv;
   relayBaseUrl: string;
-  ofbKey: string;
+  awadaKey: string;
   lane: string;
   target: OutboundTarget;
   inboundEventId: string;
@@ -43,7 +43,7 @@ export function createAwadaReplyDispatcher(params: CreateAwadaReplyDispatcherPar
     cfg,
     runtime,
     relayBaseUrl,
-    ofbKey,
+    awadaKey,
     lane,
     target,
     inboundEventId,
@@ -79,7 +79,7 @@ export function createAwadaReplyDispatcher(params: CreateAwadaReplyDispatcherPar
     for (const chunk of chunks) {
       const p = sendTextToAwada({
         relayBaseUrl,
-        ofbKey,
+        awadaKey,
         lane,
         target,
         text: chunk,
@@ -101,7 +101,7 @@ export function createAwadaReplyDispatcher(params: CreateAwadaReplyDispatcherPar
     const media = buildMediaContentFromUrl(url);
     const p = sendMediaToAwada({
       relayBaseUrl,
-      ofbKey,
+      awadaKey,
       lane,
       target,
       media,
@@ -122,7 +122,7 @@ export function createAwadaReplyDispatcher(params: CreateAwadaReplyDispatcherPar
     const media: FileObject = { type: "file", file_id: fileId, file_name: fileName };
     const p = sendMediaToAwada({
       relayBaseUrl,
-      ofbKey,
+      awadaKey,
       lane,
       target,
       media,

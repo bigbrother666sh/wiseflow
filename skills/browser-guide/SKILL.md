@@ -49,7 +49,7 @@ camoufox-cli 的 `snapshot` 返回带 ref 的语义快照（`@e1` `@e2` …）�
 
 ### 0.3 用后即关（critical — 机器会被撑死）
 
-每个 `camoufox-cli --session <s> open` 都会拉起一个独立 daemon + 完整 Firefox 实例（每个 200-400MB + 若干 content 进程）。**不关就一直在**（idle 60s 才自退）。一次任务里开几十个 session 又不 close，13GB 机器几分钟就死机（真实事故：72 open / 1 close）。
+每个 `camoufox-cli --session <s> open` 都会拉起一个独立 daemon + 完整 Firefox 实例（每个 200-400MB + 若干 content 进程）。**不关就一直在**，一次任务里开几十个 session 又不 close，很容易造成系统内存耗尽而发生严重的后果。
 
 铁律：
 
@@ -58,7 +58,7 @@ camoufox-cli 的 `snapshot` 返回带 ref 的语义快照（`@e1` `@e2` …）�
 - **批量收尾**：一个任务结束前，`camoufox-cli --json close --all` 兜底清掉所有自己开的 session。
 - **不要**每条搜索一个唯一 session 名还不 close。这是已确认的死机模式。
 
-> 源头已有兜底：daemon idle 60s 自退 + 全局并发 daemon 上限 8（超了驱逐最老的）。但 skill 侧仍必须自觉 close——兜底是最后防线，不是不关的理由。
+> 源头已有兜底：全局并发 daemon 上限 6（超了驱逐最老的）。但 skill 侧仍必须自觉 close——兜底是最后防线，不是不关的理由。
 
 ---
 
@@ -91,8 +91,6 @@ When the login page shows a QR code (WeChat Official Account backend, WeChat Cha
 > 3. **web-form-fill 表单填报**——强制 `--headed`，便于用户时刻观察填报情况、可随时介入纠正
 >
 > 其他场景默认走 camoufox 持久化 session，**不显式指定有头/无头**——camoufox-cli 默认行为即可。
->
-> **wx_mp（公众号）无头截图 QR** 是特例，适用于 `wx-mp-hunter` + `wx-mp-engagement` 两技能。**视频号 / 微博 / 闲鱼等扫码登录页无法无头截 QR**，必须 `--headed --viewport 1920x1080` 弹窗手动扫码（见各 skill 前置条件）。
 
 ### 1-C. SMS verification login
 

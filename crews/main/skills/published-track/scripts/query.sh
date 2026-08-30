@@ -36,9 +36,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ "$UNPUBLISHED" = true ]; then
-  # Find source_folders in output_articles/ and output_videos/ that have no record in any platform table
+  # Find source_folders in <platform>/outputs/ that have no record in any platform table
   TABLES=$(sqlite3 "$DB" "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'pub_%';")
-  FOLDERS=$(find "$ROOT/output_articles" "$ROOT/output_videos" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sed "s|$ROOT/||" | sort)
+  FOLDERS=$(find "$ROOT"/*/outputs -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sed "s|$ROOT/||" | sort)
 
   UNPUB_LIST="["
   FIRST=true

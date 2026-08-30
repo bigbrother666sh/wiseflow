@@ -70,7 +70,7 @@ def run(cmd: list[str]) -> subprocess.CompletedProcess:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="scene-compose 单 Scene 分段合成")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument("--scene", required=True, help="Scene JSON 路径（相对 project_dir 或绝对）")
     parser.add_argument("--output", default=None,
                         help="输出 Scene 片段名（相对 project_dir；默认从 scene JSON 推导）")

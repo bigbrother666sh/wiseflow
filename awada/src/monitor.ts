@@ -20,8 +20,8 @@ export async function monitorAwadaProvider(opts: MonitorAwadaOpts = {}): Promise
   if (!cfg) throw new Error("Config is required for awada monitor");
 
   const account = resolveAwadaAccount({ cfg, accountId });
-  if (!account.enabled || !account.configured || !account.relayBaseUrl || !account.ofbKey) {
-    throw new Error("Awada channel not enabled or configured (missing relayBaseUrl/ofbKey)");
+  if (!account.enabled || !account.configured || !account.relayBaseUrl || !account.awadaKey) {
+    throw new Error("Awada channel not enabled or configured (need awadaKey)");
   }
 
   const log = runtime?.log ?? console.log;
@@ -30,7 +30,7 @@ export async function monitorAwadaProvider(opts: MonitorAwadaOpts = {}): Promise
 
   await runGatewayClient({
     relayBaseUrl: account.relayBaseUrl,
-    ofbKey: account.ofbKey,
+    awadaKey: account.awadaKey,
     lane: account.lane,
     abortSignal,
     log,

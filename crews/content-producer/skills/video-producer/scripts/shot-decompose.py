@@ -25,7 +25,7 @@ VALID_VARIATIONS = {"static", "dynamic", "transition"}
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 5 shot-decompose")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     args = parser.parse_args()
 
     project = Path(args.project_dir).resolve()

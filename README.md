@@ -9,7 +9,7 @@
 - Twitter/X、微博、知乎等平台发文
 - 爆款视频追爆分析、仿写与再创作（支持抖音、B站和小红书视频链接）
 - 已发布作品数据监控与每日定时复盘
-- 内置小红书、抖音、twitter/x、公众号、视频号平台起号方法论
+- 内置小红书、抖音、twitter/x、公众号、视频号平台“专家包”
 - 信息搜集与情报：内置 Smart Search，覆盖小红书、抖音、微博、知乎、B站、Twitter、YouTube、视频号、LinkedIn、Reddit、新闻、政务、财经、学术、购物、GitHub 等 18 类信源——无需配置任何 key、纯免费
 - 指定信源监控与提取
 - 通过社交媒体寻找潜在客户或市场调研
@@ -32,6 +32,19 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 
 ---
 
+## 🚀 **v5.7.0 更新**
+
+> Let's do this like an expert.
+
+- **专家包（Expert Pack）——像专家一样干活**：公众号、小红书、抖音、视频号能力升级为“专家包”，起号定位、对标拆解、内容生产、改稿调整、数据复盘六条工作流跑通账号运营全生命周期。你只管把任务丢过来，小贝按专业路数把活办完，不再拿一份越写越厚的通用说明书应付所有平台。
+- **内容风格 DNA——先像人写，再自我进化**：16+维细颗粒度复刻对标账号，统计学聚合做证据底座、定性判断提炼规则，最后落成内容生产 DNA template；发布数据回流后按量触发评估 -> DNA不断自我进化，迎合目标客群口味。
+- **OpenClaw 上游同步 v2026.7.1-2**。
+- **camoufox-cli 升 0.7.3 + 浏览器二进制升 FF152**：同步上游安装链路修复（不再误拉 beta 版浏览器、broken install 立即报错），FF152 解决重负载下鼠标输入卡死等稳定性顽疾。
+
+详见 [CHANGELOG.md](CHANGELOG.md)
+
+---
+
 ## 🚀 **v5.6.3 更新**
 
 - **🎬 Content Producer 正式发布**：我们参考了GitHub上几乎所有热门的视频生产项目，并重点解决了纯AIGC模式容易被平台限流，以及难以融合业务素材的问题。xiaobei系统的content-producer就是你目前能够找到的最适合获客内容制作的开源免费方案！
@@ -42,11 +55,8 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
   >  - bilibili：https://www.bilibili.com/video/BV1euMR6PEDh
   >  - 开发与使用心得: https://mp.weixin.qq.com/s/zxvWdCMUd0XquWxujvxkSg 
 
-- **🔄 数据闭环彻底打通，为自我进化奠基**：`content-calibrator`（打分+预测）与 `published-track`（数据复盘）机制全面完善，内容产出→发布→数据回流→下一轮策略调优的闭环不再有断点，为后续小贝自主迭代选题与打法提供燃料。现在主力四平台（微信视频号、微信公众号、小红书、抖音）全系支持内容自动生产、自动发布、自动取数、自动复盘
 - **安装脚本大幅优化**：对比 5.6.0，install.sh / install-atomgit.sh / install.ps1 / install-atomgit.ps1 四脚本修了若干实测踩坑——tarball 下载原子写、Windows `.env`/`daemon.env` 换行与 BOM、技能 wrapper 在 Windows 用 `.cmd` shim 替代软链、`OPENCLAW_HOME` 在 `set -u` 下报 unbound、atomgit 国内线路默认跳过 gum spinner bootstrap 避免连 GitHub 超时、Windows 软链需要开发者模式等，产品稳定性显著提高。
-- **全面测试 bug 排除**：对比5.6.0版本，在过去的三个版本里面，我们累计修复了100余个bug，xiaobei系统现在更稳定、更成熟。
 - **wx-mp-hunter 更新**：原微信公众号素材接口方案因官方调整已不可用，我们更新了微信公众号获取方案
-- **底座升级到 OpenClaw v2026.7.1**
 
 详见 [CHANGELOG.md](CHANGELOG.md)
 
@@ -78,6 +88,9 @@ bash -c "$(curl -fsSL https://raw.atomgit.com/wiseflow/xiaobei/raw/master/script
 ```
 
 **Windows（PowerShell）：**
+
+> **Windows 用户请以管理员身份运行 PowerShell 再安装**（右键 PowerShell → "以管理员身份运行"）。
+> 原因：安装过程中创建 NTFS 符号链接需要管理员权限（或开启开发者模式）；非管理员也能装，软链失败会自动回退拷贝。
 
 ```powershell
 # GitHub 线路（适合能正常访问 GitHub 的网络环境）
@@ -209,13 +222,6 @@ irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.
 ## 你的小贝其实不是一个人，而是一支团队
 
 小贝的背后其实是一支 AI 团队，他们有的为小贝提供运维支撑，有的扩增小贝的能力：
-
-| Crew | 职责 | 关键技能 |
-|------|------|---------|
-| **小贝（main agent）** | AI 搞钱搭子，统筹全局、对接用户、内容选题与发布策略、按需招募/调度其他 crew | 多平台发布（公众号/小红书/视频号/抖音/微博/知乎/Twitter/YouTube）、`viral-chaser` 追爆、`content-calibrator` 打分、`published-track` 复盘、`smart-search` / `lead-hunting` / `intel-gathering` / `market-research` 信息搜集、`rss-reader` 信源监控、投融资与 IR 材料（`pitch-deck` / `investor-*` / `ir-record`）、`swcr-register` 软著、`xianyu-ops` 闲鱼 |
-| **IT 工程师（it-engineer）** | 幕后支撑，被其他 crew spawn 协助 | 系统运维与排障、`openclaw.json` / `daemon.env` / cron 配置、`login-manager` 登录管理、平台绑定、ICP 备案、腾讯云/阿里云 CLI、GitHub/issue 追踪 |
-| **创作者（content-producer）**| 专业内容制作者，承担内容生产线重活 | 视频生产（脚本→素材→TTS→渲染→合成）、网页/落地页/APP 视觉设计... |
-| **销售型客服（sales-cs）** | AI 客服，可绑企业微信，客户可以直接用个人微信添加 | 售前咨询、销售推进、客户画像维护、投诉/售后分流 |
 
 ### AI 团队的自主协作
 

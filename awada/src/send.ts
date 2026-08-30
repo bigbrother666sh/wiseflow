@@ -17,7 +17,7 @@ import type {
  */
 export type GatewaySendParams = {
   relayBaseUrl: string;
-  ofbKey: string;
+  awadaKey: string;
   lane: string;
   target: OutboundTarget;
   payload: ContentObject[];
@@ -43,16 +43,16 @@ export function buildOutboundTarget(meta: {
   tenant_id: string;
   channel_id: string;
   user_id_external: string;
-  platform: string;
+  platform?: string;
   conversation_id?: string;
 }): OutboundTarget {
   const target: OutboundTarget = {
-    platform: meta.platform,
     tenant_id: meta.tenant_id,
     lane: meta.lane,
     user_id_external: meta.user_id_external,
     channel_id: meta.channel_id,
   };
+  if (meta.platform) target.platform = meta.platform;
   if (meta.conversation_id) {
     target.conversation_id = meta.conversation_id;
   }
@@ -62,10 +62,10 @@ export function buildOutboundTarget(meta: {
 /** Build the OutboundMeta required by POST /outbound from a target + source event id. */
 export function buildOutboundMeta(target: OutboundTarget, sourceEventId?: string): OutboundMeta {
   const meta: OutboundMeta = {
-    platform: target.platform,
     channel_id: target.channel_id,
     user_id_external: target.user_id_external,
   };
+  if (target.platform) meta.platform = target.platform;
   if (target.tenant_id) meta.tenant_id = target.tenant_id;
   if (target.conversation_id) meta.session_id = target.conversation_id;
   if (sourceEventId) meta.source_event_id = sourceEventId;
@@ -78,12 +78,12 @@ function outboundUrl(relayBaseUrl: string, lane: string): string {
 }
 
 export async function postOutbound(params: GatewaySendParams): Promise<{ streamId: string; eventId: string }> {
-  const { relayBaseUrl, ofbKey, lane, target, payload, sourceEventId } = params;
+  const { relayBaseUrl, awadaKey, lane, target, payload, sourceEventId } = params;
   const meta = buildOutboundMeta(target, sourceEventId);
   const res = await fetch(outboundUrl(relayBaseUrl, lane), {
     method: "POST",
     headers: {
-      "X-OFB-Key": ofbKey,
+      "X-Awada-Key": awadaKey,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ payload, meta }),
@@ -111,16 +111,16 @@ export async function postOutbound(params: GatewaySendParams): Promise<{ streamI
 
 export async function sendTextToAwada(params: {
   relayBaseUrl: string;
-  ofbKey: string;
+  awadaKey: string;
   lane: string;
   target: OutboundTarget;
   text: string;
   sourceEventId?: string;
 }): Promise<string> {
-  const { relayBaseUrl, ofbKey, lane, target, text, sourceEventId } = params;
+  const { relayBaseUrl, awadaKey, lane, target, text, sourceEventId } = params;
   const result = await postOutbound({
     relayBaseUrl,
-    ofbKey,
+    awadaKey,
     lane,
     target,
     payload: [{ type: "text", text }],
@@ -134,16 +134,16 @@ export async function sendTextToAwada(params: {
  */
 export async function sendMediaToAwada(params: {
   relayBaseUrl: string;
-  ofbKey: string;
+  awadaKey: string;
   lane: string;
   target: OutboundTarget;
   media: ContentObject;
   sourceEventId?: string;
 }): Promise<string> {
-  const { relayBaseUrl, ofbKey, lane, target, media, sourceEventId } = params;
+  const { relayBaseUrl, awadaKey, lane, target, media, sourceEventId } = params;
   const result = await postOutbound({
     relayBaseUrl,
-    ofbKey,
+    awadaKey,
     lane,
     target,
     payload: [media],

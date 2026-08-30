@@ -453,9 +453,13 @@ pnpm_install_prod() {
     local openclaw_dir="$WISEFLOW_ROOT/openclaw"
     local node="$WISEFLOW_ROOT/$PORTABLE_NODE"
     local pnpm="$WISEFLOW_ROOT/$PORTABLE_PNPM"
+    local node_bin_dir; node_bin_dir="$(dirname "$node")"
     ui_info "pnpm install --prod --frozen-lockfile（拉依赖 + native prebuilt，~30s-2min）"
+    # 把 portable node bin 前置到 PATH：esbuild/protobufjs/tlon-skill 等 postinstall
+    # 跑 sh -c "node ..."，PATH 里没 node 就 command not found。本脚本卖点是无预装 Node，
+    # 小白机无系统 node，必须显式前置 portable node，否则 postinstall 全挂。
     run_required_step "pnpm install --prod" \
-        env NODE_OPTIONS="--max-old-space-size=4096" \
+        env PATH="$node_bin_dir:$PATH" NODE_OPTIONS="--max-old-space-size=4096" \
         "$node" "$pnpm" -C "$openclaw_dir" install --prod --frozen-lockfile \
         --registry=https://registry.npmmirror.com --fetch-retries=5 --fetch-timeout=600000 --network-concurrency=8
     ui_success "Dependencies installed"
@@ -1240,19 +1244,27 @@ write_missing_env() {
     done
 }
 
-# 确保 env 文件的 PATH 含 portable node bin + openclaw bin（gateway 子进程解析 wrapper 用）
+# 确保 env 文件的 PATH 含 node bin + program bin（openclaw 启动器）+ wrapper bin
+# （~/.openclaw/bin，skill-wrappers.sh 暴露的技能软链）。gateway 是 systemd/launchd 服务，
+# 不 source shell rc；agent exec 调裸技能名（如 `aigc-video-gen`）靠 PATH 解析 wrapper 软链，
+# 故三者 daemon.env PATH 缺一不可。幂等：仅当三者均已就位才跳过。
 ensure_env_path() {
-    local env_file="$1" node_bin_dir="$2" oc_bin_dir="$3"
+    local env_file="$1" node_bin_dir="$2" oc_bin_dir="$3" wrapper_bin_dir="${4:-}"
     [ -f "$env_file" ] || return 0
     local need="${node_bin_dir}:${oc_bin_dir}"
+    [ -n "$wrapper_bin_dir" ] && need="${need}:${wrapper_bin_dir}"
     local cur; cur="$(grep -E '^PATH=' "$env_file" | tail -n1 | sed -E 's/^PATH=//' || true)"
     if [ -z "$cur" ]; then
         printf 'PATH=%s:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n' "$need" >> "$env_file"
         return 0
     fi
-    case ":$cur:" in
-        *":$node_bin_dir:"*) return 0 ;;
-    esac
+    # 三者都已就位才跳过（旧逻辑只查 node_bin_dir，会漏补 wrapper bin）
+    local d all_present=1
+    for d in "$node_bin_dir" "$oc_bin_dir" "$wrapper_bin_dir"; do
+        [ -n "$d" ] || continue
+        case ":$cur:" in *":$d:"*) ;; *) all_present=0 ;; esac
+    done
+    [ "$all_present" -eq 1 ] && return 0
     {
         grep -v '^PATH=' "$env_file" 2>/dev/null || true
         printf 'PATH=%s:%s\n' "$need" "$cur"
@@ -1372,7 +1384,7 @@ refresh_gateway_env_only() {
     local daemon_env_file
     if [ "$(uname -s)" = "Darwin" ]; then daemon_env_file="$macos_env"; else daemon_env_file="$systemd_env"; fi
     if [ -f "$daemon_env_file" ]; then
-        ensure_env_path "$daemon_env_file" "$node_bin_dir" "$oc_bin_dir"
+        ensure_env_path "$daemon_env_file" "$node_bin_dir" "$oc_bin_dir" "$OPENCLAW_HOME/bin"
         grep -vE "^OPENCLAW_STATE_DIR=" "$daemon_env_file" 2>/dev/null > "${daemon_env_file}.new" || true
         mv "${daemon_env_file}.new" "$daemon_env_file"
         printf 'OPENCLAW_STATE_DIR=%s\n' "$OPENCLAW_HOME" >> "$daemon_env_file"
@@ -1465,7 +1477,7 @@ install_gateway_and_env() {
         printf 'OPENCLAW_STATE_DIR=%s\n' "$OPENCLAW_HOME"
     } >> "$daemon_env_file"
     chmod 600 "$daemon_env_file"
-    ensure_env_path "$daemon_env_file" "$node_bin_dir" "$oc_bin_dir"
+    ensure_env_path "$daemon_env_file" "$node_bin_dir" "$oc_bin_dir" "$OPENCLAW_HOME/bin"
     ui_success "daemon.env written (gateway service 用，3 固定值 + PATH + OPENCLAW_STATE_DIR)"
 
     # 把 .env 业务变量加载进当前 install shell，让后续 daemon install / gateway restart / channels login

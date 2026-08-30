@@ -604,7 +604,12 @@ function Install-GatewayAndEnv {
     $exportLines += "export XIAOBEI_HOME='$rootEsc'"
     $homeEsc = $OpenclawHome -replace "'", "'\''"
     $exportLines += "export OPENCLAW_STATE_DIR='$homeEsc'"
-    Set-Content -Path $dotEnv -Value $exportLines -Encoding UTF8
+    # Write with UTF-8 NO BOM + explicit CRLF line breaks (mirrors install.ps1's Write-EnvFile).
+    # Set-Content -Value $array on Windows PowerShell 5.1 can collapse an array built via
+    # += from Get-Content into a single line (observed: all export* statements concatenated
+    # with no separator), and -Encoding UTF8 emits a BOM that `source`/bash choke on.
+    $dotEnvContent = (($exportLines | Where-Object { $_ }) -join "`r`n") + "`r`n"
+    [System.IO.File]::WriteAllText($dotEnv, $dotEnvContent, (New-Object System.Text.UTF8Encoding($false)))
     Write-Ok ".env written (business vars, used by the bare CLI)"
 
     # --- Write daemon.env (used by the gateway service, KEY=value format for gateway.cmd to call) ---
@@ -616,9 +621,14 @@ function Install-GatewayAndEnv {
     $daemonLines += "OPENCLAW_BROWSER_TIMEOUT_MS=90000"
     $daemonLines += "OPENCLAW_DISABLE_BONJOUR=true"
     $daemonLines += "OPENCLAW_STATE_DIR=$OpenclawHome"
-    $pathLine = "PATH=$(Join-Path $Root 'bin');$(Split-Path $NodeExe);$env:PATH"
+    # program bin（$Root\bin，openclaw 启动器）+ wrapper bin（~\.openclaw\bin，skill 软链）+
+    # node bin。gateway.cmd 不 source 用户 PATH，agent exec 调裸技能名靠此 PATH 解析软链。
+    $pathLine = "PATH=$(Join-Path $Root 'bin');$(Join-Path $OpenclawHome 'bin');$(Split-Path $NodeExe);$env:PATH"
     $daemonLines += $pathLine
-    Set-Content -Path $daemonEnv -Value $daemonLines -Encoding UTF8
+    # Write with UTF-8 NO BOM + explicit CRLF line breaks (same Set-Content array-collapse + BOM
+    # issue as .env above; gateway.cmd's `call daemon.env` needs clean KEY=value lines).
+    $daemonEnvContent = (($daemonLines | Where-Object { $_ }) -join "`r`n") + "`r`n"
+    [System.IO.File]::WriteAllText($daemonEnv, $daemonEnvContent, (New-Object System.Text.UTF8Encoding($false)))
     Write-Ok "daemon.env written (used by the gateway service, 3 fixed values + PATH + OPENCLAW_STATE_DIR)"
 
     # Load the .env business vars into the current install shell so that subsequent daemon install /
@@ -727,7 +737,9 @@ function Main {
             $lines = Get-Content $envFile
             $lines = $lines | Where-Object { $_ -notmatch "^XIAOBEI_HOME=" }
             $lines += "XIAOBEI_HOME=$Root"
-            Set-Content -Path $envFile -Value $lines -Encoding UTF8
+            # WriteAllText no-BOM + CRLF（Set-Content -Encoding UTF8 会写 BOM，gateway.cmd call daemon.env 炸）
+            $envFileContent = (($lines | Where-Object { $_ }) -join "`r`n") + "`r`n"
+            [System.IO.File]::WriteAllText($envFile, $envFileContent, (New-Object System.Text.UTF8Encoding($false)))
             Write-Ok "daemon.env XIAOBEI_HOME refreshed"
         }
         Repair-GatewayCmd

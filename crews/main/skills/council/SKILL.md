@@ -42,9 +42,9 @@ metadata:
 
 | 需求 | 改用 |
 |------|------|
-| 制作投资人材料 | investor-materials skill |
-| 搜索/筛选投资人 | market-research + investor-outreach |
-| 记录投资人进展 | ir-record skill |
+| 制作投资人材料 | `expert-ir` 的 Investor Materials Workflow |
+| 搜索/筛选投资人 | `market-research` + `expert-ir` 的 Investor Hunting Workflow |
+| 记录投资人进展 | `expert-ir` 包内 `ir-record` 工具 |
 | 明确的执行任务 | 直接执行 |
 | 纯事实性问题 | 直接回答 |
 
@@ -187,3 +187,4 @@ Prompt 模板：
 - 把完整对话历史喂给子 agent
 - 在最终裁决中隐藏异见
 - 每次决策都写入文件不管重不重要
+- 不等所有subagent返回结论后，就匆忙下出结论。

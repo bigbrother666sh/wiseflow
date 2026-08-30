@@ -226,8 +226,8 @@ async function _dispatchAwadaEvent(entry: AwadaDebounceEntry): Promise<void> {
   const error = runtime?.error ?? console.error;
 
   const account = resolveAwadaAccount({ cfg, accountId });
-  if (!account.relayBaseUrl || !account.ofbKey) {
-    error(`awada[${accountId}]: relayBaseUrl/ofbKey not configured, skipping event ${event.event_id}`);
+  if (!account.relayBaseUrl || !account.awadaKey) {
+    error(`awada[${accountId}]: not configured (need awadaKey), skipping event ${event.event_id}`);
     return;
   }
   const { meta, payload, event_id, correlation_id, trace_id } = event;
@@ -262,7 +262,7 @@ async function _dispatchAwadaEvent(entry: AwadaDebounceEntry): Promise<void> {
         error(`awada[${accountId}]: audio transcription failed: ${result.error}`);
         await sendTextToAwada({
           relayBaseUrl: account.relayBaseUrl!,
-          ofbKey: account.ofbKey!,
+          awadaKey: account.awadaKey!,
           lane: account.lane,
           target,
           text: AUDIO_FAIL_MESSAGE,
@@ -274,7 +274,7 @@ async function _dispatchAwadaEvent(entry: AwadaDebounceEntry): Promise<void> {
       error(`awada[${accountId}]: audio fetch/transcribe error: ${String(err)}`);
       await sendTextToAwada({
         relayBaseUrl: account.relayBaseUrl!,
-        ofbKey: account.ofbKey!,
+        awadaKey: account.awadaKey!,
         lane: account.lane,
         target,
         text: AUDIO_FAIL_MESSAGE,
@@ -366,7 +366,7 @@ async function _dispatchAwadaEvent(entry: AwadaDebounceEntry): Promise<void> {
     agentId: route.agentId,
     runtime: runtime as RuntimeEnv,
     relayBaseUrl: account.relayBaseUrl!,
-    ofbKey: account.ofbKey!,
+    awadaKey: account.awadaKey!,
     lane: account.lane,
     target,
     inboundEventId: event_id,

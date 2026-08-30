@@ -61,7 +61,9 @@ export interface InboundEvent {
 }
 
 export interface OutboundTarget {
-  platform: string;
+  /** Platform routing key. Present on replies (from inbound meta); omitted on proactive sends
+   *  — the relay derives it from the lane binding. */
+  platform?: string;
   tenant_id: string;
   lane: string;
   user_id_external: string;
@@ -85,13 +87,12 @@ export interface OutboundEvent {
 
 /**
  * Meta sent on POST /outbound (and WS reply frames) — see docs/AWADA-CLIENT-TRANSPORT.md §3.
- * `platform` / `channel_id` / `user_id_external` are REQUIRED: relay routes the reply back to
- * the platform solely from these fields (it does NOT reverse-lookup the inbound by source_event_id).
- * The simplest correct construction is to passthrough the inbound `event.meta` and override
- * `source_event_id` with the inbound `event_id`.
+ * On replies, `platform` / `channel_id` / `user_id_external` are all present (passthrough from
+ * inbound `event.meta`). On proactive sends, `platform` is omitted — the relay derives it from
+ * the lane binding. `channel_id` / `user_id_external` are always required.
  */
 export interface OutboundMeta {
-  platform: string;
+  platform?: string;
   channel_id: string;
   user_id_external: string;
   tenant_id?: string;

@@ -79,10 +79,10 @@ metadata:
 
 ## 默认项目目录
 
-路径契约——落在 `output_videos/` 下，名 `<topic-en-slug>`：
+路径契约——调用方指定了项目目录时（平台运营内容为 `<platform>/outputs/<video-name>/`）落在其下；否则落在 `output_videos/` 下，名 `<topic-en-slug>`：
 
 ```text
-output_videos/<topic-en-slug>/
+<project-dir>/                  # 即 <platform>/outputs/<video-name>/ 或 output_videos/<topic-en-slug>/
 ├── brief.md                    # 文稿 + Gate 1 隐喻清单
 ├── visual-spec.json            # Gate 2 视觉规格
 ├── imagegen-prompts.md         # Gate 2 Seedream prompt 留档
@@ -301,7 +301,7 @@ aigc-video-gen --mode i2v \
 
 `aigc-video-gen` 内部已带候选链 fallback（百炼 happyhorse-1.1-i2v 沿链 1.1 → 1.0 → wan2.7，百炼没配走火山 Seedance Fast → Normal → Mini）+ decisions.log 落盘，agent 只需逐条调度。
 
-如果出现 i2v 不收首尾帧的报错（`aigc-video-gen` 退出码非 0），检查 first-frame.png / last-frame.png 是否真存在、是否 720x1280——`aigc-video-gen` 要求相对路径在 `output_videos/` 下，**调用时 workdir 必须是 workspace 根**。
+如果出现 i2v 不收首尾帧的报错（`aigc-video-gen` 退出码非 0），检查 first-frame.png / last-frame.png 是否真存在、是否 720x1280——`aigc-video-gen` 要求相对路径在 `output_videos/` 或 `<platform>/outputs/` 下，**调用时 workdir 必须是 workspace 根**。
 
 ### 4. 强制无声交付
 

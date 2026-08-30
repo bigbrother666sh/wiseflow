@@ -2,11 +2,7 @@
   "channels": {
     "awada": {
       "enabled": true,
-      "relayBaseUrl": "https://relay.wiseflow.example.com",
-      "ofbKey": "<OFB_KEY>",
-      "lane": "user",
-      "platform": "wecom",
-      "perMsgMaxLen": 1800
+      "awadaKey": "<AWADA_KEY>"
     }
   },
   "plugins": {

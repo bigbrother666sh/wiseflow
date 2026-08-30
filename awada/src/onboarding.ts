@@ -1,5 +1,6 @@
 import type { ChannelSetupWizard, DmPolicy, OpenClawConfig } from "openclaw/plugin-sdk/setup";
 import { createTopLevelChannelDmPolicy, DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/setup";
+import { DEFAULT_RELAY_BASE_URL } from "./accounts.js";
 import { probeAwada } from "./probe.js";
 import type { AwadaConfig } from "./types.js";
 
@@ -11,7 +12,7 @@ function getAwadaCfg(cfg: OpenClawConfig): AwadaConfig | undefined {
 
 function isAwadaConfigured(cfg: OpenClawConfig): boolean {
   const c = getAwadaCfg(cfg);
-  return Boolean(c?.relayBaseUrl?.trim() && c?.ofbKey?.trim());
+  return Boolean(c?.awadaKey?.trim());
 }
 
 function setAwadaAllowFrom(cfg: OpenClawConfig, allowFrom: string[]): OpenClawConfig {
@@ -57,15 +58,15 @@ export const awadaSetupWizard: ChannelSetupWizard = {
   resolveShouldPromptAccountIds: () => false,
   status: {
     configuredLabel: "configured",
-    unconfiguredLabel: "needs relay endpoint + OFB_KEY",
+    unconfiguredLabel: "needs awadaKey",
     configuredHint: "configured",
-    unconfiguredHint: "needs relay endpoint + OFB_KEY",
+    unconfiguredHint: "needs awadaKey",
     configuredScore: 2,
     unconfiguredScore: 0,
     resolveConfigured: ({ cfg }) => isAwadaConfigured(cfg),
     resolveStatusLines: async ({ cfg, configured }) => {
       const awadaCfg = getAwadaCfg(cfg);
-      const relayBaseUrl = awadaCfg?.relayBaseUrl?.trim();
+      const relayBaseUrl = awadaCfg?.relayBaseUrl?.trim() || DEFAULT_RELAY_BASE_URL;
       let probeResult = null;
       if (configured && relayBaseUrl) {
         try {
@@ -75,7 +76,7 @@ export const awadaSetupWizard: ChannelSetupWizard = {
         }
       }
       if (!configured) {
-        return ["Awada: needs relayBaseUrl + ofbKey"];
+        return ["Awada: needs awadaKey"];
       }
       if (probeResult?.ok) {
         return ["Awada: relay reachable"];
@@ -83,62 +84,68 @@ export const awadaSetupWizard: ChannelSetupWizard = {
       return ["Awada: configured (relay not verified)"];
     },
     resolveSelectionHint: ({ cfg }) =>
-      isAwadaConfigured(cfg) ? "configured" : "needs relay endpoint + OFB_KEY",
+      isAwadaConfigured(cfg) ? "configured" : "needs awadaKey",
     resolveQuickstartScore: ({ cfg }) => (isAwadaConfigured(cfg) ? 2 : 0),
   },
   credentials: [],
   finalize: async ({ cfg, prompter }) => {
     const awadaCfg = getAwadaCfg(cfg);
     const currentUrl = awadaCfg?.relayBaseUrl?.trim() ?? "";
-    const currentKey = awadaCfg?.ofbKey?.trim() ?? "";
+    const currentKey = awadaCfg?.awadaKey?.trim() ?? "";
+    const currentLane = awadaCfg?.lane?.trim() ?? "";
 
     await prompter.note(
       [
         "Configure awada channel to receive WeChat messages via the relay gateway.",
         "You need:",
         "  1. A running relay with awada-server gateway (exposes /api/v1/awada)",
-        "  2. relayBaseUrl (e.g. https://relay.example.com)",
-        "  3. OFB_KEY issued by relay admin (carries awada:lane:<lane> scope)",
-        "  4. Lane to subscribe to (default: user)",
-        "  5. Platform identifier for proactive sends (e.g. worktool:mybot)",
+        "  2. awadaKey issued by relay admin (carries awada:lane:<lane> scope) — required",
+        "  3. relayBaseUrl (optional, defaults to the official relay domain)",
+        "  4. Lane (optional, server defaults to \"User\" when omitted)",
       ].join("\n"),
       "Awada setup",
     );
 
-    const relayBaseUrl = String(
+    const awadaKey = String(
       await prompter.text({
-        message: "Relay base URL",
-        placeholder: "https://relay.example.com",
-        initialValue: currentUrl,
-        validate: (value) => (String(value ?? "").trim() ? undefined : "Required"),
-      }),
-    ).trim();
-
-    const ofbKey = String(
-      await prompter.text({
-        message: "OFB_KEY",
-        placeholder: "ofb_...",
+        message: "awadaKey",
+        placeholder: "awada_...",
         initialValue: currentKey,
         validate: (value) => (String(value ?? "").trim() ? undefined : "Required"),
       }),
     ).trim();
 
-    let next: OpenClawConfig = {
+    const relayBaseUrl = String(
+      await prompter.text({
+        message: `Relay base URL (blank = default ${DEFAULT_RELAY_BASE_URL})`,
+        placeholder: DEFAULT_RELAY_BASE_URL,
+        initialValue: currentUrl,
+      }),
+    ).trim();
+
+    const laneInput = String(
+      await prompter.text({
+        message: 'Lane (blank = server default "User")',
+        placeholder: "lane id from relay admin",
+        initialValue: currentLane,
+      }),
+    ).trim();
+
+    const awadaChannel: AwadaConfig = { ...awadaCfg, enabled: true, awadaKey };
+    if (relayBaseUrl) awadaChannel.relayBaseUrl = relayBaseUrl;
+    if (laneInput) awadaChannel.lane = laneInput;
+    const next: OpenClawConfig = {
       ...cfg,
       channels: {
         ...cfg.channels,
-        awada: {
-          ...awadaCfg,
-          enabled: true,
-          relayBaseUrl,
-          ofbKey,
-        },
+        awada: awadaChannel,
       },
     };
 
     // Test connection
+    const probeUrl = relayBaseUrl || DEFAULT_RELAY_BASE_URL;
     try {
-      const probe = await probeAwada({ relayBaseUrl });
+      const probe = await probeAwada({ relayBaseUrl: probeUrl });
       if (probe.ok) {
         await prompter.note("Relay reachable!", "Awada connection test");
       } else {
@@ -149,49 +156,6 @@ export const awadaSetupWizard: ChannelSetupWizard = {
       }
     } catch (err) {
       await prompter.note(`Connection test failed: ${String(err)}`, "Awada connection test");
-    }
-
-    // Lane configuration
-    const currentLane = awadaCfg?.lane?.trim() ?? "user";
-    const laneInput = String(
-      await prompter.text({
-        message: "Lane to subscribe to",
-        placeholder: "user",
-        initialValue: currentLane,
-      }),
-    ).trim();
-    const resolvedLane = laneInput || "user";
-    next = {
-      ...next,
-      channels: {
-        ...next.channels,
-        awada: {
-          ...(next.channels?.awada as AwadaConfig),
-          lane: resolvedLane,
-        },
-      },
-    };
-
-    // Platform configuration (used for proactive sends)
-    const currentPlatform = awadaCfg?.platform?.trim() ?? "";
-    const platformInput = String(
-      await prompter.text({
-        message: "Platform identifier for proactive sends (e.g. worktool:mybot)",
-        placeholder: "worktool:mybot",
-        initialValue: currentPlatform,
-      }),
-    ).trim();
-    if (platformInput) {
-      next = {
-        ...next,
-        channels: {
-          ...next.channels,
-          awada: {
-            ...(next.channels?.awada as AwadaConfig),
-            platform: platformInput,
-          },
-        },
-      };
     }
 
     return { cfg: next };

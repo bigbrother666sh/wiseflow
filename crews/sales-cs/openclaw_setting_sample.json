@@ -1,4 +1,9 @@
-{
+{        
+  "id": "sales-cs",
+  "name": "销售客服",
+  "workspace": "{path_to_.openclaw}/workspace-sales-cs",
+  "thinkingDefault": "medium",
+  "reasoningDefault": "off",
   "skills": [
     "customer-db",
     "demo-send",

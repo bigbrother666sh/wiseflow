@@ -330,6 +330,22 @@ ADDON_ARGS=(--no-build --no-restart)
 "$PROJECT_ROOT/scripts/apply-addons.sh" "${ADDON_ARGS[@]}"
 echo ""
 
+# ─── 6.5. 重新 build + 全局安装 camoufox-cli fork ──────────────
+# apply-addons.sh 只调 `camoufox-cli install`（拉浏览器二进制），不 rebuild fork。
+# 老用户全局装的 camoufox-cli 还是旧版，需要 rebuild dist + npm install -g 覆盖。
+# build.sh 内部幂等（npm install + tsc + npm install -g），重复跑无害。
+FORK_DIR="$PROJECT_ROOT/patches/camoufox-cli"
+if [ -f "$FORK_DIR/build.sh" ]; then
+  echo "🔨 Rebuilding camoufox-cli fork..."
+  bash "$FORK_DIR/build.sh" || echo "  ⚠️  camoufox-cli fork rebuild failed; 继续升级（旧版 fork 仍可用）"
+  # rebuild 后新 fork 可能 pin 了新 camoufox-js → 需要重跑 install 拉新浏览器二进制。
+  # 幂等：已装版本 === 当前版本时跳过。
+  if command -v camoufox-cli >/dev/null 2>&1; then
+    camoufox-cli install || echo "  ⚠️  camoufox-cli install failed; 可后续手动 camoufox-cli install"
+  fi
+  echo ""
+fi
+
 # ─── 7. 编译 openclaw dist ──────────────────────────────────────
 echo "🔨 Building openclaw..."
 (cd "$OPENCLAW_DIR" && pnpm build)
@@ -431,13 +447,30 @@ if [ "$(uname -s)" = "Linux" ]; then
   chmod 600 "$SYSTEMD_ENV_FILE"
   _write_missing_env "$SYSTEMD_ENV_FILE" kv
 
-  # --- 注入 node 路径到 daemon.env ---
+  # --- 注入 node / program bin / skill wrapper bin 到 daemon.env PATH ---
+  # gateway 是 systemd user service，不 source shell rc；agent exec 调裸技能名
+  # （如 `aigc-video-gen`）靠 PATH 解析 ~/.openclaw/bin 下的 wrapper 软链。故 daemon.env
+  # 的 PATH 必须含：node bin（解释器）+ program bin（openclaw 启动器，$PROJECT_ROOT/bin）
+  # + wrapper bin（~/.openclaw/bin，skill-wrappers.sh 暴露的软链）。幂等前置：仅补缺失项，
+  # 不抹既有 PATH（旧逻辑 grep -v '^PATH=' 重写会丢 wrapper bin 与 program bin）。
   _node_bin="$(command -v node 2>/dev/null || true)"
-  if [ -n "$_node_bin" ]; then
-    _node_dir="$(dirname "$_node_bin")"
+  _node_dir="$(dirname "$_node_bin" 2>/dev/null || true)"
+  _program_bin="$PROJECT_ROOT/bin"
+  _wrapper_bin="$OPENCLAW_HOME/bin"
+  _cur_path="$(grep -E '^PATH=' "$SYSTEMD_ENV_FILE" | tail -n1 | sed -E 's/^PATH=//' || true)"
+  _prefix=""
+  for _d in "$_node_dir" "$_program_bin" "$_wrapper_bin"; do
+    [ -n "$_d" ] || continue
+    case ":$_cur_path:" in *":$_d:"*) ;; *) _prefix="${_prefix:+$_prefix:}$_d" ;; esac
+  done
+  if [ -n "$_prefix" ]; then
     {
-      grep -v "^PATH=" "$SYSTEMD_ENV_FILE" 2>/dev/null || true
-      printf 'PATH=%s:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n' "$_node_dir"
+      grep -v '^PATH=' "$SYSTEMD_ENV_FILE" 2>/dev/null || true
+      if [ -n "$_cur_path" ]; then
+        printf 'PATH=%s:%s\n' "$_prefix" "$_cur_path"
+      else
+        printf 'PATH=%s:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n' "$_prefix"
+      fi
     } > "${SYSTEMD_ENV_FILE}.new"
     mv "${SYSTEMD_ENV_FILE}.new" "$SYSTEMD_ENV_FILE"
     chmod 600 "$SYSTEMD_ENV_FILE"

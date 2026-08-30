@@ -636,7 +636,9 @@ function Install-GatewayAndEnv {
     $daemonLines += "OPENCLAW_BROWSER_TIMEOUT_MS=90000"
     $daemonLines += "OPENCLAW_DISABLE_BONJOUR=true"
     $daemonLines += "OPENCLAW_STATE_DIR=$OpenclawHome"
-    $pathLine = "PATH=$(Join-Path $Root 'bin');$(Split-Path $NodeExe);$env:PATH"
+    # program bin（$Root\bin，openclaw 启动器）+ wrapper bin（~\.openclaw\bin，skill 软链）+
+    # node bin。gateway.cmd 不 source 用户 PATH，agent exec 调裸技能名靠此 PATH 解析软链。
+    $pathLine = "PATH=$(Join-Path $Root 'bin');$(Join-Path $OpenclawHome 'bin');$(Split-Path $NodeExe);$env:PATH"
     $daemonLines += $pathLine
     Write-EnvFile $daemonEnv $daemonLines
     Write-Ok "daemon.env written (used by the gateway service, 3 fixed values + PATH + OPENCLAW_STATE_DIR)"

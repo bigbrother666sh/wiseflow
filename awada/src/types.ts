@@ -8,9 +8,8 @@ export type ResolvedAwadaAccount = {
   enabled: boolean;
   configured: boolean;
   relayBaseUrl?: string;
-  ofbKey?: string;
+  awadaKey?: string;
   lane: string;
-  platform?: string;
   config: AwadaConfig;
 };
 

@@ -5,7 +5,7 @@
   prompt         aigc-video-gen --prompt（中文声画同出描述）
   first_frame    首帧路径（纯色空场，720x1280）
   last_frame     尾帧路径（确认静帧裁到 720x1280，720P）
-  output         输出 MP4 路径（相对 output_videos/，aigc-video-gen 的 ensure_safe_output 要求）
+  output         输出 MP4 路径（相对 workspace，须在 output_videos/ 或 <platform>/outputs/ 下——aigc-video-gen 的 ensure_safe_output 要求）
   ratio          默认 9:16
   resolution     默认 720P
   duration       默认 5

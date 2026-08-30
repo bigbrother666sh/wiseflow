@@ -1,7 +1,5 @@
 # awada（client 侧）
 
-> 产品拆分后本仓承担 **wiseflow-client** 角色。awada-server 已整体迁出至 relay 仓 `services/awada-server/`（决策 D4）。本仓仅保留 **awada-extension** 作为 openclaw channel，走 HTTP/WS transport 调 relay 网关（决策 D2），**不再直连 Redis**。
-
 ## 为什么需要 awada？
 
 部分第三方消息服务提供商（企微 bot、个微 bot）要求固定公网 IP 接收 webhook，而 openclaw 多为本地部署。awada 在公网中转消息到本地 openclaw 实例。
@@ -12,9 +10,9 @@
 微信用户
    │  (消息)
    ▼
-WorkTool / QiweAPI ──webhook──► awada-server（relay 仓 services/awada-server/）
+provider service ──webhook──► awada-server
                                       │
-                                   HTTP/WS 网关（OFB_KEY 鉴权）
+                                   HTTP/WS 网关（X-Awada-Key 鉴权）
                                       │
                                       ▼
                             awada-extension（本地 openclaw，本仓）
@@ -28,8 +26,8 @@ WorkTool / QiweAPI ──webhook──► awada-server（relay 仓 services/awad
 **传输契约**：见 `docs/AWADA-CLIENT-TRANSPORT.md`（唯一耦合面）。
 
 - **inbound**（server 写 / bot 读）：bot 通过 `WS /api/v1/awada/inbound?lane=` 拉取，处理完发 `{type:"ack",id}`。
-- **outbound**（bot 写 / server 读）：bot 通过 `POST /api/v1/awada/outbound?lane=` 回执，`meta` 必填 `platform`/`channel_id`/`user_id_external`（从 inbound `event.meta` 原样回传）。
-- **Redis** → relay 内部，**不对客户端暴露**（D2）。客户端只见 `relayBaseUrl` + `ofbKey` + `lane`。
+- **outbound**（bot 写 / server 读）：bot 通过 `POST /api/v1/awada/outbound?lane=` 回执，`meta` 必填 `channel_id`/`user_id_external`（从 inbound `event.meta` 原样回传）；`platform` 回复时回传、主动外呼省略。
+- **Redis** → relay 内部，**不对客户端暴露**（D2）。客户端最少只需配 `awadaKey`。
 
 **核心组件（拆分后归属）：**
 - **awada-server** → relay 仓 `services/awada-server/`。客户端不部署、不持凭据。
@@ -54,27 +52,24 @@ openclaw 配置文件中添加 `channels.awada` 节点：
 {
   "channels": {
     "awada": {
-      "enabled": true,
-      "relayBaseUrl": "https://relay.wiseflow.example.com",
-      "ofbKey": "<OFB_KEY>",
-      "lane": "user",
-      "platform": "worktool:mybot"
+      "awadaKey": "<AWADA_KEY>"
     }
   }
 }
 ```
 
-> **传输改造点**：原 `redisUrl` 字段已作废，替换为 `relayBaseUrl` + `ofbKey`。extension 走 `WS /api/v1/awada/inbound?lane=`（读 inbound + ack）+ `POST /api/v1/awada/outbound?lane=`（写回执），带 `X-OFB-Key` header。Redis 直连模式不再支持。
+> **传输改造点**：原 `redisUrl` 字段已作废，替换为 `relayBaseUrl` + `awadaKey`。extension 走 `WS /api/v1/awada/inbound?lane=`（读 inbound + ack）+ `POST /api/v1/awada/outbound?lane=`（写回执），带 `X-Awada-Key` header。Redis 直连模式不再支持。
+>
+> `awadaKey` 与签名服务用的 `OFB_KEY` 是两份独立凭证，relay admin 分别签发。`lane` 在 relay 侧 provision 时已绑死 platform，客户端不发 `platform`。
 
-**awada-extension 配置项（拆分后）：**
+**awada-extension 配置项：**
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `enabled` | boolean | `true` | 是否启用 |
-| `relayBaseUrl` | string | — | relay 网关端点，**必填**（http/https） |
-| `ofbKey` | string | — | OFB_KEY，**必填**，由 relay admin 签发（含 `awada:lane:<laneId>` scope） |
-| `lane` | string | `"user"` | 订阅的 lane |
-| `platform` | string | — | 平台标识，主动发消息时必填 |
+| `awadaKey` | string | — | awada key，**必填**，由 relay admin 签发（含 `awada:lane:<laneId>` scope），作为 `X-Awada-Key` header 发出 |
+| `relayBaseUrl` | string | `https://relay.openclaw-for-business.com` | relay 网关端点（http/https）；官方域名可不配 |
+| `lane` | string | `""`（server 默认 `User`） | 订阅的 lane，可选；不传时服务器默认使用 `User` lane |
 | `dmPolicy` | string | `"open"` | `open`/`pairing`/`allowlist` |
 | `allowFrom` | string[] | `[]` | `allowlist` 模式下允许的用户 ID |
 | `perMsgMaxLen` | number | — | 单条消息最大字符数，超长自动拆分 |
@@ -85,12 +80,7 @@ openclaw 配置文件中添加 `channels.awada` 节点：
 {
   "channels": {
     "awada": {
-      "enabled": true,
-      "relayBaseUrl": "https://relay.wiseflow.example.com",
-      "ofbKey": "<OFB_KEY>",
-      "lane": "user",
-      "platform": "worktool:mybot",
-      "dmPolicy": "open",
+      "awadaKey": "<AWADA_KEY>",
       "perMsgMaxLen": 500
     }
   },
@@ -110,10 +100,6 @@ openclaw 配置文件中添加 `channels.awada` 节点：
 
 ## 多 Bot / 多实例
 
-- **多 bot**：在 relay 侧 awada-server 配置多个 bot，每个 bot 绑定一个 lane（1:1）。客户端用不同 `ofbKey`/`lane` 订阅。
+- **多 bot**：在 relay 侧 awada-server 配置多个 bot，每个 bot 绑定一个 lane（1:1）。客户端用不同 `awadaKey`/`lane` 订阅（`lane` 可省略，server 默认 `User`）。
 - **多 openclaw 实例**：不同实例订阅不同 lane。
 - 客户端无需感知 Redis db 隔离（relay 内部处理）。
-
-## awada-server 在哪？
-
-`services/awada-server/` 已迁至 relay 仓（`git-server:repos/wiseflow-relay.git`），交接文档见该仓 `docs/HANDOVER.md`。本仓不再包含 server 代码。启用 sales-cs（D10）由 IT engineer 操作改 `enabled: true` + 软链 business_knowledge。

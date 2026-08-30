@@ -338,7 +338,7 @@ export function parseArgs(argv: string[]): { flags: Flags; command: Record<strin
   // Flag precedence: command line > config file (per-session block, then the
   // `default` block) > built-in defaults. Only flags explicitly passed on the
   // command line are collected here, so they always win over config.
-  const builtin: Flags = { session: "default", headed: false, timeout: 60, json: false, persistent: null, proxy: null, geoip: true, locale: null, viewport: null };
+  const builtin: Flags = { session: "default", headed: false, timeout: 0, json: false, persistent: null, proxy: null, geoip: true, locale: null, viewport: null };
   const cli: Partial<Flags> = {};
   const rest: string[] = [];
 
@@ -352,7 +352,7 @@ export function parseArgs(argv: string[]): { flags: Flags; command: Record<strin
         cli.headed = true;
         break;
       case "--timeout":
-        cli.timeout = parseInt(argv[++i] ?? "60", 10);
+        cli.timeout = parseInt(argv[++i] ?? "0", 10);
         break;
       case "--json":
         cli.json = true;
@@ -803,9 +803,9 @@ Setup:
 Flags:
   --session <name>     Session name (default: "default")
   --headed             Show browser window
-  --timeout <secs>     Daemon idle timeout (default: 60, hard max 60 — daemons
-                        self-exit when idle to avoid browser accumulation; login
-                        state lives in the profile dir and survives exit)
+  --timeout <secs>     Daemon idle timeout (default: 0 = disabled — daemons stay
+                        alive until 'close' or eviction by the concurrent daemon
+                        cap; login state lives in the profile dir either way)
   --json               Output as JSON
   --persistent [path]  Persistent identity — freeze fingerprint/OS/locale + store cookies/state (default: ~/.camoufox-cli/profiles/<session>)
   --proxy <url>        Proxy server (e.g. http://host:port or https://host:443)

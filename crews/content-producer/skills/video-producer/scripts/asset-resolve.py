@@ -37,7 +37,7 @@ def die(msg: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 8 asset-resolve")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument("--source", default="both", choices=["pexels", "pixabay", "both"])
     parser.add_argument("--no-confirm", action="store_true", help="agent 已人核完毕，不再呈交")
     args = parser.parse_args()

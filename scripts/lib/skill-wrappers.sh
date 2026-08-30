@@ -49,6 +49,20 @@ expose_skill_wrappers() {
     exposed=$((exposed + 1))
   done
 
+  # 专家包收纳层：暴露 <skill>/tools/<name>/<name>.sh（如 expert-wx-mp/tools/wx-mp-publisher/）
+  # 工具目录整体迁入专家包后，PATH wrapper 名保持不变，调用方式零变化。
+  local tool_dir=""
+  local tool_name=""
+  for tool_dir in "$skills_root"/*/tools/*/; do
+    [ -d "$tool_dir" ] || continue
+    tool_name="$(basename "$tool_dir")"
+    wrapper="$tool_dir${tool_name}.sh"
+    [ -f "$wrapper" ] || continue
+    chmod +x "$wrapper"
+    ln -sfn "$wrapper" "$OPENCLAW_BIN_DIR/$tool_name" 2>/dev/null || true
+    exposed=$((exposed + 1))
+  done
+
   [ "$exposed" -gt 0 ] && echo "  ✅ exposed $exposed wrapper(s) → ~/.openclaw/bin (from $(basename "$skills_root"))"
 }
 

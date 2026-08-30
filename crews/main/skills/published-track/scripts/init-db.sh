@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS pub_wx_mp (
   comments INTEGER DEFAULT 0,
   top_comment TEXT,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -56,6 +59,9 @@ CREATE TABLE IF NOT EXISTS pub_zhihu (
   favorites INTEGER DEFAULT 0,
   top_comment TEXT,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -91,6 +97,9 @@ CREATE TABLE IF NOT EXISTS pub_bilibili (
   comments INTEGER DEFAULT 0,
   top_comment TEXT,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -124,6 +133,9 @@ CREATE TABLE IF NOT EXISTS pub_douyin (
   favorites INTEGER DEFAULT 0,
   top_comment TEXT,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -156,6 +168,9 @@ CREATE TABLE IF NOT EXISTS pub_kuaishou (
   shares INTEGER DEFAULT 0,
   top_comment TEXT,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -189,6 +204,9 @@ CREATE TABLE IF NOT EXISTS pub_xhs (
   shares INTEGER DEFAULT 0,
   top_comment TEXT,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -221,6 +239,9 @@ CREATE TABLE IF NOT EXISTS pub_toutiao (
   likes INTEGER DEFAULT 0,
   top_comment TEXT,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -253,6 +274,9 @@ CREATE TABLE IF NOT EXISTS pub_juejin (
   favorites INTEGER DEFAULT 0,
   top_comment TEXT,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -285,6 +309,9 @@ CREATE TABLE IF NOT EXISTS pub_twitter (
   replies INTEGER DEFAULT 0,
   bookmarks INTEGER DEFAULT 0,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -316,6 +343,9 @@ CREATE TABLE IF NOT EXISTS pub_facebook (
   comments INTEGER DEFAULT 0,
   shares INTEGER DEFAULT 0,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -348,6 +378,9 @@ CREATE TABLE IF NOT EXISTS pub_instagram (
   shares INTEGER DEFAULT 0,
   saves INTEGER DEFAULT 0,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -381,6 +414,9 @@ CREATE TABLE IF NOT EXISTS pub_tiktok (
   favorites INTEGER DEFAULT 0,
   top_comment TEXT,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -412,6 +448,9 @@ CREATE TABLE IF NOT EXISTS pub_youtube (
   comments INTEGER DEFAULT 0,
   shares INTEGER DEFAULT 0,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -442,6 +481,9 @@ CREATE TABLE IF NOT EXISTS pub_pinterest (
   saves INTEGER DEFAULT 0,
   comments INTEGER DEFAULT 0,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -473,6 +515,9 @@ CREATE TABLE IF NOT EXISTS pub_threads (
   reposts INTEGER DEFAULT 0,
   replies INTEGER DEFAULT 0,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -506,6 +551,9 @@ CREATE TABLE IF NOT EXISTS pub_wx_channel (
   favorites INTEGER DEFAULT 0,
   top_comment TEXT,
   notes TEXT,
+  dna_id TEXT,
+  account TEXT,
+  perf_evaluated INTEGER DEFAULT 0,
   cal_enabled INTEGER DEFAULT 0,
   cal_score_er INTEGER,
   cal_score_hp INTEGER,
@@ -536,6 +584,19 @@ for table in $(sqlite3 "$DB" "SELECT name FROM sqlite_master WHERE type='table' 
   if [ "$has_col" = "0" ]; then
     sqlite3 "$DB" "ALTER TABLE $table ADD COLUMN cal_bump_evaluated INTEGER DEFAULT 0;"
   fi
+  # v3：数据直连 DNA（dna_id / account / perf_evaluated）
+  has_col=$(sqlite3 "$DB" "SELECT count(*) FROM pragma_table_info('$table') WHERE name='dna_id'")
+  if [ "$has_col" = "0" ]; then
+    sqlite3 "$DB" "ALTER TABLE $table ADD COLUMN dna_id TEXT;"
+  fi
+  has_col=$(sqlite3 "$DB" "SELECT count(*) FROM pragma_table_info('$table') WHERE name='account'")
+  if [ "$has_col" = "0" ]; then
+    sqlite3 "$DB" "ALTER TABLE $table ADD COLUMN account TEXT;"
+  fi
+  has_col=$(sqlite3 "$DB" "SELECT count(*) FROM pragma_table_info('$table') WHERE name='perf_evaluated'")
+  if [ "$has_col" = "0" ]; then
+    sqlite3 "$DB" "ALTER TABLE $table ADD COLUMN perf_evaluated INTEGER DEFAULT 0;"
+  fi
 done
 
-echo '{"ok":true,"message":"published_track.db initialized (with cal_ score + bias signal columns)"}'
+echo '{"ok":true,"message":"published_track.db initialized (v3: dna_id + account + perf_evaluated)"}'

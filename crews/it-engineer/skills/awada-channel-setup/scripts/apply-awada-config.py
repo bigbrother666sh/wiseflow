@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """apply-awada-config.py — 把 awada channel + customerDB hook 合并进运行中的 openclaw.json。
 
-读同目录 ../openclaw-awada-sample.json 作模板，提示输入 relayBaseUrl/ofbKey/lane/platform，
+读同目录 ../openclaw-awada-sample.json 作模板，提示输入 awadaKey（必填）+ lane（可选），
 合并进 ~/.openclaw/openclaw.json 的 channels.awada 与 plugins，原子写回（先备份）。
+relayBaseUrl 缺省时回退到官方 relay 域名；platform 由 relay 按 lane 绑定推导，客户端不发。
 不重启 Gateway（由调用方人工确认后执行）。
 """
 from __future__ import annotations
@@ -13,6 +14,8 @@ import shutil
 import sys
 import time
 from pathlib import Path
+
+DEFAULT_RELAY_BASE_URL = "https://relay.openclaw-for-business.com"
 
 SAMPLE = Path(__file__).resolve().parent.parent / "openclaw-awada-sample.json"
 TARGET = Path(os.path.expanduser("~/.openclaw/openclaw.json"))
@@ -46,16 +49,16 @@ def main() -> int:
 
     sample = json.loads(SAMPLE.read_text(encoding="utf-8"))
 
-    relay_base_url = prompt("relayBaseUrl", "https://relay.wiseflow.example.com")
-    ofb_key = prompt("ofbKey", "<OFB_KEY>")
-    lane = prompt("lane", "user")
-    platform = prompt("platform", "wecom")
+    awada_key = prompt("awadaKey", "<AWADA_KEY>")
+    lane = input("lane [留空=服务器默认 User]: ").strip()
+    relay_base_url = prompt("relayBaseUrl", DEFAULT_RELAY_BASE_URL)
 
     sample.setdefault("channels", {}).setdefault("awada", {})
-    sample["channels"]["awada"]["relayBaseUrl"] = relay_base_url
-    sample["channels"]["awada"]["ofbKey"] = ofb_key
-    sample["channels"]["awada"]["lane"] = lane
-    sample["channels"]["awada"]["platform"] = platform
+    sample["channels"]["awada"]["awadaKey"] = awada_key
+    if lane:
+        sample["channels"]["awada"]["lane"] = lane
+    if relay_base_url and relay_base_url != DEFAULT_RELAY_BASE_URL:
+        sample["channels"]["awada"]["relayBaseUrl"] = relay_base_url
 
     # 渲染占位符
     def render(obj):

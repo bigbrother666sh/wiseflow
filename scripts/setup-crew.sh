@@ -287,7 +287,7 @@ for agent_dir in "$CREWS_DIR"/*/; do
     inject_file_edit_guide "$dest/TOOLS.md"
     inject_exec_guide "$dest/TOOLS.md" "$dest"
     inject_agents_md_sections "$dest/AGENTS.md"
-    inject_media_send_guide "$dest/USER.md"
+    inject_media_send_guide "$dest/AGENTS.md"
     continue
   fi
 
@@ -299,12 +299,12 @@ for agent_dir in "$CREWS_DIR"/*/; do
   inject_file_edit_guide "$dest/TOOLS.md"
   inject_exec_guide "$dest/TOOLS.md" "$dest"
   inject_agents_md_sections "$dest/AGENTS.md"
-  inject_media_send_guide "$dest/USER.md"
+  inject_media_send_guide "$dest/AGENTS.md"
 done
 
 # ─── 1.5 业务知识软链：非 main crew 共享 main 的 business_knowledge（目录+md）──
 # sales-cs / content-producer 等需要业务上下文的 crew 通过软链读 main 的业务知识。
-# 原 sales-cs 走 sales-cs-enablement 技能手动建；此处统一幂等建好，新 crew 自动获得。
+# 原 sales-cs 走 sales-cs-manager 包内 sales-cs-enablement 工具手动建；此处统一幂等建好，新 crew 自动获得。
 MAIN_WS="$OPENCLAW_HOME/workspace-main"
 if [ -e "$MAIN_WS/business_knowledge" ]; then
   for ws in "$OPENCLAW_HOME"/workspace-*/; do
@@ -459,7 +459,8 @@ if [ -f "$CONFIG_PATH" ]; then
         id: 'it-engineer',
         name: prev.name || 'IT Engineer',
         workspace: prev.workspace || openclawHome + '/workspace-it-engineer',
-        thinkingDefault: 'high',
+        // thinkingDefault 不显式设--与其他 crew 一致继承 agents.defaults.thinkingDefault；
+        // 若用户在 openclaw.json 手动给 it-engineer 设过则 prev 保留（...prev 已带）。
         reasoningDefault: 'off',
       };
       return applySkills(base, process.env.IT_SKILLS_RESULT);
@@ -651,7 +652,7 @@ if [ -f "$CONFIG_PATH" ]; then
     [ -n "$a_id" ] || continue
     [ -f "$a_ws/AGENTS.md" ] || continue
     inject_agents_md_sections "$a_ws/AGENTS.md"
-    inject_media_send_guide "$a_ws/USER.md"
+    inject_media_send_guide "$a_ws/AGENTS.md"
     inject_file_edit_guide "$a_ws/TOOLS.md"
     inject_exec_guide "$a_ws/TOOLS.md" "$a_ws"
   done < <(list_agent_workspaces)
@@ -671,19 +672,24 @@ if [ -f "$CONFIG_PATH" ]; then
   # systemd user service 不 source shell rc，PATH 只能经 EnvironmentFile 注入
   # （Linux: daemon.env / Darwin: service-env/ai.openclaw.gateway.env）。
   # EnvironmentFile 覆盖 unit 的 Environment=（实测 systemd 255），故在此文件把
-  # program bin 前置到 PATH，gateway 重启后 agent exec 才能解析 skill wrapper。
-  # program bin = wrapper 所在（XIAOBEI_BIN_DIR 或 PROJECT_ROOT/bin），非 OPENCLAW_HOME/bin。
-  # 幂等：PATH 已含 bin 则跳过。仅改 PATH 行，其余行不动。
+  # program bin + wrapper bin 前置到 PATH，gateway 重启后 agent exec 才能解析 skill wrapper。
+  # - program bin = openclaw 启动器所在（XIAOBEI_BIN_DIR 或 PROJECT_ROOT/bin）。
+  # - wrapper bin = ~/.openclaw/bin，skill-wrappers.sh 把每个技能顶层 wrapper 软链到这里，
+  #   agent exec 调裸技能名（如 `aigc-video-gen`）靠 PATH 解析这些软链。gateway 不 source
+  #   shell rc，故 wrapper bin 必须显式进 daemon.env PATH，否则技能脚本软链找不到。
+  # 幂等：仅补缺失项，不动既有 PATH 行其余内容。
   _XIAOBEI_BIN="${XIAOBEI_BIN_DIR:-$PROJECT_ROOT/bin}"
+  _WRAPPER_BIN="$OPENCLAW_HOME/bin"
   if [ "$(uname -s)" = "Darwin" ]; then
     _GW_ENV="$OPENCLAW_HOME/service-env/ai.openclaw.gateway.env"
   else
     _GW_ENV="$OPENCLAW_HOME/daemon.env"
   fi
   if [ -f "$_GW_ENV" ]; then
-    python3 - "$_GW_ENV" "$_XIAOBEI_BIN" <<'PY'
+    python3 - "$_GW_ENV" "$_XIAOBEI_BIN" "$_WRAPPER_BIN" <<'PY'
 import re, sys
-path, bin = sys.argv[1], sys.argv[2]
+path = sys.argv[1]
+bins = [b for b in sys.argv[2:] if b]
 with open(path) as f:
     lines = f.readlines()
 out = []
@@ -694,11 +700,14 @@ for ln in lines:
     if m and (ln.startswith('export PATH=') or ln.startswith('PATH=')):
         val = m.group(2) if ln.startswith('export PATH=') else m.group(1)
         seen = True
-        if bin not in val.split(':'):
+        parts = val.split(':')
+        prepend = [b for b in bins if b not in parts]
+        if prepend:
+            newval = ':'.join(prepend) + (':' + val if val else '')
             if ln.startswith('export PATH='):
-                ln = f"export PATH={m.group(1)}{bin}:{val}{m.group(1)}\n"
+                ln = f"export PATH={m.group(1)}{newval}{m.group(1)}\n"
             else:
-                ln = f"PATH={bin}:{val}\n"
+                ln = f"PATH={newval}\n"
             touched = True
     out.append(ln)
 if not seen:
@@ -706,15 +715,15 @@ if not seen:
 elif touched:
     with open(path, 'w') as f:
         f.writelines(out)
-    print(f"    ✅ prepended {bin} to PATH in {path}")
+    print(f"    ✅ prepended missing bin(s) to PATH in {path}")
 else:
-    print(f"    ✅ {bin} already on PATH in {path}")
+    print(f"    ✅ program + wrapper bin already on PATH in {path}")
 PY
   else
     # 首装时 gateway env 文件由后续 install_gateway_and_env 创建，此刻不存在是预期，静默跳过。
     :
   fi
-  unset _GW_ENV _XIAOBEI_BIN
+  unset _GW_ENV _XIAOBEI_BIN _WRAPPER_BIN
 else
   echo "  ⚠️  openclaw.json not found at $CONFIG_PATH"
   echo "     Will be created on first start (dev.sh / reinstall-daemon.sh)"

@@ -305,7 +305,7 @@ describe("parseArgs", () => {
     const { flags } = parseArgs(["open", "https://example.com"]);
     expect(flags.session).toBe("default");
     expect(flags.headed).toBe(false);
-    expect(flags.timeout).toBe(60);
+    expect(flags.timeout).toBe(0);
     expect(flags.json).toBe(false);
     expect(flags.persistent).toBeNull();
     expect(flags.proxy).toBeNull();

@@ -77,7 +77,7 @@ def hex_to_ffmpeg_color(hex_color: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="make-outro 片尾制作")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument("--image", required=True, help="形象图路径（PNG/JPG）")
     parser.add_argument("--slogan", required=True, help="slogan 文本（烧录到画面中央）")
     parser.add_argument("--color", default=None, help="颜色配置 JSON 路径")

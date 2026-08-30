@@ -2,7 +2,8 @@ import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/channel-plugin-common";
 import type { ClawdbotConfig } from "openclaw/plugin-sdk";
 import type { AwadaConfig, ResolvedAwadaAccount } from "./types.js";
 
-const DEFAULT_LANE = "user";
+/** Official relay gateway endpoint — used when channels.awada.relayBaseUrl is not set. */
+export const DEFAULT_RELAY_BASE_URL = "https://relay.openclaw-for-business.com";
 
 function getAwadaCfg(cfg: ClawdbotConfig): AwadaConfig | undefined {
   return cfg.channels?.awada as AwadaConfig | undefined;
@@ -15,19 +16,20 @@ export function resolveAwadaAccount(params: {
   const awadaCfg = getAwadaCfg(params.cfg);
   const accountId = params.accountId?.trim() || DEFAULT_ACCOUNT_ID;
   const enabled = awadaCfg?.enabled !== false;
-  const relayBaseUrl = awadaCfg?.relayBaseUrl?.trim() || undefined;
-  const ofbKey = awadaCfg?.ofbKey?.trim() || undefined;
-  // Configured only when both relay endpoint and key are present.
-  const configured = Boolean(relayBaseUrl && ofbKey);
+  // relayBaseUrl defaults to the official relay domain; only awadaKey is truly required.
+  // lane is optional — when omitted, the server defaults to the "User" lane.
+  const relayBaseUrl = awadaCfg?.relayBaseUrl?.trim() || DEFAULT_RELAY_BASE_URL;
+  const awadaKey = awadaCfg?.awadaKey?.trim() || undefined;
+  const lane = awadaCfg?.lane?.trim() || "";
+  const configured = Boolean(awadaKey);
 
   return {
     accountId,
     enabled,
     configured,
     relayBaseUrl,
-    ofbKey,
-    lane: awadaCfg?.lane?.trim() || DEFAULT_LANE,
-    platform: awadaCfg?.platform?.trim() || undefined,
+    awadaKey,
+    lane,
     config: awadaCfg ?? {},
   };
 }

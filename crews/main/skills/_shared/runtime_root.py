@@ -2,8 +2,8 @@
 
 背景：部署到 ``~/.openclaw/workspace-<crew>/skills/<name>`` 的 skill 是指向源仓
 ``~/wiseflow/crews/<crew>/skills/<name>`` 的 symlink。脚本的 ``Path(__file__).resolve()``
-会跟随 symlink 跳进源仓，导致 ROOT 指向源仓而非运行时工作区——DB / prediction.md
-等运行时数据都在工作区下，源仓里没有，于是全部 ``exists()=False``。
+会跟随 symlink 跳进源仓，导致 ROOT 指向源仓而非运行时工作区——DB / dna-meta.json /
+DNA 评估报告等运行时数据都在工作区下，源仓里没有，于是全部 ``exists()=False``。
 
 本 helper 按 marker 文件是否存在判定，把 ROOT 映射回 ``~/.openclaw/workspace-<crew>``。
 """

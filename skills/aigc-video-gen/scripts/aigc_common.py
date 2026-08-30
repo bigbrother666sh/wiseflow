@@ -34,6 +34,7 @@ SAFE_OUTPUT_DIRS = (
     Path("fragments"),
     Path("artifacts"),
 )
+# 平台运营文件夹约定：<platform>/outputs/... 同样允许（如 douyin/outputs/<work>/generations/01.mp4）
 
 # 可重试的 HTTP 状态码（同一模型内重试，再不行才沿候选链降级）
 RETRYABLE_HTTP = {408, 429, 500, 502, 503, 504}
@@ -256,11 +257,14 @@ def ensure_safe_output(raw_path: str) -> Path:
         die(f"--output must not contain '..': {raw_path}")
     root = Path.cwd().resolve()
     resolved = (root / path).resolve()
-    if not any(
+    under_safe_dir = any(
         resolved.is_relative_to((root / base).resolve()) for base in SAFE_OUTPUT_DIRS
-    ):
+    )
+    under_platform_outputs = "outputs" in path.parts[:-1]
+    if not (under_safe_dir or under_platform_outputs):
         die(
-            f"--output must be under one of: {', '.join(str(d) for d in SAFE_OUTPUT_DIRS)}"
+            f"--output must be under one of: {', '.join(str(d) for d in SAFE_OUTPUT_DIRS)}, "
+            f"or a platform ops folder <platform>/outputs/"
         )
     return resolved
 

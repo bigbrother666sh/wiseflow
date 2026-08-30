@@ -24,8 +24,8 @@ export const awadaMessageActions: ChannelMessageActionAdapter = {
     });
 
     const account = resolveAwadaAccount({ cfg: ctx.cfg, accountId: ctx.accountId });
-    if (!account.relayBaseUrl || !account.ofbKey) {
-      throw new Error("[awada] relayBaseUrl/ofbKey not configured");
+    if (!account.relayBaseUrl || !account.awadaKey) {
+      throw new Error("[awada] not configured (need awadaKey)");
     }
 
     // Prefer the resolved target from params.to (set by core's target resolver),
@@ -42,7 +42,7 @@ export const awadaMessageActions: ChannelMessageActionAdapter = {
     const media = buildMediaContentFromName({ file_name: fileName });
     const streamId = await sendMediaToAwada({
       relayBaseUrl: account.relayBaseUrl,
-      ofbKey: account.ofbKey,
+      awadaKey: account.awadaKey,
       lane: account.lane,
       target,
       media,

@@ -58,7 +58,21 @@ fi
 
 # Parse args
 PLATFORM="" SOURCE_FOLDER="" ROW_ID=""
-declare -A METRICS
+# bash 3.2 兼容：不用关联数组，平行索引数组存 metric 键值；同名键后值覆盖
+METRIC_KEYS=()
+METRIC_VALS=()
+
+set_metric() {
+  local k="$1" v="$2" i
+  for ((i=0; i<${#METRIC_KEYS[@]}; i++)); do
+    if [ "${METRIC_KEYS[$i]}" = "$k" ]; then
+      METRIC_VALS[$i]="$v"
+      return 0
+    fi
+  done
+  METRIC_KEYS+=("$k")
+  METRIC_VALS+=("$v")
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -69,13 +83,13 @@ while [[ $# -gt 0 ]]; do
       KEY="${1#--}"
       KEY="${KEY%%=*}"
       VAL="${1#*=}"
-      METRICS["$KEY"]="$VAL"
+      set_metric "$KEY" "$VAL"
       shift
       ;;
     --*)
       KEY="${1#--}"
       VAL="$2"
-      METRICS["$KEY"]="$VAL"
+      set_metric "$KEY" "$VAL"
       shift 2
       ;;
     *) echo "{\"ok\":false,\"error\":\"unknown arg: $1\"}"; exit 1 ;;
@@ -121,23 +135,24 @@ fi
 COLS=$(sqlite3 "$DB" "PRAGMA table_info($TABLE);" | awk -F'|' '{print $2}' | grep -v -E '^(id|created_at|source_folder|content_type|title|publish_date)$' | tr '\n' ' ')
 
 # Build SET clause
+if [ ${#METRIC_KEYS[@]} -eq 0 ]; then
+  echo '{"ok":false,"error":"no metrics provided to update"}'
+  exit 1
+fi
+
 SET_PARTS=()
-for KEY in "${!METRICS[@]}"; do
+for ((i=0; i<${#METRIC_KEYS[@]}; i++)); do
+  KEY="${METRIC_KEYS[$i]}"
   # Validate column exists
   if ! echo " $COLS " | grep -q " $KEY "; then
     echo "{\"ok\":false,\"error\":\"column '$KEY' not found in $TABLE. Valid metric columns: $COLS\"}"
     exit 1
   fi
-  VAL="${METRICS[$KEY]}"
+  VAL="${METRIC_VALS[$i]}"
   # Only allow integer or text values
   ESC_VAL="${VAL//\'/\'\'}"
   SET_PARTS+=("$KEY='$ESC_VAL'")
 done
-
-if [ ${#SET_PARTS[@]} -eq 0 ]; then
-  echo '{"ok":false,"error":"no metrics provided to update"}'
-  exit 1
-fi
 
 # Always update updated_at
 SET_PARTS+=("updated_at=strftime('%Y-%m-%d %H:%M:%S','now','localtime')")
@@ -146,4 +161,4 @@ SET_CLAUSE=$(IFS=','; echo "${SET_PARTS[*]}")
 
 sqlite3 "$DB" "UPDATE $TABLE SET $SET_CLAUSE WHERE $WHERE_CLAUSE;"
 
-echo "{\"ok\":true,\"table\":\"$TABLE\",\"located_by\":\"${LOCATE_KEY}\",\"updated_columns\":${#METRICS[@]}}"
+echo "{\"ok\":true,\"table\":\"$TABLE\",\"located_by\":\"${LOCATE_KEY}\",\"updated_columns\":${#METRIC_KEYS[@]}}"

@@ -1,0 +1,13 @@
+{
+  "schema_version": 3,
+  "scope": "platform",
+  "platform": "wx_channel",
+  "enabled": true,
+  "content_form": "短视频",
+  "baseline_plays": null,
+  "typical_word_count": null,
+  "enabled_perf_adapters": [
+    "wx_channel"
+  ],
+  "created_at": "2026-08-29T00:00:00+08:00"
+}

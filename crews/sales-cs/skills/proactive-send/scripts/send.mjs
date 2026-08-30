@@ -9,14 +9,18 @@
  *
  * 走 relay 网关 POST /api/v1/awada/outbound?lane=<lane>（见 awada-extension/src/send.ts
  * 的 postOutbound，契约见 docs/AWADA-CLIENT-TRANSPORT.md §3）。
- * relayBaseUrl / ofbKey / platform / lane 从 ~/.openclaw/openclaw.json 的 channels.awada 读取。
- * channel_id 和 tenant_id 固定为 "0"（私聊）。
+ * awadaKey / lane 从 ~/.openclaw/openclaw.json 的 channels.awada 读取；
+ * relayBaseUrl 缺省时回退到官方 relay 域名 https://relay.openclaw-for-business.com。
+ * lane 缺省时服务器默认使用 "User" lane。
+ * channel_id 和 tenant_id 固定为 "0"（私聊）。platform 由 relay 按 lane 绑定推导，客户端不发。
  * 成功：打印 streamId（exit 0）；失败：打印错误到 stderr（exit 1）。
  */
 
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
+const DEFAULT_RELAY_BASE_URL = "https://relay.openclaw-for-business.com";
 
 // ── Arg parsing ──────────────────────────────────────────────────────────────
 
@@ -46,25 +50,21 @@ try {
 }
 
 const awadaCfg = cfg?.channels?.awada ?? {};
-const { relayBaseUrl, ofbKey } = awadaCfg;
-const platform = awadaCfg.platform || "wechat";
-const lane = awadaCfg.lane || "user";
+const { awadaKey, lane } = awadaCfg;
+const relayBaseUrl = awadaCfg.relayBaseUrl || DEFAULT_RELAY_BASE_URL;
 
-if (!relayBaseUrl || !ofbKey) {
-  console.error(
-    "❌ channels.awada.relayBaseUrl / ofbKey not set in ~/.openclaw/openclaw.json",
-  );
+if (!awadaKey) {
+  console.error("❌ channels.awada 需配置 awadaKey");
   process.exit(1);
 }
 
 // ── POST /outbound ───────────────────────────────────────────────────────────
-// meta.platform / channel_id / user_id_external 必填（relay 据此路由回 platform）。
+// platform 由 relay 按 lane 绑定推导，客户端不发；channel_id / user_id_external 必填。
 
 const url = `${relayBaseUrl.replace(/\/+$/, "")}/api/v1/awada/outbound?lane=${encodeURIComponent(lane)}`;
 const body = {
   payload: [{ type: "text", text }],
   meta: {
-    platform,
     channel_id: "0",
     user_id_external: userIdExternal,
     tenant_id: "0",
@@ -74,7 +74,7 @@ const body = {
 try {
   const res = await fetch(url, {
     method: "POST",
-    headers: { "X-OFB-Key": ofbKey, "Content-Type": "application/json" },
+    headers: { "X-Awada-Key": awadaKey, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) {

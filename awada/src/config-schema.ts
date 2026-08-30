@@ -4,14 +4,15 @@ export { z };
 export const AwadaConfigSchema = z
   .object({
     enabled: z.boolean().optional(),
-    /** Relay gateway base URL, e.g. "https://relay.example.com". Bot talks HTTP/WS to relay, never Redis directly. */
+    /** Relay gateway base URL, e.g. "https://relay.example.com". Bot talks HTTP/WS to relay, never Redis directly.
+     *  Defaults to the official relay domain (https://relay.openclaw-for-business.com) when unset. */
     relayBaseUrl: z.string().optional(),
-    /** OFB_KEY issued by relay admin; carries awada:lane:<laneId> scopes. Sent as X-OFB-Key header. */
-    ofbKey: z.string().optional(),
-    /** Lane to subscribe to. Maps to awada:events:inbound:<lane>. Default: "user" */
+    /** Awada key issued by relay admin; carries awada:lane:<laneId> scopes. Sent as X-Awada-Key header.
+     *  Distinct from the sign-service OFB_KEY — relay admin issues the two separately. */
+    awadaKey: z.string().optional(),
+    /** Lane to subscribe to. Maps to awada:events:inbound:<lane>. Optional — when omitted, the server
+     *  defaults to the "User" lane. */
     lane: z.string().optional(),
-    /** Platform identifier used when publishing proactive messages (e.g. "worktool:mybot"). */
-    platform: z.string().optional(),
     /** DM policy: open (anyone), pairing (requires approval), or allowlist */
     dmPolicy: z.enum(["open", "pairing", "allowlist"]).optional(),
     /** Allowed user_id_external values for allowlist/pairing */

@@ -1557,19 +1557,27 @@ write_missing_env() {
     done
 }
 
-# 确保 env 文件的 PATH 含 portable node bin + openclaw bin（gateway 子进程解析 wrapper 用）
+# 确保 env 文件的 PATH 含 node bin + program bin（openclaw 启动器）+ wrapper bin
+# （~/.openclaw/bin，skill-wrappers.sh 暴露的技能软链）。gateway 是 systemd/launchd 服务，
+# 不 source shell rc；agent exec 调裸技能名（如 `aigc-video-gen`）靠 PATH 解析 wrapper 软链，
+# 故三者 daemon.env PATH 缺一不可。幂等：仅当三者均已就位才跳过。
 ensure_env_path() {
-    local env_file="$1" node_bin_dir="$2" oc_bin_dir="$3"
+    local env_file="$1" node_bin_dir="$2" oc_bin_dir="$3" wrapper_bin_dir="${4:-}"
     [ -f "$env_file" ] || return 0
     local need="${node_bin_dir}:${oc_bin_dir}"
+    [ -n "$wrapper_bin_dir" ] && need="${need}:${wrapper_bin_dir}"
     local cur; cur="$(grep -E '^PATH=' "$env_file" | tail -n1 | sed -E 's/^PATH=//' || true)"
     if [ -z "$cur" ]; then
         printf 'PATH=%s:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n' "$need" >> "$env_file"
         return 0
     fi
-    case ":$cur:" in
-        *":$node_bin_dir:"*) return 0 ;;
-    esac
+    # 三者都已就位才跳过（旧逻辑只查 node_bin_dir，会漏补 wrapper bin）
+    local d all_present=1
+    for d in "$node_bin_dir" "$oc_bin_dir" "$wrapper_bin_dir"; do
+        [ -n "$d" ] || continue
+        case ":$cur:" in *":$d:"*) ;; *) all_present=0 ;; esac
+    done
+    [ "$all_present" -eq 1 ] && return 0
     {
         grep -v '^PATH=' "$env_file" 2>/dev/null || true
         printf 'PATH=%s:%s\n' "$need" "$cur"
@@ -1626,6 +1634,28 @@ load_env_vars_for_cli() {
     if [ -n "$_awk" ]; then export AWK_API_KEY="$_awk"; fi
 }
 
+# Linux：确保 30-wait-display.conf drop-in 存在（幂等）。
+# 背景：gateway 随 default.target 开机即启，早于桌面会话把 DISPLAY 登记进 user manager
+# 环境（systemd 不回填已运行服务）-> 重启机器后到下次 gateway 重启之间，整个 gateway
+# 进程树（agent exec、camoufox daemon）都缺 DISPLAY，agent 误判无头环境、有头浏览器
+# 无法启动。drop-in 让 gateway 启动前等 DISPLAY 出现：有桌面几秒内等到（检查本身毫秒级），
+# 无桌面 30s 超时放行（行为与不加一致）。openclaw 升级重写主 unit 不清 drop-in。
+# WSL2 场景不走此 drop-in（update.sh 已直接注 DISPLAY=:0 进 daemon.env，WSLg 恒定 :0）。
+ensure_systemd_wait_display_dropin() {
+    [ "$(uname -s)" = "Linux" ] || return 0
+    command -v systemctl >/dev/null 2>&1 || return 0
+    systemctl --user show-environment >/dev/null 2>&1 || return 0
+    grep -qi microsoft /proc/version 2>/dev/null && return 0
+    local svc="openclaw-gateway"
+    local dropin_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${svc}.service.d"
+    mkdir -p "$dropin_dir"
+    cat > "${dropin_dir}/30-wait-display.conf" <<'DROPIN_EOF'
+[Service]
+ExecStartPre=/bin/sh -c 'i=0; while [ "$i" -lt 30 ]; do systemctl --user show-environment | grep -q "^DISPLAY=" && exit 0; sleep 1; i=$((i+1)); done; exit 0'
+DROPIN_EOF
+    ui_success "systemd wait-display drop-in ensured (${dropin_dir}/30-wait-display.conf)"
+}
+
 # 停掉运行中的 gateway（更新路线开头调，避免 pnpm 重写 node_modules 时文件句柄竞争卡死）。
 # 平台分支：Linux systemctl --user stop；Darwin openclaw gateway stop。无 service / 未运行则静默。
 stop_gateway_if_running() {
@@ -1667,11 +1697,12 @@ refresh_gateway_env_only() {
     local daemon_env_file
     if [ "$(uname -s)" = "Darwin" ]; then daemon_env_file="$macos_env"; else daemon_env_file="$systemd_env"; fi
     if [ -f "$daemon_env_file" ]; then
-        ensure_env_path "$daemon_env_file" "$node_bin_dir" "$oc_bin_dir"
+        ensure_env_path "$daemon_env_file" "$node_bin_dir" "$oc_bin_dir" "$OPENCLAW_HOME/bin"
         grep -vE "^OPENCLAW_STATE_DIR=" "$daemon_env_file" 2>/dev/null > "${daemon_env_file}.new" || true
         mv "${daemon_env_file}.new" "$daemon_env_file"
         printf 'OPENCLAW_STATE_DIR=%s\n' "$OPENCLAW_HOME" >> "$daemon_env_file"
         if [ "$(uname -s)" = "Linux" ] && command -v systemctl >/dev/null 2>&1; then
+            ensure_systemd_wait_display_dropin
             systemctl --user daemon-reload 2>/dev/null || true
             systemctl --user restart "openclaw-gateway.service" 2>/dev/null && ui_success "Restarted gateway"
         elif [ "$(uname -s)" = "Darwin" ]; then
@@ -1755,7 +1786,7 @@ install_gateway_and_env() {
         printf 'OPENCLAW_STATE_DIR=%s\n' "$OPENCLAW_HOME"
     } >> "$daemon_env_file"
     chmod 600 "$daemon_env_file"
-    ensure_env_path "$daemon_env_file" "$node_bin_dir" "$oc_bin_dir"
+    ensure_env_path "$daemon_env_file" "$node_bin_dir" "$oc_bin_dir" "$OPENCLAW_HOME/bin"
     ui_success "daemon.env written (gateway service 用，3 固定值 + PATH + OPENCLAW_STATE_DIR)"
 
     # 把 .env 业务变量加载进当前 install shell，让后续 daemon install / gateway restart / channels login
@@ -1770,6 +1801,7 @@ install_gateway_and_env() {
             local dropin_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${svc}.service.d"
             mkdir -p "$dropin_dir"
             printf '[Service]\nEnvironmentFile=-%s\n' "$systemd_env" > "${dropin_dir}/10-env-file.conf"
+            ensure_systemd_wait_display_dropin
             ui_success "systemd drop-in created (will reload after daemon install)"
         fi
         ui_info "Installing gateway daemon service"

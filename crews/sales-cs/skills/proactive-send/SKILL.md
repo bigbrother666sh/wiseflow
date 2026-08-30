@@ -28,7 +28,7 @@ proactive-send \
 | `--user-id-external` | 是 | 客户的 awada 用户标识，来自对话上下文 Sender 块的 `id` 字段 |
 | `--text` | 是 | 发送给客户的消息文本 |
 
-`relayBaseUrl` / `ofbKey` / `platform` / `lane` 自动从 `~/.openclaw/openclaw.json` 的 `channels.awada` 读取。`channel_id` / `tenant_id` 固定为 `"0"`（私聊）。
+`awadaKey` / `lane` / `relayBaseUrl` 自动从 `~/.openclaw/openclaw.json` 的 `channels.awada` 读取（`relayBaseUrl` 缺省回退官方域名 `https://relay.openclaw-for-business.com`；`lane` 缺省 server 默认 `User`）。`channel_id` / `tenant_id` 固定为 `"0"`（私聊）。`platform` 不配——relay 按 lane 绑定推导。
 
 ### 返回值
 
@@ -42,4 +42,4 @@ proactive-send \
 - 本技能仅提供消息发送能力，**何时使用、发给谁、发什么内容**由调用场景决定
 - 请勿在正常对话流程中调用——会破坏对话自然性
 - 消息内容应简短、自然、克制
-- 走 HTTP `POST /api/v1/awada/outbound?lane=` + `X-OFB-Key` header，不直连 Redis（契约见 `docs/AWADA-CLIENT-TRANSPORT.md` §3）
+- 走 HTTP `POST /api/v1/awada/outbound?lane=` + `X-Awada-Key` header，不直连 Redis（契约见 `docs/AWADA-CLIENT-TRANSPORT.md` §3）

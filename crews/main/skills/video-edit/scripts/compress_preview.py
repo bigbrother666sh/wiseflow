@@ -58,11 +58,15 @@ def ensure_safe_output(raw_path: str) -> Path:
         die(f"--output must not contain '..': {raw_path}")
     root = Path.cwd().resolve()
     resolved = (root / path).resolve()
-    if not any(
+    under_safe_dir = any(
         resolved.is_relative_to((root / base).resolve()) for base in SAFE_OUTPUT_DIRS
-    ):
+    )
+    # 平台运营文件夹约定：允许 <platform>/outputs/...（预览落项目目录下）
+    under_platform_outputs = "outputs" in path.parts[:-1]
+    if not (under_safe_dir or under_platform_outputs):
         die(
-            f"--output must be under one of: {', '.join(str(d) for d in SAFE_OUTPUT_DIRS)} "
+            f"--output must be under one of: {', '.join(str(d) for d in SAFE_OUTPUT_DIRS)}, "
+            f"or a platform ops folder <platform>/outputs/ "
             f"(previews/ recommended — assemble.py 不扫描此处)"
         )
     return resolved
@@ -119,7 +123,7 @@ def main() -> None:
     )
     parser.add_argument("input", help="输入视频路径（相对工作区）")
     parser.add_argument("--output", required=True,
-                        help="输出预览路径（相对工作区，须在 previews/tmp/output_videos 下）")
+                        help="输出预览路径（相对工作区，须在 previews/tmp/output_videos 或 <platform>/outputs/ 下）")
     parser.add_argument("--target-mb", type=float, default=TARGET_MB_DEFAULT, dest="target_mb",
                         help="目标上限 MB，默认 16")
     args = parser.parse_args()

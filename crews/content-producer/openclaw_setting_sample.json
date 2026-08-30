@@ -1,7 +1,36 @@
 {
+  "id": "content-producer",
+  "name": "producer",
+  "workspace": "{path_to_.openclaw}/workspace-content-producer",
   "skills": [
-    "video-producer"
+    "nano-pdf",
+    "skill-creator",
+    "session-logs",
+    "tmux",
+    "weather",
+    "summarize",
+    "gifgrep",
+    "aigc-video-gen",
+    "awk-tts",
+    "bgm-library",
+    "browser-guide",
+    "pexels-footage",
+    "pixabay-footage",
+    "siliconflow-img-gen",
+    "smart-search",
+    "video-review",
+    "wxwork-drive",
+    "video-producer",
+    "collage-broll",
+    "manim-explainer",
+    "design-full"
   ],
+  "subagents": {
+    "allowAgents": [
+      "it-engineer",
+      "content-producer"
+    ]
+  },
   "tools": {
     "exec": {
       "host": "gateway",
@@ -9,10 +38,5 @@
       "ask": "off"
     }
   },
-  "subagents": {
-    "allowAgents": [
-      "it-engineer",
-      "content-producer"
-    ]
-  }
+  "reasoningDefault": "off"
 }

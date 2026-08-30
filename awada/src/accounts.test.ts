@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_RELAY_BASE_URL,
   listAwadaAccountIds,
   resolveAwadaAccount,
   resolveDefaultAwadaAccountId,
@@ -10,64 +11,81 @@ function makeConfig(awada?: Record<string, unknown>): ClawdbotConfig {
   return { channels: awada !== undefined ? { awada } : undefined } as ClawdbotConfig;
 }
 
+const FULL = { awadaKey: "awada_123", lane: "user" };
+
 describe("resolveAwadaAccount", () => {
   it("returns default values when no awada config is present", () => {
     const account = resolveAwadaAccount({ cfg: makeConfig() });
     expect(account.accountId).toBe("default");
     expect(account.enabled).toBe(true);
     expect(account.configured).toBe(false);
-    expect(account.relayBaseUrl).toBeUndefined();
-    expect(account.ofbKey).toBeUndefined();
+    expect(account.relayBaseUrl).toBe(DEFAULT_RELAY_BASE_URL);
+    expect(account.awadaKey).toBeUndefined();
+    expect(account.lane).toBe("");
+  });
+
+  it("resolves awadaKey and marks configured=true with only awadaKey", () => {
+    const account = resolveAwadaAccount({ cfg: makeConfig({ awadaKey: "awada_123" }) });
+    expect(account.configured).toBe(true);
+    expect(account.awadaKey).toBe("awada_123");
+    expect(account.relayBaseUrl).toBe(DEFAULT_RELAY_BASE_URL);
+    expect(account.lane).toBe("");
+  });
+
+  it("resolves relayBaseUrl+awadaKey+lane and marks configured=true", () => {
+    const account = resolveAwadaAccount({ cfg: makeConfig(FULL) });
+    expect(account.configured).toBe(true);
+    expect(account.relayBaseUrl).toBe(DEFAULT_RELAY_BASE_URL);
+    expect(account.awadaKey).toBe("awada_123");
     expect(account.lane).toBe("user");
   });
 
-  it("resolves relayBaseUrl+ofbKey and marks configured=true", () => {
+  it("trims whitespace from relayBaseUrl/awadaKey/lane", () => {
     const account = resolveAwadaAccount({
-      cfg: makeConfig({ relayBaseUrl: "https://relay.example.com", ofbKey: "ofb_123" }),
+      cfg: makeConfig({
+        relayBaseUrl: "  https://relay.example.com  ",
+        awadaKey: "  awada_123  ",
+        lane: "  user  ",
+      }),
+    });
+    expect(account.relayBaseUrl).toBe("https://relay.example.com");
+    expect(account.awadaKey).toBe("awada_123");
+    expect(account.lane).toBe("user");
+  });
+
+  it("marks configured=false when awadaKey missing", () => {
+    const account = resolveAwadaAccount({
+      cfg: makeConfig({ relayBaseUrl: "https://relay.example.com", lane: "user" }),
+    });
+    expect(account.configured).toBe(false);
+  });
+
+  it("defaults relayBaseUrl to the official relay domain when unset", () => {
+    const account = resolveAwadaAccount({ cfg: makeConfig({ awadaKey: "awada_123" }) });
+    expect(account.relayBaseUrl).toBe(DEFAULT_RELAY_BASE_URL);
+    expect(account.configured).toBe(true);
+  });
+
+  it("marks configured=true when lane missing (server defaults to User)", () => {
+    const account = resolveAwadaAccount({
+      cfg: makeConfig({ awadaKey: "awada_123" }),
     });
     expect(account.configured).toBe(true);
-    expect(account.relayBaseUrl).toBe("https://relay.example.com");
-    expect(account.ofbKey).toBe("ofb_123");
-  });
-
-  it("trims whitespace from relayBaseUrl/ofbKey", () => {
-    const account = resolveAwadaAccount({
-      cfg: makeConfig({ relayBaseUrl: "  https://relay.example.com  ", ofbKey: "  ofb_123  " }),
-    });
-    expect(account.relayBaseUrl).toBe("https://relay.example.com");
-    expect(account.ofbKey).toBe("ofb_123");
-  });
-
-  it("marks configured=false when ofbKey missing", () => {
-    const account = resolveAwadaAccount({
-      cfg: makeConfig({ relayBaseUrl: "https://relay.example.com" }),
-    });
-    expect(account.configured).toBe(false);
-  });
-
-  it("marks configured=false when relayBaseUrl missing", () => {
-    const account = resolveAwadaAccount({ cfg: makeConfig({ ofbKey: "ofb_123" }) });
-    expect(account.configured).toBe(false);
+    expect(account.lane).toBe("");
   });
 
   it("respects enabled=false", () => {
-    const account = resolveAwadaAccount({
-      cfg: makeConfig({ enabled: false, relayBaseUrl: "https://relay.example.com", ofbKey: "k" }),
-    });
+    const account = resolveAwadaAccount({ cfg: makeConfig({ ...FULL, enabled: false }) });
     expect(account.enabled).toBe(false);
   });
 
   it("defaults enabled to true when not set", () => {
-    const account = resolveAwadaAccount({
-      cfg: makeConfig({ relayBaseUrl: "https://relay.example.com", ofbKey: "k" }),
-    });
+    const account = resolveAwadaAccount({ cfg: makeConfig(FULL) });
     expect(account.enabled).toBe(true);
   });
 
   it("uses custom lane when provided", () => {
-    const account = resolveAwadaAccount({
-      cfg: makeConfig({ lane: "cs" }),
-    });
+    const account = resolveAwadaAccount({ cfg: makeConfig({ ...FULL, lane: "cs" }) });
     expect(account.lane).toBe("cs");
   });
 

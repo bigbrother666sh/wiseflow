@@ -34,10 +34,10 @@ metadata:
 
 ## 工作区
 
-在 `output_videos/` 下建项目文件夹：
+平台内容用平台运营项目目录 `<platform>/outputs/<video-name>/` 作项目目录；其他零散任务在 `output_videos/` 下建项目文件夹：
 
 ```
-output_videos/<project-en-slug>/
+<project-dir>/                 # 即 <platform>/outputs/<video-name>/ 或 output_videos/<project-en-slug>/
 ├── source.mp4             # 用户提供的原始视频（重命名后的副本或软链）
 ├── cut_plan.json          # 检测产物：[{keep, start, end, reason}]
 └── highlight.mp4          # 最终成片

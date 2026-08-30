@@ -2,7 +2,7 @@
 """
 批量裁剪图片底部水印（知乎等平台右下角账号水印）
 用法: python3 crop_watermarks.py <图片目录>
-示例: python3 crop_watermarks.py ./output_articles/xxx/images
+示例: python3 crop_watermarks.py ./wx_mp/outputs/xxx/images
 """
 from PIL import Image
 import os

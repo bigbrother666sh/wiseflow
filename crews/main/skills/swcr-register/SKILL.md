@@ -13,16 +13,7 @@ metadata:
 
 一键生成中国计算机软件著作权登记所需的全部材料，并可辅助完成在线填报。
 
-**依赖技能**：`web-form-fill`（在线填报时使用）
-
----
-
-## 触发条件
-
-- 申请软件著作权 / 软著
-- 生成程序鉴别材料 / 源程序文档
-- 生成软件操作手册
-- 需要软著登记填报信息
+**依赖**：`web-form-fill`（在线填报时使用）。材料生成命令通过 PATH wrapper `swcr-register <子命令>` 调用，不要拼接脚本路径。
 
 ---
 
@@ -77,7 +68,7 @@ metadata:
 #### 3-A. 程序鉴别材料（源程序文档）
 
 ```bash
-python ./skills/swcr-register/scripts/generate_code_doc.py \
+swcr-register code-doc \
   --title "<软件全称>" \
   --version "<版本号>" \
   --source-dir "<代码目录>" \
@@ -101,7 +92,7 @@ python ./skills/swcr-register/scripts/generate_code_doc.py \
 #### 3-B. 软件操作手册
 
 ```bash
-python ./skills/swcr-register/scripts/generate_manual.py \
+swcr-register manual \
   --title "<软件全称>" \
   --version "<版本号>" \
   --readme "<README文件路径>" \
@@ -117,7 +108,7 @@ python ./skills/swcr-register/scripts/generate_manual.py \
 #### 3-C. 申请填报信息 Markdown
 
 ```bash
-python ./skills/swcr-register/scripts/generate_form_info.py \
+swcr-register form-info \
   --title "<软件全称>" \
   --short-name "<软件简称>" \
   --version "<版本号>" \

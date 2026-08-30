@@ -1,6 +1,6 @@
 ---
 name: wx-mp-hunter
-description: 微信公众号内容抓取。如下三个场景必用本技能：(1) 用户提供 mp.weixin.qq.com 文章链接 -> 直接用本技能 fetch 全文（不要用浏览器 或 web_fetch）；(2) 用户提供公众号名称、要求获取该账号过去数小时的发布列表 -> 用本技能 posts-list；(3) 用户提供 mp.weixin.qq.com/mp/homepage 专题页/主题页链接 或 mp.weixin.qq.com/mp/appmsgalbum 合集链接，要求采集该页面全部文章 -> 用本技能 homepage 采集目录链接
+description: 微信公众号内容抓取。如下三个场景必用本技能：(1) 用户提供 mp.weixin.qq.com 文章链接 -> 直接用本技能 fetch 全文（不要用浏览器 或 web_fetch）；(2) 用户提供公众号名称、要求按时间窗口或最近 N 条获取发布列表 -> 用本技能 posts-list；(3) 用户提供 mp.weixin.qq.com/mp/homepage 专题页/主题页链接 或 mp.weixin.qq.com/mp/appmsgalbum 合集链接，要求采集该页面全部文章 -> 用本技能 homepage 采集目录链接
 metadata:
   openclaw:
     emoji: 📰
@@ -35,10 +35,9 @@ Use this skill when:
 流程 1a：直接获取指定文章内容（URL 来源不限）
   └─ fetch <url>             → 微信客户端 UA 直访拿正文
 
-流程 1b：获取指定账号过去数小时的发布列表
-  └─ posts-list [--hours N] [--accounts a,b,c]
-                              → 扫本机微信客户端容器消息库
-                                （依赖容器环境，使用前检查环境变量）
+流程 1b：按时间窗口或最近 N 条获取指定账号发布列表
+  └─ posts-list ([--hours N] | --recent N) [--accounts a,b,c]
+                              → 扫本机微信客户端容器消息库（依赖额外的容器环境，不可用时告知用户）
 
 流程 1c：专题页/主页/合集目录链接采集（mp/homepage 或 mp/appmsgalbum）
   └─ homepage <url>          → camoufox-cli 打开专题页，完整滚动 +
@@ -51,8 +50,9 @@ Use this skill when:
 > （302 → `&nwr_flag=1#wechat_redirect` → 正文），零 cookie / 零 captcha。
 
 > **posts-list 不需要登录态**：直接扫本机微信客户端容器内的消息库
-> （SQLCipher 加密 + Zstd 压缩），按账号白名单过滤、按时间窗口取过去 N 小时
-> 的文章。**仅能拿到容器客户端所登录的微信账号已关注的公众号推送**。
+> （SQLCipher 加密 + Zstd 压缩），按账号白名单过滤；`--hours N` 取过去 N 小时，
+> `--recent N` 取消息库中最新 N 条。**仅能拿到容器客户端所登录的微信账号
+> 已关注的公众号推送**。
 
 > **homepage 不需要登录态**：camoufox-cli 无头打开专题页，完整滚动 +
 > 分类 tab 采集 `mp.weixin.qq.com/s` 文章链接。用临时 session，不绑持久化
@@ -63,7 +63,7 @@ Use this skill when:
 ## fetch — 获取文章全文
 
 ```bash
-wx-mp-hunter fetch <url> [--html] [--download-images] [--output-dir <dir>]
+wx-mp-hunter fetch <url> [--html] [--download-images] [--download-cover] [--output-dir <dir>]
 ```
 
 | Option | Description |
@@ -71,6 +71,7 @@ wx-mp-hunter fetch <url> [--html] [--download-images] [--output-dir <dir>]
 | `url` | 文章链接（`mp.weixin.qq.com`，长链或短链均可） |
 | `--html` | 同时返回正文原始 HTML |
 | `--download-images` | 把正文图片下载到本地，`content_markdown` 中的图片 URL 替换为本地相对路径 |
+| `--download-cover` | 下载文章分享封面到 `<output-dir>/covers/<hash>.<ext>`，输出 `cover_url` 与 `cover_local_path` |
 | `--output-dir <dir>` | 图片下载目标目录（配合 `--download-images`；默认当前目录） |
 
 输出示例：
@@ -86,7 +87,9 @@ wx-mp-hunter fetch <url> [--html] [--download-images] [--output-dir <dir>]
   "images": [
     "https://mmbiz.qpic.cn/mmbiz_jpg/xxxxx/0?wx_fmt=jpeg",
     "https://mmbiz.qpic.cn/mmbiz_png/xxxxx/0?wx_fmt=png"
-  ]
+  ],
+  "cover_url": "https://mmbiz.qpic.cn/mmbiz_jpg/xxxxx/0?wx_fmt=jpeg",
+  "cover_local_path": ""
 }
 ```
 
@@ -95,6 +98,8 @@ wx-mp-hunter fetch <url> [--html] [--download-images] [--output-dir <dir>]
 | `content_text` | 纯文本正文（去除所有 HTML 标签） |
 | `content_markdown` | Markdown 格式正文，图片以内联 `![](url)` 放在原文位置，保留加粗/斜体/链接；`--download-images` 时 URL 替换为 `images/<hash>.<ext>` 本地相对路径 |
 | `images` | 正文所有图片 CDN 链接（从 `data-src` 解析） |
+| `cover_url` | 文章分享封面 URL，优先来自 `og:image`，兜底 `twitter:image` / `msg_cdn_url` |
+| `cover_local_path` | 仅使用 `--download-cover` 且下载成功时存在，指向本地封面文件 |
 
 ### 图片本地化
 
@@ -104,23 +109,62 @@ wx-mp-hunter fetch <url> [--html] [--download-images] [--output-dir <dir>]
 wx-mp-hunter fetch <url> --html --download-images --output-dir ./article-out
 ```
 
+### 封面下载
+
+加 `--download-cover --output-dir <dir>` 后，脚本下载分享封面到 `<dir>/covers/<hash>.<ext>`，并在 JSON 中输出 `cover_url`、`cover_local_path`、`cover_download_ok`。该路径可传给 `wechat-style-profiler report --cover-image` 做视觉 DNA 分析。
+
+```
+wx-mp-hunter fetch <url> --download-cover --output-dir ./article-out
+```
+
 ---
 
-## posts-list — 获取指定账号过去数小时的发布列表
+## posts-list - 获取指定账号的发布列表
 
 ```bash
-wx-mp-hunter posts-list [--hours N] [--accounts a,b,c]
+wx-mp-hunter posts-list ([--hours N] | --recent N) [--accounts a,b,c]
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--hours` | 24 | 时间窗口（小时） |
+| `--hours` | 24 | 时间窗口模式：取过去 N 小时；不能与 `--recent` 同用 |
+| `--recent` | - | 最近发布模式：按消息时间倒序取最新 N 条；不能与 `--hours` 同用 |
 | `--accounts` | "" | 公众号名白名单，逗号分隔；不传则返回全部 |
+
+示例：取最近发布的 50 条：
+
+```bash
+wx-mp-hunter posts-list --recent 50
+```
+
+`--recent` 会扫描消息库中全部 49 号文章消息，按消息时间倒序、URL 去重后截取前 N 条；搭配 `--accounts` 时，则在该账号白名单内取最新 N 条。
 
 输出示例：
 ```json
 {
   "ok": true,
+  "mode": "recent",
+  "recent_limit": 50,
+  "total": 3,
+  "posts": [
+    {
+      "title": "文章标题",
+      "url": "https://mp.weixin.qq.com/s/xxxxx",
+      "author": "公众号名称",
+      "publish_time": "2024-03-10",
+      "cover": "https://..."
+    }
+  ],
+  "missing_accounts": ["某未命中公众号"],
+  "hint": "以下账号未出现在最近 50 条文章中（共 1 个）：某未命中公众号。可能是本机微信客户端未关注该公众号、近期未收到推送，或其消息被更新推送挤出前 50 条。"
+}
+```
+
+时间窗口模式输出示例：
+```json
+{
+  "ok": true,
+  "mode": "hours",
   "limit_hours": 24,
   "total": 3,
   "posts": [
@@ -139,20 +183,22 @@ wx-mp-hunter posts-list [--hours N] [--accounts a,b,c]
 
 ### ⚠️ 使用前的环境检查
 
-`posts-list` 依赖本机运行的微信客户端容器。**使用此命令前必须检查以下环境变量是否存在**：
+`posts-list` 依赖本机运行的微信客户端容器（默认容器名 `mimicwx-linux`，可通过 `WX_BIZ_CONTAINER` 环境变量覆盖）。
 
-| 环境变量 | 用途 |
-|---------|------|
-| `WX_BIZ_CONTAINER` | 微信客户端容器名 |
-| `WX_BIZ_USER_DIR` | 容器内微信用户数据根目录 |
-| `WX_BIZ_KEYS_FILE` | 容器内密钥文件路径 |
+用户数据目录、密钥文件路径、biz 消息库相对路径、biz 库 key 名
+**全部自动探测/硬编码**，用户无需配置：
 
-如果这些环境变量不存在（或容器未运行），脚本会直接报错退出：
-```
-{"ok": false, "error": "缺少环境变量 WX_BIZ_CONTAINER：posts-list 依赖本机微信客户端容器，请先在环境中设置该变量指向运行中的容器名"}
-```
+- 容器名：`WX_BIZ_CONTAINER`（默认 `mimicwx-linux`）
+- 用户数据目录：自动探测 `/home/wechat/Documents/xwechat_files/*/db_storage`，
+  多账号取 `db_storage/message` mtime 最新的那个
+- 密钥文件：`/home/wechat/.xwechat/wechat_keys.json`（兜底 `/tmp/wechat_keys.json`）
+- biz 消息库相对路径：`db_storage/message/biz_message_0.db`
+- biz 库 key 名：`message/biz_message_0.db`
 
-**重要**：仅 `posts-list` 命令会检查这些环境变量。普通 `fetch` 抓文章不需要这些变量，也不会检查。
+如果自动探测失败（容器未运行、未登录、密钥文件不存在等），
+脚本报清晰错误并给出排查建议。
+
+**重要**：仅 `posts-list` 命令会检查容器环境。普通 `fetch` 抓文章不需要容器，也不会检查。
 
 ### 已关注账号约束
 
@@ -239,6 +285,13 @@ wx-mp-hunter homepage <url>
                               → 抓全文
 ```
 
+**场景 B2：取某账号最近发布的 30 条**
+```
+1. posts-list --recent 30 --accounts "公众号名"
+                              -> 扫容器消息库，按消息时间倒序取该账号最新 30 条
+2. 按需对文章链接 fetch <article_link>
+```
+
 **场景 C：批量获取专题页文章**
 ```
 1. homepage <mp/homepage url>
@@ -255,5 +308,5 @@ wx-mp-hunter homepage <url>
 |-------|------|------|
 | `UA 直访被风控` (fetch) | 微信客户端 UA 也被风控（罕见） | 重试一次；仍失败跳过该文章 |
 | `未找到文章正文 (#js_content)` (fetch) | 文章已删除或私有 | 跳过该文章 |
-| `缺少环境变量 WX_BIZ_CONTAINER` (posts-list) | 容器环境未配置 | 报错退出，告知用户需配置环境变量并启动容器 |
+| `容器不可达 / 自动探测失败` (posts-list) | 容器未启动、未登录微信、或密钥文件缺失 | 报错退出，告知用户需启动容器并确认微信已登录 |
 | `HTTP 4xx` on fetch | 文章已删除或私有 | 跳过该文章 |

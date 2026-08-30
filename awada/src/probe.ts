@@ -25,7 +25,7 @@ export function validateAwadaRelayBaseUrl(relayBaseUrl: string): string | null {
 /**
  * Probe relay gateway connectivity for an awada account.
  * Hits GET /api/v1/awada/health (no auth). Returns ok=true if the gateway is reachable
- * and its Redis is up. Auth (OFB_KEY + lane scope) is verified on the first real call.
+ * and its Redis is up. Auth (awadaKey via X-Awada-Key header + lane scope) is verified on the first real call.
  */
 export async function probeAwada(params: {
   relayBaseUrl?: string;

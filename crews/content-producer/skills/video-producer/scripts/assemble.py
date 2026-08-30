@@ -281,7 +281,7 @@ def concat_xfade(segments: list[tuple[str, Path, float]], out: Path, transition:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 12 assemble 按序拼接")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument("--source-dir", default=None, help="段目录（默认 render/；timeline-compose 调时传 artifacts/timeline/）")
     parser.add_argument("--output", default="video.mp4", help="输出名（相对 project_dir，默认 video.mp4）")
     parser.add_argument("--transition", default="hard", choices=sorted(VALID_TRANSITIONS))

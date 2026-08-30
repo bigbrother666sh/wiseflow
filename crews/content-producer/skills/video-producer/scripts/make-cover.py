@@ -24,7 +24,7 @@ def die(msg: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 14a make-cover")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument("--title", default=None, help="封面标题文字，不传则从 brief.md 抽")
     args = parser.parse_args()
 

@@ -26,6 +26,15 @@ metadata:
 
 ## 用法（Agent 操作步骤）
 
+### Step 0 - 显示环境铁律（有头启动前必读）
+
+有头浏览器开在哪个显示上，由进程环境里的 `DISPLAY` 决定。**直接继承当前环境，不做任何手工干预**：
+
+- ✅ 直接执行 `camoufox-cli --session <platform> --persistent --headed --json open "<URL>"`--DISPLAY 已由部署环境配好：Linux 桌面机 = 真桌面（用户在显示器/远程桌面里直接看到）；Docker = 入口脚本设的 Xvfb（用户经 noVNC `http://<host>:6080/vnc.html` 查看并操作）
+- ❌ 禁止给命令手动加 `DISPLAY=:N` 前缀（历史事故：agent 照过时文档设 `DISPLAY=:2`，窗口开进没人看得到的虚拟显示，用户以为失败）
+- ❌ 禁止自行启动 Xvfb / x11vnc / noVNC，禁止改任何显示配置
+- 遇到 display 类报错（`cannot open display` / `Display is not set` 等）：说明部署环境的显示栈有问题，**报告用户并停止**，不要自行绕过或即兴搭方案
+
 ### Step 1 — 有头打开登录页
 
 ```bash

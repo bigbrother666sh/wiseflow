@@ -9,7 +9,7 @@
 Usage:
   python3 scripts/intent-router.py <project_dir> [--user-text "..."] [--report-file path]
 
-入：project_dir（output_videos/<topic>/），可选用户原文或 viral-chaser 报告路径
+入：project_dir（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/），可选用户原文或 viral-chaser 报告路径
 出：project_dir/script/intent.json（档位 + 主题 + 受众 + 时长目标 + 备选 + 决策理由）
 
 产物文件存在性即 checkpoint：intent.json 已存在则打印现状退出，不重生成（用户手改后续跑）。
@@ -44,7 +44,7 @@ def detect_genre(text: str) -> tuple[str, str]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 0 intent-router")
-    parser.add_argument("project_dir", help="output_videos/<topic>/")
+    parser.add_argument("project_dir", help="项目目录（output_videos/<topic>/ 或平台运营目录 <platform>/outputs/<video-name>/）")
     parser.add_argument("--user-text", default=None, help="用户原文")
     parser.add_argument("--report-file", default=None, help="main 喂入的 viral-chaser 报告路径（可选）")
     parser.add_argument("--genre", default=None, choices=sorted(VALID_GENRES), help="强制档位，跳过自动判定")

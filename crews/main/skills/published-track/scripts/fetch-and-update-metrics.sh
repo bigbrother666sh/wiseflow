@@ -45,32 +45,25 @@ extract_content_id() {
       # https://www.kuaishou.com/short-video/xxx 或 /video/xxx
       echo "$url" | sed -n 's|.*/short-video/\([^/?]*\).*|\1|p; s|.*/video/\([^/?]*\).*|\1|p'
       ;;
-    xhs)
-      # https://www.xiaohongshu.com/explore/xxx?xsec_token=yyy → xxx
-      echo "$url" | sed -n 's|.*/explore/\([^/?]*\).*|\1|p'
-      ;;
     *)
       echo ""
       ;;
   esac
 }
 
-# 从 xhs publish_url 的 query 里抽 xsec_token（feed/HTML 路线都用得到）
-extract_xsec_token() {
-  echo "$1" | sed -n 's/.*xsec_token=\([^&]*\).*/\1/p'
-}
-
 # ─── 平台配置 ──────────────────────────────────────────────────────────────
 
 # 脚本支持的平台（fetch-retro-data.ts 能处理的）
-SCRIPT_PLATFORMS="xhs bilibili douyin kuaishou"
+# 2026-08-22：xhs 移出——走 xhs-engagement 技能（camoufox creator 后台方案），
+# 与 wx_mp/wx_channel 同模式，见下方平台路由
+SCRIPT_PLATFORMS="bilibili douyin kuaishou"
 
 # 需要 cookie 的平台
-COOKIE_PLATFORMS="xhs douyin kuaishou"
+COOKIE_PLATFORMS="douyin kuaishou"
 
 # 只能手动提供数据的平台
 # Phase 4.6：wx_mp 已接入 wx-mp-engagement skill 自动抓取，移出手动列表
-# Phase 4.7：wx_channel 已接入 wx-channel-engagement skill 自动抓取，移出手动列表
+# Phase 4.7：wx_channel 已接入 wx-channel-engagement 自动抓取（现 expert-wx-channel 专家包内工具），移出手动列表
 # 当前无 manual 平台，保留变量供未来扩展
 MANUAL_PLATFORMS=""
 
@@ -80,9 +73,6 @@ PLATFORM=""
 SOURCE_FOLDER=""
 ROW_ID=""
 CONTENT_ID=""
-XSEC_TOKEN=""
-XSEC_SOURCE=""
-TITLE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -90,9 +80,6 @@ while [[ $# -gt 0 ]]; do
     --source-folder)  SOURCE_FOLDER="$2"; shift 2 ;;
     --id)             ROW_ID="$2"; shift 2 ;;
     --content-id)     CONTENT_ID="$2"; shift 2 ;;
-    --xsec-token)     XSEC_TOKEN="$2"; shift 2 ;;
-    --xsec-source)    XSEC_SOURCE="$2"; shift 2 ;;
-    --title)          TITLE="$2"; shift 2 ;;
     *) echo "{\"ok\":false,\"error\":\"unknown arg: $1\"}"; exit 1 ;;
   esac
 done
@@ -102,39 +89,40 @@ if [ -z "$PLATFORM" ]; then
   exit 1
 fi
 
-# published-track 平台名 -> 持久化 session 名映射
-# 小红书按域拆为 xhs-publish / xhs-browse，取数走消费者端 xhs-browse
+# 平台首页 URL（探活提示用；login-manager session 名与平台名一致）
 LM_PLATFORM="$PLATFORM"
-if [ "$PLATFORM" = "xhs" ]; then
-  LM_PLATFORM="xhs-browse"
-fi
-
-# 平台首页 URL（探活时 open 用）
 case "$LM_PLATFORM" in
   douyin)     PLATFORM_HOME="https://www.douyin.com/" ;;
   bilibili)   PLATFORM_HOME="https://www.bilibili.com/" ;;
   kuaishou)   PLATFORM_HOME="https://www.kuaishou.com/" ;;
-  xhs-browse) PLATFORM_HOME="https://www.xiaohongshu.com/" ;;
   *)          PLATFORM_HOME="" ;;
 esac
 
 # ─── 平台路由 ──────────────────────────────────────────────────────────────
 
 # wx_mp（微信公众号）**不走本脚本**——它走 camoufox 抓创作者中心的方案，
-# 与 xhs/bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
-# 由 wx-mp-engagement 技能独立承担（agent 直调 wx-mp-engagement wrapper）。
-# 见 crews/main/HEARTBEAT.md Step 2 与 wx-mp-engagement/SKILL.md。
+# 与 bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
+# 由 expert-wx-mp 专家包内的 wx-mp-engagement 工具独立承担（agent 直调 wx-mp-engagement wrapper）。
+# 见 crews/main/HEARTBEAT.md Step 2 与 crews/main/skills/expert-wx-mp/tools/wx-mp-engagement/SKILL.md。
 if [ "$PLATFORM" = "wx_mp" ]; then
   echo "{\"ok\":false,\"error\":\"WX_MP_NOT_SUPPORTED_HERE\",\"platform\":\"wx_mp\",\"hint\":\"微信公众号不走 fetch-and-update-metrics.sh。请直调 wx-mp-engagement 技能：wx-mp-engagement fetch --row-id <rowid>（camoufox 抓创作者中心方案，与纯 HTTP+cookie 平台不同）\"}"
   exit 1
 fi
 
+# xhs（小红书）**不走本脚本**——它走 xhs-engagement 技能（camoufox 打开 creator 后台
+# 笔记管理页方案），与 wx_mp/wx_channel 同模式，由 agent 直调 xhs-engagement wrapper。
+# 见 crews/main/HEARTBEAT.md Step 2 与 crews/main/skills/expert-xhs/tools/xhs-engagement/SKILL.md。
+if [ "$PLATFORM" = "xhs" ]; then
+  echo "{\"ok\":false,\"error\":\"XHS_NOT_SUPPORTED_HERE\",\"platform\":\"xhs\",\"hint\":\"小红书不走 fetch-and-update-metrics.sh。请直调 xhs-engagement 技能：xhs-engagement fetch --row-id <rowid>（camoufox 抓 creator 后台方案，与纯 HTTP+cookie 平台不同）\"}"
+  exit 1
+fi
+
 # wx_channel（微信视频号）**不走本脚本**——它走 camoufox 抓视频号助手后台的方案，
-# 与 xhs/bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
-# 由 wx-channel-engagement 技能独立承担（agent 直调 wx-channel-engagement wrapper）。
-# 见 crews/main/HEARTBEAT.md Step 2 与 wx-channel-engagement/SKILL.md。
+# 与 bilibili/douyin/kuaishou 的纯 HTTP+cookie 链路完全不同，
+# 由 expert-wx-channel 专家包内的 wx-channel-engagement 工具独立承担（agent 直调同名 wrapper）。
+# 见 crews/main/HEARTBEAT.md Step 2 与 crews/main/skills/expert-wx-channel/tools/wx-channel-engagement/SKILL.md。
 if [ "$PLATFORM" = "wx_channel" ]; then
-  echo "{\"ok\":false,\"error\":\"WX_CHANNEL_NOT_SUPPORTED_HERE\",\"platform\":\"wx_channel\",\"hint\":\"微信视频号不走 fetch-and-update-metrics.sh。请直调 wx-channel-engagement 技能：wx-channel-engagement fetch --row-id <rowid>（camoufox 抓视频号助手后台方案，与纯 HTTP+cookie 平台不同）\"}"
+  echo "{\"ok\":false,\"error\":\"WX_CHANNEL_NOT_SUPPORTED_HERE\",\"platform\":\"wx_channel\",\"hint\":\"微信视频号不走 fetch-and-update-metrics.sh。请直调 wx-channel-engagement 工具（expert-wx-channel 专家包内）：wx-channel-engagement fetch --row-id <rowid>（camoufox 抓视频号助手后台方案，与纯 HTTP+cookie 平台不同）\"}"
   exit 1
 fi
 
@@ -264,25 +252,6 @@ if [ -z "$CONTENT_ID" ]; then
     echo "{\"ok\":false,\"error\":\"CANNOT_EXTRACT_CONTENT_ID\",\"platform\":\"$PLATFORM\",\"publish_url\":\"$PUBLISH_URL\",\"hint\":\"无法从 publish_url 提取 content_id，请用 --content-id 参数直接提供\"}"
     exit 1
   fi
-
-  # xhs：publish_url 若带 xsec_token 则抽出透传（HTML 路线有 token 更稳；
-  # 当前发布侧多数未落 token，此处无则空，fetch-retro-data 仍可仅凭 cookie 走 HTML）
-  if [ "$PLATFORM" = "xhs" ] && [ -z "$XSEC_TOKEN" ]; then
-    XSEC_TOKEN=$(extract_xsec_token "$PUBLISH_URL")
-    if [ -n "$XSEC_TOKEN" ] && [ -z "$XSEC_SOURCE" ]; then
-      XSEC_SOURCE="pc_feed"
-    fi
-  fi
-
-  # xhs：带上该行 title——2026-07-25 起 xhs profile 页 SSR 的 note id 置空，
-  # 无 token 时 fetch-retro-data 的 profile 映射只能按 title 匹配拿 xsec_token
-  if [ "$PLATFORM" = "xhs" ] && [ -z "$TITLE" ]; then
-    if [ -n "$ROW_ID" ]; then
-      TITLE=$(sqlite3 "$DB" "SELECT title FROM $TABLE WHERE id=${ROW_ID};" 2>/dev/null)
-    elif [ -n "$SOURCE_FOLDER" ]; then
-      TITLE=$(sqlite3 "$DB" "SELECT title FROM $TABLE WHERE source_folder='${SOURCE_FOLDER//\'/\'\'}' ORDER BY cal_enabled DESC, publish_date DESC, id DESC LIMIT 1;" 2>/dev/null)
-    fi
-  fi
 fi
 
 # Step 3: 调 fetch-retro-data.ts
@@ -294,16 +263,7 @@ fi
 
 echo "[fetch-and-update] 调 fetch-retro-data.ts --platform $PLATFORM --content-id $CONTENT_ID ..." >&2
 # stdout = JSON 结果，stderr = 进度日志（透传）
-FETCH_ARGS=(--platform "$PLATFORM" --content-id "$CONTENT_ID")
-# xhs 需要 xsec_token（feed API 强制）；其他脚本平台忽略这两个参数
-if [ -n "$XSEC_TOKEN" ]; then
-  FETCH_ARGS+=(--xsec-token "$XSEC_TOKEN")
-  [ -n "$XSEC_SOURCE" ] && FETCH_ARGS+=(--xsec-source "$XSEC_SOURCE")
-fi
-if [ -n "$TITLE" ]; then
-  FETCH_ARGS+=(--title "$TITLE")
-fi
-FETCH_OUTPUT=$(node --experimental-strip-types "$FETCH_SCRIPT" "${FETCH_ARGS[@]}" 2>/dev/null) || FETCH_EXIT=$?
+FETCH_OUTPUT=$(node --experimental-strip-types "$FETCH_SCRIPT" --platform "$PLATFORM" --content-id "$CONTENT_ID" 2>/dev/null) || FETCH_EXIT=$?
 FETCH_EXIT=${FETCH_EXIT:-0}
 
 if [ "$FETCH_EXIT" -eq 2 ]; then
@@ -329,9 +289,9 @@ const stats = data.stats || {};
 const args = [];
 const mapping = {
   // viewCount → 'plays'：pub_bilibili / pub_kuaishou 的播放列叫 plays（非 views）。
-  // 此 mapping 仅对 SCRIPT_PLATFORMS=xhs/bilibili/douyin/kuaishou 生效，其中
-  // bili/kuaishou 返回 viewCount 且 DB 列为 plays；xhs 不返回 viewCount、douyin 返回 playCount，均不受影响。
-  viewCount: 'plays', plays: 'plays', playCount: 'plays',
+  // 此 mapping 仅对 SCRIPT_PLATFORMS=bilibili/douyin/kuaishou 生效，其中
+  // bili/kuaishou 返回 viewCount 且 DB 列为 plays；douyin 返回 playCount，均不受影响。
+  viewCount: 'plays', plays: 'plays', playCount: 'plays', views: 'views',
   likeCount: 'likes', likes: 'likes',
   commentCount: 'comments', comments: 'comments',
   shareCount: 'shares', shares: 'shares',
@@ -367,7 +327,7 @@ if [ "$METRICS_EXIT" -ne 0 ]; then
   exit 1
 fi
 
-# fetch-retro-data.ts 返回 ok:false（如 xhs NOTE_INACCESSIBLE：缺/失效 xsec_token）
+# fetch-retro-data.ts 返回 ok:false
 if [[ "$METRICS_PARAMS" == __fetch_failed__:* ]]; then
   FAIL_ERR="${METRICS_PARAMS#__fetch_failed__:}"
   FAIL_CODE="${FAIL_ERR%%:*}"

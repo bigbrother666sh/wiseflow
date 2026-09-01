@@ -188,7 +188,7 @@ Workspace/
 | 数据 | 归属 |
 |------|------|
 | DNA report / DNA 文档 / DNA template | `<platform>/dna/<dna-id>/` |
-| 排版主题 | 平台主题目录，例如 `wenyan-theme/` |
+| 排版主题 | 平台主题目录，例如 `wx_mp/wenyan-theme/` |
 | 校准、复盘、抓取结果 | `<platform>/calibration/` |
 
 硬性边界：
@@ -422,7 +422,7 @@ crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
    - 只有工具清单中明确列出的 wrapper 名称可以直接作为 shell 命令调用；未暴露 wrapper 的 Tool 名称仅用于定位工具说明，不得拼成脚本路径。
 
 2. **运行期数据只能写 Workspace**。
-   - DNA report、DNA 文档、DNA template、主题 CSS、抓取结果、校准数据等生成物，都必须保存到 Workspace 下的平台数据目录（例如 `wx_mp/dna/`、`wenyan-theme/`、`wx_mp/calibration/`）。
+   - DNA report、DNA 文档、DNA template、主题 CSS、抓取结果、校准数据等生成物，都必须保存到 Workspace 下的平台数据目录（例如 `wx_mp/dna/`、`wx_mp/wenyan-theme/`、`wx_mp/calibration/`）。
    - 不得写入专家包的 `dna/`、`references/`、`tools/` 或其他包内目录。专家包是可替换、可重建、可软链的代码与规则资产；运行期写入会造成实例状态和源仓状态耦合， reinstall / 重建 / 升级时也容易丢失。
    - 专家包只发布方法论、框架和工具；DNA 生成结果保存在 Workspace `<platform>/dna/<dna-id>/`，不通过索引登记。
 

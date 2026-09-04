@@ -475,7 +475,11 @@ inject_media_send_guide() {
 - 在本地打开媒体文件（如调用图片查看器、浏览器打开 file://）——用户不一定方便操作这台电脑，本地打开对用户毫无意义。
 - 把 base64 或文件原始字节当作文本贴进回复——刷屏且用户无法使用。
 
-正确做法：用当前渠道的媒体发送能力把文件本体直接投递到聊天中（需提供文件绝对路径）。具体调用哪个工具/action 以本机当前可用渠道为准，不要假定渠道名或写死某个 action。
+正确做法：用当前渠道的媒体发送能力把文件本体直接投递到聊天中（需提供文件绝对路径）。
+
+- 飞书：`message(action="send", media="<绝对路径>")`（对于 HTML 类型文件，飞书要求先复制到 `/tmp/openclaw/`，再执行发送）。
+- `openclaw-weixin`：`message(action="send", media="<本地绝对路径或 HTTPS URL>")`，当前会话可不传 target。
+- `awada`： 不支持本地路径；当前回复用 `MEDIA:<HTTPS URL>`，预置云文件用 `message(action="sendAttachment", file_name="<文件名>")`。
 GUIDE
 }
 

@@ -51,7 +51,7 @@ published-track init-db
 
 每张表共享通用字段：`id`（自增主键）、`title`、`content_type`（article/video/post）、`source_folder`（原始文件夹，如 `wx_mp/outputs/xxx`，**不做唯一约束，同内容可同平台多次发布**）、`publish_url`、`publish_date`（YYYY-MM-DD）、`distribute_status`（0=待分发，1=无需分发，2=已分发）、`notes`、`created_at`、`updated_at`。各平台特有互动指标默认 0，另有 `top_comment`（主要留言摘要）。
 
-> **视频号（`pub_wx_channel`）特例**：视频号作品没有「标题」概念，只有描述文案——`title` 列存的是**完整描述文案**（含 hashtag，最长约 300 字），即 `wechat-channels-publish` Step 6 填的描述。`wx-channel-engagement` 抓取按它匹配后台作品管理页。调用方调 `record.sh --platform wx_channel --title` 必须传完整描述，不要传短标题。
+> **视频号（`pub_wx_channel`）特例**：视频号作品没有「标题」概念，只有视频简介——`title` 列存的是**完整视频简介**（含 hashtag，最长约 300 字），即 `wechat-channels-publish` Step 5 填的视频简介。`wx-channel-engagement` 抓取按它匹配后台作品管理页。调用方调 `record.sh --platform wx_channel --title` 必须传完整视频简介，不要拆短标题。
 
 ### DNA 关联字段（v3 schema）
 

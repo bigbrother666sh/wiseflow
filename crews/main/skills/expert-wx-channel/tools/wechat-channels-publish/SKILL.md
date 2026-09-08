@@ -1,6 +1,6 @@
 ---
 name: wechat-channels-publish
-description: 通过 camoufox-cli 持久化 session wechat-channel 发布视频到微信视频号，支持视频上传、标题描述填写、即时发布。
+description: 通过 camoufox-cli 持久化 session wechat-channel 发布视频到微信视频号，支持视频上传、视频简介填写、即时发布。
 ---
 
 # wechat-channels-publish — 工具说明
@@ -9,7 +9,7 @@ description: 通过 camoufox-cli 持久化 session wechat-channel 发布视频�
 
 通过 **camoufox-cli** 持久化 session `wechat-channel`（有且只有一个，fail-first 队列：同 session 已有命令在跑时新命令直接 fail）在微信视频号创作者中心发布视频。视频号创作者中心使用 **wujie 微前端**，所有表单元素在 `<wujie-app>::shadow-root` 内——camoufox-cli 的 `snapshot` 默认穿透 shadow DOM 拿 ref，后续 `click` / `type` / `upload` 按 ref 操作即可，无需 CDP hack。
 
-**输入**：本地视频文件（`.mp4` / `.mov` / `.avi` / `.webm`）、短标题（6-16 字，最长约 30 字）、描述文案（含话题标签，最长约 300 字）。
+**输入**：本地视频文件（`.mp4` / `.mov` / `.avi` / `.webm`）、视频简介（含话题标签，最长约 300 字）。视频号没有标题字段，不要把简介拆成短标题。
 **输出**：视频号已发布作品；能取到时附带公开链接（`https://weixin.qq.com/sph/xxxx`）。
 
 > **主力后端 = `target=camoufox`**。下方命令 / 示例只针对 `target=camoufox`。
@@ -65,25 +65,17 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 - 失败：`[class*="upload-fail"]` 或文本"上传失败"
 - **最长等待 3 分钟**（大视频转码可能较慢）
 
-### Step 5: 填写标题
+### Step 5: 填写视频简介
 
 ```
-1. snapshot 拿到标题输入框 ref：input[placeholder*="短标题"]（在 shadow DOM 内）
-2. camoufox-cli --session wechat-channel --persistent --json type <标题-ref> "短标题"
-   - 建议 6-16 字，最长约 30 字
-```
-
-### Step 6: 填写描述
-
-```
-1. snapshot 拿到描述输入框 ref：div[contenteditable][data-placeholder="添加描述"]
-2. camoufox-cli --session wechat-channel --persistent --json click <描述-ref> 聚焦
-3. camoufox-cli --session wechat-channel --persistent --json type <描述-ref> "描述内容 #话题1 #话题2"
-   - 话题标签直接写在描述中
+1. snapshot 拿到视频简介输入框 ref：div[contenteditable][data-placeholder="添加描述"]
+2. camoufox-cli --session wechat-channel --persistent --json click <简介-ref> 聚焦
+3. camoufox-cli --session wechat-channel --persistent --json type <简介-ref> "视频简介内容 #话题1 #话题2"
+   - 话题标签直接写在视频简介中
    - 最长约 300 字
 ```
 
-### Step 7: 发布
+### Step 6: 发布
 
 > 视频号发布不必勾选"原创声明"，发布后用户会在手机端补充。
 
@@ -94,19 +86,19 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 4. 若弹出"原创声明弹窗"，snapshot 拿"直接发表"按钮 ref → click
 ```
 
-### Step 8: 确认发布成功
+### Step 7: 确认发布成功
 
 等待 4 秒后 `snapshot` 检查：
 - 页面自动跳转到视频管理列表页
 - 或 URL 变为 `https://channels.weixin.qq.com/platform/post/list`
 - 刚发表的作品通常在第一个。但可能处于转码中——封面缩略图为灰色，转圈。每隔 5 秒 snapshot 看转码是否完成（封面缩略图出现），完成后才能取链接。
 
-### Step 9: 获取已发布视频链接
+### Step 8: 获取已发布视频链接
 
 发布成功后，在视频号管理后台的视频列表页获取视频公开链接：
 
 ```
-1. snapshot 找到刚发布的视频（列表第一条，或按标题匹配）ref
+1. snapshot 找到刚发布的视频（列表第一条，或按完整视频简介匹配）ref
 2. snapshot 找该视频的"分享"按钮 ref → click
 3. snapshot 在弹出的分享面板中找"复制视频链接"按钮 ref → click
 4. snapshot eval 从剪贴板或弹窗读取链接：
@@ -120,14 +112,14 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 ## 保存草稿
 
-在 Step 7 中 snapshot 找"存草稿"按钮 ref → click（而非"发表"）。
+在 Step 6 中 snapshot 找"存草稿"按钮 ref → click（而非"发表"）。
 
 ---
 
 ## 手动模式
 
 如果需要人工检查表单后再发布：
-1. 完成到 Step 6（所有字段已填写）
+1. 完成到 Step 5（所有字段已填写）
 2. **不自动 click 发表**，告知用户在浏览器中手动检查并点击
 3. 注意：不操作时标签页约 30 秒后可能被重置为空白页
 
@@ -195,6 +187,6 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 本工具只管发布到视频号后台，**不做发布记录入库**；入库由 Content Production Workflow 编排（调 `published-track record`）。调用方必须注意：
 
-> **`published-track record --platform wx_channel --title` 必须传 Step 6 填的完整描述文案**（含 hashtag，最长约 300 字），**不要传 Step 5 的短标题**。
+> **`published-track record --platform wx_channel --title` 必须传 Step 5 填的完整视频简介**（含 hashtag，最长约 300 字）。
 
-原因：视频号作品没有「标题」概念，作品管理页展示与 `wx-channel-engagement` 抓取匹配用的都是描述文案。`pub_wx_channel.title` 列存的就是完整 desc，传短标题会导致后续抓取匹配全部失败。
+原因：视频号作品没有「标题」概念，作品管理页展示与 `wx-channel-engagement` 抓取匹配用的都是完整视频简介。`pub_wx_channel.title` 是数据库字段名，语义为完整视频简介；传短标题会导致后续抓取匹配失败。

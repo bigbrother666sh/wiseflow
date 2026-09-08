@@ -34,17 +34,17 @@
 - 用户级留存数据不可得。
 - 用户可提供创作者中心后台截图（完播、粉丝画像、流量来源），作为更高置信度的证据；没有就用库内指标。
 
-### 互动漏斗 → template 七部分 → 17 维映射
+### 互动漏斗 → template 语义段 → 13 维映射
 
-| 漏斗卡点 | 先怀疑的 template 部分 | 可回溯的 DNA 维度 |
-|---------|----------------------|------------------|
-| 播放低（推荐/点击瓶颈） | 选题、标题（含封面） | topic-angle、title-style、cover-frame |
-| 点击后快速划走（完播估算低） | 起（钩子）、承 | hook、video-structure、narrative-rhythm、speech-rhythm |
-| 点赞低 | 承、合（价值感与情绪落点） | professionalism、conflict-tension、tone |
-| 评论低 | CTA、互动设计 | interaction-design、conflict-tension |
-| 分享低 | 选题、合（社交货币） | topic-angle、conflict-tension |
-| 收藏低 | 承（实用价值密度） | professionalism、video-structure |
-| 关注转化低 | 合、CTA | signature、series-design、tone |
+| 漏斗卡点 | 先怀疑的 template 语义段 | 可回溯的 DNA 维度 |
+|---------|--------------------------|------------------|
+| 播放低（推荐/点击瓶颈） | 定位与核心传达、选题与标题包装 | positioning-core、topic-portfolio、title-packaging |
+| 点击后快速划走（完播估算低） | 内容形式与发布节奏、口播文案 DNA | content-form-mix、narration-dna、high-performer-patterns |
+| 点赞低 | 高数据创意模式、互动与系列 | positioning-core、high-performer-patterns、engagement-conversion |
+| 评论低 | 互动与系列 | engagement-conversion、series-signature |
+| 分享低 | 选题与标题包装、高数据创意模式 | topic-portfolio、high-performer-patterns |
+| 收藏低 | 高数据创意模式 | high-performer-patterns、positioning-core |
+| 关注转化低 | 定位与核心传达、互动与系列 | bio-profile、series-signature、engagement-conversion |
 
 ### 平台混杂因素（归因前必排）
 
@@ -84,7 +84,7 @@ content-calibrator eval --platform douyin --dna-id <id>      # 指定 DNA
 
 1. 判定只看比值与走向，绝对值只作上下文。
 2. 逐条排除平台混杂因素，输出替代假设检验结果。
-3. 回读 `douyin/dna/<dna-id>/<dna-id>.dna.md` / `.template.md` 与待评估作品原文（`source_folder` 下的转录 / 简报），把趋势变化落到 template 七部分与 17 维。
+3. 回读 `douyin/dna/<dna-id>/<dna-id>.dna.md` / `.template.md` 与待评估作品原文（`source_folder` 下的转录 / Brief / 口播终稿），把趋势变化落到 template 语义段与 13 维。
 
 ### Step 3 - 报告与标记
 

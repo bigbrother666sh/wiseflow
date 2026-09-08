@@ -35,17 +35,17 @@ xhs 互动数据来自创作者后台笔记管理页 5 列（`xhs-engagement` �
 - 精确的传播系数（每次分享带来多少新观众）不可得；只能用 分享/(点赞+评论) 作为传播效率的代理估算。
 - 用户可提供创作者中心后台截图（流量来源、粉丝画像、搜索词），作为更高置信度的证据；没有就用库内指标。
 
-### 互动漏斗 → template 七部分 → 16 维映射
+### 互动漏斗 → template 语义段 → 14 维映射
 
-| 漏斗卡点 | 先怀疑的 template 部分 | 可回溯的 DNA 维度 |
-|---------|----------------------|------------------|
-| 阅读低（推荐/点击瓶颈） | 选题、标题（含封面图） | topic-angle、title-style、cover-imageset、keyword-seo |
-| 阅读正常但收藏低 | 承（实用价值密度） | body-structure、credibility-proof、keyword-seo |
-| 阅读正常但评论低 | CTA（互动设计） | interaction-design、opening-hook |
-| 点赞低 | 承、结尾（价值感与情绪落点） | language-tone、credibility-proof、emoji-rhythm |
-| 分享低 | 选题、CTA（社交货币） | topic-angle、cta-conversion |
-| 关注转化低 | 结尾、CTA（账号承诺） | signature-mark、series-design、topic-angle |
-| 搜索流量弱 | 标题（含封面图）、标签 | keyword-seo、tag-strategy |
+| 漏斗卡点 | 先怀疑的 template 语义段 | 可回溯的 DNA 维度 |
+|---------|--------------------------|------------------|
+| 阅读低（推荐/点击瓶颈） | 定位与核心传达、选题与标题包装、搜索意图 | positioning-core、topic-portfolio、title-packaging、search-intent-map |
+| 阅读正常但收藏低 | 搜索意图与用户问题、高数据创意模式 | search-intent-map、high-performer-patterns、positioning-core |
+| 阅读正常但评论低 | 互动与系列 | engagement-conversion、search-intent-map |
+| 点赞低 | 高数据创意模式、定位与核心传达 | high-performer-patterns、positioning-core |
+| 分享低 | 选题与标题包装、互动与系列 | topic-portfolio、engagement-conversion |
+| 关注转化低 | 定位与核心传达、互动与系列 | bio-profile、series-signature、engagement-conversion |
+| 搜索流量弱 | 搜索意图与用户问题、选题与标题包装 | search-intent-map、title-packaging、content-form-mix |
 
 ### 平台混杂因素（归因前必排）
 
@@ -86,7 +86,7 @@ content-calibrator eval --platform xhs --dna-id <id>      # 指定 DNA
 
 1. 判定只看比值与走向，绝对值只作上下文。
 2. 逐条排除平台混杂因素，输出替代假设检验结果。
-3. 回读 `xhs/dna/<dna-id>/<dna-id>.dna.md` / `.template.md` 与待评估作品原文（`source_folder` 下的 `note.md` 与图片），把趋势变化落到 template 七部分与 16 维。
+3. 回读 `xhs/dna/<dna-id>/<dna-id>.dna.md` / `.template.md` 与待评估作品（`source_folder` 下的 `note.md`、`brief.md`、`voiceover.md` 与图片/成片线索），把趋势变化落到 template 语义段与 14 维。
 
 ### Step 3 - 报告与标记
 

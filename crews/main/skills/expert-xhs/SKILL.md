@@ -1,12 +1,12 @@
 ---
 name: expert-xhs
-description: 小红书运营专家。承接从定位起号、对标调研、选题文案、图文笔记生产发布到数据复盘的完整运营工作。零散的发布、下载笔记、抓数等操作也可以直接做。
+description: 小红书账号运营专家。承接定位起号、账号级 DNA、搜索意图、图文笔记生产、已有素材轻加工、视频全案 Brief、发布与数据复盘；全片制作委托 content-producer。
 metadata:
   openclaw:
     emoji: 📕
 ---
 
-# 小红书运营专家
+# 小红书账号运营专家
 
 ## 预设 Workflow
 
@@ -15,7 +15,7 @@ metadata:
 | 场景 | Workflow | 什么时候触发 |
 |------|----------|-------------|
 | 内容 DNA 管理 | Style DNA | 建 / 更新内容 DNA（样本、偏好、局部借鉴、对标融合），决定样本落到哪个 DNA |
-| 内容生产 | Content Production | 写一篇 / 做几篇小红书笔记（图文为主，视频笔记也可）；输入可以是粗略想法、参考笔记（仿写 / 同主题改写）或已有草稿（风格转写） |
+| 内容生产 | Content Production | 做一条 / 做几条小红书内容；图文由 main 直接生产，视频全案只产出并委托 Brief |
 | 起号与定位 | Account Setup | 新号起号、定位梳理、内容支柱搭建、老号接手与诊断 |
 | 账号对标 | Account Benchmark | 对标账号 / 对标笔记分析（关键词提取 + 低粉爆款搜索），并与默认或指定 DNA 逐项比较 |
 | 改稿与调整 | Editing | 改标题、改正文、换封面、换标签、换风格 |
@@ -37,7 +37,7 @@ metadata:
 
 | 工具 | 用途 | 命令 |
 |------|------|------|
-| `xhs-style-profiler` | 生成单篇笔记 16 维 DNA report，并聚合 DNA 文档与 DNA template | `xhs-style-profiler` |
+| `xhs-style-profiler` | 生成单篇笔记的账号级 DNA report，并聚合 DNA 文档、搜索意图地图与 Brief template | `xhs-style-profiler` |
 | `xhs-content-ops` | 图文笔记下载（正文 / 图片 / 互动数据），对标与 DNA 采样的取数主力 | `xhs-content-ops` |
 | `xhs-publish` | 图文 / 视频笔记发布（creator COS 上传 + web_api，含登录态两步管理） | `xhs-publish` |
 | `xhs-engagement` | 创作者后台互动数抓取，写入 published-track 的 pub_xhs 表 | `xhs-engagement` |
@@ -46,7 +46,11 @@ metadata:
 
 ## 风格与 DNA
 
-账号内容风格 DNA 存储目录是 `xhs/dna/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。DNA 维度框架（16 维，初始版本已确认）位于 `xhs-style-profiler` 的 `references/xhs-note-dna-dimensions.md`。
+账号级 DNA 存储目录是 `xhs/dna/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。
+
+DNA 是账号级框架：定位与核心传达、选题组合、标题包装、账号简介、图文/视频比例、发布习惯、高数据创意、视觉/声音倾向、口播文案 DNA、互动系列、搜索关键词与用户问题、制作管线。它指导 main agent 写图文或出视频 Brief，不规定成片制作细节。维度框架 v1 位于 `xhs-style-profiler` 的 `references/account-dna-framework.md`。
+
+**分工硬边界**：图文和长文由 main 直接生产；已有视频素材轻加工由 main 做；视频全案只产出 Brief 并委托 `content-producer`。口播类视频若 DNA 启用口播文案 DNA，口播文案由 main 写好并随 Brief 交付；Content Producer 只负责声画制作。Brief 指定 Pipeline 时 CP 必须采用，未指定时 CP 自由发挥。
 
 ## 数据与记录
 

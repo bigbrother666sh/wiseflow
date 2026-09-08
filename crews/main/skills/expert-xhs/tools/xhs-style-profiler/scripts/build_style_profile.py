@@ -57,31 +57,27 @@ STOP_TERMS = {
 }
 
 DIMENSION_GROUPS = {
-    "选题与包装": [
-        ("topic-angle", "选题角度"),
-        ("title-style", "标题风格"),
-        ("cover-imageset", "封面与图组"),
-        ("keyword-seo", "关键词与搜索流量"),
+    "定位与选题": [
+        ("positioning-core", "定位与核心传达"),
+        ("topic-portfolio", "选题组合"),
+        ("title-packaging", "标题与包装"),
+        ("bio-profile", "账号简介与主页表达"),
     ],
-    "正文与表达": [
-        ("opening-hook", "开头钩子"),
-        ("body-structure", "正文结构"),
-        ("language-tone", "口语语气与人设"),
-        ("emoji-rhythm", "emoji与标点节奏"),
+    "账号节奏": [
+        ("content-form-mix", "内容形式与比例"),
+        ("publish-cadence", "发布习惯"),
+        ("high-performer-patterns", "高数据创意模式"),
     ],
-    "视觉与证据": [
-        ("image-composition", "图片构图与信息"),
-        ("visual-style", "视觉风格"),
-        ("credibility-proof", "证据与人味"),
+    "表达与风格": [
+        ("visual-language", "视觉语言"),
+        ("audio-language", "声音语言"),
+        ("narration-dna", "口播文案 DNA"),
     ],
-    "互动与转化": [
-        ("interaction-design", "互动设计"),
-        ("tag-strategy", "话题标签策略"),
-        ("cta-conversion", "行动引导与转化"),
-    ],
-    "签名与系列": [
-        ("signature-mark", "签名式标记"),
-        ("series-design", "系列化设计"),
+    "互动、搜索与制作": [
+        ("engagement-conversion", "互动与转化"),
+        ("series-signature", "系列与签名"),
+        ("search-intent-map", "搜索意图地图"),
+        ("production-pipeline", "制作管线倾向"),
     ],
 }
 DIMENSIONS = []
@@ -92,7 +88,6 @@ for group, dimensions in DIMENSION_GROUPS.items():
             {"id": dimension_id, "number": number, "name": name, "group": group}
         )
         number += 1
-
 
 def split_sentences(text: str) -> list[str]:
     return [item.strip() for item in SENTENCE_SPLIT.split(text) if item.strip()]
@@ -341,6 +336,7 @@ def statistics_markdown(statistics: dict) -> str:
     lines.extend(
         [
             "",
+            f"样本覆盖度：`{statistics['report_count']}` 条 report；单条或少量样本不能推导账号比例、发布节奏或高数据共性。",
             f"权重模式：`{statistics['weighting']}`；总权重：`{statistics['total_weight']}`。",
             "话题标签数按正文内联 `#话题` 统计；emoji 统计只作证据底座，不构成「必须凑满几个」的规则。",
             "统计只用于辅助聚合，不生成评分；定性判断必须回到各篇 DNA report。",
@@ -410,43 +406,32 @@ def load_reports(paths: list[Path]) -> list[dict]:
     return reports
 
 
+REPORT_DIMENSION_PROMPTS = {
+    'positioning-core': '- 单条观测：本条暴露出的定位、目标人群与核心传达。\n- 账号级判断：单条样本只给候选，不直接判定账号稳定性。',
+    'topic-portfolio': '- 单条观测：本条选题类型、入口和系列关系。',
+    'title-packaging': '- 单条观测：标题 / 描述 / 封面包装模式；只记模式，不抄成固定字句。',
+    'bio-profile': '- 账号级观测：账号简介、主页与置顶表达；单条样本无法观测时写未观测。',
+    'content-form-mix': '- 单条观测：本条内容形式。\n- 聚合边界：图文/视频比例与混合节奏必须由多样本或账号级数据推导。',
+    'publish-cadence': '- 单条观测：本条发布时间。\n- 聚合边界：时间段、频率和三图文对一视频等节奏必须由多样本或账号级数据推导。',
+    'high-performer-patterns': '- 数据线索：记录本条互动/播放/阅读线索。\n- 创意判断：回读选题、包装、形式与创意，不得把高数据直接等同于风格好。',
+    'visual-language': '- 视觉证据：有图片或关键帧时由视觉模型读取；无证据写未观测。\n- 边界：只记录账号级稳定视觉语言，不规定逐镜设计。',
+    'audio-language': '- 声音证据：来自口播稿、原视频信息或用户说明；无证据写未观测。\n- 边界：只记录音色/语速/声音气质倾向，不规定 TTS 参数。',
+    'narration-dna': '- 独立块：记录开头、起承转合、收束、人称与签名表达。\n- 聚合边界：样本不足时保持未启用，不把单条句式上升为账号 DNA。',
+    'engagement-conversion': '- 单条观测：平台内行动引导与承接路径。',
+    'series-signature': '- 单条观测：栏目、固定表达或识别符号；高频词必须回读原文确认。',
+    'search-intent-map': '- 搜索证据：主关键词、相关词、长尾句和用户可能提问。\n- 聚合边界：单篇只给候选；账号级搜索意图地图需多样本聚合。',
+    'production-pipeline': '- 管线映射：只写 Content Producer 已支持的 Pipeline；未确定时写待定。\n- 分界：DNA 指导 main agent 出 Brief，不规定成片制作细节。',
+}
+
 def report_dimension_markdown(dimension: dict) -> str:
     heading = f"### {dimension['number']}. {dimension['name']}"
-    if dimension["id"] == "cover-imageset":
-        return (
-            f"{heading}\n\n"
-            "**视觉模型分析：**待 Agent 基于封面图（及图组图片，如有）补齐。\n\n"
-            "- 封面承诺（用户点进来的可见理由）：待 Agent 补齐。\n"
-            "- 版式与构图（大字报 / 实拍场景 / 对比图 / 清单卡片等）：待 Agent 补齐。\n"
-            "- 色彩体系：待 Agent 补齐。\n"
-            "- 文字视觉与图文关系（封面字 / 贴纸 / 标题框）：待 Agent 补齐。\n"
-            "- 封面与图组的风格一致性：待 Agent 补齐。\n"
-            "- 品牌识别元素：待 Agent 补齐。\n"
-            "- 避免项：待 Agent 补齐。\n\n"
-            "**AIGC 复现提示词要素：**待 Agent 补齐；要求能据此生成风格高度一致的封面图。\n\n"
-            "**可复用创作信号：**待 Agent 补齐。"
-        )
-    if dimension["id"] == "opening-hook":
-        return (
-            f"{heading}\n\n"
-            "**钩子原文（正文前 1-2 行）：**待 Agent 逐字摘录。\n\n"
-            "**单条结论：**待 Agent 补齐（钩子类型、与封面承诺是否对应、正文是否兑现）。\n\n"
-            "**原文证据：**待 Agent 补齐。\n\n"
-            "**可复用创作信号：**待 Agent 补齐。"
-        )
-    if dimension["id"] == "image-composition":
-        return (
-            f"{heading}\n\n"
-            "**图组清单与路径：**待 Agent 列出（没有图片时写「未提供」，不得编造）。\n\n"
-            "**单条结论：**待 Agent 补齐（图片数量、构图类型分布、图文信息分工）。\n\n"
-            "**原文证据：**待 Agent 补齐（逐图描述构图与信息点）。\n\n"
-            "**可复用创作信号：**待 Agent 补齐。"
-        )
+    prompt = REPORT_DIMENSION_PROMPTS.get(dimension["id"], "- 单条观测：待 Agent 补齐。")
     return (
         f"{heading}\n\n"
+        f"{prompt}\n\n"
         "**单条结论：**待 Agent 补齐。\n\n"
-        "**原文证据：**待 Agent 补齐（正文逐字引用或图片描述）。\n\n"
-        "**可复用创作信号：**待 Agent 补齐。"
+        "**原文证据：**待 Agent 补齐（逐字引用、账号信息、发布信息、画面/声音描述或数据线索；注明来源）。\n\n"
+        "**可复用信号：**待 Agent 补齐；样本不足时写未观测，不推导账号级稳定性。"
     )
 
 
@@ -481,6 +466,8 @@ def report_markdown(
             "本文件只描述这一篇笔记。它不是聚合后的 DNA 文档，也不直接作为生产模板。",
             "## 单篇统计",
             f"- 总字符：{document['characters']}\n- 标题字数：{document['title_chars']}\n- 句子数：{document['sentences']}\n- 正文行数：{document['line_count']}\n- emoji 数：{document['emoji_count']}\n- 话题标签数：{document['tag_count']}\n- 标题候选：{' / '.join(document['title_candidates'])}\n- 来源链接：{source_url or '未提供'}\n- 封面图：{cover_image or '未提供'}",
+            "## 样本与账号观测",
+            '- 样本类型：待 Agent 补齐（账号作品 / 用户提供单篇）。\n- 账号与简介：待 Agent 补齐；单篇样本无法观测时写未观测。\n- 发布时间与时间段：待 Agent 补齐；单篇样本只记录本篇时间，不推导账号节奏。\n- 内容形式：待 Agent 补齐（图文 / 视频 / 口播 / 实拍拼接 / 创意转场 / 纯 AIGC 动画 / 混合）。\n- 数据表现线索：待 Agent 补齐；只作证据，不直接判风格好坏。\n- 搜索关键词与用户可能提问：待 Agent 补齐；只记录本篇候选，不直接判定账号级搜索意图。\n- 视频形态与授权信息：待 Agent 补齐（横竖屏、时长、素材来源、授权边界）。',
             f"## {len(DIMENSIONS)} 维单篇分析",
             "\n\n".join(dimensions),
             "## 单篇边界",
@@ -524,19 +511,11 @@ def dna_document_markdown(
         if body:
             dimensions.append(f"{heading}\n\n{body}")
         else:
-            if dimension["id"] in ("cover-imageset", "image-composition"):
-                dimensions.append(
-                    f"{heading}\n\n**聚合结论：**待 Agent 补齐。\n\n"
-                    "**报告依据：**待 Agent 列出使用的封面 / 图组图片和 DNA report。\n\n"
-                    "**视觉生成规则：**待 Agent 转成可执行的 AIGC 提示词要素或配图规格。\n\n"
-                    "**例外与约束：**待 Agent 补齐。"
-                )
-            else:
-                dimensions.append(
-                    f"{heading}\n\n**聚合结论：**待 Agent 补齐。\n\n"
-                    "**报告依据：**待 Agent 列出使用的 DNA report、权重和 focus。\n\n"
-                    "**创作规则：**待 Agent 补齐。"
-                )
+            dimensions.append(
+                f"{heading}\n\n**聚合结论：**待 Agent 补齐。\n\n"
+                "**报告依据：**待 Agent 列出使用的 DNA report、权重和 focus。\n\n"
+                "**创作规则：**待 Agent 补齐。"
+            )
     report_paths = "\n".join(report["report_path"] for report in reports)
     existing_user_inputs = (
         extract_named_section(previous_dna, "## 用户输入转译区") if previous_dna else None
@@ -552,7 +531,7 @@ def dna_document_markdown(
             f"generated_at: {yaml_value(generated_at())}\n"
             "---",
             f"# {dna_id} DNA 文档",
-            "本文件聚合历史 DNA report。它是账号当前采用的小红书笔记内容与风格规则，也必须能推导出生产模板。",
+            "本文件聚合历史 DNA report。它是账号当前采用的账号级运营规则，也必须能推导出 main agent 的图文生产输入或视频制作 Brief。",
             "## 报告与权重",
             "\n".join(
                 f"- `{report['report_path']}`：weight `{report['weight']}`，focus `{', '.join(report['focus']) or 'all'}`"
@@ -614,54 +593,64 @@ def extract_named_section(markdown: str, heading: str) -> str:
     return "\n".join(body).strip()
 
 
-TEMPLATE_STAGES = ("开头", "承", "结尾", "CTA", "图组")
+TEMPLATE_STAGES = ("定位与核心传达", "选题与标题包装", "内容形式与发布节奏", "高数据创意模式", "互动与系列", "搜索意图与用户问题", "制作交接与Pipeline", "口播文案DNA")
 
 TEMPLATE_STAGE_FIELDS = {
-    "开头": (
-        "本段任务",
-        "钩子类型",
-        "开头句式",
-        "与封面承诺的兑现",
+    "定位与核心传达": (
+        "一句话定位",
+        "目标人群",
+        "核心传达",
+        "账号简介与主页表达",
+        "不变承诺",
+    ),
+    "选题与标题包装": (
+        "选题组合",
+        "标题模式",
+        "封面包装",
+        "禁用方向",
+    ),
+    "内容形式与发布节奏": (
+        "图文与视频比例",
+        "发布时间带",
+        "内容形式混合节奏",
+        "系列栏目",
+    ),
+    "高数据创意模式": (
+        "高表现样本共性",
+        "可复用创意原型",
+        "触发条件",
+        "例外",
+    ),
+    "互动与系列": (
+        "互动目标",
+        "引导方式",
+        "系列与签名标记",
         "必须做",
         "避免",
     ),
-    "承": (
-        "本段任务",
-        "推进逻辑",
-        "信息密度",
-        "段落与换行节奏",
-        "emoji 使用",
-        "证据与人味细节",
-        "必须做",
-        "避免",
+    "搜索意图与用户问题": (
+        "主关键词",
+        "相关词与长尾句",
+        "用户可能提问",
+        "搜索意图分层",
+        "标签与正文覆盖策略",
     ),
-    "结尾": (
-        "本段任务",
-        "收束方式",
-        "情绪落点",
-        "签名式标记",
-        "必须做",
-        "避免",
+    "制作交接与Pipeline": (
+        "MainAgent交付物",
+        "ContentProducer交付物",
+        "Pipeline",
+        "素材与授权",
+        "风格边界",
     ),
-    "CTA": (
-        "行动目标",
-        "引导方式（评论/收藏/关注）",
-        "平台内动作",
-        "必须做",
-        "避免",
-    ),
-    "图组": (
-        "图片数量与顺序",
-        "构图类型",
-        "文字卡片设计",
-        "风格一致性",
-        "图文信息分工",
+    "口播文案DNA": (
+        "是否启用",
+        "起承转合结构",
+        "语言与人称",
+        "声音倾向",
         "必须做",
         "避免",
     ),
 }
-
-
 def parse_template_fields(body: str) -> dict[str, str]:
     fields = {}
     for line in body.splitlines():
@@ -687,25 +676,6 @@ def template_segment(stage: str, values: dict[str, str] | None = None) -> str:
     return "\n".join(lines)
 
 
-def extract_topic_title_body(previous_template: str | None) -> str:
-    if not previous_template:
-        return ""
-    for heading in ("## 生产模板", "## 选题与标题"):
-        body = extract_named_section(previous_template, heading)
-        if not body:
-            continue
-        topic_title_lines = []
-        for line in body.splitlines():
-            # 只在真正的模板分段（[开头部分] 等）处截断；[标题] 属于选题与标题区，必须保留。
-            if re.match(r"^\[[^\]]+部分\]$", line.strip()):
-                break
-            topic_title_lines.append(line)
-        rendered = "\n".join(topic_title_lines).strip()
-        if rendered:
-            return rendered
-    return ""
-
-
 def stage_values_from_template(old_sections: dict[str, str]) -> dict[str, dict[str, str]]:
     values = {stage: {} for stage in TEMPLATE_STAGES}
     for heading in sorted(old_sections, key=template_order):
@@ -725,37 +695,24 @@ def template_markdown(
     old_sections = extract_template_sections(previous_template)
     stage_values = stage_values_from_template(old_sections)
     segments = [template_segment(stage, stage_values[stage]) for stage in TEMPLATE_STAGES]
-    topic_title = extract_topic_title_body(previous_template) or (
-        "（选题角度推荐：待 Agent 补齐。）\n"
-        "（选题需考虑的受众关联角度：待 Agent 补齐。）\n"
-        "\n"
-        "[标题]（类型为主：待 Agent 补齐。）\n"
-        "（参考：待 Agent 补齐。）\n"
-        "（话题标签策略：待 Agent 补齐。）\n"
-        "（封面图风格：待 Agent 补齐。）\n"
-        "（封面 AIGC 提示词要素：待 Agent 补齐。）"
-    )
-    if previous_template:
-        for field in ("（封面图风格：", "（封面 AIGC 提示词要素："):
-            if field not in topic_title:
-                topic_title += f"\n{field}待 Agent 补齐。）"
     section_defaults = [
         (
             "## 生产模板",
-            topic_title + "\n\n" + "\n\n".join(segments),
+            "\n\n".join(segments),
         ),
         (
             "## 用户输入转译后的执行规则",
             "- （来自用户输入：待 Agent 补齐来源。）\n"
             f"- （影响维度：待 Agent 映射到 {len(DIMENSIONS)} 维 ID。）\n"
-            "- （执行规则：待 Agent 写成生产时可直接执行的要求。）",
+            "- （执行规则：待 Agent 写成 Brief 或图文生产时可直接执行的要求。）",
         ),
         (
             "## 使用检查",
-            "- 选题与标题是否符合 DNA 文档的选题角度、受众关联和标题类型。\n"
-            "- 开头、承、结尾、CTA、图组五个部分是否完成各自任务。\n"
-            "- 每个部分是否反映 DNA 文档中对应的钩子、正文结构、语气、emoji 节奏、视觉、互动与签名标记。\n"
-            "- 标题 ≤ 20 字、正文 ≤ 1000 字、图片 ≤ 18 张、话题标签 ≤ 10 个是否满足（平台硬限制）。\n"
+            "- 是否只用一个 DNA，且与本次账号 / 内容任务匹配。\n"
+            "- 定位、选题、标题包装、核心传达是否来自 DNA 文档。\n"
+            "- 图文/视频比例、发布节奏和高数据创意是否尊重样本覆盖度；样本不足时是否标注未观测。\n"
+            "- 视频全案是否只输出 Brief，且 Brief 明确 Pipeline、素材授权、验收标准和交付边界。\n"
+            "- 口播文案 DNA 是否独立启用；未启用时是否避免规定逐句口播。\n"
             "- 用户输入是否已转译为具体执行规则。",
         ),
     ]
@@ -779,7 +736,7 @@ def template_markdown(
             f"generated_at: {yaml_value(generated_at())}\n"
             "---",
             f"# {dna_id} DNA Template",
-            "本模板是小红书笔记生产时直接执行的 production template，必须由 DNA 文档推导；不得引入 DNA 文档未确认的规则。",
+            "本模板是 main agent 的账号级内容生产 / Brief 输入模板，必须由 DNA 文档推导；不得引入 DNA 文档未确认的规则，也不规定成片制作细节。",
             *rendered_sections,
         ]
     ) + "\n"

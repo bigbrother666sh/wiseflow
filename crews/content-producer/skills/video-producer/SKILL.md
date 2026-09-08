@@ -1,6 +1,6 @@
 ---
 name: video-producer
-description: 视频制作全能工具，两种用法——(A) 端到端生产：从零做一支完整视频，出脚本、分镜、机位一致性、素材匹配、闸门、渲染、自检、交付；(B) 给定素材剪辑：已有几个片段要拼一下、给一个片段配音合成、剪辑烧字幕等，直接用 Stage 12 工具箱（assemble/clip-trim/audio-mix/timeline-compose/scene-compose/add-silent-audio/make-outro）。
+description: 视频制作全能工具，两种用法——(A) 端到端生产：按 Brief 或指定 Pipeline 从零做完整视频，覆盖脚本、分镜、素材、闸门、渲染、自检、交付；(B) 给定素材剪辑：已有几个片段要拼一下、配音合成、剪辑烧字幕等，直接用 Stage 12 工具箱。
 metadata:
   openclaw:
     emoji: 🎬
@@ -20,7 +20,7 @@ metadata:
 
 本技能有两种用法，agent 据用户请求判断走哪条：
 
-**模式 A：端到端生产**——用户给主题/关键词/已有脚本/已有素材中的任一组合，要求从零做一支完整视频。走 Stage 0→14 全流程：意图路由 → 故事 → 剧本 → 分镜 → 机位 → 素材 → 闸门 → 渲染 → 自检 → 交付。另可接收 **main agent 喂入的 viral-chaser 追爆报告**（作为 brief 的一部分，本技能不做视频下载/转写/抽帧——那是 viral-chaser 的活）。
+**模式 A：端到端生产**——用户给主题/关键词/已有脚本/已有素材中的任一组合，或 main agent 交付已确认 Brief，要求从零做完整视频。默认走 Stage 0→14 全流程；Brief 指定 Pipeline 时先读取对应 Pipeline 文档并按其编排。另可接收 **main agent 喂入的 viral-chaser 追爆报告**（作为 brief 的一部分，本技能不做视频下载/转写/抽帧——那是 viral-chaser 的活）。
 
 **模式 B：给定素材剪辑**——不涉及从零开剧本，编辑已有素材，直接用 Stage 12 工具箱（见下方"Stage 12 工具箱"段）：
 
@@ -42,13 +42,32 @@ metadata:
 
 ---
 
+## Pipeline 机制
+
+Brief 的 `pipeline` 字段是制作契约：
+
+| Pipeline | 何时使用 | 文档 |
+| --- | --- | --- |
+| `video-producer:default` | Brief 未指定 Pipeline，或用户直接发起从零制作 | 本 SKILL.md 的 Stage 0→14 |
+| `dna-ad-video-pipeline` | Brief 明确指定，用于影视解说 + 反转植入 | `pipelines/dna-ad-video-pipeline.md` |
+
+规则：
+
+- Brief 未指定 Pipeline 时，CP 按默认全流程自由选择实现。
+- Brief 指定 Pipeline 时，必须先读对应 Pipeline 文档并直接采用，不得替换为自创流程。
+- Pipeline 只负责编排与内容套路；原子能力仍使用本技能子命令与公共技能，不新增脚本。
+- main / CP 的分界点是 Brief。main 交付的 Brief 已含确认与代理闸门批准时，CP 不重开需求讨论；缺关键字段时向 Brief owner 澄清。
+- 机器资源限制、线程数、分辨率上限等部署环境差异，从 CP workspace `MEMORY.md` 或 Brief 的环境约束读取，不写入 Pipeline。
+
+---
+
 ## 工作区目录约定
 
 调用方传入了现成项目目录时（如平台专家包委托制作，传入 `<platform>/outputs/<video-name>/`，brief 已在其中）直接沿用；否则在 `output_videos/` 下建项目文件夹 `<topic-en-slug>/`：
 
 ```
 <project-dir>/                  # 即 <platform>/outputs/<video-name>/ 或 output_videos/<topic-en-slug>/
-├── brief.md                    # Stage 0/1 产出：意图路由 + 概念选项 + 用户选定
+├── brief.md                    # 用户/main 交付或 Stage 0/1 产出的制作契约（可含 pipeline）
 ├── reference-driven/           # Stage 1（可选，仅当 main 喂了 viral-chaser 报告）
 │   ├── viral-chaser-report.md  # main 喂入的追爆报告原档（本技能不自己跑 viral-chaser）
 │   ├── concepts.md             # 据报告出的 2–3 差异化概念 + 成本 + 备选路径
@@ -98,6 +117,8 @@ metadata:
 └── final-deliver.md            # Stage 14 交付清单
 ```
 
+Pipeline 文档位于技能包内 `pipelines/`，不是项目目录；项目目录只保存 Brief、素材、脚本、渲染与交付产物。
+
 ---
 
 ## 阶段链（15 段，两闸门）
@@ -127,11 +148,11 @@ Stage 11 mix-audio            配音配乐四场景分流（A 人物对话声画
 Stage 12 assemble             按序拼接成片（原子工具箱：clip-trim 切段 / audio-mix 混音 / timeline-compose 时间轴合成 / assemble 拼接，agent 按 §Stage 12 工具箱场景化组合，不写死 Workflow）
 Stage 13a video-review        公共 video-review 技术自检（强制闸门）
 Stage 13b motion-audit       CP 侧 motion_led 抽查（兑付 delivery-promise）
-Stage 14a make-cover          封面（siliconflow-img-gen，必含标题文字）
+Stage 14a make-cover          封面（siliconflow-img-gen，必含封面主文案）
 Stage 14b 交付                 向用户呈交成片+封面+关键参数
 ```
 
-> Stage 0–6 全是**文本产物**，付费生成前必停——GATE A 落在这条边界上。GATE B 落在素材就绪、pre-compose 闸门通过后，确认渲染前最终计划。
+> Stage 0–6 全是**文本产物**，付费生成前必停——GATE A 落在这条边界上。GATE B 落在素材就绪、pre-compose 闸门通过后，确认渲染前最终计划。指定 Pipeline 时，以 Pipeline 文档的阶段映射为准；若 main 已在 Brief 中代理批准 GATE A，记录批准范围后继续。
 
 ---
 
@@ -160,7 +181,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 | `audio-mix` | 多条音轨 + 各自延时/音量 | 混合音频 | Stage 12 原子工具：多轨混音 |
 | `timeline-compose` | timeline.json（每段素材/入点/出点/倍速/音轨及延时） | 合成片段 | Stage 12 原子工具：按时间轴调 clip-trim + audio-mix 合成 |
 | `motion-audit` | video.mp4 + delivery-promise.json | `review/motion-audit.json`（motion_led 抽查） | Stage 13b（补公共 video-review） |
-| `make-cover` | brief.md（标题）+ storyboard 关键帧 | `cover.jpg` | Stage 14a（调 siliconflow-img-gen） |
+| `make-cover` | brief.md（封面主文案）+ storyboard 关键帧 | `cover.jpg` | Stage 14a（调 siliconflow-img-gen） |
 
 > wrapper `video-producer.sh` 内部 `exec python3 "$SCRIPT_DIR/scripts/<子命令>.py" "$@"`——子命令名即脚本名，零路径拼接。
 
@@ -174,6 +195,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 
 - 呈交摘要：档位、场次数、镜数、角色数、关键决策（路径/模型/风格选择的备选+置信度+理由）
 - **结束本轮回复**，不许在同条回复里进 Stage 7
+- 批准人是 Brief owner（用户或 main agent）；main 已代理批准时，必须把批准范围落 `gates/gate-a.md`
 - 批准是**逐闸门的**——早先的一句"你继续"不覆盖本闸门
 - 用户要改哪段就重跑对应子命令（产物文件存在性即 checkpoint，不会重生成未改的）
 
@@ -182,6 +204,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 素材齐 + 计划过 slideshow_risk + delivery_promise 锁，**停下发用户看 contact sheet**：
 
 - 呈交：slot 总数、素材就绪率、slideshow_risk 六维分与 verdict、delivery_promise 八类与 motion_ratio 预估、素材 contact sheet
+- 批准人是 Brief owner；授权与来源记录必须一并呈交
 - 同 GATE A 收尾纪律
 
 ### 返工与耗时上限
@@ -196,7 +219,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 
 ### 模糊意图不算确认
 
-- 用户说"做个短片""帮我策划"**不算确认**，必须先问清楚走哪条 workflow（故事讲述型/纯画面动效型/蒙太奇剪接型）、时长、受众
+- 用户说"做个短片""帮我策划"**不算确认**，必须先问清楚走哪条 workflow（故事讲述型/纯画面动效型/蒙太奇剪接型）、时长、受众；main 交付的 Brief 需带确认状态与闸门批准人
 - 起草/讨论脚本属对话协助，**不许调 render 工具**
 - 默认**小规模**：1 场 3–5 镜，不许把模糊想法擅自扩成多场多镜；用户要扩才扩
 
@@ -218,6 +241,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 | 公共 `pexels-footage` / `pixabay-footage` | skills/ | Stage 8 Stock Footage 素材补充 / Stage 11C BGM 搜 |
 | 公共 `bgm-library` | skills/ | Stage 11C BGM 搜（ccMixter 免版税 + 自动 TASL 署名，免 key，商用安全；与 pexels/pixabay 并列，优先用） |
 | 公共 `video-review` | skills/ | Stage 13a 成片技术自检闸门 |
+| 已暴露 `video-edit subtitles` | main crew 的 wrapper 原子 | 指定 Pipeline 需要烧字幕时使用；不可用时向 Brief owner 报工具缺口 |
 | `requests` | 仓根 requirements.txt | 各脚本 HTTP 调用 |
 
 ---
@@ -249,7 +273,7 @@ Stage 14b 交付                 向用户呈交成片+封面+关键参数
 | `video-producer audio-mix` | 多轨混音 | 0 成功 / 1 参数错 |
 | `video-producer timeline-compose` | 时间轴合成 | 0 成功 / 1 参数错 |
 | `video-producer motion-audit` | motion_led 抽查 | 0 成功 / 1 参数错 |
-| `video-producer make-cover` | 封面（必含标题） | 0 成功 / 1 参数错 / 2 env 未配 |
+| `video-producer make-cover` | 封面（必含封面主文案） | 0 成功 / 1 参数错 / 2 env 未配 |
 
 ---
 

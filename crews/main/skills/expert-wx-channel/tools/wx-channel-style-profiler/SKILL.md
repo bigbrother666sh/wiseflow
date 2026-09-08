@@ -1,6 +1,6 @@
 ---
 name: wx-channel-style-profiler
-description: 为单条视频号视频提取 16 维 DNA report，按 DNA ID 聚合历史 report 生成 DNA 文档，并推导完整的 DNA template。
+description: 提取视频号账号级 DNA：单条视频生成 report，按 DNA ID 聚合定位、选题、视频简介、内容形式、发布节奏、高数据创意、社交分享与制作管线，推导 main agent 的 Brief template。
 metadata:
   openclaw:
     emoji: 🧬
@@ -8,23 +8,23 @@ metadata:
 
 # wx-channel-style-profiler
 
-> **维度版本 v0**（2026-08-27 用户确认）：16 维划分、命名与 focus ID 见 `references/video-dna-dimensions.md`。调整维度需升版本并同步脚本 `DIMENSION_GROUPS` 与下方 Focus ID 表。
+视频号账号级 DNA 提取与聚合工具。输入是**口播脚本或逐字稿文本**与可选封面图；不接受视频文件或链接作为直接输入。首个一级标题只作为样本标签 / 视频简介摘要，不代表平台标题。视频观测信息由 Agent 结合原视频、拆解报告或用户提供信息补齐。
+
+DNA 的用途是指导 main agent 选题、包装、账号表达和视频制作 Brief；不指导 main agent 直接产出全片。
 
 ## 产物模型
 
 ```text
 单条视频 -> DNA report
-同一个 DNA 目录下的全部 report + 权重/focus -> DNA 文档
-DNA 文档 -> DNA template
+同一 DNA 下的全部 report + 权重/focus + 用户输入 -> DNA 文档
+DNA 文档 -> main agent Brief template
 ```
 
-- **DNA report**：单条视频的 16 维提取结果。
-- **DNA 文档**：聚合历史 report 后得到的风格与选题规则。
-- **DNA template**：由 DNA 文档推导出的创作模板，供视频生产时直接执行。
+- **DNA report**：单条样本的账号级观测与 14 维提取结果。
+- **DNA 文档**：聚合后的账号级规则与样本覆盖度说明。
+- **DNA template**：main agent 生成内容或委托 Content Producer 时使用的 Brief / 生产输入模板。
 
 ## 存储结构
-
-DNA 以 DNA ID 为主体存储，一个 DNA 可以持续放入任意数量视频样本，样本可以来自一个或多个账号，甚至来自用户提供的脚本想法。
 
 ```text
 wx_channel/dna/{dna-id}/
@@ -36,50 +36,39 @@ wx_channel/dna/{dna-id}/
   {dna-id}.template.md
 ```
 
-原始资料（口播脚本 / 逐字稿文本）可以临时来自任何位置（建议 `wx_channel/ref/{dna-id}/transcripts/`）；生成后的 DNA report 必须进入对应 DNA 的 `reports/` 目录。
+原始脚本可临时放在 `wx_channel/ref/{dna-id}/transcripts/`；生成后的 report 必须进入目标 DNA 的 `reports/` 目录。
 
 ## 职责边界
 
-- 输入正文支持 `.md` / `.txt` 的口播脚本或逐字稿；视频文件本身不是本工具输入，Agent 先取得文字稿（ASR 转写、用户提供或拆解报告整理）再进入本工具。
-- 统计只作为聚合证据底座，不评分、不替代定性判断。
-- 16 维语义判断由 Agent 回读脚本与原视频信息完成；封面图维度必须由视觉模型读取本地图片完成。
+- 单条样本只提供候选信号；账号比例、发布节奏、社交分享闭环、高数据共性必须由多样本或账号级数据聚合。
+- 统计只做证据底座，不评分、不替代定性判断。
+- 视觉语言有图片/关键帧证据时才由视觉模型分析；缺失写「未观测」。
+- 口播文案 DNA 独立聚合；样本不足时保持未启用。
 - 不输出合规结论、账号权重或风格评分。
-- 不要求用户确认或登记 INDEX。
 
 ## Report - 单条提取
 
 ```bash
 wx-channel-style-profiler report \
-  --input path/to/transcript.md \
+  --input path/to/script.md \
   --dna-id {dna-id} \
   --sample-id {sample-id} \
   --cover-image path/to/cover.jpg \
-  --source-video "https://weixin.qq.com/sph/xxxx"
+  --source-url "https://channels.weixin.qq.com/..." \
+  --output-dir wx_channel/dna/{dna-id}/reports
 ```
 
-默认输出：
+- `--cover-image`：封面本地图片，用于视觉证据。
+- `--source-url`：原视频链接；本地素材无链接时省略。
+- `--weight`：样本权重，默认 1。
+- `--focus`：限制该样本只影响指定维度，可重复传入。
 
-```text
-wx_channel/dna/{dna-id}/reports/{sample-id}.report.md
-```
+Agent 生成 scaffold 后必须：
 
-可配置权重：
-
-```bash
---weight 3
-```
-
-可限制该条只在某些维度参与借鉴：
-
-```bash
---focus hook-design
---focus narration-language
-```
-
-`--source-video` 可选：记录源视频链接或本地路径，仅写入 frontmatter 备查。
-
-Agent 生成 scaffold 后必须回读脚本原文，补齐每个维度的单条结论、脚本与画面证据和可复用创作信号，并补齐「视频信息」区（时长、形态、出镜占比、镜头字幕、BGM、数据线索——拿不到的写未提供，不得编造）。
-封面图维度必须读取 `--cover-image` 指向的本地图片，并通过视觉模型补齐主体、构图、色彩、光线、质感、风格、文字视觉（含封面三要素：身份/痛点/方案）、品牌元素、避免项和 AIGC 复现提示词要素。没有封面图时记录“未提供”，不得编造。
+1. 补齐「视频信息」与「样本与账号观测」：样本类型、账号与简介、发布时间、内容形式、数据线索、横竖屏、素材来源与授权信息。
+2. 回读脚本原文，补齐 14 维的单条结论、原文证据和可复用信号。
+3. 单条样本无法观测账号简介、比例、节奏时写「未观测」。
+4. 高数据样本必须回读创意与内容形式，不得只凭播放量下结论。
 
 ## Build - 聚合 DNA 文档与模板
 
@@ -87,20 +76,14 @@ Agent 生成 scaffold 后必须回读脚本原文，补齐每个维度的单条�
 wx-channel-style-profiler build --dna-id {dna-id}
 ```
 
-默认读取：
-
-```text
-wx_channel/dna/{dna-id}/reports/
-```
-
-默认输出：
+默认读取 `wx_channel/dna/{dna-id}/reports/`，输出：
 
 ```text
 wx_channel/dna/{dna-id}/{dna-id}.dna.md
 wx_channel/dna/{dna-id}/{dna-id}.template.md
 ```
 
-也可显式传入一个或多个 report 文件/目录：
+也可显式传入 report 文件/目录：
 
 ```bash
 wx-channel-style-profiler build \
@@ -111,32 +94,25 @@ wx-channel-style-profiler build \
 Agent 聚合时必须：
 
 1. 读取全部 DNA report，不能只看统计表。
-2. 按每个 report 的 `weight` 和 `focus` 判断影响范围。
+2. 按 `weight` 与 `focus` 判断影响范围。
 3. 区分高频共性、高权重偏好、局部借鉴、孤例和例外。
-4. 为每个维度写聚合结论、报告依据和创作规则。
-5. 确保 DNA 文档能够完整推导 template。
+4. 标注样本覆盖度；单条/少量样本不得称为稳定账号 DNA。
+5. 为每个维度写聚合结论、报告依据和可执行规则。
+6. 确保 DNA 文档能完整推导 template。
 
 ## DNA Template
 
-Template 是创作模板，不是概念解释。必须从 DNA 文档的 16 个维度推导，至少包含：
+Template 是 main agent 的 Brief / 内容生产输入模板，不是成片制作模板。固定语义段：
 
-- 选题角度、受众关系
-- 标题类型、参考标题、短标题与描述文案规则、封面图风格和封面 AIGC 提示词要素
-- 全局制作要求：时长与节奏、镜头与真人出镜、BGM 与音效
-- 钩子、共情、信任状、价值、收尾五个默认语义部分
-- 每个部分的本段任务、推进方式、句式、语气、素材、必须做和避免项
+1. 定位与核心传达
+2. 选题与简介包装
+3. 内容形式与发布节奏
+4. 高数据创意模式
+5. 互动与系列
+6. 制作交接与 Pipeline
+7. 口播文案 DNA（可选）
 
-开头两项（选题、标题（含封面图与描述文案））跨平台通用；五个语义部分是脚手架默认骨架，来自视频号通用脚本结构（3 秒钩子 → 痛点 → 信任状 → 价值 → 收尾），分段数量最终以 DNA 文档的结构结论为准，不为凑齐五段而编造规则。
-
-五个部分必须充分吸收 DNA 文档中的维度结论：
-
-| 部分 | 主要推导来源 |
-| --- | --- |
-| 钩子 | 前3秒钩子、开场节奏与身份信号、选题角度、口播语言 |
-| 共情 | 脚本结构、口播语言、语气与人设基调、选题角度 |
-| 信任状 | 信任状、语气与人设基调、签名式标记 |
-| 价值 | 价值密度、画面与节奏、时长与形态、脚本结构 |
-| 收尾 | 收尾与转化、互动设计、转发动机设计、语气与人设基调 |
+制作交接段必须写清 MainAgent 与 Content Producer 的交付物、Pipeline、素材授权和风格边界。Brief 未指定 Pipeline 时，Content Producer 可自由选择；指定 Pipeline 时必须直接采用。
 
 ## Update - 增量聚合
 
@@ -147,60 +123,55 @@ wx-channel-style-profiler update \
   --template wx_channel/dna/{dna-id}/{dna-id}.template.md
 ```
 
-脚本会合并 DNA 文档记录的历史 report 与新 report，重新计算加权统计，并保留 Agent 已完成内容。Agent 仍需重新审视聚合结论，再同步修订 DNA 文档和 template。
+脚本合并历史 report 与新 report，重新计算统计并保留 Agent 已完成内容。Agent 仍需重新审视聚合结论，并同步修订 DNA 文档和 template。
 
-`--input` 可省略。省略时表示没有新增样本，只基于历史 report、既有 DNA 文档和用户输入做融合；适用于采纳另一个 DNA 文档或 template 中的局部规则。此时仍必须通过 `--user-input` 传入要融合的要求，并由 Agent 转译到具体维度。
+`--input` 可省略，用于只融合用户输入或另一个 DNA 的局部规则；此时必须传 `--user-input`。
 
 ## 用户输入转译
 
 用户输入是参考信息，不是可直接入库的 DNA 规则。
 
 ```bash
---user-input "开头冲突再前置一点"
+--user-input "这个号偏真实口播，不要过度包装"
 ```
 
-Agent 必须把输入转译到具体维度，例如：
+Agent 必须转译到具体维度，例如：
 
 ```text
-hook-design：第一句直接抛反常识结论，身份介绍后移
-opening-pace：前 2 秒完成冲突，第 3 秒预告价值
-narration-language：钩子句控制在 15 字以内的短句
+content-form-mix：主形态为真人口播，减少纯动画
+narration-dna：口播保留自然停顿，不使用强促销句式
+production-pipeline：Brief 默认使用 video-producer:default（narrative）
 ```
 
 处理要求：
 
-1. 在 DNA 文档的“用户输入转译区”记录 affected dimensions、DNA 修改和 template 修改。
-2. 把原话转译成可执行的聚合结论与创作规则。
-3. Template 只写转译后的执行规则，不直接抄用户原话。
-4. 与样本证据冲突时保留冲突说明，由用户选择优先级。
+1. 在 DNA 文档的「用户输入转译区」记录 affected dimensions、DNA 修改和 template 修改。
+2. 原话必须转译为可执行规则，不得直接抄进 template。
+3. 与样本证据冲突时保留冲突说明，由用户选择优先级。
 
 ## Focus ID
 
 | ID | 维度 |
 |---|---|
-| `topic-angle` | 选题角度 |
-| `title-desc` | 标题与描述文案 |
-| `cover-image` | 封面图 |
-| `hook-design` | 前3秒钩子 |
-| `opening-pace` | 开场节奏与身份信号 |
-| `narration-language` | 口播语言 |
-| `tone-persona` | 语气与人设基调 |
-| `signature-expression` | 签名式标记 |
-| `script-structure` | 脚本结构 |
-| `visual-pacing` | 画面与节奏 |
-| `duration-form` | 时长与形态 |
-| `credibility-proof` | 信任状 |
-| `value-density` | 价值密度 |
-| `interaction-design` | 互动设计 |
-| `share-motive` | 转发动机设计 |
-| `cta-funnel` | 收尾与转化 |
+| `positioning-core` | 定位与核心传达 |
+| `topic-portfolio` | 选题组合 |
+| `description-packaging` | 简介与包装 |
+| `bio-profile` | 账号简介与主页表达 |
+| `content-form-mix` | 内容形式与比例 |
+| `publish-cadence` | 发布习惯 |
+| `high-performer-patterns` | 高数据创意模式 |
+| `visual-language` | 视觉语言 |
+| `audio-language` | 声音语言 |
+| `narration-dna` | 口播文案 DNA |
+| `engagement-conversion` | 互动与转化 |
+| `social-share-loop` | 社交分享闭环 |
+| `series-signature` | 系列与签名 |
+| `production-pipeline` | 制作管线倾向 |
 
 ## 统计与分词
 
-脚本统计口播脚本的句段、标点、人称等指标；中文高频信号使用相邻二字组合，仅作为候选线索。Agent 必须回读原文判断它是否真是口头禅或签名式表达。时长、镜头、出镜占比等视频观测不在文本统计范围内，由 Agent 补齐「视频信息」区。
-
-当前不引入 jieba。若后续候选噪声明显，可把 jieba 作为候选词挖掘器加入仓库级依赖，但分词结果不能直接作为 DNA 结论。
+脚本统计口播脚本的句段、标点、人称等指标；中文高频信号使用相邻二字组合，仅作为候选线索。Agent 必须回读原文确认口头禅或签名式表达。时长、镜头、出镜占比等观测由 Agent 补齐，不由文本统计推断。
 
 ## 参考资料
 
-- `references/video-dna-dimensions.md`（16 维 v0 定稿与 template 分段说明）
+- `references/account-dna-framework.md`（视频号账号级 DNA 框架 v1、Pipeline 映射与聚合边界）

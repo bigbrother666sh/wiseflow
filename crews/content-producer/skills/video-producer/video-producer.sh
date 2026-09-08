@@ -21,6 +21,10 @@ video-producer — 端到端视频制作（wrapper）
   video-producer <子命令> [参数...]      跑对应阶段的原子脚本
   video-producer help                    列可用子命令
 
+Pipeline:
+  Brief 指定 pipeline 时，先读技能包内 pipelines/<pipeline>.md，再按其映射调用下列子命令。
+  未指定 pipeline 时走 SKILL.md 的 Stage 0→14 默认流程。
+
 子命令（按工作流阶段序）:
   intent-router        Stage 0  意图路由 → 三档脚本模板（故事讲述型/纯画面动效型/蒙太奇剪接型）
   reference-concepts   Stage 1  吃 viral-chaser 报告出 2–3 差异化概念（可选，无报告跳过）

@@ -29,20 +29,20 @@
 
 视频号助手作品管理页只给这 5 项行内指标。**完播率、社交推荐占比、观众来源构成**不在抓取范围内，需要用户提供创作者中心截图后才能作为证据；拿不到时相关漏斗层只能从相对趋势推断，并在报告中注明。
 
-### 互动漏斗 → template 部分 → 16 维映射
+### 互动漏斗 → template 语义段 → 14 维映射
 
-| 漏斗卡点 | 先怀疑的 template 部分 | 可回溯的 DNA 维度 |
-|---------|----------------------|------------------|
-| 播放低（曝光/推荐不足） | 选题、标题与描述、封面 | topic-angle、title-desc、cover-image |
-| 完播低（前段流失，需用户提供完播数据） | 钩子部分、共情部分 | hook-design、opening-pace、duration-form |
-| 中段流失（完播曲线塌腰） | 价值部分 | visual-pacing、value-density、script-structure |
-| 分享低 | 价值部分、收尾部分 | share-motive、value-density、tone-persona |
-| 评论低 | 共情部分、收尾部分 | interaction-design、tone-persona |
-| 收藏低 | 价值部分 | value-density |
-| 关注少 | 收尾部分 + 主页承诺 | cta-funnel、topic-angle |
-| 转化少（私信/成交） | 收尾部分、信任状部分 | cta-funnel、credibility-proof |
+| 漏斗卡点 | 先怀疑的 template 语义段 | 可回溯的 DNA 维度 |
+|---------|--------------------------|------------------|
+| 播放低（曝光/推荐不足） | 定位与核心传达、选题与简介包装 | positioning-core、topic-portfolio、description-packaging |
+| 完播低（需用户提供完播数据） | 内容形式与发布节奏、口播文案 DNA | content-form-mix、narration-dna、high-performer-patterns |
+| 中段流失 | 高数据创意模式、内容形式与发布节奏 | high-performer-patterns、content-form-mix |
+| 分享低 | 互动与系列 | social-share-loop、positioning-core、high-performer-patterns |
+| 评论低 | 互动与系列 | engagement-conversion、social-share-loop |
+| 收藏低 | 高数据创意模式 | high-performer-patterns |
+| 关注少 | 定位与核心传达、互动与系列 | bio-profile、series-signature、engagement-conversion |
+| 转化少（私信/成交） | 定位与核心传达、互动与系列 | positioning-core、engagement-conversion |
 
-交叉判断：完播高、分享低 → 内容好看但缺社交价值；分享高、完播低 → 钩子或标题虚，正文兑现不足。
+交叉判断：完播高、分享低 → 内容好看但缺社交价值；分享高、完播低 → 视频简介或定位承诺与内容兑现不足。
 
 ### 平台混杂因素（归因前必排）
 
@@ -80,7 +80,7 @@ content-calibrator eval --platform wx_channel --dna-id <id>      # 指定 DNA
 
 1. 判定只看比值与走向，绝对值只作上下文。
 2. 逐条排除平台混杂因素，特别注意长尾效应——近 3-7 天发布的数据成熟度不足时降级为观察。
-3. 回读 `wx_channel/dna/<dna-id>/<dna-id>.dna.md` / `.template.md` 与待评估作品脚本（`source_folder` 内 `script.md`），把趋势变化落到 template 部分与 16 维。
+3. 回读 `wx_channel/dna/<dna-id>/<dna-id>.dna.md` / `.template.md` 与待评估作品（`source_folder` 内 `brief.md`、`voiceover.md` 或成片说明），把趋势变化落到 template 语义段与 14 维。
 4. 分享率异常（过高或过低）时优先核对转发动机设计是否命中，这是视频号区别于其他平台的第一归因点。
 
 ### Step 3 - 报告与标记

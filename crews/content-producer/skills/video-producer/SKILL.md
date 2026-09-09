@@ -9,9 +9,6 @@ metadata:
         - python3
         - ffmpeg
         - ffprobe
-      env:
-        - AWK_API_KEY
-    primaryEnv: AWK_API_KEY
 ---
 
 # 视频制作与片段修整（video-producer）
@@ -20,7 +17,7 @@ metadata:
 
 本技能有两种用法，agent 据用户请求判断走哪条：
 
-**模式 A：端到端生产**——用户给主题/关键词/已有脚本/已有素材中的任一组合，或 main agent 交付已确认 Brief，要求从零做完整视频。默认走 Stage 0→14 全流程；Brief 指定 Pipeline 时先读取对应 Pipeline 文档并按其编排。另可接收 **main agent 喂入的 viral-chaser 追爆报告**（作为 brief 的一部分，本技能不做视频下载/转写/抽帧——那是 viral-chaser 的活）。
+**模式 A：端到端生产**——用户给主题/关键词/已有脚本/已有素材中的任一组合，或 main agent 交付已确认 Brief，要求从零做完整视频。默认走 Stage 0→14 全流程；Brief 指定 Pipeline 时先读取对应 Pipeline 文档并按其编排。
 
 **模式 B：给定素材剪辑**——不涉及从零开剧本，编辑已有素材，直接用 Stage 12 工具箱（见下方"Stage 12 工具箱"段）：
 
@@ -56,14 +53,13 @@ Brief 的 `pipeline` 字段是制作契约：
 - Brief 未指定 Pipeline 时，CP 按默认全流程自由选择实现。
 - Brief 指定 Pipeline 时，必须先读对应 Pipeline 文档并直接采用，不得替换为自创流程。
 - Pipeline 只负责编排与内容套路；原子能力仍使用本技能子命令与公共技能，不新增脚本。
-- main / CP 的分界点是 Brief。main 交付的 Brief 已含确认与代理闸门批准时，CP 不重开需求讨论；缺关键字段时向 Brief owner 澄清。
-- 机器资源限制、线程数、分辨率上限等部署环境差异，从 CP workspace `MEMORY.md` 或 Brief 的环境约束读取，不写入 Pipeline。
+- main 交付的 Brief 已含确认与代理闸门批准时，CP 不重开需求讨论；缺关键字段时向 Brief owner 澄清。
 
 ---
 
 ## 工作区目录约定
 
-调用方传入了现成项目目录时（如平台专家包委托制作，传入 `<platform>/outputs/<video-name>/`，brief 已在其中）直接沿用；否则在 `output_videos/` 下建项目文件夹 `<topic-en-slug>/`：
+调用方传入了现成项目目录时直接沿用；否则在 `output_videos/` 下建项目文件夹 `<topic-en-slug>/`：
 
 ```
 <project-dir>/                  # 即 <platform>/outputs/<video-name>/ 或 output_videos/<topic-en-slug>/

@@ -1,3 +1,18 @@
+# v5.7.1 (2026-09-10)
+
+### 第三方插件 pin 升级（openclaw-weixin 2.4.8 / wecom-openclaw-cli 1.1.1）
+
+> openclaw 基座保持 `2026.7.1-2`（`0790d9f593`）不变，8.x/9.x 迁移另案评估。本轮只动第三方插件 pin，**不触碰本机部署实例**。
+
+- **`@tencent-weixin/openclaw-weixin` 2.4.6 → 2.4.8**：上游 2.4.7/2.4.8 的唯一实质改动是一行 import——`createTypingCallbacks` 从已被 OpenClaw 2026.8.1 删除的兼容子路径 `openclaw/plugin-sdk/channel-runtime` 改到 `openclaw/plugin-sdk/channel-message`（上游声明新路径仍兼容最低宿主 2026.5.12）。其余为版本号与 CHANGELOG。
+  - **对 7.1-2 宿主已实测兼容**（不是照抄上游声明）：2.4.8 用到的 11 个 `openclaw/plugin-sdk/*` 子路径在 7.1-2 的 `package.json` exports 里全部存在；18 个具名导入逐个对 7.1-2 已 build 的 `dist/` 做运行时校验，12 个 value import 全部命中（含关键的 `channel-message :: createTypingCallbacks`），6 个 type-only import 在 7.1-2 的 `.d.ts` 中也都在。
+  - pin 的 `integrity` 用本地 `npm pack` 下来的 tarball 算 sha512 与 npm `dist.integrity` 对账一致（`update.sh` / `install-wecom-channel.sh` 都是按 tarball sha512 校验）。
+- **`@wecom/wecom-openclaw-cli` 1.1.0 → 1.1.1**：安装流程更稳健——`openclaw plugins install` 支持透传 `--force`（7.1-2 的 `plugins-cli` 已有该 flag：Overwrite an existing installed plugin）、多 npm 源 failover 时不再顺手删插件目录、`channels.wecom` 配置备份与描述对缺失 `botId` 更宽容、移除废弃的 `getNpmPluginPath` / `hasValidChannelConfig`。
+- **`@tencent-weixin/openclaw-weixin-cli` 2.1.4 不变**：仍是 npm latest，integrity 已复核与 registry 一致。
+- 同步把 `scripts/install.sh` / `scripts/install-atomgit.sh` / `docker/docker-bootstrap.sh` 中「pin 文件缺失时」的兜底版本 `2.4.6 → 2.4.8`（三处，避免兜底路径装到旧版）。
+
+---
+
 # v5.7.0 (2026-08-31)
 
 ### 专家包（Expert Pack）架构

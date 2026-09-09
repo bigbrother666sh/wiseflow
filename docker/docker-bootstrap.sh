@@ -108,7 +108,7 @@ install_weixin_plugin() {
         ver=$(python3 -c "import json;print(json.load(open('$pin_file'))['openclaw-weixin']['version'])" 2>/dev/null || true)
     fi
     pkg="${pkg:-@tencent-weixin/openclaw-weixin}"
-    ver="${ver:-2.4.6}"
+    ver="${ver:-2.4.8}"
     # 幂等检查
     if (cd "$PROJECT_ROOT/openclaw" && pnpm openclaw plugins list 2>/dev/null | grep -q "openclaw-weixin"); then
         log "openclaw-weixin plugin already installed"

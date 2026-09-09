@@ -2,17 +2,17 @@
 
 五个后期脚本补我们没做的后期环节。**两个必跑、三个可选**——必跑的是发布质量硬伤，可选的是用户要才跑。
 
-完整接入契约（落点 / 旁路条件 / 干湿分离）在 `../AGENTS.md` 的 `## 脚本清单` 段；本文件只做脚本速查索引，**不重复契约**。
+完整接入契约（落点 / 旁路条件 / 干湿分离）在 `../skills/expert-video/tools/video-producer/SKILL.md` 的「后期脚本」段；本文件只做脚本速查索引，**不重复契约**。
 
 ## 索引
 
 | 脚本 | 用途 | 必跑/可选 | 落点 |
 |------|------|---------|------|
-| `normalize.py` | ffmpeg loudnorm 双 pass 把成片归一化到 -14 LUFS（抖音/视频号/B 竍竖屏发布通用标准） | **必跑** | AGENTS.md Step 5.5，exportMp4 出片后、汇报前强制跑 |
-| `burn-srt.py` | ffmpeg `subtitles` 滤镜（libass）把 SRT 硬烧进画面，不可关 | 可选 | Step 5.6，仅用户明确要字幕时跑 |
-| `duck.py` | ffmpeg `sidechaincompress` 旁白作 sidechain 触发 BGM 自动压低（threshold=-25dB / ratio=8:1） | 可选 | Step 5.7，仅用户要专业混音且可分轨时跑 |
-| `denoise.py` | ffmpeg `afftdn`（默认）或 `arnndn`（RNN，要模型文件）给音频去环境噪声 | 可选 | Step 3.5，仅用户素材音质差时跑（AI 生成视频音轨本来就干净，跳过） |
-| `interp.py` | ffmpeg `minterpolate` 补帧到 30/60fps | 可选 | Step 5.8，仅低 fps 源材（如 24fps AI 生成片）补到 30fps 顺滑 |
+| `normalize.py` | ffmpeg loudnorm 双 pass 把成片归一化到 -14 LUFS（抖音/视频号/B站竖屏发布通用标准） | **必跑** | `expert-video` 阶段链 Stage 13c，成片合成后、交付前强制跑 |
+| `burn-srt.py` | ffmpeg `subtitles` 滤镜（libass）把 SRT 硬烧进画面，不可关 | 可选 | Brief / 甲方要字幕时跑 |
+| `duck.py` | ffmpeg `sidechaincompress` 旁白作 sidechain 触发 BGM 自动压低（threshold=-25dB / ratio=8:1） | 可选 | 甲方要专业混音且可分轨时跑 |
+| `denoise.py` | ffmpeg `afftdn`（默认）或 `arnndn`（RNN，要模型文件）给音频去环境噪声 | 可选 | 素材入库后，仅甲方素材音质差时跑（AI 生成视频音轨本来就干净，跳过） |
+| `interp.py` | ffmpeg `minterpolate` 补帧到 30/60fps | 可选 | 渲染或拼接前，仅低 fps 源材（如 24fps AI 生成片）补到 30fps 顺滑 |
 
 ## 调用模板
 

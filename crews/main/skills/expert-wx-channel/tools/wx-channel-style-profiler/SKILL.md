@@ -1,6 +1,6 @@
 ---
 name: wx-channel-style-profiler
-description: 提取视频号账号级 DNA：单条视频生成 report，按 DNA ID 聚合定位、选题、视频简介、内容形式、发布节奏、高数据创意、社交分享与制作管线，推导 main agent 的 Brief template。
+description: 提取微信视频号作品 DNA：单条视频生成 report，按 dna-id 聚合选题、短标题与视频描述、内容创意、视频形态与制作指向、制作规格、口播文案子模块与账号运营子模块，推导 main agent 的视频 Brief template。
 metadata:
   openclaw:
     emoji: 🧬
@@ -8,21 +8,25 @@ metadata:
 
 # wx-channel-style-profiler
 
-视频号账号级 DNA 提取与聚合工具。输入是**口播脚本或逐字稿文本**与可选封面图；不接受视频文件或链接作为直接输入。首个一级标题只作为样本标签 / 视频简介摘要，不代表平台标题。视频观测信息由 Agent 结合原视频、拆解报告或用户提供信息补齐。
+微信视频号作品 DNA 提取与聚合工具。输入是**视频转录文本**（口播全文 + 视频描述 / 时长 / 互动线索），由 Agent 先整理成 `.md` / `.txt`；可选封面 / 首帧 / 配图作为视觉证据。不接受视频文件或链接作为直接输入（取数走 `viral-chaser` 或平台工具）。
 
-DNA 的用途是指导 main agent 选题、包装、账号表达和视频制作 Brief；不指导 main agent 直接产出全片。
+DNA 的用途是指导 main agent 选题、包装、出内容或出视频制作 Brief；**不指导成片制作**——创作细节、脚本结构、镜头与编码参数归 Content Producer。
+
+## 作品类型
+
+微信视频号作品只有视频一种，维度框架见 `references/video-dna-framework.md`；`--kind` 只接受 `video`（默认即 `video`，通常不用传）。
 
 ## 产物模型
 
 ```text
-单条视频 -> DNA report
-同一 DNA 下的全部 report + 权重/focus + 用户输入 -> DNA 文档
-DNA 文档 -> main agent Brief template
+单篇作品 -> DNA report
+同一 dna-id 下全部 report + 权重 / focus + 用户输入转译 -> DNA 文档
+DNA 文档 -> DNA template
 ```
 
-- **DNA report**：单条样本的账号级观测与 14 维提取结果。
-- **DNA 文档**：聚合后的账号级规则与样本覆盖度说明。
-- **DNA template**：main agent 生成内容或委托 Content Producer 时使用的 Brief / 生产输入模板。
+- **DNA report**：单篇作品的样本观测 + 维度提取结果（不是账号级结论，也不是模板）。
+- **DNA 文档**：聚合后的生产规则、样本覆盖度、子模块结论与用户输入转译区。
+- **DNA template**：main agent 的生产输入模板（视频 = Brief 正文 + 口播文案；图文 = 写作模板）。
 
 ## 存储结构
 
@@ -36,85 +40,69 @@ wx_channel/dna/{dna-id}/
   {dna-id}.template.md
 ```
 
-原始脚本可临时放在 `wx_channel/ref/{dna-id}/transcripts/`；生成后的 report 必须进入目标 DNA 的 `reports/` 目录。
+原始转录 / 正文文本可临时放在 `wx_channel/ref/{dna-id}/transcripts/`；生成后的 report 必须进入目标 DNA 的 `reports/` 目录。
 
 ## 职责边界
 
-- 单条样本只提供候选信号；账号比例、发布节奏、社交分享闭环、高数据共性必须由多样本或账号级数据聚合。
-- 统计只做证据底座，不评分、不替代定性判断。
-- 视觉语言有图片/关键帧证据时才由视觉模型分析；缺失写「未观测」。
-- 口播文案 DNA 独立聚合；样本不足时保持未启用。
+- **短标题与视频描述是两项独立内容**：发布页两项都可填，官方称填短标题能获得更多流量；但作品管理页不展示短标题，取数时只能拿到视频描述。report 里短标题拿不到就写「未观测（管理页不展示）」，不得把视频描述当短标题；两者都由 main agent 拟定，发布时都必须填。
+- 单篇 report 只提供候选信号，不判断跨篇稳定性；共性、偏好、孤例由聚合阶段判断。
+- 统计只做证据底座，不评分、不判定风格是否合格。
+- 视觉维度必须有图片 / 关键帧证据，由视觉模型读取；缺失写「未提供」，不得凭文本想象补齐。
+- 口播文案子模块只在口播类作品启用；样本不足写「未启用」。
+- 账号运营子模块（简介写法、内容形式比例、发布习惯）只在样本来自对标账号批量提取时填写，且**不进 template**。
 - 不输出合规结论、账号权重或风格评分。
 
-## Report - 单条提取
+## Report — 单篇提取
 
 ```bash
 wx-channel-style-profiler report \
-  --input path/to/script.md \
+  --input path/to/transcript.md \
   --dna-id {dna-id} \
   --sample-id {sample-id} \
   --cover-image path/to/cover.jpg \
-  --source-url "https://channels.weixin.qq.com/..." \
+  --source-url "https://..." \
+  --duration 36 \
   --output-dir wx_channel/dna/{dna-id}/reports
 ```
 
-- `--cover-image`：封面本地图片，用于视觉证据。
-- `--source-url`：原视频链接；本地素材无链接时省略。
+- `--kind`：作品类型（见上）；不传走默认。
+- `--cover-image`：封面 / 首帧 / 首图本地文件，作为视觉证据（自动拷进 `covers/`）。
+- `--source-url`：原作品链接；本地素材无链接时省略。
+- `--duration`：视频时长（秒），用于口播密度统计；图文忽略。
 - `--weight`：样本权重，默认 1。
-- `--focus`：限制该样本只影响指定维度，可重复传入。
+- `--focus`：限制该样本只影响指定维度 ID，可重复传入。
 
 Agent 生成 scaffold 后必须：
 
-1. 补齐「视频信息」与「样本与账号观测」：样本类型、账号与简介、发布时间、内容形式、数据线索、横竖屏、素材来源与授权信息。
-2. 回读脚本原文，补齐 14 维的单条结论、原文证据和可复用信号。
-3. 单条样本无法观测账号简介、比例、节奏时写「未观测」。
-4. 高数据样本必须回读创意与内容形式，不得只凭播放量下结论。
+1. 补齐「样本观测」：作品类型、样本来源、账号与简介、发布时间、数据线索、素材来源与授权。
+2. 回读原文，补齐各维度的单篇结论、原文证据与可复用信号。
+3. 视频形态必须给出**制作指向**（Content Producer `expert-video` 的某个 workflow，或 main 的某个素材加工技能），只写真实存在的资源名。
+4. 账号运营子模块无法从单篇观测时写「未观测」。
+5. 高数据样本必须回读创意与形态再归因，不得只凭播放 / 阅读量下结论。
 
-## Build - 聚合 DNA 文档与模板
+## Build — 聚合 DNA 文档与模板
 
 ```bash
 wx-channel-style-profiler build --dna-id {dna-id}
+
 ```
 
-默认读取 `wx_channel/dna/{dna-id}/reports/`，输出：
-
-```text
-wx_channel/dna/{dna-id}/{dna-id}.dna.md
-wx_channel/dna/{dna-id}/{dna-id}.template.md
-```
-
-也可显式传入 report 文件/目录：
+默认读取 `wx_channel/dna/{dna-id}/reports/`，输出 `{dna-id}.dna.md` 与 `{dna-id}.template.md`。也可显式传 report 文件 / 目录：
 
 ```bash
-wx-channel-style-profiler build \
-  --input path/to/reports \
-  --dna-id {dna-id}
+wx-channel-style-profiler build --input path/to/reports --dna-id {dna-id}
 ```
 
 Agent 聚合时必须：
 
 1. 读取全部 DNA report，不能只看统计表。
 2. 按 `weight` 与 `focus` 判断影响范围。
-3. 区分高频共性、高权重偏好、局部借鉴、孤例和例外。
-4. 标注样本覆盖度；单条/少量样本不得称为稳定账号 DNA。
-5. 为每个维度写聚合结论、报告依据和可执行规则。
-6. 确保 DNA 文档能完整推导 template。
+3. 区分高覆盖共性、高权重偏好、局部借鉴、孤例与例外。
+4. 标注样本覆盖度；少量样本不得称为稳定结论。
+5. 为每个维度写聚合结论、报告依据与可执行创作规则。
+6. 确保 DNA 文档能完整推导 template（template 不得引入 DNA 文档未确认的规则）。
 
-## DNA Template
-
-Template 是 main agent 的 Brief / 内容生产输入模板，不是成片制作模板。固定语义段：
-
-1. 定位与核心传达
-2. 选题与简介包装
-3. 内容形式与发布节奏
-4. 高数据创意模式
-5. 互动与系列
-6. 制作交接与 Pipeline
-7. 口播文案 DNA（可选）
-
-制作交接段必须写清 MainAgent 与 Content Producer 的交付物、Pipeline、素材授权和风格边界。Brief 未指定 Pipeline 时，Content Producer 可自由选择；指定 Pipeline 时必须直接采用。
-
-## Update - 增量聚合
+## Update — 增量聚合
 
 ```bash
 wx-channel-style-profiler update \
@@ -123,55 +111,68 @@ wx-channel-style-profiler update \
   --template wx_channel/dna/{dna-id}/{dna-id}.template.md
 ```
 
-脚本合并历史 report 与新 report，重新计算统计并保留 Agent 已完成内容。Agent 仍需重新审视聚合结论，并同步修订 DNA 文档和 template。
+脚本合并历史 report 与新 report、重算统计并保留 Agent 已写内容；kind 从 DNA 文档 frontmatter 继承（也可用 `--kind` 显式指定，冲突时报错）。Agent 仍需重新审视聚合结论并同步修订 template。
 
 `--input` 可省略，用于只融合用户输入或另一个 DNA 的局部规则；此时必须传 `--user-input`。
 
+## DNA Template
+
+**视频作品 template（= Brief 正文模板 + 口播文案模板）**
+
+1. 选题
+2. 短标题与视频描述
+3. 内容创意
+4. 视频形态与制作指向
+5. 制作规格
+6. 口播文案
+
+- 开头两段（**选题**、**标题与封面**）跨平台通用。
+- 视频 template 的各段直接对应 Brief 正文字段；**Brief 不含 DNA 信息**（Content Producer 看不到 main 的 DNA），素材清单与授权、验收标准、闸门批准人按平台 Content Production Workflow 填。
+- 账号运营子模块不进 template，只留在 DNA 文档。
+
 ## 用户输入转译
 
-用户输入是参考信息，不是可直接入库的 DNA 规则。
+用户输入是参考信息，不是可直接入库的 DNA 规则：
 
 ```bash
---user-input "这个号偏真实口播，不要过度包装"
+--user-input "以后多做实拍拼接，少用纯动画"
 ```
 
-Agent 必须转译到具体维度，例如：
+Agent 必须映射到具体维度并转译为可执行规则，例如：
 
 ```text
-content-form-mix：主形态为真人口播，减少纯动画
-narration-dna：口播保留自然停顿，不使用强促销句式
-production-pipeline：Brief 默认使用 video-producer:default（narrative）
+video-form：主形态为影视解说 + 反转植入，制作指向 expert-video 的 Reversal Ad workflow
+production-spec：竖屏 9:16、时长带 30-45s、画面偏冷暗解说段 + 明亮植入段
+narration-script：口播保持第三人称解说体，句长 10-15 字
 ```
 
 处理要求：
 
-1. 在 DNA 文档的「用户输入转译区」记录 affected dimensions、DNA 修改和 template 修改。
+1. 在 DNA 文档「用户输入转译区」记录 raw_input、affected dimensions、DNA 修改、template 修改与状态。
 2. 原话必须转译为可执行规则，不得直接抄进 template。
 3. 与样本证据冲突时保留冲突说明，由用户选择优先级。
 
 ## Focus ID
 
+### Focus ID
+
 | ID | 维度 |
 |---|---|
-| `positioning-core` | 定位与核心传达 |
-| `topic-portfolio` | 选题组合 |
-| `description-packaging` | 简介与包装 |
-| `bio-profile` | 账号简介与主页表达 |
-| `content-form-mix` | 内容形式与比例 |
-| `publish-cadence` | 发布习惯 |
-| `high-performer-patterns` | 高数据创意模式 |
-| `visual-language` | 视觉语言 |
-| `audio-language` | 声音语言 |
-| `narration-dna` | 口播文案 DNA |
-| `engagement-conversion` | 互动与转化 |
-| `social-share-loop` | 社交分享闭环 |
-| `series-signature` | 系列与签名 |
-| `production-pipeline` | 制作管线倾向 |
+| `topic-angle` | 选题与观看理由 |
+| `title-cover` | 短标题、视频描述与封面 |
+| `content-idea` | 内容创意 |
+| `video-form` | 视频内容形态与制作指向 |
+| `production-spec` | 制作规格与视听倾向 |
+| `narration-script` | 口播文案子DNA |
+| `account-bio` | 账号简介写法 |
+| `content-mix-cadence` | 内容形式比例与发布习惯 |
+
+`--focus` 按作品类型校验：视频 report 不接受图文维度 ID，反之亦然。
 
 ## 统计与分词
 
-脚本统计口播脚本的句段、标点、人称等指标；中文高频信号使用相邻二字组合，仅作为候选线索。Agent 必须回读原文确认口头禅或签名式表达。时长、镜头、出镜占比等观测由 Agent 补齐，不由文本统计推断。
+脚本统计句长、问句与人称密度、感叹号密度、口播密度等指标作为聚合证据底座；中文高频信号使用相邻二字组合，仅作候选线索。口头禅与签名式表达必须由 Agent 回读原文确认，分词结果不能直接当 DNA 结论。
 
 ## 参考资料
 
-- `references/account-dna-framework.md`（视频号账号级 DNA 框架 v1、Pipeline 映射与聚合边界）
+- `references/video-dna-framework.md`（微信视频号视频作品 DNA 框架 v2：维度定义、制作指向映射、聚合边界与 Focus ID）

@@ -376,6 +376,26 @@ for (const b of bins) console.log("+" + b);
       done < <(find "$ws_scripts_dir" -type f -print0 2>/dev/null)
     fi
 
+    # ── 专家包收纳层：skills/<skill>/tools/<tool>/scripts/ ──────────
+    # 技能整体迁入专家包 tools/ 后（如 expert-design/tools/design-full/scripts/init.sh），
+    # 脚本路径多一层；不扫这层会让改名后的包内脚本从 ALLOWED_COMMANDS 掉出去。
+    local tool_scripts_dir=""
+    for tool_scripts_dir in "$workspace_dir/skills/$skill"/tools/*/scripts; do
+      [ -d "$tool_scripts_dir" ] || continue
+      while IFS= read -r -d '' f; do
+        local tfname
+        tfname="$(basename "$f")"
+        case "$tfname" in
+          *.py|*.mjs|*.ts|*.js|*.json|*.txt|*.md|*.yaml|*.yml) continue ;;
+        esac
+        [ -x "$f" ] || continue
+        local tool_name
+        tool_name="$(basename "$(dirname "$tool_scripts_dir")")"
+        local trelpath="${f#$tool_scripts_dir/}"
+        printf '+./skills/%s/tools/%s/scripts/%s\n' "$skill" "$tool_name" "$trelpath"
+      done < <(find "$tool_scripts_dir" -type f -print0 2>/dev/null)
+    done
+
     # ── 全局 skill（~/.openclaw/skills/，由 apply-addons.sh 同步）──
     local global_scripts_dir="$openclaw_home/skills/$skill/scripts"
     if [ -d "$global_scripts_dir" ]; then

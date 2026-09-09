@@ -138,7 +138,7 @@ login-manager check douyin   # wrapper 在 PATH 中
 | bilibili-publish | scripts/publish_bilibili.py | wrapper → py |
 | design-system-picker | scripts/pick.sh | wrapper → sh |
 | init-workspace | scripts/init.sh | wrapper → sh |
-| manim-explainer | scripts/render-manim.sh | wrapper → sh |
+| ~~manim-explainer~~ | scripts/render-manim.sh | wrapper → sh（**2026-09-10 技能删除**，wrapper 与 bin 软链由 `expose_skill_wrappers` 的悬挂清理回收） |
 | siliconflow-tts | scripts/tts.py | wrapper → py |
 | siliconflow-video-gen | scripts/gen.py | wrapper → py |
 | awada-channel-setup | scripts/apply-awada-config.py | wrapper → py |
@@ -216,6 +216,8 @@ dev plan §Phase 7 续 写"验收"：
 ---
 
 ## 六、变更历史
+
+- **2026-09-10**：`content-producer` 引入专家包，四个技能整合为两个包——`video-producer` / `collage-broll` 收纳进 `expert-video/tools/`（`pipelines/` 改造为 `expert-video/workflows/`，`dna-ad-video-pipeline.md` 重构为 `reversal-ad.md`），`design-full` 收纳进 `expert-design/tools/`，`manim-explainer` 删除。**PATH wrapper 名与子命令全部不变**（`video-producer <子命令>` / `design-full <init|pick>`），靠 `expose_skill_wrappers` 的 `*/tools/*/` 扫描层暴露；新增 `collage-broll <check-setup|gate3>` wrapper（原先 agent 直接拼 `scripts/run_gate3.py` 路径）。同时给 `expose_skill_wrappers` 与 `sync_crew_skills` 加**悬挂软链清理**（技能改名 / 收纳后，`~/.openclaw/bin` 与 `workspace-*/skills/` 里的旧软链会指向不存在的仓路径），并让 `collect_skill_script_commands` 扫 `skills/<skill>/tools/*/scripts/`（否则包内 `.sh` 脚本会从 ALLOWED_COMMANDS 掉出去）。
 
 - **2026-08-27**：`swcr-register` 加子命令分发器 wrapper（`swcr-register <code-doc|manual|form-info>`，-> scripts 下三个 Python 脚本），移出 C 类清单。同日随 expert-bd 专家包落地时曾折入 `expert-bd/tools/`，当天移出回归顶层 `crews/main/skills/swcr-register/`（软著属项目申报配套，非 BD 领域专属，跨包复用保持顶层）。wrapper 为 `SCRIPT_DIR` 自定位写法，与所在层级无关，移入移出均无需改动；`expert-bd/SKILL.md` 工具清单与 AGENTS.md 路由同步去除包内引用。同日 sales-cs-enablement / sales-cs-review 随 `sales-cs-manager` 专家包收纳至 tools/ 层（见 §4.2 表注与 §8.2 条目 21），sales-cs-enablement 转子命令分发器。
 

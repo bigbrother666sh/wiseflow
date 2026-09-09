@@ -9,11 +9,11 @@
 | 用户的说法 | 改的层级 | 怎么走 |
 |-----------|---------|--------|
 | “润色一下” / “口播顺一顺” | 口播措辞层 | 轻改，直接上手 |
-| “开头不行 / 换个钩子” | 口播层 | 口播文案 DNA 已启用时按 `narration-dna` 重做；未启用时按用户要求与内容形式重做，不虚构 DNA 规则 |
-| “换个语气” / “更接地气” | 内容风格层 | 核对 `positioning-core`、`narration-dna` 与用户要求 -> 改稿 -> 自检 |
+| “开头不行 / 换个钩子” | 口播层 | 口播文案子模块已启用时按 `narration-script` 重做；未启用时按用户要求与内容形式重做，不虚构 DNA 规则 |
+| “换个语气” / “更接地气” | 内容风格层 | 核对 `topic-angle`、`content-idea`、`narration-script` 与用户要求 -> 改稿 -> 自检 |
 | “结构调一下” / “时间分配不对” | 结构层 | 先出调整方案（新分段 / 时间轴）-> 确认 -> 改 |
 | “方向不对，重做” | 方向层 | 回到 content-production.md 从选题重新走 |
-| “换个封面” | 封面层 | 按 `description-packaging` 与 `visual-language` 重出候选 -> 确认 |
+| “换个封面” | 封面层 | 按 `title-cover`（短标题与视频描述）与 `production-spec` 重出候选 -> 确认 |
 | “压缩到 X 秒” / “展开到 X 秒” | 时长层 | 先问清楚保留什么砍掉什么 |
 
 ## 轻改（口播措辞 / 润色 / 去 AI 腔）
@@ -26,7 +26,7 @@
 
 只重做前 3 秒，不动正文：
 
-1. 读目标 DNA 的 `narration-dna`；未启用时先记录「口播 DNA 未观测」，以用户要求和本条事实为准。
+1. 读目标 DNA 的 `narration-script`；未启用时先记录「口播文案子模块未启用」，以用户要求和本条事实为准。
 2. 给 2-3 个候选，标明每个候选的冲突点、身份信号与核心传达。
 3. 用户选定后同步改脚本对应段落与封面文案（如封面承载了旧钩子）。
 
@@ -48,7 +48,7 @@
 
 ## 换封面
 
-1. 读目标 DNA 的 `description-packaging` 与 `visual-language`，保留封面三要素：身份 + 痛点 + 解决方案。
+1. 读目标 DNA 的 `title-cover` 与 `production-spec`，保留封面三要素：身份 + 痛点 + 解决方案。
 2. 按新主题出 2-3 个候选：素材截帧优先，无合适素材走 `siliconflow-img-gen` 生成。
 3. 用户确认后替换 `wx_channel/outputs/<video-name>/cover.jpg`。
 
@@ -71,4 +71,4 @@
 
 1. **成片同步**：脚本改动涉及画面或口播的，按 `content-production.md` Step 7 重新走视频制作（已有成片只需轻剪辑时走 `talking-head-cut` / `video-edit`）。
 2. **存文件**：稿件与成片归位 `wx_channel/outputs/<video-name>/`，同步更新 `brief.md`、`voiceover.md`（如有）、`cover.jpg` 与 `dna-meta.json`。
-3. **发布 + 入库**：按 `wechat-channels-publish` 工具说明发布，再按 `content-production.md` Step 10 调 `published-track record` 入库——`--title` 仍传完整视频简介；视频简介改过的，用新文案重跑记录。
+3. **发布 + 入库**：按 `wechat-channels-publish` 工具说明发布，再按 `content-production.md` Step 10 调 `published-track record` 入库——`--title` 仍传完整视频描述；视频描述改过的，用新文案重跑记录。

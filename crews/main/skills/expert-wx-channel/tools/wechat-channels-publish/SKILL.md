@@ -1,6 +1,6 @@
 ---
 name: wechat-channels-publish
-description: 通过 camoufox-cli 持久化 session wechat-channel 发布视频到微信视频号，支持视频上传、视频简介填写、即时发布。
+description: 通过 camoufox-cli 持久化 session wechat-channel 发布视频到微信视频号，支持视频上传、视频描述与短标题填写、即时发布。
 ---
 
 # wechat-channels-publish — 工具说明
@@ -9,8 +9,10 @@ description: 通过 camoufox-cli 持久化 session wechat-channel 发布视频�
 
 通过 **camoufox-cli** 持久化 session `wechat-channel`（有且只有一个，fail-first 队列：同 session 已有命令在跑时新命令直接 fail）在微信视频号创作者中心发布视频。视频号创作者中心使用 **wujie 微前端**，所有表单元素在 `<wujie-app>::shadow-root` 内——camoufox-cli 的 `snapshot` 默认穿透 shadow DOM 拿 ref，后续 `click` / `type` / `upload` 按 ref 操作即可，无需 CDP hack。
 
-**输入**：本地视频文件（`.mp4` / `.mov` / `.avi` / `.webm`）、视频简介（含话题标签，最长约 300 字）。视频号没有标题字段，不要把简介拆成短标题。
+**输入**：本地视频文件（`.mp4` / `.mov` / `.avi` / `.webm`）、**视频描述**（含话题标签，最长约 300 字）、**短标题**（6-16 字）。发布页改版后两项都能填，官方明确「填写短标题会获得更多流量」，因此**两项都必须填**，都由 main agent 拟定后交给本工具。
 **输出**：视频号已发布作品；能取到时附带公开链接（`https://weixin.qq.com/sph/xxxx`）。
+
+> **短标题只在发布页存在**：作品管理页与 `wx-channel-engagement` 抓取都拿不到短标题，所以入库与匹配一律只用视频描述（见文末「入库衔接约束」）。
 
 > **主力后端 = `target=camoufox`**。下方命令 / 示例只针对 `target=camoufox`。
 > **`target=host` / `target=node`**：只按本说明书的「流程 + 提示事项」走——全部无头 / 频率限制 / 错误处理约定是**后端无关**的，照本说明书执行。不要照搬 `camoufox-cli ...` 命令，用你当前后端自带的浏览器工具语义调用即可。
@@ -65,15 +67,23 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 - 失败：`[class*="upload-fail"]` 或文本"上传失败"
 - **最长等待 3 分钟**（大视频转码可能较慢）
 
-### Step 5: 填写视频简介
+### Step 5: 填写视频描述 + 短标题（两项都必填）
 
 ```
-1. snapshot 拿到视频简介输入框 ref：div[contenteditable][data-placeholder="添加描述"]
-2. camoufox-cli --session wechat-channel --persistent --json click <简介-ref> 聚焦
-3. camoufox-cli --session wechat-channel --persistent --json type <简介-ref> "视频简介内容 #话题1 #话题2"
-   - 话题标签直接写在视频简介中
+1. snapshot 拿到视频描述输入框 ref：div[contenteditable][data-placeholder="添加描述"]
+2. camoufox-cli --session wechat-channel --persistent --json click <描述-ref> 聚焦
+3. camoufox-cli --session wechat-channel --persistent --json type <描述-ref> "视频描述内容 #话题1 #话题2"
+   - 话题标签直接写在视频描述中
    - 最长约 300 字
+4. snapshot 找短标题输入框 ref：placeholder / 标签文本含「短标题」（官方提示形如「填写短标题会获得更多流量」）
+5. camoufox-cli --session wechat-channel --persistent --json click <短标题-ref>
+6. camoufox-cli --session wechat-channel --persistent --json type <短标题-ref> "短标题文本"
+   - 6-16 字，不与视频描述重复堆砌
+   - 页面对短标题有字数上限提示时按页面为准裁到上限内
+7. snapshot 复核两个字段都已落入文本（shadow DOM 内 contenteditable 的文本要真的读到），任一为空则重填后再发布
 ```
+
+> 改版后发布页字段名与提示文案可能微调：**以 snapshot 读到的实际 placeholder / 标签文本为准**定位，不要写死选择器。找不到短标题字段时（页面回滚或灰度未开），只填视频描述并在回报里注明「短标题字段未出现」，不要把它塞进描述。
 
 ### Step 6: 发布
 
@@ -98,7 +108,7 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 发布成功后，在视频号管理后台的视频列表页获取视频公开链接：
 
 ```
-1. snapshot 找到刚发布的视频（列表第一条，或按完整视频简介匹配）ref
+1. snapshot 找到刚发布的视频（列表第一条，或按完整视频描述匹配）ref
 2. snapshot 找该视频的"分享"按钮 ref → click
 3. snapshot 在弹出的分享面板中找"复制视频链接"按钮 ref → click
 4. snapshot eval 从剪贴板或弹窗读取链接：
@@ -162,6 +172,12 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 - **症状**：跳转到扫码登录页，无用户名/密码选项
 - **workaround**：走前置条件的无头截图扫码流程（screenshot QR PNG → 发用户扫码 → 轮询 URL 确认登录就位）
 
+### pitfall: short_title_field_missing
+
+- **触发**：发布页填写短标题时
+- **症状**：snapshot 里找不到「短标题」输入框（页面灰度未开或改版回滚）
+- **workaround**：只填视频描述并发布，回报里注明「短标题字段未出现」；不要把短标题拼进视频描述，也不要把描述截断当短标题
+
 ### pitfall: form_reset_on_idle
 
 - **触发**：填写完表单后长时间不操作（旧版 camoufox-cli daemon idle 60s 自退后新起 daemon，page 变空白；2026-08-22 起已默认关闭 idle 自退，此 pitfall 应不再复现）
@@ -177,7 +193,7 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 | 未登录 | 走前置条件的无头截图扫码登录流，重试一次 |
 | 上传失败 | 检查视频格式（mp4/mov/avi/webm），重试一次 |
 | 转码超时 | 增加超时时间，或告知用户稍后在创作者中心检查 |
-| 发表按钮 disabled | 检查必填字段是否已填写（视频是否上传完成） |
+| 发表按钮 disabled | 检查必填字段是否已填写（视频是否上传完成、视频描述与短标题是否都落入文本） |
 | shadow DOM 元素找不到 | 等待更长时间让 wujie 初始化，或刷新页面 |
 | session 正忙（fail-first） | 等当前操作完成再重试，不要盲试 |
 
@@ -187,6 +203,6 @@ camoufox-cli --session wechat-channel --persistent --json open "https://channels
 
 本工具只管发布到视频号后台，**不做发布记录入库**；入库由 Content Production Workflow 编排（调 `published-track record`）。调用方必须注意：
 
-> **`published-track record --platform wx_channel --title` 必须传 Step 5 填的完整视频简介**（含 hashtag，最长约 300 字）。
+> **`published-track record --platform wx_channel --title` 必须传 Step 5 填的完整视频描述**（含 hashtag，最长约 300 字）；**短标题不入库**。
 
-原因：视频号作品没有「标题」概念，作品管理页展示与 `wx-channel-engagement` 抓取匹配用的都是完整视频简介。`pub_wx_channel.title` 是数据库字段名，语义为完整视频简介；传短标题会导致后续抓取匹配失败。
+原因：作品管理页只展示视频描述，`wx-channel-engagement` 抓取匹配用的也是视频描述。`pub_wx_channel.title` 是数据库字段名，语义为完整视频描述；把短标题写进去会导致后续抓取匹配失败。短标题只留在作品目录的 `publish-copy.md` 里备查。

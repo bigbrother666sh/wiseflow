@@ -4,10 +4,10 @@
 
 **分工硬边界**：
 
-- 图文笔记、长文内容：main agent 直接生产。
-- 已有视频素材的简单加工：main agent 直接做。
-- 视频全案：main agent 只产出 **Brief**，成片制作委托 `content-producer`。若口播文案 DNA 已启用，口播终稿由 main 写好并随 Brief 交付；CP 只做声画制作。
-- Brief 指定 Pipeline 时，CP 必须采用；未指定时 CP 自由发挥。
+- 图文笔记、长文内容：main agent 直接生产（含标题、正文、图组、话题标签与发布）。
+- 已有视频素材的简单加工：main agent 直接做（`video-edit` / `talking-head-cut`）。
+- 视频全案：main agent 只产出 **Brief**（+ 口播类的口播文案 / 录音），成片制作委托 `content-producer`；CP 只做声画实现。
+- Brief 指定 `workflow` 时 CP 必须采用；未指定时 CP 按通用阶段链自由发挥。
 
 ## Step 0 - 入口判断
 
@@ -57,7 +57,7 @@ xhs/dna/{dna-id}/{dna-id}.dna.md
 xhs/dna/{dna-id}/{dna-id}.template.md
 ```
 
-DNA template 是 main agent 的图文生产 / 视频 Brief 输入模板，覆盖定位与核心传达、选题与标题包装、内容形式与发布节奏、高数据创意、互动系列、搜索意图与用户问题、制作交接与可选口播文案 DNA。它不规定逐句正文、单图构图、镜头表、转场或编码细节。
+DNA template 是 main agent 的生产输入模板：**图文 DNA 的 template = 图文写作模板**（选题、标题与封面、关键词与用户问题、内容创意与结构、正文表达、图组、互动与标签）；**视频 DNA 的 template = Brief 正文模板 +（可选）口播文案模板**。都不规定创作细节：逐句正文之外的排版参数、镜头表、转场或编码细节归执行方。
 
 ### 2. 读取业务知识
 
@@ -82,7 +82,7 @@ DNA template 是 main agent 的图文生产 / 视频 Brief 输入模板，覆盖
 | 标题 | 硬限制 ≤ 20 字；覆盖主关键词或用户问题 |
 | 图组 | 硬限制 ≤ 18 张；用户提供优先 |
 | 行动引导 | 只放一个平台内动作 |
-| Pipeline | 视频全案已确定时写 CP 支持的 Pipeline；未确定则省略 |
+| workflow | 视频全案已确定形态时写 CP `expert-video` 支持的 workflow（reversal-ad / narration-video / collage-broll）；未确定则省略 |
 
 优先级：
 
@@ -90,7 +90,7 @@ DNA template 是 main agent 的图文生产 / 视频 Brief 输入模板，覆盖
 用户明确交付要求 + 业务事实 / 红线
 > 用户提供的素材
 > business_knowledge.md
-> DNA 的账号级规则
+> DNA template 的生产规则
 > Agent 的一般内容判断
 ```
 
@@ -161,22 +161,36 @@ DNA template 是 main agent 的图文生产 / 视频 Brief 输入模板，覆盖
 ```markdown
 # 小红书视频制作 Brief
 
-- dna_id：
-- pipeline：dna-ad-video-pipeline / video-producer:default / 未指定
-- MainAgent 交付物：Brief、标题与正文、素材清单、（如启用）口播终稿
-- ContentProducer 交付物：成片、封面候选、交付说明、自检结果
-- 账号定位与核心传达：
-- 目标人群与观看理由：
-- 选题与搜索意图：主关键词、相关词、用户可能提问
-- 内容形式：口播 / 实拍拼接 / 创意转场 / 纯 AIGC 动画 / 混合
-- 素材清单、来源与授权：
-- 视觉与声音边界：横竖屏、画面风格、音色/BGM 倾向（不写逐镜细节）
-- 互动与转化目标：
-- 时长带与验收标准：
-- 风险检查：事实、承诺、授权、平台合规
+- 视频名 / slug：
+- platform：xhs
+- workflow：reversal-ad / narration-video / collage-broll / 未指定（未指定时 CP 按通用阶段链自选档位）
+- 选题与观看理由：
+- 核心传达：
+- 内容创意：创意原型 + 展开逻辑 + 记忆点
+- 关键词与用户问题：主关键词、相关词与长尾句、用户可能的提问（供 CP 理解内容指向，不做 SEO 操作）
+- 标题与简介：笔记标题、发布正文、话题标签（main 定稿）
+- 封面要求：封面主文案 + 视觉方向
+- 制作规格：横屏 / 竖屏、时长带、画面风格、配音音色与声音形态、BGM 与音效、字幕
+- 口播文案：`voiceover.md` 绝对路径（口播类必填）/ 真人口播录音绝对路径 / 不适用
+- 素材清单：逐条**绝对路径** + 来源 + 授权（无素材时写「无，由 CP 按 Brief 取材」）
+- 交付物与验收：`video.mp4` + `cover.jpg` + `final-deliver.md`，回报三者绝对路径；验收标准
+- 闸门：GATE A / GATE B 批准人（用户或 main 代理批准 + 批准范围）
+- 禁止事项：事实与承诺边界、合规红线、禁用方向
 ```
 
-口播文案 DNA 已启用时，main 按 `narration-dna` 写 `voiceover.md`，CP 不重写策略文案；未启用时，CP 在 Pipeline 内完成脚本与声画方案。
+Brief 硬性规则：
+
+- **不写 DNA**：Brief 里不出现 dna-id、DNA 文档路径或 DNA 规则原文——CP 看不到 main 的 DNA，只按 Brief 制作。
+- **不建工作区**：main 不替 CP 建目录、不指定项目路径；CP 在自己的 workspace 下自建工作区。双方 T3 权限可互访取文件。
+- **素材给绝对路径**：main 负责素材准备，把绝对路径写进 Brief。
+- **甲乙方关系**：需求方向、品牌事实、发布文案归 main；制作方案、分镜、渲染参数归 CP。
+
+### 口播文案规则
+
+- **口播类视频的口播文案由 main agent 出**：按 DNA 文档的 `narration-script`（口播文案子模块）写终稿，保存为作品目录下的 `voiceover.md`，在 Brief 中给**绝对路径**。CP 不重写策略文案，只做声画实现。
+- **真人口播**：明确要用用户真人声音时，main agent 必须向用户取得录音文件，落到作品目录并在 Brief 中给绝对路径。
+- **口播子模块未启用**：Brief 写明「口播文案：不适用」或只给要点，由 CP 按其 workflow 组织旁白；main 不再规定逐句台词。
+- 用户必用的事实、案例、承诺和 CTA 必须进入 Brief 或口播终稿，不得为了形式删除关键事实。
 
 ## 【确认】正文 / Brief
 
@@ -190,7 +204,7 @@ DNA template 是 main agent 的图文生产 / 视频 Brief 输入模板，覆盖
 
 ### 图文图组
 
-1. 读取 DNA 的视觉语言与标题包装，只取账号级风格边界。
+1. 读取 DNA 的图组视觉与标题封面结论，只取风格边界。
 2. 图片来源优先级：用户素材 → `campaign_assets/` → `siliconflow-img-gen` → `pexels-footage` / `pixabay-footage`。
 3. 封面必须存在，兑现标题承诺；生成图发用户确认。
 4. 图文建议 3:4 竖版，图片 ≤ 18 张，顺序按信息推进。
@@ -202,7 +216,7 @@ DNA template 是 main agent 的图文生产 / 视频 Brief 输入模板，覆盖
 | --- | --- |
 | 用户直接提供成片 | 校验格式与时长，复制到作品目录 |
 | 已有素材需简单加工 | main 用 `video-edit` / `talking-head-cut` 处理 |
-| 全案制作 | 委托 `content-producer`，只交付确认后的 Brief；指定 Pipeline 必须采用，未指定由 CP 自由发挥 |
+| 全案制作 | 委托 `content-producer`：只交 Brief + 素材绝对路径 + 口播文案 / 录音，不指定 CP 工作区；指定 `workflow` 必须采用，未指定由 CP 自由发挥。成片与封面按 CP 回报的绝对路径取回作品目录 |
 
 视频封面优先从成片选帧；需要更强视觉冲击时用 `siliconflow-img-gen`。
 

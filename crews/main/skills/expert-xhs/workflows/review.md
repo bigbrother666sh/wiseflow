@@ -35,17 +35,29 @@ xhs 互动数据来自创作者后台笔记管理页 5 列（`xhs-engagement` �
 - 精确的传播系数（每次分享带来多少新观众）不可得；只能用 分享/(点赞+评论) 作为传播效率的代理估算。
 - 用户可提供创作者中心后台截图（流量来源、粉丝画像、搜索词），作为更高置信度的证据；没有就用库内指标。
 
-### 互动漏斗 → template 语义段 → 14 维映射
+### 互动漏斗 → template 语义段 → DNA 维度映射
+
+**图文作品（默认 `dna-0`）**
 
 | 漏斗卡点 | 先怀疑的 template 语义段 | 可回溯的 DNA 维度 |
 |---------|--------------------------|------------------|
-| 阅读低（推荐/点击瓶颈） | 定位与核心传达、选题与标题包装、搜索意图 | positioning-core、topic-portfolio、title-packaging、search-intent-map |
-| 阅读正常但收藏低 | 搜索意图与用户问题、高数据创意模式 | search-intent-map、high-performer-patterns、positioning-core |
-| 阅读正常但评论低 | 互动与系列 | engagement-conversion、search-intent-map |
-| 点赞低 | 高数据创意模式、定位与核心传达 | high-performer-patterns、positioning-core |
-| 分享低 | 选题与标题包装、互动与系列 | topic-portfolio、engagement-conversion |
-| 关注转化低 | 定位与核心传达、互动与系列 | bio-profile、series-signature、engagement-conversion |
-| 搜索流量弱 | 搜索意图与用户问题、选题与标题包装 | search-intent-map、title-packaging、content-form-mix |
+| 阅读低（推荐/点击瓶颈） | 选题、标题与封面、关键词与用户问题 | topic-angle、title-cover、search-intent |
+| 阅读正常但收藏低 | 内容创意与结构、正文表达 | content-idea、body-voice |
+| 阅读正常但评论低 | 互动与标签、内容创意 | interaction-cta、content-idea |
+| 点赞低 | 内容创意、正文表达 | content-idea、body-voice |
+| 分享低 | 选题、正文表达 | topic-angle、body-voice |
+| 关注转化低 | 账号运营子模块、互动与标签 | account-bio、content-mix-cadence、interaction-cta |
+| 搜索流量弱 | 关键词与用户问题、标题与封面 | search-intent、title-cover |
+| 图组跳失 / 图片被吐槽 | 图组、标题与封面 | imageset-visual、title-cover |
+
+**视频作品（`dna-*-video`）**
+
+| 漏斗卡点 | 先怀疑的 template 语义段 | 可回溯的 DNA 维度 |
+|---------|--------------------------|------------------|
+| 播放低 | 选题、标题与封面、关键词与用户问题 | topic-angle、title-cover、search-intent |
+| 完播估算低 | 内容创意、制作规格、口播文案 | content-idea、production-spec、narration-script |
+| 搜索流量弱 | 关键词与用户问题 | search-intent |
+| 关注转化低 | 账号运营子模块 | account-bio、content-mix-cadence |
 
 ### 平台混杂因素（归因前必排）
 
@@ -86,7 +98,7 @@ content-calibrator eval --platform xhs --dna-id <id>      # 指定 DNA
 
 1. 判定只看比值与走向，绝对值只作上下文。
 2. 逐条排除平台混杂因素，输出替代假设检验结果。
-3. 回读 `xhs/dna/<dna-id>/<dna-id>.dna.md` / `.template.md` 与待评估作品（`source_folder` 下的 `note.md`、`brief.md`、`voiceover.md` 与图片/成片线索），把趋势变化落到 template 语义段与 14 维。
+3. 回读 `xhs/dna/<dna-id>/<dna-id>.dna.md` / `.template.md` 与待评估作品（`source_folder` 下的 `note.md`、`brief.md`、`voiceover.md` 与图片/成片线索），把趋势变化落到 template 语义段与 DNA 维度。
 
 ### Step 3 - 报告与标记
 

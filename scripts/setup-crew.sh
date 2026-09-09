@@ -283,6 +283,9 @@ for agent_dir in "$CREWS_DIR"/*/; do
     # §2.3：已部署 workspace 仍同步 crew 专属 skill（覆盖），但不碰 AGENTS.md/TOOLS.md/Memory
     # 及部署实例自定义 skill（sync_crew_skills 只覆盖仓库里同名的 skill）
     sync_crew_skills "$agent_dir" "$dest"
+    # skill 声明文件（BUILTIN_SKILLS / DENIED_SKILLS）跟仓库走：陈旧条目会让 openclaw.json
+    # 的 skills allowlist 指向已改名 / 已收纳的技能，crew 直接失去这批能力。
+    sync_skill_declaration_files "$agent_dir" "$dest" "$PROJECT_ROOT" "$OPENCLAW_HOME"
     # 仅做幂等注入（有标记则跳过，不覆盖用户编辑的内容）
     inject_file_edit_guide "$dest/TOOLS.md"
     inject_exec_guide "$dest/TOOLS.md" "$dest"

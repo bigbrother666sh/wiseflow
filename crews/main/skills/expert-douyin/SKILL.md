@@ -1,6 +1,6 @@
 ---
 name: expert-douyin
-description: 抖音账号运营专家。承接定位起号、账号级 DNA、选题与包装、长文图文、已有素材轻加工、视频全案 Brief、发布与数据复盘；全片制作委托 content-producer。
+description: 抖音账号运营专家。承接定位起号、内容 DNA（视频 / 图文两套框架）、选题与包装、图文生产、已有素材轻加工、视频全案 Brief 与口播文案、发布与数据复盘；全片制作委托 content-producer。
 metadata:
   openclaw:
     emoji: 🎵
@@ -14,7 +14,7 @@ metadata:
 
 | 场景 | Workflow | 什么时候触发 |
 |------|----------|-------------|
-| 内容 DNA 管理 | Style DNA | 建 / 更新内容 DNA（样本、偏好、局部借鉴、对标融合），决定样本落到哪个 DNA |
+| 内容 DNA 管理 | Style DNA | 建 / 更新内容 DNA（样本、偏好、局部借鉴、对标融合）：先判作品类型，再决定样本落到哪个 DNA |
 | 内容生产 | Content Production | 做一条 / 做几条抖音内容；main 直接做已有素材轻加工，视频全案只产出并委托 Brief |
 | 起号与定位 | Account Setup | 新号起号、定位梳理、内容支柱搭建、老号接手与诊断 |
 | 账号对标 | Account Benchmark | 对标账号 / 对标视频分析，并与默认或指定 DNA 逐项比较 |
@@ -37,7 +37,7 @@ metadata:
 
 | 工具 | 用途 | 命令 |
 |------|------|------|
-| `douyin-style-profiler` | 生成单条视频的账号级 DNA report，并聚合 DNA 文档与 Brief template | `douyin-style-profiler` |
+| `douyin-style-profiler` | 生成单篇作品（视频 / 图文，`--kind`）的 DNA report，并聚合 DNA 文档与 template（视频 = Brief + 口播文案模板；图文 = 写作模板） | `douyin-style-profiler` |
 | `douyin-comments` | 抓取抖音视频评论（对标分析 / 标签反推用，纯 HTTP 不起浏览器） | `douyin-comments` |
 | `douyin-publish` | 成片 → 抖音创作者中心发布（浏览器自动化） | `douyin-publish` |
 
@@ -45,13 +45,13 @@ metadata:
 
 制作链相关技能（边界见 Content Production Workflow）：`video-edit`（素材加工拼接）、`talking-head-cut`（口播轻剪辑）、`ui-demo`（产品操作录屏）、`video-review`（成片质检闸门）、`siliconflow-img-gen`（封面图）、`pexels-footage` / `pixabay-footage`（免版权素材）。
 
-**分工硬边界**：main 只做已有视频素材的简单加工和长文 / 图文内容；视频全案只产出 Brief 并委托 `content-producer`。口播类视频若 DNA 启用口播文案 DNA，口播文案由 main 写好并随 Brief 交付；Content Producer 只负责声画制作。Brief 指定 Pipeline 时 CP 必须采用，未指定时 CP 自由发挥。
+**分工硬边界**：main 负责选题策划、按 DNA 出 **Brief**、拟定标题与简介、准备素材（用户素材预处理 / `ui-demo` 录屏 / 从 `campaign_assets/` 挑选，绝对路径写进 Brief）、监督推动 CP、成片后的发布与运营，也直接做图文内容与已有素材轻加工；视频全案的成片制作委托 `content-producer`。口播类视频的口播文案由 main 按 `narration-script` 子模块写好并随 Brief 交付（真人口播时向用户取得录音文件），CP 不重写策略文案。Brief 指定 `workflow` 时 CP 必须采用，未指定时 CP 按通用阶段链自由发挥。Brief **不含 DNA 信息**，main 也不替 CP 建工作区（双方 T3 权限可互访取文件）。
 
 ## 风格与 DNA
 
-账号级 DNA 存储目录是 `douyin/dna/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。
+DNA 存储目录是 `douyin/dna/`。未指定 DNA 时默认使用并更新 `dna-0`（视频）；图文另建 dna-id（如 `dna-0-note`）。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。
 
-DNA 是账号级框架：定位与核心传达、选题组合、标题包装、账号简介、内容形式比例、发布习惯、高数据创意、视觉/声音倾向、口播文案 DNA、互动系列与制作管线。它指导 main agent 出内容或 Brief，不规定成片制作细节。维度框架 v1 位于 `douyin-style-profiler` 的 `references/account-dna-framework.md`。
+DNA 是**从一批作品样本提取并聚合出的内容生产规则集**（不存在「平台级 / 账号级 DNA」）：视频 8 维——选题与观看理由、标题与封面、内容创意、视频内容形态与制作指向、制作规格与视听倾向，加可选的口播文案子模块与账号运营子模块（简介写法、内容形式比例、发布习惯）；图文 8 维——选题、标题与封面图组、内容创意、正文表达与语气、图组视觉、互动引导与转化，加账号运营子模块。它指导 main agent 出图文内容或视频 Brief（+ 口播文案），不规定创作细节与成片制作。维度框架 v2 位于 `douyin-style-profiler` 的 `references/video-dna-framework.md` 与 `references/note-dna-framework.md`。
 
 ## 数据与记录
 

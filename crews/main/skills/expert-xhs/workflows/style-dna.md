@@ -1,13 +1,13 @@
-# 小红书账号级 DNA 创建与更新 Workflow
+# 小红书 DNA 创建与更新 Workflow
 
-本 Workflow 负责 DNA report、DNA 文档、搜索意图地图与 DNA template 的创建与更新。维度框架以 `xhs-style-profiler` 的 `references/account-dna-framework.md` 为准（账号级 DNA v1）。
+本 Workflow 负责 DNA report、DNA 文档、搜索意图地图与 DNA template 的创建与更新。维度框架以 `xhs-style-profiler` 的 `references/note-dna-framework.md`（图文）与 `references/video-dna-framework.md`（视频）为准（DNA v2）。
 
 ## 边界
 
-- DNA 是账号级运营框架，不是单篇笔记写作模板。
+- DNA 是从一批作品样本中提取、聚合出的内容生产规则集，不存在「平台级 DNA」或「账号级 DNA」的说法；样本可以来自多个账号，也可以来自用户指定的一个账号的发布列表批量提取。
 - 账号初始化与默认 `dna-0` 建立走 `account-setup.md`；对标样本先走 `account-benchmark.md`。
 - DNA 如何用于内容生产走 `content-production.md`；改稿走 `editing.md`；数据复盘走 `review.md`。
-- 图文由 main agent 直接生产；视频全案只到 Brief，制作委托 `content-producer`。
+- 图文由 main agent 直接生产；视频全案只到 Brief（+ 口播文案），制作委托 `content-producer`。
 
 ## 入口判断
 
@@ -30,8 +30,9 @@
 
 1. 用户指定 `dna-id` 时使用该 DNA。
 2. 未指定或说“默认 DNA”时使用 `dna-0`。
-3. 对标样本必须进入独立 DNA，不直接写入 `dna-0`；采纳后再通过局部融合更新。
-4. 目标 DNA 不存在时，先走 `account-setup.md` 或按用户明确指定的新 `dna-id` 初始化。
+3. **作品类型分流**：一个 `dna-id` 只承载一种作品类型。小红书默认 `dna-0` 是图文（`--kind note`），视频笔记另建 dna-id（如 `dna-0-video`）；混型 `build` 会直接报错。
+4. 对标样本必须进入独立 DNA，不直接写入 `dna-0`；采纳后再通过局部融合更新。
+5. 目标 DNA 不存在时，先走 `account-setup.md` 或按用户明确指定的新 `dna-id` 初始化。
 
 ## 存储结构
 
@@ -48,6 +49,8 @@ xhs/dna/{dna-id}/
 原始笔记文本可临时放在 `xhs/ref/{dna-id}/notes/`。生成后的 report 必须进入目标 DNA 的 `reports/` 目录；覆盖同名 report 前先向用户说明。
 
 ## 样本获取
+
+**先判作品类型**（视频 / 图文）：它决定用哪套维度框架、`--kind` 取值与目标 dna-id；同一个 DNA 不混型。
 
 | 来源 | 处理 |
 | --- | --- |
@@ -71,13 +74,15 @@ xhs/dna/{dna-id}/
 
 ### Step 1 - 准备样本
 
-1. 把笔记整理为 `.md`：首个一级标题为标题，正文保留换行与内联话题标签。
-2. 确定目标 `dna-id`、`sample-id`、样本权重和 focus。
-3. 整理账号观测、搜索关键词与用户问题，供 Agent 补进 report。
+1. 判定作品类型（视频 / 图文），据此选框架与目标 `dna-id`。
+2. 把笔记整理为 `.md`：首个一级标题为标题，正文保留换行与内联话题标签。
+3. 确定目标 `dna-id`、`sample-id`、样本权重和 focus。
+4. 整理账号观测、搜索关键词与用户问题，供 Agent 补进 report。
 
 ### Step 2 - 生成单篇 report
 
 ```bash
+# 图文笔记（默认 kind=note）
 xhs-style-profiler report \
   --input path/to/note.md \
   --dna-id {dna-id} \
@@ -89,26 +94,28 @@ xhs-style-profiler report \
 
 生成 scaffold 后必须：
 
-1. 补齐「样本与账号观测」。
-2. 回读笔记原文，补齐 14 维的单篇结论、证据和可复用信号。
-3. 搜索关键词必须落到用户可能提问；单篇只记候选，不直接判定账号级搜索意图。
-4. 单篇样本不得推导账号简介、图文/视频比例、发布节奏或高数据共性。
-5. 视觉语言必须有图片证据；口播文案 DNA 样本不足时保持未启用。
+1. 补齐「样本观测」：作品类型、样本来源、账号与简介、发布时间、数据线索、图片数量与来源、关键词与标签（缺失写「未观测」）。
+2. 回读原文，补齐各维度的单篇结论、原文证据与可复用信号。
+3. `search-intent` 必须落到用户可能的提问原句，不只抄平台标签；单篇只记候选。
+4. 图组视觉必须有图片证据；视频样本另给视频内容形态与制作指向（`expert-video` 的某个 workflow，或 main 的素材加工技能）。
+5. 账号运营子模块（简介写法、内容形式比例、发布习惯）只在样本来自对标账号批量提取时填写，单篇样本写「未观测」。
 
 ### Step 3 - 聚合 DNA
 
 ```bash
-xhs-style-profiler build --dna-id {dna-id}
+xhs-style-profiler build --dna-id {dna-id}                      # 图文 DNA（默认 kind=note）
+xhs-style-profiler build --dna-id {dna-id}-video --kind video    # 视频 DNA
 ```
 
 Agent 必须读取全部 report，按权重/focus 聚合：
 
 - 高频共性、高权重偏好、局部借鉴、孤例、例外分开写。
-- 标注样本覆盖度；单篇/少量样本不得称为稳定账号 DNA。
+- 标注样本覆盖度；单篇或少量样本不得称为稳定结论。
 - 聚合「关键词 → 用户问题 → 内容形式」的搜索意图地图。
-- 高数据内容要回读创意、关键词与内容形式，不能只归因阅读量。
+- 视频样本的形态结论必须聚合成明确的**制作指向**，供 Brief 的 `workflow` 字段直接引用。
+- 高数据内容要回读创意、形态与包装，不能只归因播放量 / 阅读量。
 - 为每个维度写聚合结论、报告依据和可执行规则。
-- 确保 DNA 文档能推导 template。
+- 确保 DNA 文档能推导 template；账号运营子模块的结论只留在 DNA 文档。
 
 ## 更新已有 DNA
 
@@ -127,7 +134,7 @@ xhs-style-profiler update \
 
 ### 用户偏好
 
-用户偏好不直接入库。通过 `--user-input` 传入后，Agent 映射到具体维度，并把原话转译为账号级规则与 Brief/图文生产规则。
+用户偏好不直接入库。通过 `--user-input` 传入后，Agent 映射到具体维度，并把原话转译为具体维度的创作规则与 Brief / 图文生产规则。
 
 ### 局部借鉴
 
@@ -135,22 +142,23 @@ xhs-style-profiler update \
 
 ### 表现反馈
 
-复盘产生的建议先列证据与影响维度，经用户确认后写入 DNA；不得把一次数据波动直接升格为账号规则。
+复盘产生的建议先列证据与影响维度，经用户确认后写入 DNA；不得把一次数据波动直接升格为 DNA 规则。
 
 ## DNA 使用接口
 
-- **图文生产**：读取 DNA 文档与 template，确定定位、选题、标题包装、搜索意图、内容形式与发布节奏，由 main agent 直接写图文。
-- **视频全案**：main agent 产出 Brief；Brief 写明 Pipeline、素材授权、验收标准、交付边界。未指定 Pipeline 时 CP 自由发挥，指定时必须采用。
-- **口播类视频**：若口播文案 DNA 已启用，main agent 写口播文案并随 Brief 交付；CP 不重写策略文案。
-- **搜索优化**：选题和标题必须覆盖主关键词、长尾句与用户可能提问，不堆砌标签。
+- **图文笔记**：读取图文 DNA 文档与 template（含关键词与用户问题段），main agent 直接生产。
+- **视频全案**：读取视频 DNA 文档与 template，main agent 产出 **Brief**（+ 口播类的口播文案）。Brief 写明选题与观看理由、标题与简介、内容创意、关键词与用户问题、`workflow`（视频形态的制作指向）、制作规格、素材清单与授权（绝对路径）、验收标准、闸门批准人。
+- **Brief 不含 DNA 信息**：Content Producer 看不到 main 的 DNA，只按 Brief 制作；也不要把 DNA 文档路径写进 Brief。
+- **口播类视频**：口播文案子模块启用时，口播终稿由 main agent 写好并随 Brief 交付；真人口播时由 main agent 向用户取得录音文件。CP 不重写策略文案。
+- **工作区**：main 不替 CP 建工作区，也不指定项目目录；CP 自建工作区，双方 T3 权限可互访取文件。
 
 ## 对标接口
 
-对标样本进入独立 `dna-id`；比较时输出定位、选题、标题包装、内容形式、发布节奏、高数据创意、搜索意图与制作管线的差异。用户明确采纳后才融合进 `dna-0`。
+对标样本进入独立 `dna-id`（同样按作品类型分流）；比较时输出选题、标题与封面、内容创意、关键词与用户问题、正文表达与图组视觉的差异，以及（账号批量样本才有的）账号运营子模块差异：简介写法、内容形式比例、发布习惯。用户明确采纳后才通过局部融合写进目标 DNA。
 
 ## 编排原则
 
-- 一个生产任务只使用一个 DNA；需要融合时先更新 DNA。
+- 一个生产任务只使用一个 DNA，且作品类型与任务一致；需要融合时先更新 DNA。
 - 样本、用户输入、数据反馈必须可追溯。
-- 账号级结论必须有覆盖度；不足就写未观测。
-- Template 只写 main agent 可执行的图文输入/Brief 规则，不写成片制作细节。
+- 账号运营子模块（简介写法、内容形式比例、发布习惯）只在对标账号批量样本下填写，且只进 DNA 文档不进 template；覆盖度不足就写未观测。
+- Template 只写 main agent 可执行的规则：视频类 = Brief 正文模板 + 口播文案模板；图文类 = 图文写作模板。都不写成片制作细节。

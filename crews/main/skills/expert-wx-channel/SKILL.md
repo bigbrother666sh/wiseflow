@@ -1,6 +1,6 @@
 ---
 name: expert-wx-channel
-description: 微信视频号账号运营专家。承接定位起号、账号级 DNA、选题包装、已有素材轻加工、视频全案 Brief、发布与数据复盘；全片制作委托 content-producer。
+description: 微信视频号账号运营专家。承接定位起号、内容 DNA、选题与短标题/视频描述包装、已有素材轻加工、视频全案 Brief 与口播文案、发布与数据复盘；全片制作委托 content-producer。
 metadata:
   openclaw:
     emoji: 📺
@@ -14,7 +14,7 @@ metadata:
 
 | 场景 | Workflow | 什么时候触发 |
 |------|----------|-------------|
-| 内容 DNA 管理 | Style DNA | 建 / 更新内容 DNA（样本、偏好、局部借鉴、对标融合），决定样本落到哪个 DNA |
+| 内容 DNA 管理 | Style DNA | 建 / 更新内容 DNA（样本、偏好、局部借鉴、对标融合）：先判作品类型，再决定样本落到哪个 DNA |
 | 内容生产 | Content Production | 做一条 / 做几条视频号内容；main 直接做已有素材轻加工，视频全案只产出并委托 Brief |
 | 起号与定位 | Account Setup | 新号起号、定位梳理、内容支柱搭建、冷启动方案、老号接手与诊断 |
 | 账号对标 | Account Benchmark | 对标账号 / 对标视频分析，并与默认或指定 DNA 逐项比较 |
@@ -37,7 +37,7 @@ metadata:
 
 | 工具 | 用途 | 命令 |
 |------|------|------|
-| `wx-channel-style-profiler` | 生成单条视频的账号级 DNA report，并聚合 DNA 文档与 Brief template | `wx-channel-style-profiler` |
+| `wx-channel-style-profiler` | 生成单条视频的 DNA report，并聚合 DNA 文档与 template（= Brief + 口播文案模板） | `wx-channel-style-profiler` |
 | `wechat-channels-publish` | 发布视频到视频号创作者中心（camoufox-cli 持久化 session `wechat-channel`） | 无 wrapper，按工具说明驱动 `camoufox-cli` |
 | `wx-channel-engagement` | 视频号助手后台作品数据抓取，写入 published-track 的 `pub_wx_channel` 表 | `wx-channel-engagement` |
 
@@ -45,12 +45,12 @@ metadata:
 
 视频制作链路（内容生产时按需编排，不属于本专家包）：`content-producer` subagent（吃 Brief 制作成片）、`video-edit`（已有素材加工拼接）、`talking-head-cut`（口播轻剪辑）、`viral-chaser`（抖音/B站/小红书视频追爆拆解）。
 
-**分工硬边界**：main 只做已有视频素材的简单加工和长文 / 图文内容；视频全案只产出 Brief 并委托 `content-producer`。口播类视频若 DNA 启用口播文案 DNA，口播文案由 main 写好并随 Brief 交付；Content Producer 只负责声画制作。Brief 指定 Pipeline 时 CP 必须采用，未指定时 CP 自由发挥。
+**分工硬边界**：main 负责选题策划、按 DNA 出 **Brief**、拟定短标题与视频描述、准备素材（绝对路径写进 Brief）、监督推动 CP、成片后的发布与运营，也直接做已有素材轻加工；视频全案的成片制作委托 `content-producer`。口播类视频的口播文案由 main 按 `narration-script` 子模块写好并随 Brief 交付（真人口播时向用户取得录音文件），CP 不重写策略文案。Brief 指定 `workflow` 时 CP 必须采用，未指定时 CP 按通用阶段链自由发挥。Brief **不含 DNA 信息**，main 也不替 CP 建工作区（双方 T3 权限可互访取文件）。
 
 ## 平台速查
 
 - 视频号核心引擎是**社交推荐 > 算法推荐**：分享（转发朋友圈/群聊）权重高于点赞；判断内容健康度交叉看「完播 × 分享」。
-- 视频号作品**没有标题概念**：视频简介（≤300 字，含 hashtag）就是作品展示文本；`published-track record --platform wx_channel --title` 必须传完整视频简介；`--title` 只是数据库字段名，不代表平台标题。
+- 视频号发布页可同时填 **视频描述**（≤300 字，含 hashtag）与 **短标题**，官方称填短标题能获得更多流量：**两项都必须有、发布时都必须填**，都由 main agent 拟定。但作品管理页不展示短标题，所以取数、`wx-channel-engagement` 匹配与 `published-track record --platform wx_channel --title` 一律只用完整视频描述（`--title` 只是数据库字段名），**短标题不入库**。
 - 发布与取数共用持久化 session `wechat-channel`（fail-first 队列）：读到「session 正忙」就等当前操作完成再重试，不自动 close。
 - 前 3 秒决定去留：封面三要素（身份 + 痛点 + 解决方案），前 2 秒抛冲突，第 3 秒预告价值。
 - 真人出镜占比建议 ≥ 60%；起号期前 5 条必须垂直打透一个定位，周更 3-5 条。
@@ -60,9 +60,9 @@ metadata:
 
 ## 风格与 DNA
 
-账号级 DNA 存储目录是 `wx_channel/dna/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。
+DNA 存储目录是 `wx_channel/dna/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。
 
-DNA 是账号级框架：定位与核心传达、选题组合、视频简介包装、账号简介、内容形式比例、发布习惯、高数据创意、视觉/声音倾向、口播文案 DNA、社交分享闭环、互动系列与制作管线。它指导 main agent 出内容或 Brief，不规定成片制作细节。维度框架 v1 位于 `wx-channel-style-profiler` 的 `references/account-dna-framework.md`。
+DNA 是**从一批作品样本提取并聚合出的内容生产规则集**（不存在「平台级 / 账号级 DNA」）：8 维——选题与观看理由、短标题与视频描述与封面、内容创意、视频内容形态与制作指向、制作规格与视听倾向，加可选的口播文案子模块与账号运营子模块（简介写法、发布习惯）。它指导 main agent 出 Brief（+ 口播文案）与发布文案，不规定创作细节与成片制作。维度框架 v2 位于 `wx-channel-style-profiler` 的 `references/video-dna-framework.md`。
 
 ## 数据与记录
 

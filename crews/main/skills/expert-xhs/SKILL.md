@@ -15,7 +15,7 @@ metadata:
 | 场景 | Workflow | 什么时候触发 |
 |------|----------|-------------|
 | 内容 DNA 管理 | Style DNA | 建 / 更新内容 DNA（样本、偏好、局部借鉴、对标融合）：先判作品类型，再决定样本落到哪个 DNA |
-| 内容生产 | Content Production | 做一条 / 做几条小红书内容；图文由 main 直接生产，视频全案只产出并委托 Brief |
+| 内容生产 | Content Production | 做一条 / 做几条小红书内容；图文由 main 直接生产，视频全案只产出Brief并委托content-producer |
 | 起号与定位 | Account Setup | 新号起号、定位梳理、内容支柱搭建、老号接手与诊断 |
 | 账号对标 | Account Benchmark | 对标账号 / 对标笔记分析（关键词提取 + 低粉爆款搜索），并与默认或指定 DNA 逐项比较 |
 | 改稿与调整 | Editing | 改标题、改正文、换封面、换标签、换风格 |
@@ -48,9 +48,9 @@ metadata:
 
 DNA 存储目录是 `xhs/dna/`。未指定 DNA 时默认使用并更新 `dna-0`（图文）；视频笔记另建 dna-id（如 `dna-0-video`）。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。
 
-DNA 是**从一批作品样本提取并聚合出的内容生产规则集**（不存在「平台级 / 账号级 DNA」）：图文 9 维——选题与观看理由、标题与封面图组、内容创意、**匹配的用户问题**、正文表达与语气、图组视觉、互动引导与转化，加账号运营子模块（简介写法、内容形式比例、发布习惯）；视频 9 维——前四项加视频内容形态与制作指向、制作规格与视听倾向、口播文案子模块与账号运营子模块。搜索维度是小红书必备：最大流量池来自搜索，关键词必须落到用户可能的提问原句。DNA 指导 main agent 写图文或出视频 Brief（+ 口播文案），不规定创作细节与成片制作。维度框架 v2 位于 `xhs-style-profiler` 的 `references/note-dna-framework.md` 与 `references/video-dna-framework.md`。
+DNA 是**从一批作品样本提取并聚合出的内容生产规则集**：图文 9 维——选题与观看理由、标题与封面图组、内容创意、**匹配的用户问题**、正文表达与语气、图组视觉、互动引导与转化，加账号运营子模块（简介写法、内容形式比例、发布习惯）；视频 9 维——前四项加视频内容形态与制作指向、制作规格与视听倾向、口播文案子模块与账号运营子模块。搜索维度是小红书必备：最大流量池来自搜索，关键词必须落到用户可能的提问原句。DNA 指导 main agent 写图文或出视频 Brief（+ 口播文案），不规定创作细节与成片制作。维度框架 v2 位于 `xhs-style-profiler` 的 `references/note-dna-framework.md` 与 `references/video-dna-framework.md`。
 
-**分工硬边界**：图文和长文由 main 直接生产；已有视频素材轻加工由 main 做；视频全案由 main 出 **Brief**（+ 口播类的口播文案 / 录音）并委托 `content-producer`，CP 只做声画实现。Brief 指定 `workflow` 时 CP 必须采用，未指定时 CP 按通用阶段链自由发挥。Brief **不含 DNA 信息**；main 不替 CP 建工作区（双方 T3 权限可互访取文件），成片与封面按 CP 回报的绝对路径取回作品目录。
+**视频全案分工硬边界**：main 负责选题策划、按 DNA 出 **Brief**、拟定标题与简介、准备素材（用户素材预处理 / `ui-demo` 录屏 / 从 `campaign_assets/` 挑选，绝对路径写进 Brief）、监督推动 CP、成片后的发布与运营，也直接做图文内容与已有素材轻加工；视频全案的成片制作委托 `content-producer`。口播类视频的口播文案由 main 按 `narration-script` 子模块写好并随 Brief 交付（真人口播时，指导用户录音并取得录音文件），CP 不重写策略文案。Brief 指定 `workflow` 时 CP 必须采用，未指定时 CP 按通用阶段链自由发挥。Brief **不含 DNA 信息**，main 也不替 CP 建工作区（双方 T3 权限可互访取文件）。
 
 ## 数据与记录
 

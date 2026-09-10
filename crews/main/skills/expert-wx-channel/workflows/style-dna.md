@@ -145,7 +145,7 @@ wx-channel-style-profiler update \
 - **视频全案**：读取 DNA 文档与 template，main agent 产出 **Brief**（+ 口播类的口播文案）。Brief 写明选题与观看理由、内容创意、`workflow`（视频形态的制作指向）、制作规格、素材清单与授权（绝对路径）、验收标准、闸门批准人。
 - **短标题与视频描述由 main agent 拟定**：视频号发布页两项都可填，官方称填短标题能获得更多流量，因此两项都必须有、发布时都必须填；但入库（`published-track`）与 `wx-channel-engagement` 匹配只用**视频描述**，短标题不写库。这两项属发布文案，不进 Brief 的制作要求。
 - **Brief 不含 DNA 信息**：Content Producer 看不到 main 的 DNA，只按 Brief 制作；也不要把 DNA 文档路径写进 Brief。
-- **口播类视频**：口播文案子模块启用时，口播终稿由 main agent 写好并随 Brief 交付；真人口播时由 main agent 向用户取得录音文件。CP 不重写策略文案。
+- **口播类视频**：口播文案子模块启用时，口播终稿由 main agent 写好并随 Brief 交付；真人口播时由 main agent 指导用户录音并向用户取得录音文件。CP 不重写策略文案。
 - **工作区**：main 不替 CP 建工作区，也不指定项目目录；CP 自建工作区，双方 T3 权限可互访取文件。
 
 ## 对标接口

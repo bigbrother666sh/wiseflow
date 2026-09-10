@@ -4,7 +4,7 @@
 
 ## 边界
 
-- DNA 是从一批作品样本中提取、聚合出的内容生产规则集，不存在「平台级 DNA」或「账号级 DNA」的说法；样本可以来自多个账号，也可以来自用户指定的一个账号的发布列表批量提取。
+- DNA 是从一批作品样本中提取、聚合出的内容生产规则集，样本可以来自多个账号，也可以来自用户指定的一个账号的发布列表批量提取。
 - 账号初始化与默认 `dna-0` 建立走 `account-setup.md`；对标样本先走 `account-benchmark.md`。
 - DNA 如何用于内容生产走 `content-production.md`；改片走 `editing.md`；数据复盘走 `review.md`。
 - DNA 指导 main agent 出图文内容、视频 Brief 与（口播类的）口播文案；全片制作委托 `content-producer`。
@@ -120,9 +120,9 @@ Agent 必须读取全部 report，按权重/focus 聚合：
 - 高频共性、高权重偏好、局部借鉴、孤例、例外分开写。
 - 标注样本覆盖度；单篇或少量样本不得称为稳定结论。
 - 视频形态必须聚合成明确的**制作指向**（Content Producer `expert-video` 的某个 workflow，或 main 的素材加工技能），供 Brief 的 `workflow` 字段直接引用。
-- 高数据内容要回读创意、形态与包装，不能只归因播放量 / 阅读量。
+- 高数据内容要回读创意、形态与包装，不能只归因。
 - 为每个维度写聚合结论、报告依据和可执行规则。
-- 确保 DNA 文档能推导 template；账号运营子模块的结论只留在 DNA 文档。
+- 确保 DNA 文档能推导 template；但账号运营子模块的结论只留在 DNA 文档。
 
 ## 更新已有 DNA
 
@@ -156,7 +156,7 @@ douyin-style-profiler update \
 - **图文内容**：读取图文 DNA 文档与 template，main agent 直接生产。
 - **视频全案**：读取视频 DNA 文档与 template，main agent 产出 **Brief**（+ 口播类的口播文案）。Brief 写明选题与观看理由、标题与简介、内容创意、`workflow`（视频形态的制作指向）、制作规格（横竖屏 / 时长带 / 画面风格 / 配音音色）、素材清单与授权（绝对路径）、验收标准、闸门批准人。
 - **Brief 不含 DNA 信息**：Content Producer 看不到 main 的 DNA，只按 Brief 制作；也不要把 DNA 文档路径写进 Brief。
-- **口播类视频**：口播文案子模块启用时，口播终稿由 main agent 写好并随 Brief 交付；真人口播时由 main agent 向用户取得录音文件。CP 不重写策略文案。
+- **口播类视频**：口播文案子模块启用时，口播终稿由 main agent 写好并随 Brief 交付；真人口播时由 main agent 指导用户录音并向用户取得录音文件。CP 不重写策略文案。
 - **工作区**：main 不替 CP 建工作区，也不指定项目目录；CP 自建工作区，双方 T3 权限可互访取文件。
 
 ## 对标接口

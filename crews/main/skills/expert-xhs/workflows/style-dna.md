@@ -4,7 +4,7 @@
 
 ## 边界
 
-- DNA 是从一批作品样本中提取、聚合出的内容生产规则集，不存在「平台级 DNA」或「账号级 DNA」的说法；样本可以来自多个账号，也可以来自用户指定的一个账号的发布列表批量提取。
+- DNA 是从一批作品样本中提取、聚合出的内容生产规则集，样本可以来自多个账号，也可以来自用户指定的一个账号的发布列表批量提取。
 - 账号初始化与默认 `dna-0` 建立走 `account-setup.md`；对标样本先走 `account-benchmark.md`。
 - DNA 如何用于内容生产走 `content-production.md`；改稿走 `editing.md`；数据复盘走 `review.md`。
 - 图文由 main agent 直接生产；视频全案只到 Brief（+ 口播文案），制作委托 `content-producer`。

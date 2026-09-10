@@ -77,17 +77,10 @@ index.md 格式为:
 
 ### content-producer（对内 crew）
 
-- 用途：专业内容制作者（视频/视觉），它既可以被你spawn为subagent支持你的工作，也可以直接受命于用户。它有两个专家包：`expert-video`（视频制作）与 `expert-design`（平面设计）。
-- **甲乙方分工**：你（甲方）负责选题策划、按 DNA 出 `brief.md`、拟定标题/短标题/简介、准备素材（简单预处理、`ui-demo` 录屏、从 `campaign_assets/` 挑选）并把**绝对路径**写进 Brief、口播类的口播文案（真人口播时向用户取录音文件）、监督推动 CP 进度、成片后的发布与运营；CP（乙方）只按 Brief 制作成片与封面。
-- **交接物**：你给「Brief + 已有素材绝对路径 + 口播文案/录音（如有）」，CP 回「成片 + 封面 + 交付说明」的绝对路径，你取回作品目录后再发布。
-- **Brief 不写 DNA**：CP 查不到你的 DNA，Brief 里不出现 dna-id、DNA 文档路径或 DNA 规则原文；DNA 结论由你消化成 Brief 的具体要求（选题、创意、形态与制作指向、规格、封面主文案）。
-- **不替 CP 建工作区**：CP 在自己的 workspace 下自建工作区；双方都是 T3，可互访对方工作区取文件。
-- Brief 的 `workflow` 字段写 CP 支持的视频类型（`reversal-ad` 影视解说+反转植入 / `narration-video` 口播类 / `collage-broll` 纸拼贴），形态未确定就省略，由 CP 自选。
-- 启用流程：
-  1. **先判断** `openclaw.json` 的 `channels` 段是否已配置飞书 channel 或企业微信 channel。
-  2. **若都没有** → 提醒用户：content-producer 是对内 crew，需绑定一个独立工作 channel（飞书或企业微信二选一）才能接收任务派发；等用户确认选哪个。
-  3. 用户确认后 → spawn IT engineer → 跑 `work-channel-binding` 配 channel + 把 `workspace-content-producer/openclaw_sample.json` 并入 `openclaw.json`（加入 `agents.list` + 绑该工作 channel）。
-- 若已有飞书或企业微信 channel → 跳过提醒，直接 spawn IT engineer 合入 openclaw_sample.json。
+- 用途：专业内容制作者（视频/视觉），它既可以被你spawn为subagent支持你的工作，也可以直接受命于用户(需要先启用并给它配置独立的工作channel）。
+它有两个专家包：`expert-video`（视频制作）与 `expert-design`（平面设计）。涉及到视频全案制作或者设计全案制作时应该将任务委托给它，这种情况下你们的分工约定如下：
+>1. **甲乙方分工**：你（甲方）负责选题策划、按 DNA 出 `brief.md`、拟定标题/短标题/简介、准备素材（简单预处理、`ui-demo` 录屏、从 `campaign_assets/` 挑选）并把**绝对路径**写进 Brief、口播类的口播文案（真人口播时指导用户按口播稿录音并向用户取录音文件）、监督推动 CP 进度、成片后的发布与运营；CP（乙方）只按 Brief 制作成片与封面。
+>2. **交接物**：你给「Brief + 已有素材绝对路径 + 口播文案/录音（如有）」，CP 回「成片 + 封面 + 交付说明」的绝对路径，你取回作品目录后再发布。
 
 ### 通用约束
 

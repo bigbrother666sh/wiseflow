@@ -61,16 +61,35 @@ metadata:
 - **env 依赖**：`AWK_API_KEY`（静帧/视频生成）、`VOLC_ASR_*`（narration-align 回退与口播录音转写）。缺 env 时子命令 exit 2，补齐属 IT engineer 职责，不要静默降级。
 - **闸门不是子命令**：GATE A / GATE B 由 agent 按包内 SKILL.md 执行（呈交摘要 → 结束本轮回复 → 等甲方逐闸门批准）。
 
-## 后期脚本（crew 级，Workspace `scripts/`）
+## 后期处理子命令（Stage 13c 与可选后期）
 
-以下五个不在本工具 wrapper 内，从 Content Producer workspace 根按 `python3 scripts/<name>.py` 调用；全部干湿分离（输出落 `<stem>_<处理名>.mp4`，不覆盖输入）。
+同在 `video-producer` wrapper 下，调用方式与其他子命令一致：`video-producer <子命令> [参数...]`，每个都支持 `--help` 查完整入参。
 
-| 脚本 | 用途 | 必跑/可选 | 落点 |
-|------|------|----------|------|
-| `normalize.py` | ffmpeg loudnorm 双 pass 归一化到 -14 LUFS（抖音/视频号/B站竖屏通用） | **必跑** | 成片合成后、自检与交付前 |
-| `burn-srt.py` | libass 把 SRT 硬烧进画面 | 可选（Brief 或甲方要字幕时） | 归一化前后均可，串联时以上一步产物为输入 |
-| `duck.py` | sidechaincompress 让旁白触发 BGM 自动压低 | 可选（要专业混音且可分轨时） | 混音阶段 |
-| `denoise.py` | afftdn（默认）/ arnndn 去环境噪声 | 可选（仅甲方素材音质差时；AIGC 音轨干净跳过） | 素材入库后 |
-| `interp.py` | minterpolate 补帧到 30/60fps | 可选（仅低 fps 源材） | 渲染或拼接前 |
+| 子命令 | 用途 | 必跑/可选 | 落点 |
+|--------|------|----------|------|
+| `normalize` | ffmpeg loudnorm 双 pass 归一化到 -14 LUFS（抖音 / 视频号 / B站竖屏发布通用标准） | **必跑** | 阶段链 Stage 13c：成片合成后、自检与交付前强制跑 |
+| `burn-srt` | libass 把 SRT 硬烧进画面（烧录后不可关） | 可选（Brief 或甲方要字幕时） | 归一化前后均可；串联时以上一步产物为输入 |
+| `duck` | sidechaincompress 让旁白作 sidechain 触发 BGM 自动压低（默认 threshold -25dB / ratio 8:1） | 可选（要专业混音且可分轨时） | 混音阶段 |
+| `denoise` | afftdn（默认）/ arnndn（RNN，要模型文件）去环境噪声 | 可选（仅甲方素材音质差时；AIGC 音轨本来就干净，跳过） | 素材入库后 |
+| `interp` | minterpolate 补帧到 30/60fps | 可选（仅低 fps 源材，如 24fps AIGC 片） | 渲染或拼接前 |
 
-旁路条件：`normalize.py` 无声轨/音频畸变 → exit 2 退回重生，已在 ±0.3 LUFS 内 → 自动跳过；`burn-srt.py` ffmpeg 无 libass → exit 1 改发外挂 SRT；`duck.py` 声画同出混轨不可分 → 报甲方决策；`interp.py` 源 fps ≥ 目标 → 自动跳过拷贝。
+**干湿分离（五个都守）**：输出落 `<stem>_<处理名>.mp4`（`_normalized` / `_burned` / `_ducked` / `_denoised` / `_interp`），不覆盖输入；多步串联时下一步以上一步产物为输入（如 ducking 后再 normalize），原产物保留作回退。
+
+常用调用：
+
+```bash
+video-producer normalize <video.mp4> --output <out.mp4>          # 默认 -14 LUFS / true peak -1.5 dB / LRA 11
+video-producer burn-srt <video.mp4> <subs.srt> --output <out.mp4> # 默认 Noto Sans CJK SC 24px，可 --font-name/--font-size/--force-style
+video-producer duck <video.mp4> <narration.mp3> --output <out.mp4>                      # 视频自带 BGM
+video-producer duck <video.mp4> <narration.mp3> --bgm-source <bgm.mp3> --output <out.mp4>  # 外挂 BGM
+video-producer denoise <user-footage.mp4> --output <out.mp4>     # 更强降噪：--method arnndn --rnn-model <model.rnn>
+video-producer interp <video.mp4> --target-fps 30 --output <out.mp4>  # 更顺但慢：--mode mci（高运动易出鬼影）
+```
+
+旁路条件（不满足就报错退出，不静默降级）：
+
+- `normalize`：无声轨 / 音频畸变 → exit 2，退回 Stage 12 重生；input_i 已在 target ±0.3 LUFS 内 → 自动跳过渲染直接拷贝
+- `burn-srt`：ffmpeg 不带 libass → exit 1，改发外挂 SRT；SRT 不存在或格式错 → exit 1
+- `duck`：AI 声画同出模式混轨不可分 → 报甲方决策；视频无声轨且没传 `--bgm-source` → exit 1
+- `denoise`：ffmpeg 不带 afftdn/arnndn → exit 1；`--method arnndn` 没传 `--rnn-model` → exit 1
+- `interp`：源 fps ≥ 目标 fps → 自动跳过拷贝；ffmpeg 不带 minterpolate → exit 1；mci 出鬼影 → 退 blend

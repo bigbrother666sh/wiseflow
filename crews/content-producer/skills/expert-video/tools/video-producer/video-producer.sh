@@ -22,8 +22,9 @@ video-producer — 视频制作原子能力（wrapper，expert-video 包内工�
   video-producer help                    列可用子命令
 
 流程:
-  Brief 指定 workflow 时，先读 expert-video 包内 workflows/<workflow>.md，再按其阶段裁剪调用下列子命令。
-  未指定 workflow 时走 expert-video SKILL.md 的通用阶段链 Stage 0→14。
+  通用制作流程（expert-video SKILL.md 的 Stage 0→14 + 两闸门）是做**任何**视频都要遵循的基准，
+  不是"没指定类型时的备选"。Brief 指定 workflow 时，先读包内 workflows/<workflow>.md，
+  按其阶段裁剪调用下列子命令；未指定时只按通用制作流程走，由 intent-router 定档位。
 
 子命令（按阶段序）:
   intent-router        Stage 1  意图路由 → 三档脚本模板（故事讲述型/纯画面动效型/蒙太奇剪接型）
@@ -40,12 +41,23 @@ video-producer — 视频制作原子能力（wrapper，expert-video 包内工�
   delivery-promise-lock Stage 9 交付承诺八类锁定
   render-shot          Stage 10 按 slot 渲染（AIGC i2v / 静图）
   mix-audio            Stage 11 旁白（awk-tts）+ BGM + 字幕
-  assemble             Stage 12 按镜顺序拼接成片 + 转场
-  add-silent-audio     给无音频的视频片段补静音音轨（concat 前置）
+  narration-align      Stage 11 旁白字级时间戳对齐（复用 awk-tts 原生时间戳，缺失回退火山 ASR）
+  clip-trim            Stage 12 精确切素材段（入点/出点/倍速/前置缓冲）
+  audio-mix            Stage 12 多轨混音（每轨独立延时与音量）
+  timeline-compose     Stage 12 按时间轴 JSON 合成片段（内部调 clip-trim + audio-mix）
   scene-compose        Stage 12 单 Scene 分段合成（片段+旁白+对白 → 一个 Scene 片段）
+  assemble             Stage 12 按镜顺序拼接成片 + 转场 + 规格归一化
+  add-silent-audio     Stage 12 给无音频的视频片段补静音音轨（concat 前置）
   make-outro           Stage 12 片尾制作（形象图+黑边+烧字幕+静音轨 → 标准比例片尾）
   motion-audit         Stage 13 motion_led 抽查（补公共 video-review）
-  make-cover           Stage 14 封面（siliconflow-img-gen，必含标题文字）
+  normalize            Stage 13c 响度归一化到 -14 LUFS（**必跑**）
+  make-cover           Stage 14 封面（siliconflow-img-gen，必含封面主文案）
+
+后期处理（可选，全部干湿分离：输出落 <stem>_<处理名>.mp4，不覆盖输入）:
+  burn-srt             libass 把 SRT 硬烧进画面（甲方要字幕时）
+  duck                 sidechaincompress 让旁白触发 BGM 自动压低（要专业混音且可分轨时）
+  denoise              afftdn / arnndn 去环境噪声（仅甲方素材音质差时）
+  interp               minterpolate 补帧到 30/60fps（仅低 fps 源材）
 
 闸门不是子命令——GATE A（Stage 6 后文本闸门）与 GATE B（Stage 9 后素材闸门）由 agent
 按 expert-video SKILL.md 执行：呈交摘要 → 结束本轮回复 → 等甲方（main agent 或用户）逐闸门批准。

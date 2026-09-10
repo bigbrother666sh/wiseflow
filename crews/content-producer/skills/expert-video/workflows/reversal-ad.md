@@ -1,6 +1,6 @@
 # Workflow：Reversal Ad（「万万没想到」式反转植入）
 
-Brief 里写 `workflow: reversal-ad` 时使用。本 workflow 只写这一类型视频的套路与阶段裁剪；原子能力、闸门纪律、工作区约定一律按 `expert-video` 的 SKILL.md 执行。
+Brief 里写 `workflow: reversal-ad` 时使用。本文是**通用制作流程在反转植入类视频上的细化**：三段结构、反转手法、素材与口播约束、阶段裁剪，不替代通用流程——原子能力、GATE A/B 闸门纪律、护栏、工作区与交付约定一律照 `expert-video` 的 SKILL.md 执行；本文与通用流程冲突处以本文为准，但闸门与护栏不让步。
 
 ## 类型定义
 
@@ -39,7 +39,7 @@ Brief 里写 `workflow: reversal-ad` 时使用。本 workflow 只写这一类型
 ## 口播（旁白）
 
 - 甲方交付 `voiceover.md` 时**原样落稿锁定**（Stage 3 不重写策略文案，仍跑 `script-self-eval` 做检查）。
-- 未交付时由本包写，GATE A 交审。默认规范：第三人称解说体；避免问句、感叹号、第二人称（你/您/家人们）与促销信号词（「接下来介绍」「这是我们的」）；句长 10–15 字，语速 7–8 字/秒。
+- 未交付时由我写，GATE A 交审。默认规范：第三人称解说体；避免问句、感叹号、第二人称（你/您/家人们）与促销信号词（「接下来介绍」「这是我们的」）；句长 10–15 字，语速 7–8 字/秒。
 - 真人口播录音（甲方提供）走 Stage 11 场景 D：ASR 拿时间戳后按时间戳排素材，不重配旁白。
 
 ## 素材 sourcing
@@ -47,7 +47,7 @@ Brief 里写 `workflow: reversal-ad` 时使用。本 workflow 只写这一类型
 来源模式只允许以下四类（含混合），每段素材都必须能追溯到来源模式与授权记录：
 
 1. **open_license_footage**：Brief 指定的开源/免版权片源。记录原片 URL、许可证、署名要求，发布说明如实署名。不得把"网上能下载"等同于可商用或可改编。
-2. **user_provided**：甲方/用户给现成片段。入库前记录文件参数、来源说明、授权背景；版权风险由甲方确认承担，本包只做技术处理，不做授权背书。
+2. **user_provided**：甲方/用户给现成片段。入库前记录文件参数、来源说明、授权背景；版权风险由甲方确认承担，我只做技术处理，不做授权背书。
 3. **aigc**：按 Brief 风格边界生成（公共 `aigc-video-gen`）。记录 prompt、模型、生成时间与产物 metadata；交付说明按平台要求标注 AI 生成。
 4. **mixed**：以上混合。
 
@@ -68,9 +68,9 @@ Brief 里写 `workflow: reversal-ad` 时使用。本 workflow 只写这一类型
 | core_message | 本条必须传达的核心信息 |
 | product_points | 产品/服务事实、允许讲的能力、禁用承诺（只以 Brief 为准，不内置品牌事实） |
 | implant_cta | Brief「业务植入与 CTA」字段：植入位置与方式、内容与业务的衔接句要求、CTA 主目标与句式；未给时按本 workflow 默认（反转点 55%–76%、植入段单点深打、片尾一个主行动），并在 GATE A 说明 |
-| twist_variant | 任务指引式 / 双关置换式 / 身份彩蛋式 / 戏中戏式；未指定时由本包据素材与故事选定，并在 GATE A 说明理由 |
+| twist_variant | 任务指引式 / 双关置换式 / 身份彩蛋式 / 戏中戏式；未指定时由我据素材与故事选定，并在 GATE A 说明理由 |
 | story_source | 解说正文的故事来源（开源片名 / 用户素材 / AIGC 生成） |
-| voiceover | 甲方交付口播终稿路径；未交付时写明由本包起草 |
+| voiceover | 甲方交付口播终稿路径；未交付时写明由我起草 |
 | source_mode | open_license_footage / user_provided / aigc / mixed |
 | assets | 素材绝对路径、来源 URL、许可证、授权确认记录 |
 | form | 横竖屏、时长带、画面风格、配音音色与 BGM 倾向 |
@@ -78,7 +78,7 @@ Brief 里写 `workflow: reversal-ad` 时使用。本 workflow 只写这一类型
 | gates | GATE A/B 批准人；甲方代理批准时写明批准范围 |
 | acceptance | 交付物、验收标准、遗留问题记录要求 |
 
-## 阶段裁剪（对通用链的差异）
+## 阶段裁剪（对通用制作流程的细化）
 
 | 阶段 | 本 workflow 的做法 |
 |------|--------------------|

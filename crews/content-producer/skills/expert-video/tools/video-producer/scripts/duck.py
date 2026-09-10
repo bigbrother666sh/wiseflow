@@ -4,7 +4,7 @@
 把 BGM 轨在旁白/对话出现时自动压低，旁白停了再放开——专业混音的标配。
 只在声画同出模式（gen.py 出的片旁白+BGM 同轨）且用户要专业混音时用。
 
-⚠️ 可选步骤，不是必跑。Content Producer 默认工作流不做混音处理——
+⚠️ 可选步骤，不是必跑。通用制作流程默认不做混音处理——
 assemble.py / normalize.py 都只碰整体响度，不动轨间电平。
 **仅当用户明确说"要混音"/"做 ducking"/"BGM 压旁白"/"professional mix"时才跑**。
 
@@ -26,9 +26,9 @@ ffmpeg sidechaincompress 滤镜要点：
 - attack/release 不能太短，短了BGM抖；不能太长，长了旁白起了 BGM 没压下去
 
 Usage:
-  python3 ./scripts/duck.py <video.mp4> <narration.mp3> --bgm-track audio:0
-  python3 ./scripts/duck.py <video.mp4> <narration.mp3> --bgm-source bgm.mp3 --output mixed.mp4
-  python3 ./scripts/duck.py <video.mp4> <narration.mp3> --threshold -25 --ratio 8
+  video-producer duck <video.mp4> <narration.mp3> --bgm-track audio:0
+  video-producer duck <video.mp4> <narration.mp3> --bgm-source bgm.mp3 --output mixed.mp4
+  video-producer duck <video.mp4> <narration.mp3> --threshold -25 --ratio 8
 
 Exit codes:
   0  ok，ducking 完成

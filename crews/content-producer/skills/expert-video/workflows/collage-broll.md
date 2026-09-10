@@ -2,6 +2,8 @@
 
 Brief 里写 `workflow: collage-broll`，或甲方要"把这句口播做成拼贴 B-roll""纸拼贴动画""半调拼贴"时使用。把一句约 5 秒的口播压成一个 sharp visual idea，再做成高级编辑风纸拼贴组装动画。
 
+本文是**通用制作流程在纸拼贴 B-roll 上的细化**（三道闸门、隐喻与静帧规范、Gate 3 批量调度），不替代通用流程；原子能力、护栏、工作区与交付约定照 `expert-video` 的 SKILL.md 执行。
+
 ## 三道闸门
 
 | 闸门 | 停在哪 | 交付给甲方看什么 |
@@ -11,7 +13,7 @@ Brief 里写 `workflow: collage-broll`，或甲方要"把这句口播做成拼�
 | Gate 3 视频生成 | 静帧确认后不再问用哪个模型，直接调 `collage-broll gate3` 批量跑 i2v | 逐条 contact sheet + 末帧对照 + `gate3-qa.md` + `video-review` 结论 |
 
 - 每道闸门都要**结束本轮回复**等甲方批；甲方只确认部分编号时，只让通过的条目进下一道。
-- Gate 1 / Gate 2 分别对应通用链的 GATE A（文本）/ GATE B（素材）语义：付费生成前必停。
+- Gate 1 / Gate 2 分别对应通用制作流程的 GATE A（文本）/ GATE B（素材）语义：付费生成前必停。
 - 甲方已在 Brief 中代理批准某道闸门时，把批准范围记进对应 QA 文件后继续。
 
 ## 成功标准
@@ -32,7 +34,7 @@ Brief 里写 `workflow: collage-broll`，或甲方要"把这句口播做成拼�
 
 - 需要精确控制图层、遮挡、镜头穿越或可编辑时间线 → 改用分层动画方案，并向甲方说明本 workflow 做不到。
 - 只要视频提示词、不要成片 → 直接写 prompt 交付，不走本流程。
-- 需要真实人物产品广告或口播演员 → 走 Narration Video 或通用流程。
+- 需要真实人物产品广告或口播演员 → 走 Narration Video，或只按通用制作流程做（不套类型 workflow）。
 - 甲方明确要可逐层修改的透明素材 → 本 workflow 默认不拆透明图层。
 
 ## 项目目录

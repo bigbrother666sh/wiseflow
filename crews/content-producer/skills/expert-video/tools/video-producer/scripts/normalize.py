@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Loudness normalization — 发布平台通用响度归一化。
 
-把成片音频响度归一化到 -14 LUFS（短视频平台通用标准：抖音/视频号/B 竍竖屏通用）。
+把成片音频响度归一化到 -14 LUFS（短视频平台通用标准：抖音/视频号/B 站竖屏通用）。
 跑在合成后、自检/交付前。这条是必跑步骤——但脚本
-本身尊重 --skip 时跳过，由 caller（AGENTS.md 工作流）决定是否强制。
+本身尊重 --skip 时跳过；是否强制由 caller 决定（通用制作流程 Stage 13c 规定必跑）。
 
 为什么 -14 LUFS：
-- 抖音/视频号/B 竍竖屏发布通用标准，与平台播放器电平匹配，避免"在我机 sound bar
+- 抖音/视频号/B 站竖屏发布通用标准，与平台播放器电平匹配，避免"在我机 sound bar
   听着正"但"在手机刷到时偏轻/偏响"
 - industry de-facto for short-form video
 
@@ -18,9 +18,9 @@ ffmpeg 用 loudnorm 双 pass：
 caller 决定是 rename 替换还是双轨保留。
 
 Usage:
-  python3 ./scripts/normalize.py <video.mp4>
-  python3 ./scripts/normalize.py <video.mp4> --output <out.mp4>
-  python3 ./scripts/normalize.py <video.mp4 --target-lufs -14 --true-peak -1.5
+  video-producer normalize <video.mp4>
+  video-producer normalize <video.mp4> --output <out.mp4>
+  video-producer normalize <video.mp4 --target-lufs -14 --true-peak -1.5
 
 Exit codes:
   0  ok，归一化完成

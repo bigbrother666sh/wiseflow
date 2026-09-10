@@ -5,7 +5,7 @@
 15fps 用户素材）补到 30fps 顺滑——发布平台播放器默认 30fps 起，低于这
 画面会卡。
 
-⚠️ 可选步骤，不是必跑。Content Producer 默认工作流不动 fps。
+⚠️ 可选步骤，不是必跑。通用制作流程默认不动 fps。
 **仅当源 fps < target fps** 且用户要"补帧"/"顺滑"/"提升帧率"时才跑。
 
 minterpolate mode 怎么选：
@@ -17,9 +17,9 @@ minterpolate mode 怎么选：
 干湿分离：输出 `<stem>_interp.mp4`，不覆盖输入。
 
 Usage:
-  python3 ./scripts/interp.py <video.mp4>
-  python3 ./scripts/interp.py <video.mp4> --target-fps 30 --output <out.mp4>
-  python3 ./scripts/interp.py <video.mp4> --target-fps 60 --mode mci
+  video-producer interp <video.mp4>
+  video-producer interp <video.mp4> --target-fps 30 --output <out.mp4>
+  video-producer interp <video.mp4> --target-fps 60 --mode mci
 
 Exit codes:
   0  ok，补帧完成（含源 fps ≥ target fps 自动跳过拷贝的 exit 0）

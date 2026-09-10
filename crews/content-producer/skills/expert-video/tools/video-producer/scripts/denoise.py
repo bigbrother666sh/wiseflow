@@ -5,7 +5,7 @@
 只在用户素材音质差（环境噪声大、空调嗡、键盘吱）时用——AI 生成视频的音轨
 是干净的，不需要降噪。
 
-⚠️ 可选步骤，不是必跑。Content Producer 默认工作流不做降噪处理。
+⚠️ 可选步骤，不是必跑。通用制作流程默认不做降噪处理。
 **仅当用户素材音质明显差**（用户抱怨"听不清"/"有杂音"/"噪音大"，
 或 review.py 报噪声指标异常）时才跑。
 
@@ -21,10 +21,10 @@ arnndn vs afftdn 怎么选：
 干湿分离：输出 `<stem>_denoised.mp4`，不覆盖输入。
 
 Usage:
-  python3 ./scripts/denoise.py <video.mp4>
-  python3 ./scripts/denoise.py <video.mp4> --output <out.mp4>
-  python3 ./scripts/denoise.py <video.mp4> --method arnndn --rnn-model /path/to/model.rnn
-  python3 ./scripts/denoise.py <video.mp4> --noise-floor -40 --nr 12
+  video-producer denoise <video.mp4>
+  video-producer denoise <video.mp4> --output <out.mp4>
+  video-producer denoise <video.mp4> --method arnndn --rnn-model /path/to/model.rnn
+  video-producer denoise <video.mp4> --noise-floor -40 --nr 12
 
 Exit codes:
   0  ok，降噪完成

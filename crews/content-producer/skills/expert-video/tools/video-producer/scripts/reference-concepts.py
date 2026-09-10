@@ -10,7 +10,7 @@ Usage:
 入：project_dir（CP 自建工作区 output_videos/<topic-en-slug>/）+ 参考拆解报告路径
 出：project_dir/reference/concepts.md（2–3 差异化概念 + 成本 + 备选路径）
 
-无报告则跳过（本脚本不报错退出），agent 直接按通用阶段链推进。
+无报告则跳过（本脚本不报错退出），agent 直接按通用制作流程推进。
 """
 
 import argparse
@@ -79,7 +79,7 @@ def main() -> None:
     concepts_path.write_text(stub, encoding="utf-8")
     print(f"[done] 报告已存档：{archived}")
     print(f"[stub] concepts.md 模板已落：{concepts_path}")
-    print(f"[next] agent 据报告填概念 → 呈交甲方选定 → 回通用阶段链（story-develop）")
+    print(f"[next] agent 据报告填概念 → 呈交甲方选定 → 回通用制作流程（story-develop）")
 
 
 if __name__ == "__main__":

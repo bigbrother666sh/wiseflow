@@ -5,7 +5,7 @@
 平台播放器可开关）不同——硬烧适合"平台不支持外挂字幕"或"想保证画面字
 一定显示"的场景。
 
-⚠️ 可选步骤，不是必跑。Content Producer 的 AGENTS.md 工作流默认不烧字幕
+⚠️ 可选步骤，不是必跑。通用制作流程默认不烧字幕
 （assemble.py / exportMp4 都不烧）；**仅当用户明确说"要字幕"/"烧字幕"/
 "hardcode subtitles"时才跑**。
 
@@ -18,9 +18,9 @@ ffmpeg subtitles 滤镜要点：
 - 字幕样式由 SRT 内 cue style 或 force_style 覆盖，本脚本默认给一套可读样式
 
 Usage:
-  python3 ./scripts/burn-srt.py <video.mp4> <subs.srt>
-  python3 ./scripts/burn-srt.py <video.mp4> <subs.srt> --output <out.mp4>
-  python3 ./scripts/burn-srt.py <video.mp4> <subs.srt> --font-name "Noto Sans CJK SC" --font-size 24
+  video-producer burn-srt <video.mp4> <subs.srt>
+  video-producer burn-srt <video.mp4> <subs.srt> --output <out.mp4>
+  video-producer burn-srt <video.mp4> <subs.srt> --font-name "Noto Sans CJK SC" --font-size 24
 
 Exit codes:
   0  ok，字幕烧完

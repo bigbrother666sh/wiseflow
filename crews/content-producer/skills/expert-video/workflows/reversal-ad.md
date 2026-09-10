@@ -67,6 +67,7 @@ Brief 里写 `workflow: reversal-ad` 时使用。本 workflow 只写这一类型
 | platform | douyin / wx_channel / xhs 等，用于画幅、时长带与合规边界 |
 | core_message | 本条必须传达的核心信息 |
 | product_points | 产品/服务事实、允许讲的能力、禁用承诺（只以 Brief 为准，不内置品牌事实） |
+| implant_cta | Brief「业务植入与 CTA」字段：植入位置与方式、内容与业务的衔接句要求、CTA 主目标与句式；未给时按本 workflow 默认（反转点 55%–76%、植入段单点深打、片尾一个主行动），并在 GATE A 说明 |
 | twist_variant | 任务指引式 / 双关置换式 / 身份彩蛋式 / 戏中戏式；未指定时由本包据素材与故事选定，并在 GATE A 说明理由 |
 | story_source | 解说正文的故事来源（开源片名 / 用户素材 / AIGC 生成） |
 | voiceover | 甲方交付口播终稿路径；未交付时写明由本包起草 |

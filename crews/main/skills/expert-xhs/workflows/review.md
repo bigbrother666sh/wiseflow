@@ -43,10 +43,12 @@ xhs 互动数据来自创作者后台笔记管理页 5 列（`xhs-engagement` �
 |---------|--------------------------|------------------|
 | 阅读低（推荐/点击瓶颈） | 选题、标题与封面、关键词与用户问题 | topic-angle、title-cover、search-intent |
 | 阅读正常但收藏低 | 内容创意与结构、正文表达 | content-idea、body-voice |
-| 阅读正常但评论低 | 互动与标签、内容创意 | interaction-cta、content-idea |
+| 阅读正常但评论低 | 业务植入与 CTA、内容创意 | interaction-cta、biz-implant、content-idea |
 | 点赞低 | 内容创意、正文表达 | content-idea、body-voice |
 | 分享低 | 选题、正文表达 | topic-angle、body-voice |
-| 关注转化低 | 账号运营子模块、互动与标签 | account-bio、content-mix-cadence、interaction-cta |
+| 关注转化低 | 账号运营子模块、业务植入与 CTA | account-bio、content-mix-cadence、interaction-cta |
+| 进店 / 咨询 / 私信转化低 | 业务植入与 CTA | biz-implant、interaction-cta |
+| 广告感重（收藏高但评论转冷、负面评论） | 业务植入与 CTA、选题 | biz-implant、interaction-cta、topic-angle |
 | 搜索流量弱 | 关键词与用户问题、标题与封面 | search-intent、title-cover |
 | 图组跳失 / 图片被吐槽 | 图组、标题与封面 | imageset-visual、title-cover |
 
@@ -57,7 +59,8 @@ xhs 互动数据来自创作者后台笔记管理页 5 列（`xhs-engagement` �
 | 播放低 | 选题、标题与封面、关键词与用户问题 | topic-angle、title-cover、search-intent |
 | 完播估算低 | 内容创意、制作规格、口播文案 | content-idea、production-spec、narration-script |
 | 搜索流量弱 | 关键词与用户问题 | search-intent |
-| 关注转化低 | 账号运营子模块 | account-bio、content-mix-cadence |
+| 关注转化低 | 账号运营子模块、业务植入与 CTA | account-bio、content-mix-cadence、interaction-cta |
+| 进店 / 咨询转化低 | 业务植入与 CTA | biz-implant、interaction-cta |
 
 ### 平台混杂因素（归因前必排）
 

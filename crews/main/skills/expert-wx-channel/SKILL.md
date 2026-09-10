@@ -62,7 +62,7 @@ metadata:
 
 DNA 存储目录是 `wx_channel/dna/`。未指定 DNA 时默认使用并更新 `dna-0`。生产前同时读取 DNA 文档与 DNA template；对标分析先建立独立对标 DNA，不默认写入 `dna-0`。
 
-DNA 是**从一批作品样本提取并聚合出的内容生产规则集**：8 维——选题与观看理由、短标题与视频描述与封面、内容创意、视频内容形态与制作指向、制作规格与视听倾向，加可选的口播文案子模块与账号运营子模块（简介写法、发布习惯）。它指导 main agent 出 Brief（+ 口播文案）与发布文案，不规定创作细节与成片制作。维度框架 v2 位于 `wx-channel-style-profiler` 的 `references/video-dna-framework.md`。
+DNA 是**从一批作品样本提取并聚合出的内容生产规则集**：10 维——选题与观看理由、短标题与视频描述与封面、内容创意、**业务植入套路**、**互动引导与 CTA 套路**、视频内容形态与制作指向、制作规格与视听倾向，加可选的口播文案子模块与账号运营子模块（简介写法、发布习惯）。它指导 main agent 出 Brief（+ 口播文案）与发布文案，不规定创作细节与成片制作。维度框架 v2 位于 `wx-channel-style-profiler` 的 `references/video-dna-framework.md`。
 
 ## 数据与记录
 

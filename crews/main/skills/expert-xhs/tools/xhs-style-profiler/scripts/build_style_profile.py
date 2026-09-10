@@ -10,16 +10,13 @@
 脚本只做 scaffold 与统计证据底座：不评分、不判定风格合格，定性结论由 Agent 回读原文补齐。
 """
 import argparse, json, math, re, shutil
-from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from statistics import median
 
 
 SENTENCE_SPLIT = re.compile(r"[。！？!?]+")
 PARAGRAPH_SPLIT = re.compile(r"\n\s*\n")
 TOKEN_RE = re.compile(r"[一-鿿A-Za-z0-9_]+")
-ENGLISH_WORD_RE = re.compile(r"[A-Za-z0-9_]+")
 SECOND_PERSON_RE = re.compile(r"你们?|you", re.IGNORECASE)
 FIRST_PERSON_RE = re.compile(r"我们?|I|we", re.IGNORECASE)
 QUESTION_RE = re.compile(r"[？?]")
@@ -71,6 +68,7 @@ DIMENSION_GROUPS = {
         "选题与包装": [("topic-angle", "选题与观看理由"), ("title-cover", "标题与封面")],
         "内容创意与搜索": [("content-idea", "内容创意"), ("search-intent", "匹配的用户问题")],
         "形态与规格": [("video-form", "视频内容形态与制作指向"), ("production-spec", "制作规格与视听倾向")],
+        "业务植入与转化": [("biz-implant", "业务植入套路"), ("interaction-cta", "互动引导与 CTA 套路")],
         "口播文案子模块（可选，仅口播类启用）": [("narration-script", "口播文案子DNA")],
         "账号运营子模块（对标账号样本才有）": [("account-bio", "账号简介写法"), ("content-mix-cadence", "内容形式比例与发布习惯")],
     },
@@ -78,7 +76,7 @@ DIMENSION_GROUPS = {
         "选题与包装": [("topic-angle", "选题与观看理由"), ("title-cover", "标题与封面图组")],
         "内容创意与搜索": [("content-idea", "内容创意"), ("search-intent", "匹配的用户问题")],
         "正文与视觉": [("body-voice", "正文表达与语气"), ("imageset-visual", "图组视觉风格")],
-        "互动与转化": [("interaction-cta", "互动引导与转化")],
+        "业务植入与转化": [("biz-implant", "业务植入套路"), ("interaction-cta", "互动引导与 CTA 套路")],
         "账号运营子模块（对标账号样本才有）": [("account-bio", "账号简介写法"), ("content-mix-cadence", "内容形式比例与发布习惯")],
     },
 }
@@ -109,10 +107,11 @@ REPORT_DIMENSION_PROMPTS = {
     "search-intent": "- 单篇观测：本篇命中的关键词（核心词 / 痛点词 / 场景词 / 人群词）、用户可能的提问原句、搜索意图层级、标签承载的搜索意图。\n- 边界：单篇只记候选；聚合后才形成「关键词 → 用户问题 → 内容形式」的搜索意图地图。",
     "video-form": "- 单篇观测：视频内容形态（口播 / 实拍拼接 / 影视解说+反转植入 / 纯 AIGC 动画 / 创意转场动效 / 录屏演示 / 图文卡片视频 / 混合）与判定依据（画面证据、口播占比、素材来源）。\n- 制作指向：必须落到真实存在的资源名——Content Producer `expert-video` 的某个 workflow（Reversal Ad / Narration Video / Collage B-roll / 通用阶段链），或 main 的素材加工技能（`video-edit` / `talking-head-cut` / `ui-demo`）；不得发明不存在的名字。",
     "production-spec": "- 单篇观测：横屏或竖屏、时长带、画面风格（色调、质感、字幕样式倾向、信息密度）、配音音色与声音形态（原声口播 / TTS / 旁白 / 纯画面字幕）、BGM 与音效倾向、封面规格。\n- 边界：只记规格与倾向，不规定镜头参数、逐镜设计、转场与编码细节——那些归 Content Producer。",
-    "narration-script": "- 子模块（仅口播类作品启用）：起（从什么起步）、承（靠什么推进）、转（转折触发）、合（收束与 CTA），以及人称与语气、句长与语速、签名式表达。\n- 边界：非口播类或证据不足时写「未启用 / 未观测」；不得把单篇句式直接上升为规则。",
+    "narration-script": "- 子模块（仅口播类作品启用）：起（从什么起步）、承（靠什么推进）、转（转折触发）、合（收束方式；CTA 的目标、位置与句式记在 `interaction-cta`），以及人称与语气、句长与语速、签名式表达。\n- 边界：非口播类或证据不足时写「未启用 / 未观测」；不得把单篇句式直接上升为规则。",
     "body-voice": "- 单篇观测：开头钩子（原文摘录）、正文组织方式（清单体 / 教程步骤 / 故事线 / 对比 / 观点输出）、分行与段落节奏、口语化程度与人称、emoji 与标点用法、签名式表达。\n- 证据边界：脚本统计只给句长 / 行数 / emoji / 标签等线索；口头禅与签名表达必须回读原文确认。",
     "imageset-visual": "- 单篇观测：图片数量与顺序、构图类型（产品展示 / 场景 / 文字卡片 / 对比图 / 过程图）、图文信息分工、色调与质感、版式一致性、文字视觉。\n- 视觉证据：必须由视觉模型读取本地图片并反推 AIGC 复现要素；无图片写「未提供」，不得凭正文想象补齐。",
-    "interaction-cta": "- 单篇观测：评论 / 收藏 / 关注 / 进店 / 咨询等平台内行动的引导方式与位置、每篇行动引导数量、话题标签承载的意图。\n- 合规边界：不隐藏站外联系方式、不绕平台检测、不以利益换互动，记为必须避免项。",
+    "biz-implant": "- 单篇观测：是否有业务植入（纯内容 / 软植入 / 硬广直给）、植入位置与时机、植入载体（剧情道具 / 口播一句话 / 字幕卡片 / 场景背景 / 案例与数据 / 清单第 N 项 / 教程步骤内嵌 / 产品截图 / 购物车或留资组件 / 主页与私信引导）、植入方式原型（反转植入 / 痛点→方案 / 场景带入 / 实测对比 / 身份认同 / 口碑故事 / 教程内嵌 / 硬广直给）、内容与业务的衔接句（原文摘录）、植入密度与占比、品牌词与产品名出现方式与频次。\n- 证据要求：位置 + 载体 + 原文摘录三样齐全；本篇无植入时写「无植入（纯内容）」，不得留空。\n- 边界：只记植入套路，不写逐句广告文案；形态层面的「影视解说 + 反转植入」由 `video-form` 记形态与制作指向。",
+    "interaction-cta": "- 单篇观测：行动目标（关注 / 评论 / 收藏 / 转发 / 私信 / 主页点击 / 进店 / 咨询 / 搜索品牌词 / 购物车 / 直播预约）与本篇主目标、CTA 出现位置与时机（口播收尾句 / 字幕卡 / 片尾贴片 / 描述区 / 正文结尾 / 图组末图 / 评论区）、CTA 句式与原文摘录（命令式 / 提问式 / 利益式 / 身份式 / 悬念式）、一篇放几个行动、诱因设计（利益点 / 情绪 / 身份认同 / 稀缺）、与业务转化目标的对应。\n- 合规边界：不隐藏站外联系方式、不绕平台检测、不以利益换互动，记为必须避免项。",
     "account-bio": "- 子模块（仅对标账号样本可得）：账号昵称、简介写法、主页与置顶表达、对外承诺。\n- 边界：用户提供的单篇样本无法观测时写「未观测」，不得推导。",
     "content-mix-cadence": "- 子模块（仅对标账号批量样本可得）：图文 / 视频等内容形式比例、发布时间段与频率、内容形式混合节奏（如三篇图文对一篇视频）、栏目化节奏。\n- 边界：必须由账号发布列表的批量样本推导；单篇样本只记本篇发布时间。",
 }
@@ -123,8 +122,8 @@ REPORT_OBSERVATION_PROMPTS = {
 }
 
 TEMPLATE_STAGES = {
-    "video": ("选题", "标题与封面", "内容创意", "关键词与用户问题", "视频形态与制作指向", "制作规格", "口播文案"),
-    "note": ("选题", "标题与封面", "关键词与用户问题", "内容创意与结构", "正文表达", "图组", "互动与标签"),
+    "video": ("选题", "标题与封面", "内容创意", "关键词与用户问题", "业务植入与 CTA", "视频形态与制作指向", "制作规格", "口播文案"),
+    "note": ("选题", "标题与封面", "关键词与用户问题", "内容创意与结构", "正文表达", "图组", "业务植入与 CTA"),
 }
 
 TEMPLATE_STAGE_FIELDS = {
@@ -135,10 +134,10 @@ TEMPLATE_STAGE_FIELDS = {
     "视频形态与制作指向": ("视频内容形态", "制作指向", "委托边界", "未指定形态时"),
     "制作规格": ("横屏或竖屏", "时长带", "画面风格", "配音音色与声音形态", "BGM 与音效", "字幕"),
     "口播文案": ("是否启用", "起", "承", "转", "合", "人称与语气", "句长与语速", "签名式表达", "必须做", "避免"),
+    "业务植入与 CTA": ("植入位置与时机", "植入载体与方式原型", "内容与业务的衔接句", "植入密度与占比", "CTA 主目标", "CTA 位置与句式", "诱因与合规红线", "避免"),
     "内容创意与结构": ("创意原型", "正文组织方式", "信息密度", "记忆点", "避免"),
     "正文表达": ("开头钩子", "推进方式", "段落与分行节奏", "人称与语气", "emoji 与标点", "签名式表达", "必须做", "避免"),
     "图组": ("图片数量与顺序", "构图类型", "色调与质感", "版式一致性", "文字视觉", "AIGC 提示词要素"),
-    "互动与标签": ("互动目标", "引导方式", "话题标签策略", "合规边界"),
 }
 
 TEMPLATE_INTROS = {
@@ -147,8 +146,8 @@ TEMPLATE_INTROS = {
 }
 
 TEMPLATE_CHECKLISTS = {
-    "video": "- 是否只用一个 DNA，且作品类型与该 DNA 的 `kind` 一致。\n- 选题、标题 / 描述、封面是否来自 DNA 文档。\n- 内容创意是否落到可复用的创意原型，而不是照抄样本主题。\n- 视频形态是否明确指向 Content Producer `expert-video` 的某个 workflow，或 main 的某个素材加工技能。\n- Brief 是否只含制作所需信息（不含 DNA 内容），素材是否给了绝对路径与授权说明。\n- 口播类是否附口播文案（或真人口播录音路径）；口播子模块未启用时是否避免规定逐句口播。\n- 制作规格（横竖屏、时长带、画面风格、配音音色）是否尊重样本覆盖度；样本不足时是否标注未观测。\n- 关键词是否落到用户可能的提问原句（不只平台标签），并与内容形式匹配。\n- 用户输入是否已转译为具体执行规则。",
-    "note": "- 是否只用一个 DNA，且作品类型与该 DNA 的 `kind` 一致。\n- 选题、标题与封面图组是否来自 DNA 文档。\n- 正文表达的每条规则是否可从 DNA 文档推导，未使用空泛形容词。\n- 图组数量、构图与视觉风格是否与 DNA 一致；视觉结论是否有图片证据。\n- 互动引导是否每篇只放一个行动，且不越合规红线。\n- 关键词是否落到用户可能的提问原句（不只平台标签），并与内容形式匹配。\n- 用户输入是否已转译为具体执行规则。",
+    "video": "- 是否只用一个 DNA，且作品类型与该 DNA 的 `kind` 一致。\n- 选题、标题 / 描述、封面是否来自 DNA 文档。\n- 内容创意是否落到可复用的创意原型，而不是照抄样本主题。\n- 视频形态是否明确指向 Content Producer `expert-video` 的某个 workflow，或 main 的某个素材加工技能。\n- Brief 是否只含制作所需信息（不含 DNA 内容），素材是否给了绝对路径与授权说明。\n- 口播类是否附口播文案（或真人口播录音路径）；口播子模块未启用时是否避免规定逐句口播。\n- 制作规格（横竖屏、时长带、画面风格、配音音色）是否尊重样本覆盖度；样本不足时是否标注未观测。\n- 关键词是否落到用户可能的提问原句（不只平台标签），并与内容形式匹配。\n- 业务植入是否落到位置 + 载体 + 衔接句（而不是只写「自然植入」），CTA 是否只有一个主行动、句式可执行且未越合规红线。\n- 用户输入是否已转译为具体执行规则。",
+    "note": "- 是否只用一个 DNA，且作品类型与该 DNA 的 `kind` 一致。\n- 选题、标题与封面图组是否来自 DNA 文档。\n- 正文表达的每条规则是否可从 DNA 文档推导，未使用空泛形容词。\n- 图组数量、构图与视觉风格是否与 DNA 一致；视觉结论是否有图片证据。\n- 业务植入是否落到位置 + 载体 + 衔接句（而不是只写「软性推荐」），CTA 是否每篇只放一个主行动、句式可执行且未越合规红线。\n- 关键词是否落到用户可能的提问原句（不只平台标签），并与内容形式匹配。\n- 用户输入是否已转译为具体执行规则。",
 }
 
 DNA_SUBMODULE_NOTE = "- **口播文案子模块**（`narration-script`）：仅口播类视频启用，用于指导 main agent 写同类型视频的口播文案；它不是独立 DNA，未启用时写「未启用」。\n- **账号运营子模块**（`account-bio`、`content-mix-cadence`）：只在样本来自用户提供的对标账号（可从账号发布列表批量提取）时填写；结论只写进本 DNA 文档，不进 template；样本不足写「未观测」。"
@@ -182,12 +181,6 @@ METRIC_LABELS = {
     "speech_chars_per_minute": "口播密度（字/分钟）",
     "emoji_density_per_100_characters": "emoji 密度 / 百字",
     "tag_count": "话题标签数",
-}
-
-STOP_TERMS = {
-    "一个", "我们", "你们", "这里", "不会", "这个", "那个", "什么", "可以", "因为",
-    "但是", "所以", "还是", "以及", "如果", "他们", "自己", "的时候", "to", "the",
-    "a", "an", "is", "are", "and", "or", "of", "in", "for", "on", "with", "you", "we",
 }
 
 
@@ -229,24 +222,6 @@ def safe_ratio(numerator: int, denominator: float, multiplier: float = 1) -> flo
 
 def average(values: list[float]) -> float:
     return rounded(sum(values) / len(values)) if values else 0.0
-
-
-def extract_terms(text: str) -> Counter:
-    terms: Counter = Counter()
-    for token in tokenize(text):
-        if re.fullmatch(r"[A-Za-z0-9_]+", token):
-            term = token.lower()
-            if term not in STOP_TERMS and len(term) > 1:
-                terms[term] += 1
-            continue
-        cleaned = "".join(ENGLISH_WORD_RE.sub("", token).split())
-        if len(cleaned) == 1:
-            continue
-        for start in range(len(cleaned) - 1):
-            term = cleaned[start : start + 2]
-            if term not in STOP_TERMS:
-                terms[term] += 1
-    return terms
 
 
 def split_title_body(text: str) -> tuple[str, str]:
@@ -302,7 +277,6 @@ def document_metrics(path: Path, text: str, duration: float = 0.0) -> dict:
         "emoji_count": emoji_count,
         "emoji_density_per_100_characters": safe_ratio(emoji_count, character_count, 100),
         "tag_count": len(TAG_RE.findall(body)),
-        "terms": dict(extract_terms(text)),
     }
 
 
@@ -391,46 +365,12 @@ def build_statistics(reports: list[dict], kind: str) -> dict:
             "max": rounded(max(value for value, _ in pairs)) if pairs else 0.0,
         }
 
-    term_weights: dict[str, float] = defaultdict(float)
-    term_counts: dict[str, list[int]] = defaultdict(list)
-    for report in reports:
-        for term, count in report["document"]["terms"].items():
-            term_weights[term] += report["weight"]
-            term_counts[term].append(count)
-    stable_terms = []
-    for term, coverage_weight in term_weights.items():
-        stable_terms.append(
-            {
-                "term": term,
-                "weighted_coverage": rounded(coverage_weight / total_weight),
-                "report_count": len(term_counts[term]),
-                "median_count_per_report": rounded(median(term_counts[term])),
-            }
-        )
-    stable_terms.sort(
-        key=lambda item: (item["weighted_coverage"], item["report_count"], item["term"]),
-        reverse=True,
-    )
-
     weights = [report["weight"] for report in reports]
     return {
         "report_count": len(reports),
         "total_weight": total_weight,
         "weighting": "user-specified" if any(abs(weight - 1) > 1e-9 for weight in weights) else "uniform",
         "numeric_metrics": numeric_metrics,
-        "stable_terms": stable_terms[:30],
-        "weighted_coverage": sorted(
-            (
-                {
-                    "report_id": report["report_id"],
-                    "weight": report["weight"],
-                    "focus": report["focus"],
-                }
-                for report in reports
-            ),
-            key=lambda item: item["weight"],
-            reverse=True,
-        ),
     }
 
 

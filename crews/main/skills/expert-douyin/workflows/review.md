@@ -44,10 +44,12 @@
 | 评论低 | 内容创意（讨论点）、口播文案 | content-idea、narration-script |
 | 分享低 | 选题、内容创意 | topic-angle、content-idea |
 | 收藏低 | 内容创意、制作规格 | content-idea、production-spec |
-| 关注转化低 | 账号运营子模块、内容创意 | account-bio、content-mix-cadence、content-idea |
+| 关注转化低 | 账号运营子模块、业务植入与 CTA | account-bio、content-mix-cadence、interaction-cta |
+| 组件点击 / 私信 / 成交转化低 | 业务植入与 CTA | biz-implant、interaction-cta |
+| 广告感重（负面评论、掉粉、植入点完播跳水） | 业务植入与 CTA、选题 | biz-implant、interaction-cta、topic-angle |
 | 画面/时长/音色被吐槽 | 制作规格、视频形态与制作指向 | production-spec、video-form |
 
-图文作品（`dna-*-note`）改按图文 template 语义段归因：选题、标题与封面、内容创意与结构、正文表达、图组、互动与标签，对应维度 `topic-angle`、`title-cover`、`content-idea`、`body-voice`、`imageset-visual`、`interaction-cta`。
+图文作品（`dna-*-note`）改按图文 template 语义段归因：选题、标题与封面、内容创意与结构、正文表达、图组、业务植入与 CTA，对应维度 `topic-angle`、`title-cover`、`content-idea`、`body-voice`、`imageset-visual`、`biz-implant`、`interaction-cta`。
 
 ### 平台混杂因素（归因前必排）
 

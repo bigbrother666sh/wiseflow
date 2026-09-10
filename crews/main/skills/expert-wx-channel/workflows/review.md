@@ -39,8 +39,9 @@
 | 分享低 | 选题、内容创意 | topic-angle、content-idea |
 | 评论低 | 内容创意（讨论点）、口播文案 | content-idea、narration-script |
 | 收藏少 | 内容创意、制作规格 | content-idea、production-spec |
-| 关注少 | 账号运营子模块、选题 | account-bio、content-mix-cadence、topic-angle |
-| 转化少（私信/成交） | 选题、内容创意 | topic-angle、content-idea |
+| 关注少 | 账号运营子模块、业务植入与 CTA | account-bio、content-mix-cadence、interaction-cta |
+| 转化少（私信/成交） | 业务植入与 CTA、选题、内容创意 | biz-implant、interaction-cta、topic-angle、content-idea |
+| 广告感重（分享跳水、负面评论） | 业务植入与 CTA | biz-implant、interaction-cta |
 
 交叉判断：完播高、分享低 → 内容好看但缺社交价值；分享高、完播低 → 短标题 / 视频描述的承诺与内容兑现不足。
 

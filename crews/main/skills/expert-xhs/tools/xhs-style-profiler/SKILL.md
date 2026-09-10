@@ -1,6 +1,6 @@
 ---
 name: xhs-style-profiler
-description: 提取小红书作品 DNA：单篇笔记（图文 / 视频）生成 report，按 dna-id 聚合选题、标题与封面、内容创意、匹配的用户问题（搜索意图）、视频形态与制作指向、正文表达与图组视觉、口播文案子模块与账号运营子模块，推导 main agent 的图文 / Brief 生产 template。
+description: 提取小红书作品 DNA：单篇笔记（图文 / 视频）生成 report，按 dna-id 聚合选题、标题与封面、内容创意、匹配的用户问题（搜索意图）、业务植入套路、互动引导与 CTA 套路、视频形态与制作指向、正文表达与图组视觉、口播文案子模块与账号运营子模块，推导 main agent 的图文 / Brief 生产 template。
 metadata:
   openclaw:
     emoji: 🧬
@@ -18,10 +18,10 @@ DNA 的用途是指导 main agent 选题、包装、出内容或出视频制作 
 
 | kind | 作品 | 维度框架 | 默认 dna-id |
 |------|------|----------|-------------|
-| `video` | 视频 | `references/video-dna-framework.md` | `dna-0` |
-| `note` | 图文 | `references/note-dna-framework.md` | `dna-0-note` |
+| `note` | 图文（默认） | `references/note-dna-framework.md` | `dna-0` |
+| `video` | 视频 | `references/video-dna-framework.md` | `dna-0-video` |
 
-- 不传 `--kind` 时默认 `note`（小红书的主作品类型）。
+- 不传 `--kind` 时默认 `note`（小红书的主作品类型），因此**默认 `dna-0` 是图文 DNA**；视频样本另建 dna-id（如 `dna-0-video`）。
 - `build` / `update` 会校验同一 DNA 目录下 report 的 kind 一致，混型直接报错——另一种类型请另建 dna-id。
 - 默认 dna-id 只是约定：用户可以指定任意 dna-id，脚本不强制命名。
 
@@ -33,7 +33,7 @@ DNA 的用途是指导 main agent 选题、包装、出内容或出视频制作 
 DNA 文档 -> DNA template
 ```
 
-- **DNA report**：单篇作品的样本观测 + 维度提取结果（不是账号级结论，也不是模板）。
+- **DNA report**：单篇作品的样本观测 + 维度提取结果；跨篇共性与生产规则由聚合阶段给出，report 本身不是模板。
 - **DNA 文档**：聚合后的生产规则、样本覆盖度、子模块结论与用户输入转译区。
 - **DNA template**：main agent 的生产输入模板（视频 = Brief 正文 + 口播文案；图文 = 写作模板）。
 
@@ -55,11 +55,11 @@ xhs/dna/{dna-id}/
 
 - **搜索优先**：`search-intent`（匹配的用户问题）是小红书必备维度——最大流量池来自搜索。关键词必须尽量落到用户可能的提问原句，不只写平台标签。
 - 单篇 report 只提供候选信号，不判断跨篇稳定性；共性、偏好、孤例由聚合阶段判断。
-- 统计只做证据底座，不评分、不判定风格是否合格。
+- 脚本统计（句长、问句与人称密度、感叹号密度、口播密度；图文另有标题字数、正文行数、emoji 密度、话题标签数）只做证据底座，不评分、不判定风格是否合格；口头禅与签名式表达必须由 Agent 回读原文确认，不能凭统计直接下 DNA 结论。
 - 视觉维度必须有图片 / 关键帧证据，由视觉模型读取；缺失写「未提供」，不得凭文本想象补齐。
 - 口播文案子模块只在口播类作品启用；样本不足写「未启用」。
 - 账号运营子模块（简介写法、内容形式比例、发布习惯）只在样本来自对标账号批量提取时填写，且**不进 template**。
-- 不输出合规结论、账号权重或风格评分。
+- 不输出风格评分或账号权重；合规只记「必须避免项」（虚假承诺、利益诱导互动、隐藏站外联系方式、谐音绕检测），不出具合规审查结论。
 
 ## Report — 单篇提取
 
@@ -142,9 +142,10 @@ xhs-style-profiler update \
 2. 标题与封面
 3. 内容创意
 4. 关键词与用户问题
-5. 视频形态与制作指向
-6. 制作规格
-7. 口播文案
+5. 业务植入与 CTA
+6. 视频形态与制作指向
+7. 制作规格
+8. 口播文案
 
 **图文作品 template（= 图文写作模板）**
 
@@ -154,7 +155,7 @@ xhs-style-profiler update \
 4. 内容创意与结构
 5. 正文表达
 6. 图组
-7. 互动与标签
+7. 业务植入与 CTA
 
 - 开头两段（**选题**、**标题与封面**）跨平台通用。
 - 视频 template 的各段直接对应 Brief 正文字段；**Brief 不含 DNA 信息**（Content Producer 看不到 main 的 DNA），素材清单与授权、验收标准、闸门批准人按平台 Content Production Workflow 填。
@@ -194,6 +195,8 @@ content-idea：多用「实测对比」创意原型
 | `search-intent` | 匹配的用户问题 |
 | `video-form` | 视频内容形态与制作指向 |
 | `production-spec` | 制作规格与视听倾向 |
+| `biz-implant` | 业务植入套路 |
+| `interaction-cta` | 互动引导与 CTA 套路 |
 | `narration-script` | 口播文案子DNA |
 | `account-bio` | 账号简介写法 |
 | `content-mix-cadence` | 内容形式比例与发布习惯 |
@@ -208,15 +211,12 @@ content-idea：多用「实测对比」创意原型
 | `search-intent` | 匹配的用户问题 |
 | `body-voice` | 正文表达与语气 |
 | `imageset-visual` | 图组视觉风格 |
-| `interaction-cta` | 互动引导与转化 |
+| `biz-implant` | 业务植入套路 |
+| `interaction-cta` | 互动引导与 CTA 套路 |
 | `account-bio` | 账号简介写法 |
 | `content-mix-cadence` | 内容形式比例与发布习惯 |
 
 `--focus` 按作品类型校验：视频 report 不接受图文维度 ID，反之亦然。
-
-## 统计与分词
-
-脚本统计句长、问句与人称密度、感叹号密度、口播密度（视频）/ 标题字数、正文行数、emoji 密度、话题标签数（图文）等指标作为聚合证据底座；中文高频信号使用相邻二字组合，仅作候选线索。口头禅与签名式表达必须由 Agent 回读原文确认，分词结果不能直接当 DNA 结论。
 
 ## 参考资料
 

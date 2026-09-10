@@ -402,15 +402,16 @@ crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
 
 | 平台 | 框架文件 | 维度 |
 |------|----------|------|
-| 抖音 | `video-dna-framework.md`（8 维）+ `note-dna-framework.md`（8 维） | 视频：选题与观看理由、标题与封面、内容创意、视频内容形态与制作指向、制作规格与视听倾向、口播文案子模块（可选）、账号运营子模块（简介写法、内容形式比例与发布习惯）；图文：选题、标题与封面图组、内容创意、正文表达与语气、图组视觉、互动引导与转化、账号运营子模块 |
-| 小红书 | `note-dna-framework.md`（9 维，默认）+ `video-dna-framework.md`（9 维） | 同上，另加**匹配的用户问题**（`search-intent`）——小红书最大流量池来自搜索，关键词必须落到用户可能的提问原句 |
-| 视频号 | `video-dna-framework.md`（8 维，只有视频） | 同抖音视频，其中标题维度是**短标题 + 视频描述**两项（发布页都可填、官方称填短标题有更多流量；管理页不展示短标题，取数与入库只用视频描述） |
+| 抖音 | `video-dna-framework.md`（10 维）+ `note-dna-framework.md`（9 维） | 视频：选题与观看理由、标题与封面、内容创意、**业务植入套路**（`biz-implant`）、**互动引导与 CTA 套路**（`interaction-cta`）、视频内容形态与制作指向、制作规格与视听倾向、口播文案子模块（可选）、账号运营子模块（简介写法、内容形式比例与发布习惯）；图文：选题、标题与封面图组、内容创意、正文表达与语气、图组视觉、业务植入套路、互动引导与 CTA 套路、账号运营子模块 |
+| 小红书 | `note-dna-framework.md`（10 维，默认）+ `video-dna-framework.md`（11 维） | 同上，另加**匹配的用户问题**（`search-intent`）——小红书最大流量池来自搜索，关键词必须落到用户可能的提问原句 |
+| 视频号 | `video-dna-framework.md`（10 维，只有视频） | 同抖音视频，其中标题维度是**短标题 + 视频描述**两项（发布页都可填、官方称填短标题有更多流量；管理页不展示短标题，取数与入库只用视频描述） |
 
-三条硬规则：
+四条硬规则：
 
 1. **一个 `dna-id` 只承载一种作品类型**（`--kind video|note`），混型 `build` 直接报错；抖音默认 `dna-0` 为视频、图文另建（如 `dna-0-note`），小红书默认 `dna-0` 为图文、视频另建（如 `dna-0-video`）。
-2. **子模块不是独立 DNA**：口播文案子模块（`narration-script`，参考微信的起承转合）只在口播类作品启用，用于指导 main 写同类型视频的口播文案；账号运营子模块（`account-bio`、`content-mix-cadence`）只在样本来自对标账号批量提取时填写，**只写进 DNA 文档、不进 template**。
-3. **视频 DNA 不含创作细节**：不写脚本结构、逐句台词、镜头表、转场与编码参数。视频类 template = **Brief.md 正文模板 + 口播文案模板（可选）**；图文类 template = 图文写作模板。
+2. **业务植入与 CTA 是三平台共有维度**（2026-09-10 补）：`biz-implant` 记「营销内容怎么植入」（位置与时机、载体、方式原型、衔接句、密度与占比），`interaction-cta` 记「怎么引导行动」（主目标、位置与时机、句式原文、行动数量、诱因、合规边界）；两维都必须给出**位置 + 载体 + 原文摘录**证据，只写「自然植入」「引导关注」不算提取完成。口播类的 `narration-script` 只记「合」的收束方式，CTA 目标与句式归 `interaction-cta`。
+3. **子模块不是独立 DNA**：口播文案子模块（`narration-script`，参考微信的起承转合）只在口播类作品启用，用于指导 main 写同类型视频的口播文案；账号运营子模块（`account-bio`、`content-mix-cadence`）只在样本来自对标账号批量提取时填写，**只写进 DNA 文档、不进 template**。
+4. **视频 DNA 不含创作细节**：不写脚本结构、逐句台词、镜头表、转场与编码参数。视频类 template = **Brief.md 正文模板 + 口播文案模板（可选）**；图文类 template = 图文写作模板。
 
 `video-form`（视频内容形态：口播 / 实拍拼接 / 影视解说+反转植入 / 纯 AIGC 动画 / 创意转场 / 录屏 / 图文卡片）必须聚合成明确的**制作指向**，且只能写真实存在的资源名：Content Producer `expert-video` 的某个 workflow（Reversal Ad / Narration Video / Collage B-roll / 通用阶段链），或 main 的素材加工技能（`video-edit` / `talking-head-cut` / `ui-demo`）。Brief 的 `workflow` 字段据此填写。
 

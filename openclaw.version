@@ -6,5 +6,14 @@
 #   git clone https://github.com/openclaw/openclaw openclaw
 #   git -C openclaw checkout $OPENCLAW_COMMIT
 #
-OPENCLAW_VERSION=2026.7.1-2
-OPENCLAW_COMMIT=0790d9f593ad30c940ed93b5872a8cf6d6f3cf8c
+# ── 2026-09-12：2026.7.1-2 → extended-stable/2026.7.33（7 系延长稳定线）──
+# 该分支**尚未打 tag、未发 npm 包**，所以只能 pin commit SHA（不能 pin tag）；
+# `openclaw update --channel extended-stable` 对 git checkout 无效，跟版必须手动 re-pin。
+# re-pin 前必须复验四项（命令见 docs/openclaw-2026.9.3-upgrade-fact-finding.md 附录 A）：
+#   1) 37 个 patch 的目标文件相对上一 pin 零漂移
+#   2) awada 依赖的 5 个契约文件零 diff
+#   3) package.json 的 engines.node / packageManager 未变（否则要抬 CI 与 portable Node）
+#   4) skill 加载机制文件未变（专家包架构依赖，见 docs/expert-pack-dna-architecture.md §2.4/§2.5）
+# 本次 pin 的 f619d7a9fa3 四项均已复验通过（详见上述文档 §1、§6.4）。
+OPENCLAW_VERSION=2026.7.33
+OPENCLAW_COMMIT=f619d7a9fa3db8b7e9831a0b00f586a9b55559ab

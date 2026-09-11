@@ -166,8 +166,11 @@ install_weixin_channel() {
         }
       ' "$plugin_tgz" "$plugin_integrity"
     fi
-    if (cd "$OPENCLAW_DIR" && pnpm openclaw plugins install "$plugin_tgz"); then
-      echo "  ✅ bundled openclaw-weixin installed"
+    # --force = "Overwrite an existing installed plugin"（7.1-2 起就有该 flag）。
+    # bundled 路径本来就每次都装（不像 install.sh 有幂等跳过），缺这个 flag 时
+    # 在已装过该插件的实例上会失败，进而触发下面的 exit 1，把整次 update 打断。
+    if (cd "$OPENCLAW_DIR" && pnpm openclaw plugins install "$plugin_tgz" --force); then
+      echo "  ✅ bundled openclaw-weixin installed (${plugin_version})"
     else
       echo "❌ Bundled openclaw-weixin install failed"
       echo "   Re-run with --skip-weixin only if you intentionally want to configure the onboarding channel later."

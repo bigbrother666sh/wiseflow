@@ -429,7 +429,8 @@ commit **`d5e112c`**（`chore(deps): bump openclaw-weixin 2.4.6 -> 2.4.8, wecom-
 ### 8.3 已知坑：改了 pin，已装实例不会自动升 `[A]` → **install 路径已于 2026-09-12 修复 `[B]`**
 
 - ~~`scripts/install.sh`：`plugins list` 里已有 openclaw-weixin 就**直接 return，不比版本**~~ → **已修**：`install.sh` / `install-atomgit.sh` / `docker/docker-bootstrap.sh` 三处同源的 `install_weixin_plugin()` 改为**按版本判定**——新增 `weixin_installed_version()`（主路径 `plugins list --json` 取 `version`，回落到 `$OPENCLAW_HOME/npm/projects/*/node_modules/<pkg>/package.json`），已装 == pin 才跳过，不等则 `plugins install <pkg>@<pin> --pin --force`；版本读不到但插件在时也走 `--force`（正确性优先）。已用本机实例（已装 2.4.6 / pin 2.4.8）实测三条路径：主路径 ✓、回落路径 ✓、未安装返回非零 ✓，决策分支 `UPGRADE --force` / `SKIP` 均正确。
-- `scripts/update.sh`：**仍未修**。它走 `npx openclaw-weixin-cli@2.1.4 install`，该 CLI 读到 `plugins.installs[].spec` 是固定版本号时（我们正是用 `--pin` 装的）会打印「本地已安装插件为固定版本 2.4.6，跳过升级」直接 return；bundled tarball 路径（`update.sh:169`）也没带 `--force`。→ 走 `update.sh` 的实例仍需下面这条手动命令（或后续单独修 update.sh）。
+- `scripts/update.sh` bundled tarball 路径 → **已修**（2026-09-12）：`plugins install "$plugin_tgz"` 补上 `--force`。该路径本来就每次都装（无幂等跳过），缺 flag 时在已装实例上会失败并触发下面的 `exit 1`，把整次 update 打断。（注：仓内无 `vendor/openclaw-plugins/`，该路径只在带 vendor 的发行 tarball 里触发。）
+- `scripts/update.sh` 在线路径 → **仍未修**（按用户决定暂不动）。它走 `npx openclaw-weixin-cli@2.1.4 install`，该 CLI 读到 `plugins.installs[].spec` 是固定版本号时（我们正是用 `--pin` 装的）会打印「本地已安装插件为固定版本 2.4.6，跳过升级」直接 return。→ 走 `update.sh` 在线路径的实例仍需下面这条手动命令。
 
 → `update.sh` 路线 / 修复前已装的实例，仍需显式跑一次：
 
@@ -463,7 +464,7 @@ wecom 那条不受影响：`install-wecom-channel.sh` 按 pin 文件 `npm pack` 
 | 1 | **基线选哪条** | (a) 直接迁 `2026.9.3`；(b) 先切 `extended-stable/2026.7.33`（pin `f619d7a9fa3`，或等它打 tag）过渡，再排期 9.3；(c) 暂不动；(d) **ES 7.33 + cherry-pick 9.3 省 token commit —— 已实测否决**（§6.5-2：5 个 commit 全部冲突，合计 153 个冲突文件次） | (a) 4.5–7 人日 `[A]`；(b) ≈半天，patch/awada 零漂移，但拿不到能力①② `[A]`；能力①最低 9.1、能力②要 9.3（§6.1） |
 | 2 | **portable Node 抬到哪** | 24.16+ / 直接 26（上游推荐 26） | 与 openclaw 版本解耦，留 7.x 也该做（§5.1）；改 `build-dist.yml` 5 处 + `ci.yml` + Docker 基础镜像钉死 |
 | 3 | **9.x 迁移的触发条件认不认** | 认 / 不认（改为现在就一次性做完） | 触发条件草案：生产出现"回复停在工具输出 / 重启后丢回复"（#133520 #133979 #138071 #138519 **均未 backport 到 ES 7.33**）；或 ES 7.33 停止提交；或需要 9.x 独有能力 |
-| 4 | ~~**`install.sh` 幂等判断要不要改**~~ | **已做（2026-09-12）**：install.sh / install-atomgit.sh / docker-bootstrap.sh 三处改为按版本判定 + `--force` 升级 | 详见 §8.3；**遗留**：`update.sh` 的 weixin-cli 路径与 bundled tarball 路径仍未带 `--force`，要不要一并修 |
+| 4 | ~~**`install.sh` 幂等判断要不要改**~~ | **已做（2026-09-12）**：install.sh / install-atomgit.sh / docker-bootstrap.sh 三处改为按版本判定 + `--force` 升级；`update.sh` 的 bundled tarball 路径也补了 `--force` | 详见 §8.3；**遗留（用户决定暂不动）**：`update.sh` 在线路径走 weixin-cli，遇固定版本 spec 会自行跳过 |
 | 5 | **浏览器路线** | (a) 按 9.3 新模块布局重画 pivot（05/03/04/09 + `del-*` 改 rm 清单 + 补 5 个新文件）；(b) 先在 7.1-2 上把"能力裁剪"等价实现到自有 adapter 层（半天量级，不需动基座）；(c) 评估 §7.8-4 的"MCP 桥零 patch"路线 | 见 §7.8；(a) 的工时已含在 #1 的 4.5–7 人日里 |
 | 6 | **是否先做"单轮 token 构成"实测 + 三档配置调参** | 做 / 不做 | 半天、立刻见效、与升级解耦（§6.3、§6.5-5：`contextPruning` / `skills.limits` / `compaction.*` 三档都是 7.1-2 已支持但我们没开）；也是判断能力② 收益基线的前置数据 |
 | 7 | **是否先实测百炼端点的 prompt cache 语义** | 做 / 不做 | 决定 9.3 那批 cache 修复对我们是否有价值（§6.5-4）；不做这一步，能力② 的收益无法量化 |

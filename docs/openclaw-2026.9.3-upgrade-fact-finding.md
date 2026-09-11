@@ -195,9 +195,11 @@
 | 能力 | 打底 | 真正兑现 |
 |---|---|---|
 | ①发现本机 Codex/Claude Code + onboarding 简化 | 8.1（Import from another agent #126515、记忆导入检测 #108977、native catalog terminals #107086） | **9.1**：quick-start lane 检测已有 Claude Code/Codex 登录与 API key 并 live 校验；Model Setup 区分 account vs API-key 并显示运行时上报邮箱；catalog "+" 直接开原生 CLI；claude-cli 走 PATH shim / Windows PATHEXT。9.2 再补 account discovery |
-| ②更低对话 token 消耗 | 8.1（Anthropic 服务端 compaction #123402、xAI #123622、compaction 三修 #130993/#131977/#133094）→ 8.2（停止 byte-triggered 重复 compaction #123737/#127110/#133912/#134259）→ 9.2（被丢弃 tool result 的 token 计入 #134987） | **9.3 是大头**：prompt cache continuity 一整串（#140566/#140651/#140698/#140713/#140744/#140797/#140799）、warm prompt cache + 冷会话/记忆搜索少做功（#140449/#140730/#140840/#141141）、compaction 按完整 pending request 定尺寸（#127506）、长对话与 retained memory（#136293/#139074…） |
+| ②更低对话 token 消耗 | 8.1（Anthropic 服务端 compaction #123402、xAI #123622、compaction 三修 #130993/#131977/#133094）→ 8.2（停止 byte-triggered 重复 compaction #123737/#127110/#133912/#134259）→ 9.2（被丢弃 tool result 的 token 计入 #134987） | **9.3 是大头**：prompt cache continuity 一整串（#140566/#140651/#140698/#140713/#140744/#140797/#140799）、compaction 按完整 pending request 定尺寸（#127506）、长对话与 retained memory（#136293/#139074…） |
 
 → **能力① 最低要 9.1，能力② 要拿满得 9.3。**
+
+> **2026-09-11 复核更正**：上表 ② 的原始清单里混进了两个**与对话 token 无关**的 PR，已剔除 —— `#140449` 实为 `improve: retain current worker builds between sessions`（云 worker 构建复用，我们不用 worker），`#140730` 实为 `fix(memory): avoid repeated vector search startup delays`（记忆向量检索**启动延迟**，且我们模板 `agents.defaults.memorySearch.provider = none` 本来就没开）`[B]`。剔除后，② 对我们**真正可能有效**的只剩两类：compaction 决策类、provider prompt-cache 类；后者的有效性还取决于百炼端点是否实现缓存语义（见 §6.5-4）。
 
 ### 6.2 两个"升了也不会自动兑现"的前置判断 `[A]`
 
@@ -210,6 +212,67 @@
 ### 6.3 不升级也能立刻做的一档 `[A]`
 
 `skills.limits.maxSkillsInPrompt` / `maxSkillsPromptChars` / `maxSkillsLoadedPerSource` / `maxSkillFileBytes` 在 **7.1-2 就有**（`src/config/types.skills.ts:50-56`，字段与 9.3 完全一致），但我们模板里 `skills` 只写了 `entries`、**没设 limits**（`[B]` 复核 `config-templates/openclaw.json` 确认：`skills` 只有 `entries`，`agents.defaults` 只有 model / imageModel / memorySearch / models / compaction / thinkingDefault / maxConcurrent / subagents）。`agents.defaults.contextInjection` 同理可用。→ 建议先量一版"单轮 token 构成"（system prompt / 技能块 / bootstrap 文件 / 历史），再定升级优先级。
+
+### 6.5 「升 ES 7.33 + 单独 cherry-pick 9.3 省 token 的 commit」可行性实测 `[B]`
+
+> 2026-09-11 针对该提议做的专项实测。结论：**升 ES 7.33 可行且便宜；cherry-pick 不可行**。
+
+**(1) 省 token 不是一个 commit，是一条压在结构重写上的链**
+
+| 口径（`origin/extended-stable/2026.7.33..v2026.9.3`） | 实测值 |
+|---|---|
+| 动过 `src/context-engine` 的 commit 数 | **39** |
+| `src/context-engine` 目录 diff | **15 files, +2,620 / −1,773** |
+| 该目录文件数 7.1-2 / ES 7.33 / 9.3 | 13 / 13 / **18** |
+| 全仓 commit 主题含 `compaction` 的数量 | **332** |
+| 同期 `src/agents` 全目录 commit 数 | 3,997 |
+
+`src/context-engine` 那 39 个 commit 里包含多个**结构性重写**，省 token 的修复就长在它们之上：`refactor: flip sessions and transcripts to sqlite storage (#98236)`、`refactor(sessions): remove file-era transcript runtime (#113233)`、`refactor(agents): consolidate compaction and context-engine ownership (#117482)`、`refactor(agents): consolidate context budgets and compaction recovery (#117149)`、`refactor: replace context-engine retry proxy with declared params (#115872)`。
+
+**(2) cherry-pick 实测：5 个代表性 commit 全部失败**
+
+在 `/tmp/es733b`（ES 7.33 detached worktree，tip `f619d7a9fa3`）上逐个 `git cherry-pick -n`：
+
+| commit | 主题 | rc | 冲突文件 / 涉及文件 |
+|---|---|---|---|
+| `28f5f63ea42` | fix(agents): preserve prompt-cache prefix under aggregate truncation (#132017) | 1 | 4 / 6 |
+| `110a636dd16` | fix(agents): preserve Responses cache prefixes across user turns (#140849) | 1 | 7 / 10 |
+| `8e3f572ffa2` | fix(openai): honor native prompt cache settings (#140853) | 1 | 19 / 29 |
+| `f0cc57d6b46` | fix(agents): preserve cached history when background work changes (#140799) | 1 | 32 / 52 |
+| `60adac1aff6` | fix(agents): fit compacted context and prioritize foreground replies (#139822) | 1 | **91 / 129** |
+
+合计 **153 个冲突文件次**。这不是 cherry-pick，是 re-port；而且 re-port 的是**对话装配路径**——它出 bug 的表现是"回复停在工具输出 / 历史被静默截断 / 人格漂移"，不是崩溃，很难被测出来（正是我们历史上 AtomCode 卡 busy、awada 回复丢失那一类故障的邻区）。
+
+**(3) 更反直觉的发现：9.3 把 token 调优旋钮收走了**
+
+`src/config/types.agent-defaults.ts` 中，7.1-2 有而 **9.3 已删除**的字段（逐个 grep 计数 7.1-2=有 / 9.3=0）：
+
+| 字段 | 作用 | 7.1-2 | 9.3 |
+|---|---|---|---|
+| `compaction.maxHistoryShare` | 历史占上下文窗口比例上限（0.1–0.9，默认 0.5） | ✅ | **删除** |
+| `compaction.reserveTokens` / `reserveTokensFloor` | 压缩预留 token 与下限 | ✅ | **删除** |
+| `compaction.customInstructions` | 压缩摘要附加指令（保语言/人格连续性） | ✅ | **删除** |
+| `contextPruning.keepLastAssistants` | 保护最近 N 个 assistant 轮不被裁剪 | ✅ | **删除** |
+| `contextPruning.softTrimRatio` / `hardClearRatio` | 软裁剪 / 硬清除的上下文压力阈值 | ✅ | **删除** |
+| `contextPruning.minPrunableToolChars` | 工具结果达到多少字符才值得裁 | ✅ | **删除** |
+
+9.3 侧只新增 `compaction.enabled`、`compaction.thinkingLevel`，并把 `contextPruning` 简化成 `mode` / `ttl` / `tools` / `hardClear`。`AgentCompactionMode` 两版都是 `"default" | "safeguard"`（未变）。
+
+→ **含义**：9.3 的 token 收益来自内部行为（缓存连续性、压缩决策），但**运维侧可调粒度变粗**。对我们这种"要给社区分发、模型上下文各异（GLM 输入上限 196,608）、需要按部署调参"的场景，丢掉 `maxHistoryShare` / `reserveTokens` 可能是**净退化**，迁移前必须评估。
+
+**(4) provider 匹配性：cache 类修复对我们是否有效，尚未验证**
+
+我们模板的 provider 是 `bailian-token-plan`，`api = "anthropic-messages"`，`baseUrl = https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic` `[B]`。9.3 那批 prompt-cache 修复分别是 Anthropic CLI（#140566）、OpenAI native（#140853）、Bedrock（#140797）、Responses（#140849）路径。**百炼的 anthropic 兼容端点是否实现 `cache_control` 并在 usage 里回 `cache_read_input_tokens`，必须先实测**；若不支持，合并这批 commit 的收益为 0。
+
+**(5) 不升级就能拿的三档（7.1-2 已支持，我们模板未开）`[B]`**
+
+| 开关 | 上游注释原文 | 我们模板现状 |
+|---|---|---|
+| `agents.defaults.contextPruning` | "Opt-in: prune old tool results from the LLM context to reduce token usage" | **完全未设置** |
+| `skills.limits.*`（maxSkillsInPrompt / maxSkillsPromptChars / maxSkillsLoadedPerSource / maxSkillFileBytes） | 见 §6.3 | **未设置**（`skills` 只有 `entries`） |
+| `compaction.maxHistoryShare` / `keepRecentTokens` / `recentTurnsPreserve` / `model` | 历史占比、保留近期 token、逐字保留轮数、**用更便宜的模型做压缩摘要** | 只设了 `compaction.mode = "safeguard"` |
+
+→ 建议顺序：**先量"单轮 token 构成"→ 开这三档 → 再决定是否为了 compaction 那部分整体迁 9.3**（而不是 cherry-pick）。
 
 ### 6.4 ES 7.33 作为过渡的实测支撑 `[A]`
 
@@ -397,12 +460,13 @@ wecom 那条不受影响：`install-wecom-channel.sh` 按 pin 文件 `npm pack` 
 
 | # | 决策 | 选项 | 已知成本 / 依据 |
 |---|---|---|---|
-| 1 | **基线选哪条** | (a) 直接迁 `2026.9.3`；(b) 先切 `extended-stable/2026.7.33`（pin `f619d7a9fa3`，或等它打 tag）过渡，再排期 9.3；(c) 暂不动 | (a) 4.5–7 人日 `[A]`；(b) ≈半天，patch/awada 零漂移，但拿不到能力①② `[A]`；能力①最低 9.1、能力②要 9.3（§6.1） |
+| 1 | **基线选哪条** | (a) 直接迁 `2026.9.3`；(b) 先切 `extended-stable/2026.7.33`（pin `f619d7a9fa3`，或等它打 tag）过渡，再排期 9.3；(c) 暂不动；(d) **ES 7.33 + cherry-pick 9.3 省 token commit —— 已实测否决**（§6.5-2：5 个 commit 全部冲突，合计 153 个冲突文件次） | (a) 4.5–7 人日 `[A]`；(b) ≈半天，patch/awada 零漂移，但拿不到能力①② `[A]`；能力①最低 9.1、能力②要 9.3（§6.1） |
 | 2 | **portable Node 抬到哪** | 24.16+ / 直接 26（上游推荐 26） | 与 openclaw 版本解耦，留 7.x 也该做（§5.1）；改 `build-dist.yml` 5 处 + `ci.yml` + Docker 基础镜像钉死 |
 | 3 | **9.x 迁移的触发条件认不认** | 认 / 不认（改为现在就一次性做完） | 触发条件草案：生产出现"回复停在工具输出 / 重启后丢回复"（#133520 #133979 #138071 #138519 **均未 backport 到 ES 7.33**）；或 ES 7.33 停止提交；或需要 9.x 独有能力 |
 | 4 | **`install.sh` 幂等判断要不要改** | 改成"已装版本 ≠ pin 版本 → `--force` 升级" / 维持手动补装 | 十几行，根治 §8.3 的坑 |
 | 5 | **浏览器路线** | (a) 按 9.3 新模块布局重画 pivot（05/03/04/09 + `del-*` 改 rm 清单 + 补 5 个新文件）；(b) 先在 7.1-2 上把"能力裁剪"等价实现到自有 adapter 层（半天量级，不需动基座）；(c) 评估 §7.8-4 的"MCP 桥零 patch"路线 | 见 §7.8；(a) 的工时已含在 #1 的 4.5–7 人日里 |
-| 6 | **是否先做"单轮 token 构成"实测 + `skills.limits` 调参** | 做 / 不做 | 半天、立刻见效、与升级解耦（§6.3）；也是判断能力② 收益基线的前置数据 |
+| 6 | **是否先做"单轮 token 构成"实测 + 三档配置调参** | 做 / 不做 | 半天、立刻见效、与升级解耦（§6.3、§6.5-5：`contextPruning` / `skills.limits` / `compaction.*` 三档都是 7.1-2 已支持但我们没开）；也是判断能力② 收益基线的前置数据 |
+| 7 | **是否先实测百炼端点的 prompt cache 语义** | 做 / 不做 | 决定 9.3 那批 cache 修复对我们是否有价值（§6.5-4）；不做这一步，能力② 的收益无法量化 |
 
 ---
 

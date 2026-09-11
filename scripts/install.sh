@@ -20,6 +20,7 @@
 #   9. setup-crew.sh（裸跑，无 --force；--force 只用户手动修复用；crew 模板来自 WISEFLOW_ROOT/crews，workspace 落 OPENCLAW_HOME）
 #   10. camoufox-cli：npm install -g 本地 fork（ship 的 portable node）+ camoufox-cli install 下 Firefox
 #   11. openclaw-weixin 插件：openclaw plugins install @tencent-weixin/openclaw-weixin@<pin> --pin（npmmirror）
+#       幂等按**版本**判定：已装版本 == pin 才跳过，不等则 --force 升级到 pin
 #   12. 交互问 AWK_API_KEY → 写 gateway env（Linux daemon.env / Darwin service-env/ai.openclaw.gateway.env，均落 OPENCLAW_HOME）
 #       → openclaw daemon install + restart（唯一人工输入点；不走 onboard，小白友好）
 #   13. 打印访问指引
@@ -1071,9 +1072,39 @@ install_camoufox_cli() {
     ui_success "camoufox-cli ready"
 }
 
+# 读已装 openclaw-weixin 的版本号；读不到返回非零。
+# 优先 `plugins list --json`（字段 id / name / version），回落到 npm projects 下实装 package.json。
+weixin_installed_version() {
+    local claw_cmd="$1" pkg="$2" oc_home="${OPENCLAW_HOME:-$HOME/.openclaw}"
+    local v f
+    v="$("$claw_cmd" plugins list --json 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for p in d.get('plugins', []):
+    if p.get('id') == 'openclaw-weixin' or p.get('name') == '$pkg':
+        print(p.get('version') or '')
+        break
+" 2>/dev/null)"
+    if [[ -n "$v" ]]; then printf '%s\n' "$v"; return 0; fi
+    # 回落：CLI/JSON 不可用时直接读实装 package.json（目录名带 hash，只能 glob）
+    for f in "$oc_home"/npm/projects/*/node_modules/"$pkg"/package.json; do
+        [[ -f "$f" ]] || continue
+        v="$(python3 -c "import json;print(json.load(open('$f')).get('version',''))" 2>/dev/null)"
+        if [[ -n "$v" ]]; then printf '%s\n' "$v"; return 0; fi
+    done
+    return 1
+}
+
 # 装 openclaw-weixin 插件（config template 已预置 channel，但插件本体要 openclaw plugins install）
 # 读 tarball 内 openclaw-weixin.version.json 的 pin，走国内 npmmirror。
-# 幂等：openclaw plugins list 含 openclaw-weixin 则跳过。
+# 幂等：**已装版本 == pin 版本**才跳过；已装版本 ≠ pin 则 `--force` 升级到 pin。
+# （旧逻辑只 grep 插件名就 return，导致 bump pin 后已装实例永远停在旧版；
+#   `plugins install --force` = "Overwrite an existing installed plugin"，7.1-2 起就有该 flag。
+#   升级只换 npm/projects 下的包，登录态在 $OPENCLAW_HOME/openclaw-weixin/ 数据目录，不受影响。
+#   升级后需 gateway 重启才生效——更新路线在后面 refresh_gateway_env_only 里会重启。）
 install_weixin_plugin() {
     local claw_cmd="$WISEFLOW_ROOT/bin/openclaw"
     local pin_file="$WISEFLOW_ROOT/openclaw-weixin.version.json"
@@ -1085,16 +1116,26 @@ install_weixin_plugin() {
     fi
     pkg="${pkg:-@tencent-weixin/openclaw-weixin}"
     ver="${ver:-2.4.8}"
-    # 幂等检查：plugins list 已含则跳过
-    if "$claw_cmd" plugins list 2>/dev/null | grep -q "openclaw-weixin"; then
-        ui_success "openclaw-weixin plugin already installed"
+    # 幂等检查：已装版本 == pin 才跳过
+    local installed force_flag=""
+    installed="$(weixin_installed_version "$claw_cmd" "$pkg" || true)"
+    if [[ -n "$installed" && "$installed" == "$ver" ]]; then
+        ui_success "openclaw-weixin plugin already installed (${ver})"
         return 0
     fi
+    if [[ -n "$installed" ]]; then
+        ui_info "openclaw-weixin 已装 ${installed}，pin=${ver} → --force 升级"
+        force_flag="--force"
+    elif "$claw_cmd" plugins list 2>/dev/null | grep -q "openclaw-weixin"; then
+        # 插件在但版本读不到（CLI/JSON 异常）：按 pin 强制重装，保证与 pin 一致
+        ui_warn "openclaw-weixin 已装但版本读不到；按 pin ${ver} 强制重装"
+        force_flag="--force"
+    fi
     ui_info "Installing openclaw-weixin plugin (${pkg}@${ver}) via npmmirror"
-    if npm_config_registry=https://registry.npmmirror.com "$claw_cmd" plugins install "${pkg}@${ver}" --pin 2>/dev/null; then
-        ui_success "openclaw-weixin plugin installed"
+    if npm_config_registry=https://registry.npmmirror.com "$claw_cmd" plugins install "${pkg}@${ver}" --pin $force_flag 2>/dev/null; then
+        ui_success "openclaw-weixin plugin installed (${ver})"
     else
-        ui_warn "openclaw-weixin 插件安装失败；可后续手动：npm_config_registry=https://registry.npmmirror.com $claw_cmd plugins install ${pkg}@${ver} --pin"
+        ui_warn "openclaw-weixin 插件安装失败；可后续手动：npm_config_registry=https://registry.npmmirror.com $claw_cmd plugins install ${pkg}@${ver} --pin $force_flag"
     fi
 }
 

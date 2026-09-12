@@ -1,14 +1,6 @@
 ---
 name: video-producer
 description: 视频制作原子能力集——意图路由、故事/剧本/分镜、素材 slot 与解析、渲染、混音对齐、拼接合成、动效审计、封面。子命令范式，产物文件存在性即 checkpoint。
-metadata:
-  openclaw:
-    emoji: 🎬
-    requires:
-      bins:
-        - python3
-        - ffmpeg
-        - ffprobe
 ---
 
 # video-producer — 工具说明

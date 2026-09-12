@@ -1,6 +1,6 @@
 ---
 name: expert-design
-description: 平面设计专家（乙方）。承接完整网页/落地页、APP 与产品界面原型、品牌视觉体系（DESIGN.md + 组件预览）三类平面设计全案，从需求 brief、设计系统选取、素材获取、HTML/CSS 编写到视觉 review 与交付归档。两种工作模式：作为 main agent 的 subagent 接 Brief，或直接对接用户。不做视频（走 expert-video），不做平台发布与运营。
+description: 平面设计专家技能包
 metadata:
   openclaw:
     emoji: 🎨

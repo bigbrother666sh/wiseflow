@@ -499,7 +499,6 @@ inject_media_send_guide() {
 
 - 飞书：`message(action="send", media="<绝对路径>")`（对于 HTML 类型文件，飞书要求先复制到 `/tmp/openclaw/`，再执行发送）。
 - `openclaw-weixin`：`message(action="send", media="<本地绝对路径或 HTTPS URL>")`，当前会话可不传 target。
-- `awada`： 不支持本地路径；当前回复用 `MEDIA:<HTTPS URL>`，预置云文件用 `message(action="sendAttachment", file_name="<文件名>")`。
 GUIDE
 }
 

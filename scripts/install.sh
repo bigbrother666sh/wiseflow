@@ -929,12 +929,31 @@ install_git() {
 # ═══════════════════════════════════════════════════════════════════
 # pnpm
 # ═══════════════════════════════════════════════════════════════════
+# 与 openclaw/package.json 的 packageManager pin 保持同步（apply-addons.sh 的依赖
+# 同步用了 pnpm 11 的 install CLI flags——如 --fetch-retries，pnpm 10.x 不认会炸）。
+# 升级 openclaw 换 pin 时此处要跟着改。
+PNPM_VERSION="${OPENCLAW_PNPM_VERSION:-11.2.2}"
+
+# 在无 packageManager pin 的目录下探测 pnpm 真实安装版本。
+# pnpm ≥11 默认开 manage-package-manager-versions，在带 pin 的目录里
+# `pnpm --version` 返回 pin 版本而非实际安装的版本，版本判断会被骗。
+pnpm_real_version() {
+    (cd / && pnpm --version 2>/dev/null) || true
+}
+
 install_pnpm() {
-    if command -v pnpm >/dev/null 2>&1; then
-        ui_success "pnpm already installed ($(pnpm --version 2>/dev/null || echo unknown))"
+    local required_major installed_major
+    required_major="${PNPM_VERSION%%.*}"
+    installed_major="$(pnpm_real_version | cut -d. -f1)"
+    if command -v pnpm >/dev/null 2>&1 && [ "${installed_major:-0}" -ge "$required_major" ]; then
+        ui_success "pnpm already installed ($(pnpm_real_version || echo unknown))"
         return 0
     fi
-    ui_info "Installing pnpm@${PNPM_VERSION} globally"
+    if command -v pnpm >/dev/null 2>&1; then
+        ui_info "Upgrading pnpm to ${PNPM_VERSION} (found $(pnpm_real_version || echo unknown); openclaw 工作区需要 pnpm ${required_major}+)"
+    else
+        ui_info "Installing pnpm@${PNPM_VERSION} globally"
+    fi
     # 用 corepack 路线（与 openclaw 仓 packageManager 对齐，最稳）
     if command -v corepack >/dev/null 2>&1; then
         run_required_step "Enabling corepack" corepack enable

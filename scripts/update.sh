@@ -85,6 +85,26 @@ if [ ! -f "$PROJECT_ROOT/scripts/apply-addons.sh" ] || [ ! -d "$OPENCLAW_DIR" ];
   exit 1
 fi
 
+# ─── 1.5 pnpm 版本预检 ────────────────────────────────────────────────
+# openclaw 工作区按其 package.json 的 packageManager pin 要求 pnpm 大版本：
+# apply-addons.sh 的依赖同步传了 --fetch-retries 等 flag，只有 pnpm 11 的
+# install CLI 才认（pnpm 10.x 直接 unknown argument 炸掉）。
+# 注意 pnpm ≥11 默认开 manage-package-manager-versions，在带 pin 的目录里
+# `pnpm --version` 返回 pin 版本而非实际安装版本，须在无 pin 的 / 下探测。
+REQUIRED_PNPM_MAJOR="$(grep -m1 '"packageManager"' "$OPENCLAW_DIR/package.json" 2>/dev/null | grep -o 'pnpm@[0-9.]*' | head -1 | sed 's/^pnpm@//; s/\..*//')"
+: "${REQUIRED_PNPM_MAJOR:=11}"
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "❌ pnpm 未安装（openclaw 工作区需要 pnpm ${REQUIRED_PNPM_MAJOR}.x+）"
+  echo "   安装：npm install -g pnpm@${REQUIRED_PNPM_MAJOR} --registry=https://registry.npmmirror.com"
+  exit 1
+fi
+INSTALLED_PNPM_MAJOR="$( (cd / && pnpm --version 2>/dev/null) | cut -d. -f1)"
+if [ "${INSTALLED_PNPM_MAJOR:-0}" -lt "$REQUIRED_PNPM_MAJOR" ]; then
+  echo "❌ pnpm ${REQUIRED_PNPM_MAJOR}.x+ required (openclaw/package.json packageManager pin), found $(cd / && pnpm --version 2>/dev/null || echo unknown)"
+  echo "   升级：npm install -g pnpm@${REQUIRED_PNPM_MAJOR} --registry=https://registry.npmmirror.com"
+  exit 1
+fi
+
 ensure_openclaw_config() {
   if [ ! -f "$OPENCLAW_CONFIG_PATH" ]; then
     mkdir -p "$(dirname "$OPENCLAW_CONFIG_PATH")"

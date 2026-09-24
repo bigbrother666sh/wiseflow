@@ -1,28 +1,8 @@
 #!/usr/bin/env python3
-"""阿里云百炼图像生成/编辑（awk-img-gen）— stdlib only.
-
-Provider 收敛（2026-09 拍板）：SiliconFlow（skill 旧名残留）→ 火山 Seedream（Phase 5）→ 阿里云百炼（现在）。
-
-双模式（resolve_mode）：
-  - 业务空间：WORKSPACE_ID 配置时优先 → https://{wsid}.cn-beijing.maas.aliyuncs.com/api/v1
-    key = MODELSTUDIO_API_KEY / DASHSCOPE_API_KEY
-    模型候选链：qwen-image-3.0-pro → qwen-image-3.0 → qwen-image-2.0-pro-2026-06-22
-  - agent plan：否则 → https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1
-    key = AWK_API_KEY
-    模型候选链：wan2.7-image-pro → wan2.7-image
-
-同步接口：POST {base}/services/aigc/multimodal-generation/generation
-请求体（DashScope messages 风格，单轮，input_audio 家族同款端点）：
-  {model, input:{messages:[{role:"user",
-     content:[{image:<url|data-uri>}×1-3（编辑模式）, {text:<prompt>}]}]},
-   parameters:{size?, seed?, watermark, prompt_extend}}
-响应：output.choices[0].message.content[*].image 为图片 URL（24h 有效），下载落盘。
-
-参考：docs.bailian.console.aliyun.com「千问-图像生成与编辑 3.0 / qwen-image 2.0」
-与 modelstudioai/cli packages/core/src/client/image-routes.ts（sync-multimodal 家族）。
-"""
+"""火山方舟 / 百炼图像生成与编辑；按凭据选路，模型不可用时在平台内回退。"""
 import argparse
 import base64
+import io
 import json
 import mimetypes
 import os
@@ -34,6 +14,10 @@ import urllib.request
 from pathlib import Path
 
 # ── 端点与模型 ────────────────────────────────────────────────────────────────
+
+VOLC_BASE = "https://ark.cn-beijing.volces.com/api/v3"
+VOLC_GEN_PATH = "/images/generations"
+VOLC_MODEL_CHAIN = ["doubao-seedream-5-0-lite-260128", "doubao-seedream-4-5-251128"]
 
 WS_BASE_TEMPLATE = "https://{wsid}.cn-beijing.maas.aliyuncs.com/api/v1"
 AGENT_PLAN_BASE = "https://token-plan.cn-beijing.maas.aliyuncs.com/api/v1"
@@ -76,13 +60,15 @@ IMAGE_MIME_BY_EXT = {
 
 # ── 模式解析 ─────────────────────────────────────────────────────────────────
 
-def resolve_mode() -> tuple[str, str, list[str], str]:
-    """解析百炼端点模式。返回 (base, api_key, model_chain, mode)。
-
-    优先业务空间（WORKSPACE_ID + MODELSTUDIO_API_KEY/DASHSCOPE_API_KEY）；
-    WORKSPACE_ID 配了但 key 缺失时打 warning 落到 agent plan；
-    否则 agent plan（AWK_API_KEY）。都不可用时报错退出。
-    """
+def resolve_mode(platform: str = "auto") -> tuple[str, str, list[str], str]:
+    """返回 (base, key, chain, mode)。自动优先火山，再业务空间，最后 Agent Plan。"""
+    if platform in ("auto", "volc", "volcengine"):
+        key = (os.environ.get("AWK_GEN_KEY") or "").strip()
+        if key:
+            return VOLC_BASE, key, VOLC_MODEL_CHAIN, "volc"
+        if platform in ("volc", "volcengine"):
+            print("[error] 火山生图需要 AWK_GEN_KEY（方舟普通 API Key，非 Coding/Token Plan）", file=sys.stderr)
+            sys.exit(1)
     wsid = (os.environ.get("WORKSPACE_ID") or "").strip()
     if wsid:
         key = (
@@ -96,7 +82,7 @@ def resolve_mode() -> tuple[str, str, list[str], str]:
     key = (os.environ.get("AWK_API_KEY") or "").strip()
     if key:
         return AGENT_PLAN_BASE, key, PLAN_MODEL_CHAIN, "agent-plan"
-    print("[error] 百炼生图凭据未配置：", file=sys.stderr)
+    print("[error] 生图凭据未配置：火山 AWK_GEN_KEY 或以下百炼凭据", file=sys.stderr)
     print("  - 业务空间：WORKSPACE_ID + MODELSTUDIO_API_KEY（或 DASHSCOPE_API_KEY）", file=sys.stderr)
     print("  - agent plan：AWK_API_KEY（token-plan 端点）", file=sys.stderr)
     sys.exit(1)
@@ -145,7 +131,7 @@ def _print_size_error(size_str: str, reason: str) -> None:
 # ── 图像引用解析 ──────────────────────────────────────────────────────────────
 
 def resolve_image_ref(value: str) -> str:
-    """把 --image 入参解析为百炼可接受的引用：URL / data URI 原样，本地文件转 data URI。"""
+    """把 --image 入参解析为生成接口可接受的引用：URL / data URI 原样，本地文件转 data URI。"""
     if value.startswith(("http://", "https://", "data:")):
         return value
     path = Path(value)
@@ -194,10 +180,42 @@ def build_payload(args: argparse.Namespace, model: str) -> dict:
     }
 
 
+def normalize_volc_size(size: str, model: str) -> str:
+    """火山尺寸使用 x；4.5 的 3K 请求转换为显式尺寸。"""
+    tier = size.strip().upper()
+    if tier in ("2K", "4K"):
+        return tier
+    if tier == "3K":
+        return "3072x3072" if "seedream-4-5" in model else tier
+    parsed = _parse_size(size)
+    if parsed:
+        w, h = parsed
+        if 3686400 <= w * h <= 16777216 and h > 0 and 1 / 16 <= w / h <= 16:
+            return f"{w}x{h}"
+    print(f"[error] 火山尺寸 {size!r} 无效：使用 2K/3K/4K 或 WxH；总像素 3686400~16777216，宽高比 1/16~16", file=sys.stderr)
+    sys.exit(1)
+
+
+def build_volc_payload(args: argparse.Namespace, model: str) -> dict:
+    if args.seed is not None or args.prompt_extend:
+        print("[error] --seed / --prompt-extend 仅用于百炼；火山 Seedream 线路不发送这些参数", file=sys.stderr)
+        sys.exit(1)
+    payload = {
+        "model": model, "prompt": args.prompt,
+        "size": normalize_volc_size(args.image_size or "2048x2048", model),
+        "response_format": "url", "stream": False,
+        "sequential_image_generation": "disabled", "watermark": bool(args.watermark),
+    }
+    refs = [resolve_image_ref(ref) for ref in (args.image, args.image2, args.image3) if ref]
+    if refs:
+        payload["image"] = refs[0] if len(refs) == 1 else refs
+    return payload
+
+
 # ── API 调用 ────────────────────────────────────────────────────────────────
 
 class ImgGenHTTPError(Exception):
-    """百炼端 HTTP 错误（携带状态码与响应体，供 main 做候选链 fallback 决策）。"""
+    """生成接口 HTTP 错误（携带状态码与响应体，供 main 做候选链 fallback 决策）。"""
 
     def __init__(self, code: int, body: str) -> None:
         super().__init__(f"HTTP {code}: {body}")
@@ -220,7 +238,7 @@ def is_model_unavailable(exc: ImgGenHTTPError) -> bool:
 
 
 def api_request(url: str, payload: dict, api_key: str) -> dict:
-    """调百炼 multimodal-generation；返回解析后的 JSON。失败抛 ImgGenHTTPError。"""
+    """调用生成接口；返回解析后的 JSON。失败抛 ImgGenHTTPError。"""
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         url,
@@ -241,7 +259,7 @@ def api_request(url: str, payload: dict, api_key: str) -> dict:
 
 def extract_image_urls(resp: dict) -> list[str]:
     """从响应提取图片 URL：output.choices[*].message.content[*].image。"""
-    urls: list[str] = []
+    urls: list[str] = [item["url"] for item in (resp.get("data") or []) if isinstance(item, dict) and item.get("url")]
     output = resp.get("output") or {}
     for choice in output.get("choices") or []:
         message = choice.get("message") or {}
@@ -257,18 +275,26 @@ def extract_image_urls(resp: dict) -> list[str]:
 
 # ── 图像下载 ────────────────────────────────────────────────────────────────
 
-def download_image(url: str, dest_path: Path) -> None:
+def download_image(url: str, dest_path: Path, *, normalize_png: bool = False) -> None:
     """下载图片到本地。链接 24h 内有效（按百炼文档）。"""
     req = urllib.request.Request(url, headers={"User-Agent": "wiseflow-awk-img-gen/3.0"})
     with urllib.request.urlopen(req, timeout=120) as resp:
-        dest_path.write_bytes(resp.read())
+        data = resp.read()
+    if normalize_png:
+        from PIL import Image
+        with Image.open(io.BytesIO(data)) as image:
+            image.save(dest_path, format="PNG")
+    else:
+        dest_path.write_bytes(data)
 
 
 def _print_enable_guide(mode: str, failed_model: str) -> None:
     """候选链全部不可用时，输出开通指引（供 Agent 转告用户）。"""
     print("", file=sys.stderr)
     print(f"[error] 图像生成模型 {failed_model} 不可用（模式={mode}），候选链已全部尝试。", file=sys.stderr)
-    if mode == "workspace":
+    if mode == "volc":
+        print("[guide] 请到 https://ark.cn-beijing.volces.com/ 检查 Seedream 模型开通及 AWK_GEN_KEY 权限（普通 API，非 Coding/Token Plan）", file=sys.stderr)
+    elif mode == "workspace":
         print("[guide] 请到阿里云百炼控制台检查业务空间模型授权：", file=sys.stderr)
         print("  1. 打开 https://bailian.console.aliyun.com/", file=sys.stderr)
         print(f"  2. 确认业务空间（WORKSPACE_ID）已授权模型：{'、'.join(WS_MODEL_CHAIN)}", file=sys.stderr)
@@ -284,8 +310,9 @@ def _print_enable_guide(mode: str, failed_model: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="阿里云百炼图像生成/编辑（业务空间 qwen-image / agent plan wan2.7-image）"
+        description="火山 Seedream / 百炼图像生成与编辑"
     )
+    parser.add_argument("--platform", choices=["auto", "volc", "volcengine", "dashscope"], default="auto", help="默认按 AWK_GEN_KEY → 百炼业务空间 → AWK_API_KEY 选路")
     parser.add_argument("--prompt", required=True, help="图像描述（要渲染的文字直接写完整句子）")
     parser.add_argument(
         "--model", default=None,
@@ -293,7 +320,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--image-size", default=None, dest="image_size",
-        help="尺寸：'WxH'（如 2048x2048，总像素 512²~2048²）或 'auto'；缺省 2048x2048",
+        help="尺寸 WxH，默认 2048x2048；火山另支持 2K/3K/4K，百炼另支持 auto",
     )
     parser.add_argument("--seed", type=int, default=None, help="随机种子 [0, 2147483647]")
     parser.add_argument(
@@ -311,7 +338,9 @@ def main() -> None:
     parser.add_argument("--out-dir", default=None, dest="out_dir", help="输出目录")
     args = parser.parse_args()
 
-    base, api_key, chain, mode = resolve_mode()
+    if (args.image2 or args.image3) and not args.image:
+        parser.error("--image2 / --image3 必须与 --image 一起使用")
+    base, api_key, chain, mode = resolve_mode(args.platform)
 
     # watermark 字段百炼期望 bool（JSON），从字符串转
     args.watermark = args.watermark == "true"
@@ -325,11 +354,11 @@ def main() -> None:
     is_edit_mode = bool(args.image)
     gen_mode = "image-edit" if is_edit_mode else "text-to-image"
 
-    url = f"{base}{GEN_PATH}"
+    url = base + (VOLC_GEN_PATH if mode == "volc" else GEN_PATH)
     result: dict | None = None
     for idx, cand_model in enumerate(candidates):
-        payload = build_payload(args, cand_model)
-        size = (payload.get("parameters") or {}).get("size", "-")
+        payload = build_volc_payload(args, cand_model) if mode == "volc" else build_payload(args, cand_model)
+        size = payload.get("size") or (payload.get("parameters") or {}).get("size", "-")
         print(f"[info] Mode={gen_mode} provider={mode} model={cand_model} size={size}", file=sys.stderr)
         try:
             result = api_request(url, payload, api_key)
@@ -358,10 +387,10 @@ def main() -> None:
     for i, image_url in enumerate(image_urls):
         dest = out_dir / f"{i:02d}.png"
         print(f"[info] Downloading image {i} → {dest}", file=sys.stderr)
-        download_image(image_url, dest)
+        download_image(image_url, dest, normalize_png=mode == "volc")
         prompts_map[str(i)] = {
             "prompt": args.prompt,
-            "model": result.get("model", candidates[0] if not args.model else args.model),
+            "model": result.get("model") or cand_model,
             "provider_mode": mode,
             "url": image_url,
             "file": str(dest),

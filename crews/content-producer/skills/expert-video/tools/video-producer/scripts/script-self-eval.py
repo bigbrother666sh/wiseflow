@@ -12,6 +12,7 @@ Usage:
 - reversal-ad     → GATE A 四问 + 叙事闭环 + 合规
 - narration-video → 口播稿落稿锁定模式（只检查不改写）或旁白稿规范
 - collage-broll   → 隐喻自检五条
+- deck-talk       → 逐页幻灯脚本六维自检（读 script/deck-script.md）
 
 agent 据此逐维打分填 self-eval.json。脚本不做 NLP 判分——是 agent 的自检脚手架。
 任一维 <3 必返工；落稿锁定模式只检查不改写，问题报甲方。
@@ -74,22 +75,34 @@ COLLAGE_DIMS = [
 ]
 
 
+DECK_DIMS = [
+    ("single_claim", "每页单命题", "标题≤32字；要点≤4条、每条≤48字；不把口播全文塞进幻灯"),
+    ("verbatim", "口播同源", "锁定稿不重写；录音/小窗同源；纯旁白与 Brief 一致"),
+    ("data_source", "来源与授权", "图表数值/单位/日期范围有据，图片与人物素材有授权"),
+    ("layout_safe", "遮挡检查", "小窗位置与尺寸匹配留白，字幕安全带无关键信息"),
+    ("page_timing", "翻页节奏", "每页3–30秒；句边界翻页，后续按同源音频时间戳回填"),
+    ("scene_animation", "真实动效", "逐页设计元素入场/图表演进，非整页静图缓推；明确动作和局部时刻"),
+]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 2 script-self-eval（按 workflow 自检标准）")
     parser.add_argument("project_dir", help="项目目录（CP 自建工作区 output_videos/<topic-en-slug>/）")
     args = parser.parse_args()
 
     project = Path(args.project_dir).resolve()
-    script_path = project / "script" / "script.md"
-    if not script_path.is_file():
-        die(f"前置缺失: script.md 不存在，先跑 script-write（Stage 1）")
-
     brief_text = _brief.read_brief(project)
     workflow = _brief.parse_workflow(brief_text)
+    script_path = project / "script" / ("deck-script.md" if workflow == "deck-talk" else "script.md")
+    if not script_path.is_file():
+        die(f"前置缺失: {script_path.name} 不存在，先跑 script-write（Stage 1）")
+
     vo_mode, _ = _brief.detect_voiceover(project, brief_text)
 
     # 维度按 workflow + 口播交付形态选择
-    if workflow == "reversal-ad":
+    if workflow == "deck-talk":
+        dims, mode_note = DECK_DIMS, "deck-talk：逐页幻灯脚本自检，锁定口播不重写"
+    elif workflow == "reversal-ad":
         dims, mode_note = REVERSAL_DIMS, "reversal-ad：GATE A 四问质检标准"
     elif workflow == "collage-broll":
         dims, mode_note = COLLAGE_DIMS, "collage-broll：隐喻自检（GATE A 质检标准）"
@@ -123,12 +136,14 @@ def main() -> None:
         "must_rework": None,
         "instruction": (
             f"agent 据每维 criteria 打分 1–5，note 写扣分理由。任一维 <3 必须 rework（重跑 script-write 改对应段后再跑本评估）。"
-            + ("落稿锁定模式：只检查不改写——发现问题报甲方，不自行改稿。" if workflow == "narration-video" and vo_mode == "voiceover" else "")
+            + ("落稿锁定模式：只检查不改写——发现问题报甲方，不自行改稿。" if workflow in ("narration-video", "deck-talk") and vo_mode == "voiceover" else "")
         ),
     }
     eval_path.write_text(json.dumps(stub, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[done] self-eval.json 模板已落（{mode_note}）：{eval_path}")
-    if workflow == "collage-broll":
+    if workflow == "deck-talk":
+        print("[next] 逐维打分 → 全维 ≥3 后 GATE A 呈交逐页脚本；按 deck-talk 阶段表执行，不走 storyboard-build")
+    elif workflow == "collage-broll":
         print("[next] agent 逐维打分 → 全维 ≥3 后 GATE A 呈交隐喻清单 → 批准后进 Phase 2 静帧生成（不走 storyboard-build）")
     elif workflow == "reversal-ad":
         print("[next] agent 逐维打分（四问答案随 GATE A 呈交）→ 全维 ≥3 跑 storyboard-build（Stage 3）")

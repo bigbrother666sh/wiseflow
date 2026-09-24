@@ -1,6 +1,8 @@
 # node
 node_modules/
 package-lock.json
+.browsers/
+.deck-render-browser
 
 # default ignore
 /shelf/

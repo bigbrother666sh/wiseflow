@@ -1,5 +1,7 @@
 # 专家包（Expert Pack）+ DNA 架构规划
 
+> 2026-09-23 注：本文件中的 `collage-broll` 独立工具结构已由 `expert-video/workflows/collage-broll.md` 和 `video-producer` 通用视觉工具取代；下方保留当时的架构记录。
+
 > 日期：2026-08-14；2026-08-18 更新 DNA 生产模式与跨平台 profiler 规范；2026-08-20 明确跨平台 DNA 维度边界与 template 通用开头；2026-08-20 废除 rubric、数据直连 DNA（见第 11 节）；2026-08-29 新增平台运营文件夹规范（见 4.2 节）；2026-08-29 `dna/` 与 `calibration/` 由集中目录下沉进各平台运营文件夹（见 4.2 节）；2026-09-08 抖音 / 视频号 / 小红书 DNA 维度重做（v1，已废止）；2026-09-10 三平台 DNA 回到「单篇作品提取 → 批次聚合」范式并按作品类型分框架（v2，见 4.7 节）；2026-09-10 明确 main / Content Producer 的 Brief 交接契约（见 4.7 节）；2026-09-10 content-producer 引入专家包 expert-video / expert-design（见 4.9 节）
 > 首个改造对象：`crews/main`（小贝 / main agent）
 

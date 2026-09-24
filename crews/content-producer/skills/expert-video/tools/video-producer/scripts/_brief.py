@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-TYPE_WORKFLOWS = {"reversal-ad", "narration-video", "collage-broll"}
+TYPE_WORKFLOWS = {"reversal-ad", "narration-video", "collage-broll", "deck-talk"}
 
 _AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".amr"}
 
@@ -28,7 +28,7 @@ def read_brief(project: Path) -> str:
 def parse_workflow(brief_text: str) -> str | None:
     """解析 Brief 的 workflow 字段。
 
-    返回 'reversal-ad' / 'narration-video' / 'collage-broll'；
+    返回 'reversal-ad' / 'narration-video' / 'collage-broll' / 'deck-talk'；
     未指定、模板未填（枚举行原样 / 省略标注）或无 Brief → None。
     """
     for line in brief_text.splitlines():
@@ -71,15 +71,35 @@ def detect_voiceover(project: Path, brief_text: str) -> tuple[str | None, Path |
     return None, None
 
 
+def deck_fields(brief_text: str) -> dict[str, str]:
+    """Read the explicit deck-talk branch and locked media references from a Brief."""
+    keys = {'presenter_source', 'presenter', 'audio', 'visual_source', 'audio_origin'}
+    result = {}
+    for line in brief_text.splitlines():
+        match = re.match(r'^-\s*([a-z_]+)\s*[：:]\s*(.*?)\s*$', line.strip())
+        if match and match.group(1) in keys:
+            result[match.group(1)] = match.group(2).strip('`')
+    return result
+
+
 def collage_guard(project: Path, stage: str) -> bool:
-    """collage-broll 阶段裁剪守卫。
+    """既有阶段裁剪入口；同时防止 deck-talk 误走通用 Stage 3–10。
 
     Brief 指定 collage-broll 且本阶段被其裁剪时，打印跳过指引并返回 True
     （caller 应据此 return，退出码 0）。其余情况返回 False，照常执行。
     """
-    if parse_workflow(read_brief(project)) != "collage-broll":
+    workflow = parse_workflow(read_brief(project))
+    if workflow == "deck-talk":
+        number = re.match(r"Stage (\d+)\b", stage)
+        if number and 3 <= int(number.group(1)) <= 10:
+            print(f"[skip] deck-talk 重定义/裁剪 {stage}，按 workflows/deck-talk.md 执行：")
+            print("       逐页脚本与素材 → 同源音频/时间戳 → HTML 动效计划与承诺 → GATE B → deck-render。")
+            print("       不生成通用镜头表，不使用 slideshow-risk / motion_ratio 的素材视频口径。")
+            return True
+        return False
+    if workflow != "collage-broll":
         return False
     print(f"[skip] collage-broll 类型裁剪本阶段（{stage}）——阶段裁剪表见 workflows/collage-broll.md：")
-    print("       Stage 3–9 由静帧生成（Phase 2）替代；视频生成走 `collage-broll render`（Phase 3）；")
+    print("       Stage 3–9 由独立纸片素材与 HTML 预览（Phase 2）替代；成片走 `video-producer visual-render`（Phase 3）；")
     print("       默认无声、逐条独立成片不经拼接。按 workflow 文档执行，不要调用本命令。")
     return True

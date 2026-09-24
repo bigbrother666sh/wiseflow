@@ -15,6 +15,9 @@ Covers:
 All HTTP calls are mocked — these are unit tests.
 """
 import base64
+import argparse
+import io
+import tempfile
 import json
 import os
 import subprocess
@@ -33,7 +36,7 @@ def _env(**overrides):
     """构造受控 env dict（清空所有相关变量后按需注入）。"""
     base = {
         k: v for k, v in os.environ.items()
-        if k not in ("WORKSPACE_ID", "MODELSTUDIO_API_KEY", "DASHSCOPE_API_KEY", "AWK_API_KEY")
+        if k not in ("WORKSPACE_ID", "MODELSTUDIO_API_KEY", "DASHSCOPE_API_KEY", "AWK_API_KEY", "AWK_GEN_KEY", "ARK_API_KEY")
     }
     base.update({k: v for k, v in overrides.items() if v is not None})
     return base
@@ -293,6 +296,98 @@ class TestIntegrationDryRun(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("AWK_API_KEY", result.stderr)
         self.assertIn("WORKSPACE_ID", result.stderr)
+
+
+class TestVolc(unittest.TestCase):
+    def args(self, **changes):
+        values = dict(prompt="test", image=None, image2=None, image3=None,
+                      image_size=None, seed=None, watermark=False, prompt_extend=False)
+        values.update(changes)
+        return argparse.Namespace(**values)
+
+    def test_priority_and_override(self):
+        with mock.patch.dict(os.environ, _env(AWK_GEN_KEY="volc-key", WORKSPACE_ID="ws",
+                            MODELSTUDIO_API_KEY="ws-key", AWK_API_KEY="plan-key"), clear=True):
+            self.assertEqual(gen.resolve_mode()[1:], ("volc-key", gen.VOLC_MODEL_CHAIN, "volc"))
+            self.assertEqual(gen.resolve_mode("dashscope")[3], "workspace")
+            self.assertEqual(gen.resolve_mode("volcengine")[3], "volc")
+
+    def test_no_wrong_key_or_cross_platform_fallback(self):
+        with mock.patch.dict(os.environ, _env(ARK_API_KEY="llm-key", AWK_API_KEY="plan"), clear=True):
+            with self.assertRaises(SystemExit):
+                gen.resolve_mode("volc")
+            self.assertEqual(gen.resolve_mode()[3], "agent-plan")
+        with mock.patch.dict(os.environ, _env(AWK_GEN_KEY="volc"), clear=True):
+            with self.assertRaises(SystemExit):
+                gen.resolve_mode("dashscope")
+
+    def test_sizes(self):
+        for model in gen.VOLC_MODEL_CHAIN:
+            for value in ("2048x2048", "2560*1440", "4096×4096", "8192x512"):
+                self.assertIn("x", gen.normalize_volc_size(value, model))
+            for value in ("1500x1500", "8192x8192", "32768x128", "0x2048", "auto"):
+                with self.subTest(value=value), self.assertRaises(SystemExit):
+                    gen.normalize_volc_size(value, model)
+        self.assertEqual(gen.normalize_volc_size("3K", gen.VOLC_MODEL_CHAIN[0]), "3K")
+        self.assertEqual(gen.normalize_volc_size("3K", gen.VOLC_MODEL_CHAIN[1]), "3072x3072")
+        self.assertEqual(gen.normalize_volc_size("4K", gen.VOLC_MODEL_CHAIN[1]), "4K")
+
+    def test_payload_and_references(self):
+        payload = gen.build_volc_payload(self.args(), gen.VOLC_MODEL_CHAIN[0])
+        self.assertEqual(payload["size"], "2048x2048")
+        self.assertEqual(payload["sequential_image_generation"], "disabled")
+        self.assertEqual(payload["response_format"], "url")
+        self.assertFalse(payload["watermark"])
+        self.assertNotIn("parameters", payload)
+        self.assertNotIn("image", payload)
+        refs = ["https://example.com/a.png", "data:image/png;base64,AA=="]
+        payload = gen.build_volc_payload(self.args(image=refs[0]), gen.VOLC_MODEL_CHAIN[0])
+        self.assertEqual(payload["image"], refs[0])
+        payload = gen.build_volc_payload(self.args(image=refs[0], image2=refs[1]), gen.VOLC_MODEL_CHAIN[0])
+        self.assertEqual(payload["image"], refs)
+        for options in ({"seed": 1}, {"prompt_extend": True}):
+            with self.assertRaises(SystemExit):
+                gen.build_volc_payload(self.args(**options), gen.VOLC_MODEL_CHAIN[0])
+
+    def test_model_fallback_records_actual_model(self):
+        with tempfile.TemporaryDirectory() as directory, \
+             mock.patch.dict(os.environ, _env(AWK_GEN_KEY="volc", AWK_API_KEY="plan"), clear=True), \
+             mock.patch.object(sys, "argv", ["gen", "--prompt", "test", "--out-dir", directory]), \
+             mock.patch.object(gen, "api_request", side_effect=[gen.ImgGenHTTPError(404, "not found"),
+                               {"data": [{"url": "https://example.com/a.jpg"}]}]) as request, \
+             mock.patch.object(gen, "download_image") as download:
+            gen.main()
+            self.assertEqual([call.args[1]["model"] for call in request.call_args_list], gen.VOLC_MODEL_CHAIN)
+            for call in request.call_args_list:
+                self.assertEqual(call.args[0], "https://ark.cn-beijing.volces.com/api/v3/images/generations")
+                self.assertEqual(call.args[2], "volc")
+            record = json.loads((Path(directory) / "prompts.json").read_text())["0"]
+            self.assertEqual(record["model"], gen.VOLC_MODEL_CHAIN[1])
+            self.assertEqual(record["provider_mode"], "volc")
+            self.assertTrue(download.call_args.kwargs["normalize_png"])
+
+    def test_explicit_model_or_bad_parameters_never_retry(self):
+        for extra, code in ((["--model", "custom-model"], 404), ([], 400), ([], 429)):
+            with tempfile.TemporaryDirectory() as directory, \
+                 mock.patch.dict(os.environ, _env(AWK_GEN_KEY="volc", AWK_API_KEY="plan"), clear=True), \
+                 mock.patch.object(sys, "argv", ["gen", "--prompt", "test", "--out-dir", directory] + extra), \
+                 mock.patch.object(gen, "api_request", side_effect=gen.ImgGenHTTPError(code, "invalid")) as request:
+                with self.assertRaises(SystemExit):
+                    gen.main()
+                self.assertEqual(request.call_count, 1)
+
+    def test_download_converts_jpeg_to_png(self):
+        from PIL import Image
+        buffer = io.BytesIO()
+        Image.new("RGB", (20, 20), "red").save(buffer, format="JPEG")
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = buffer.getvalue()
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(gen.urllib.request, "urlopen", return_value=response):
+            path = Path(directory) / "00.png"
+            gen.download_image("https://example.com/a.jpg", path, normalize_png=True)
+            with Image.open(path) as image:
+                self.assertEqual(image.format, "PNG")
+                self.assertEqual(image.size, (20, 20))
 
 
 if __name__ == "__main__":

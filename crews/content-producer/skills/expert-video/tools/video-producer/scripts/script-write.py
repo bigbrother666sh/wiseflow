@@ -14,6 +14,7 @@ Usage:
 - narration-video + 旁白     → 旁白稿（由我写，GATE A 交审）
 - reversal-ad                → 三段结构反转剧本（解说旁白由我写）
 - collage-broll              → 隐喻清单（本类型的 script）
+- deck-talk                  → script/deck-script.md 逐页幻灯脚本，口播原稿锁定
 
 Brief 创意不足以直接写剧本 → 先走 story-develop intake workflow 与甲方收敛 Brief。
 """
@@ -120,6 +121,41 @@ COLLAGE_STUB = """# 隐喻清单（Stage 1 · collage-broll——本类型的 sc
 """
 
 
+DECK_STUB = """# 幻灯脚本（Stage 1 · deck-talk）
+
+模式：待按 Brief 填 footage / avatar / audio（兼容 none）。
+底画面：slides / broll / mixed；音频讲解模式可只用 B-roll。
+音频来源：待填 recorded / cloned / designed / stock-tts 与路径；footage 沿用 main 已剪视频原声，avatar 使用 LivePortrait 的原驱动音频，audio 保留用户/main 提供音频。
+
+## 第 1 页
+- 单一命题：
+- 版式 / 图表类型：
+- 数据 / 单位 / 日期范围 / 来源：
+- 图片槽 / 绝对路径 / 授权：
+- 对应口播原文或录音段落（锁定稿不改写）：
+- 预计时长（3–30 秒，GATE A 后按句边界时间戳回填）：
+- 小窗避让 / 字幕安全区：
+- 元素入场 / 图表演进及局部时刻：
+
+按页重复。纯旁白由 CP 写并提交 GATE A；口播稿由甲方提供，不重写。
+自检后 GATE A 呈交逐页脚本；不走通用分镜与角色三视图。
+"""
+
+DECK_BROLL_STUB = """# B-roll 讲解脚本（Stage 1 · deck-talk）
+
+## 第 1 段
+- 对应口播原文或录音段落（锁定稿不改写）：
+- 画面命题与素材来源 / 绝对路径 / 授权：
+- 画面动作、入出点与对应句边界：
+- 图表数据 / 单位 / 日期范围 / 来源（如有）：
+- 预计时长（GATE A 后按真实音频时间戳回填）：
+- 字幕安全区与小窗避让（如有）：
+
+按句边界分段重复。纯旁白由 CP 写并提交 GATE A；用户/main 提供的口播原声保持不变。
+自检后 GATE A 呈交分段脚本；不走通用分镜与角色三视图。
+"""
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Stage 1 script-write（按 Brief 的 workflow 变体）")
     parser.add_argument("project_dir", help="项目目录（CP 自建工作区 output_videos/<topic-en-slug>/）")
@@ -134,13 +170,29 @@ def main() -> None:
     workflow = _brief.parse_workflow(brief_text)
     vo_mode, vo_path = _brief.detect_voiceover(project, brief_text)
 
-    script_path = project / "script" / "script.md"
+    script_path = project / "script" / ("deck-script.md" if workflow == "deck-talk" else "script.md")
     script_path.parent.mkdir(parents=True, exist_ok=True)
 
     # checkpoint
     if script_path.is_file():
-        print(f"[checkpoint] script.md 已存在，沿用：{script_path}")
+        print(f"[checkpoint] {script_path.name} 已存在，沿用：{script_path}")
         print("[hint] 要改就手改或删掉重跑本命令（产物文件存在性即 checkpoint）")
+        return
+
+    if workflow == "deck-talk":
+        fields = _brief.deck_fields(brief_text)
+        content = DECK_BROLL_STUB if fields.get('visual_source') == 'broll' else DECK_STUB
+        locked = '\n'.join(f'- {key}: {fields[key]}' for key in
+                           ('presenter_source', 'visual_source', 'audio_origin', 'presenter', 'audio') if fields.get(key))
+        if locked:
+            content = content.replace('\n## 第 1 ', '\n## Brief 锁定输入\n' + locked + '\n\n## 第 1 ', 1)
+        if vo_mode == "voiceover":
+            content += "\n## 甲方口播原稿（落稿锁定）\n\n" + vo_path.read_text(encoding="utf-8")
+        elif vo_mode == "recording":
+            content += f"\n同源录音：{vo_path}\n"
+        script_path.write_text(content, encoding="utf-8")
+        print(f"[done] deck-talk 逐页脚本模板：{script_path}")
+        print("[next] 填逐页设计与原文对应 → script-self-eval → GATE A；批准后按 deck-talk 阶段表继续")
         return
 
     if workflow == "narration-video" and vo_mode == "voiceover":

@@ -175,10 +175,10 @@ irm https://raw.atomgit.com/wiseflow/xiaobei/raw/master/scripts/install-atomgit.
 > |------|---------|------|
 > | 阿里云百炼 Agent Plan（默认） | `AWK_API_KEY` | `happyhorse-1.1-i2v` / `happyhorse-1.1-t2v` / `happyhorse-1.1-r2v` |
 > | 阿里云百炼业务空间（可选） | `WORKSPACE_ID` + `MODELSTUDIO_API_KEY`（或 `DASHSCOPE_API_KEY`） | 同上 |
-> | 火山引擎方舟 | `AWK_GEN_KEY` | `doubao-seedance-2-0-fast-260128` / `doubao-seedance-2-0-260128` / `doubao-seedance-2-0-mini-260615` |
+> | 火山引擎方舟 | `AWK_GEN_KEY` | `doubao-seedance-2-5-260628` → `doubao-seedance-2-0-fast-260128` |
 > | minimax海螺 | `MINIMAX_API_KEY` | `minimax-H3` |
 >
-> 只配置百炼 `AWK_API_KEY` 时自动走 Agent Plan；若已有其他视频凭据，自动选择顺序为 MiniMax → 火山 → 百炼业务空间 → 百炼 Agent Plan。均未配置时，小贝改用 pexels/pixabay 素材模式（仍需注册获取对应的免费 Key）。`AWK_GEN_KEY` 是火山视频生成凭据，与百炼 `AWK_API_KEY` 不可混用。需要调整配置时，可以让小贝调用内置 IT Engineer 协助。
+> 只配置百炼 `AWK_API_KEY` 时自动走 Agent Plan；若已有其他视频凭据，自动选择顺序为 MiniMax → 火山 → 百炼业务空间 → 百炼 Agent Plan。均未配置时，小贝改用 pexels/pixabay 素材模式（仍需注册获取对应的免费 Key）。`AWK_GEN_KEY` 是火山生图和视频生成共用的普通方舟 API 凭据（非 Coding/Token Plan），与百炼 `AWK_API_KEY` 不可混用。需要调整配置时，可以让小贝调用内置 IT Engineer 协助。
 
 > **🧠 进阶：记忆增强与 dream（可选）**
 >
@@ -339,11 +339,11 @@ wiseflow/
 - awesome-design-md（A curated collection of design systems in markdown format — Designer 内置设计系统库参考了此项目的设计系统结构） https://github.com/VoltAgent/awesome-design-md
 - cheat-on-content（自媒体打分算法借鉴、取数方案借鉴） https://github.com/XBuilderLAB/cheat-on-content
 - AutoClip（AI 视频智能切片系统 — `talking-head-cut` 技能的高光剪辑算法与工作流借鉴自此；`video-producer` 的 Stage 13b motion-audit 镜头抽帧打分思路亦借鉴其高光判定） https://github.com/zhouxiaoka/autoclip
-- HyperFrames（HeyGen 开源的 AI 视频生成编排框架 — `video-producer` 的脚本→分镜→渲染链式工作流与两道闸门审批节奏借鉴自此） https://github.com/heygen-com/hyperframes
+- HyperFrames（HeyGen 开源的视频编排与渲染框架 — `deck-render` 和 `video-producer visual-render` 使用其本地渲染能力；视频流程的两道闸门也借鉴其编排方式） https://github.com/heygen-com/hyperframes
 - html-video（nexu-io 的 HTML 视频渲染方案 — `video-producer` 的 Stage 10 静帧→成片渲染思路与素材组装约定参考自此） https://github.com/nexu-io/html-video
 - ViMax（HKUDS 的视频生成框架 — `video-producer` 的机位一致性约束与素材 slot 规划借鉴其镜头规划策略） https://github.com/HKUDS/ViMax
 - OpenMontage（calesthio 的开源蒙太奇剪辑方案 — `video-producer` 的 Stage 12 拼接成片+转场工作流借鉴其片段组装与节奏控制思路） https://github.com/calesthio/OpenMontage
-- gbro-collage-broll（MIT — 半调纸拼贴 B-roll 三闸门方法论 — `expert-video` 的 Collage B-roll workflow 移植自此：隐喻设计法、语义色场表、visual-spec schema、静帧/视频 QA 标准照搬，闸门映射为 GATE A/B、渲染栈换成 awk-img-gen + aigc-video-gen i2v） https://github.com/pyang5166/gbro-collage-broll
+- gbro-collage-broll（MIT — 半调纸拼贴 B-roll 方法论 — `expert-video` 的 Collage B-roll workflow 借鉴其隐喻设计、语义色场与视觉 QA；现由 awk-img-gen 提供独立纸片素材，HyperFrames 负责确定性组装，特殊生成式动作才调用 aigc-video-gen） https://github.com/pyang5166/gbro-collage-broll
 - agent-skills-launch-pack_（起号方法论知识来源） https://github.com/chenjin-cmd/agent-skills-launch-pack_
 
 ## Citation

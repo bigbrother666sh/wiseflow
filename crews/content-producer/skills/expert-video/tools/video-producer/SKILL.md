@@ -5,6 +5,20 @@ description: 视频制作原子能力集——剧本/分镜、素材 slot 与解
 
 # video-producer — 工具说明
 
+## pip-compose — 幻灯与口播小窗
+
+```bash
+video-producer pip-compose --base /absolute/slides.mp4 --presenter /absolute/presenter.mp4 --audio /absolute/narration.mp3 --output /absolute/composed.mp4 --dry-run
+video-producer pip-compose --base /absolute/slides.mp4 --presenter /absolute/presenter.mp4 --audio /absolute/narration.mp3 --output /absolute/composed.mp4
+```
+
+- `--base` 与 `--output` 必填。`--presenter` 可省略，仅合旁白；`--audio` 是唯一音轨，省略时仅保留底视频音轨，**从不混入 presenter 音轨**。两者均无音轨则报错。外部音频编码为 AAC，底视频无小窗时视频流复制。
+- 小窗 `--corner` 四选 top-left/top-right/bottom-left/bottom-right；默认 bottom-right。`--size` 是画布宽占比（默认 .22，范围 .1–.5），`--aspect` 宽高比（默认 1），保比放大后居中裁切，不能以此改变口型时序。
+- `--margin 32`、`--radius 24`、`--border 4`、`--border-color '#ffffff'`、`--subtitle-safe 160` 均以像素计（颜色除外）；字幕安全区是全宽底部禁入带。默认适配 1080p，改尺寸后先 dry-run，超界报错。`--threads` 默认 2。
+- 底视频应为方形像素、无旋转元数据、偶数尺寸、1–120fps。音轨与底视频必须等长（容差 0.12 秒）；presenter 可长于底视频（裁去尾部），短于底视频超过容差就报错，不循环/定帧/变速。先用 clip-trim 对齐入点；时长相同不等于内容同源，人工检查口型。
+- `--dry-run` 只探测并输出合成计划 JSON，不生成媒体；实际输出使用临时文件，验证宽高/帧率/音视频时长后原子落盘，旁写 `.pip.json`。输入与输出必须不同，已有输出用 `--force` 显式重做。
+- 返回码 0 成功、1 输入/几何/合成断言失败、2 依赖缺失。Pillow 使用仓根已有依赖；不需要新增 pip 包。
+
 > 本文是 `expert-video` 专家包内的工具说明书，不独立出现在技能列表中。制作流程（阶段链、两闸门、workflow 选择）由包内 SKILL.md 与 `workflows/` 编排，本文只写每个子命令的输入、输出与调用方式。
 
 **调用方式**：`video-producer <子命令> [参数...]`（wrapper 转发到 `scripts/<子命令>.py`，子命令名即脚本名，零路径拼接）。`video-producer help` 列可用子命令。
@@ -30,7 +44,9 @@ description: 视频制作原子能力集——剧本/分镜、素材 slot 与解
 | `slideshow-risk` | storyboard.json + slot-plan.json + asset-resolve.json | `slots/slideshow-risk.json` | 六维幻灯风险打分（pre-compose 闸门，≥4.0 fail） |
 | `delivery-promise-lock` | storyboard.json + brief.md | `slots/delivery-promise.json` | 交付承诺八类锁定 + motion_ratio 预估 |
 | `render-shot` | shot_decompose.json + characters/ + slot-picks | `render/shot-NN/` 下产物 | 按 slot 渲染（AIGC 走 `aigc-video-gen` i2v 首尾帧插值；静图走 `awk-img-gen`） |
-| `motion-graphics` | `<project_dir> --spec mg.json [--out clip.mp4] [--duration] [--force]` | 单个动态图形 clip.mp4（默认 `render/mg/<spec-stem>/`） | 程序化逐帧动画（Stage 10 第二条渲染路径，与 render-shot 并列）：声明式 spec，内置四模板（dimension_grid 逐维点亮 / scroll_cards 滚动卡组 / crew_panel 角色卡入位 / rec_highlight 录屏圈选）+ 基础元素（text/card/photo_circle/glow/band/highlight_zone/progress_bar）+ custom 插件逃生舱；帧级 checkpoint、时长/帧率断言；只出单段，不拼接不混音不做字幕 |
+| `visual-render` | `scaffold <composition-dir> --width/--height/--duration/--fps/--background`；`check/preview/render <composition-dir>` | HTML 项目、静帧联系表或 MP4 | 共用 deck-render 锁定的 HyperFrames/GSAP/Chromium 运行时；适用产品段、标题、纸拼贴和录屏圈选。素材在 `assets/`，编辑 `index.html` 的 DOM/CSS/GSAP；预览用 `--output <空目录> --at 0,1,2`，渲染用 `--output <clip.mp4> [--workers 1] [--force]` |
+| `motion-graphics` | 新项目用 `scaffold/check/preview/render`；旧项目仍可用 `<project_dir> --spec mg.json` | 单段 clip.mp4 | 新子命令直接转交 `visual-render`；旧 JSON/Pillow 模板只兼容已制作项目，不再用于新创作 |
+| `batch-i2v` | `--batch gen-jobs.json [--dry-run]` | 多个 i2v MP4 | 特殊生成式动作的可选批量调度；逐条调公共 `aigc-video-gen`，job 写 `"mute": true` 时出片后无损去音轨；普通纸片组装使用 `visual-render` |
 | `mix-audio` | script.md（delivery_cues） | `audio/` 目录 + `subtitles.srt` 模板 | 配音配乐四场景分流：A 人物对话声画同出 / B 旁白一次性 TTS 带字级时间戳 + 对齐 / C BGM 成片后统一生成 / D 甲方口播录音 → ASR 时间戳 → 按时间戳补素材 |
 | `narration-align` | audio/narration.mp3 + audio/narration.subtitle.json | `audio/narration-segments.json` | 旁白字级时间戳对齐（**整段模式**：一条连续 narration.mp3；优先复用 `awk-tts --enable-subtitle` 的原生时间戳，缺失时回退公共 ASR 路由：火山 → 百炼） |
 | `narration-layout` | `<project_dir> --plan narration_plan.json [--srt ...] [--mix ...] [--force]` | `audio/abs_starts.json` + SRT + 可选混音 | 逐句旁白排布（**逐句模式**：每句独立 mp3，与 narration-align 互补）：实测镜头时长累积起点 → 每句对齐镜头起点 + 防重叠守卫 → 逐句/末句越界断言（违反非零退出打印明细）→ SRT（样式参数化，force_style 落 abs_starts.json 供 burn-srt 引用）→ 可选一步混音（内部复用 audio-mix：N 路旁白 + BGM fade） |
@@ -40,7 +56,7 @@ description: 视频制作原子能力集——剧本/分镜、素材 slot 与解
 | `scene-compose` | `<project_dir> --scene scene.json [--output scene-01.mp4]` | 单 Scene 片段 | 分段合成（clips + narration + dialogue → 一个 Scene）；内部调 clip-trim + audio-mix + assemble |
 | `assemble` | `<project_dir> [--transition hard/fade/dissolve/xfade] [--width] [--fps] [--audio-format] [--low-memory] [--preview-duration] [--source-dir] [--manifest] [--verify-fps] [--expect-durations] [--duration-tolerance]` | `video.mp4`（+ 可选 `video-preview.mp4`） | 按序拼接成片：可选转场、分辨率/帧率归一化、自动统一音频格式（无音频段补静音）、低内存模式（ultrafast/crf28）、前 N 秒试听版；`--manifest segments.json` 显式有序段清单（手写/motion-graphics 管线产物绕开 shot-NN 命名约定）；`--verify-fps 25` 拼接后帧率断言；`--expect-durations plan.json` 逐段时长 vs 计划 ± 容差校验（兼容 shotdur.json 的 beats 形态） |
 | `add-silent-audio` | `--input/--output/--duration/--sample-rate/--channels` | 含静音音轨的视频 | 给无音频片段补静音轨（concat 前置；assemble 内部也自动调） |
-| `make-outro` | `<project_dir> --image <形象图> --slogan <文本> [--color color.json] [--duration 5] [--width 1080] [--fps 30]` | 标准比例片尾段 | 形象图 + 黑边 + 烧字幕 + 静音轨 |
+| `make-outro` | `<project_dir> --image <形象图> --slogan <文本> [--color color.json] [--duration 5] [--width 1080] [--fps 30] [--force]` | 标准比例片尾段 + 可编辑的 `.composition/` | 用同一 HyperFrames 视觉渲染器排版/淡入文字，再复用 `add-silent-audio` 补静音轨 |
 | `motion-audit` | video.mp4 + delivery-promise.json | `review/motion-audit.json` | motion_led 抽查（兑付交付承诺） |
 | `make-cover` | brief.md（封面主文案）+ storyboard 关键帧 | `cover.jpg` | 封面生成（调 `awk-img-gen`，必含封面主文案） |
 
@@ -85,3 +101,7 @@ video-producer interp <video.mp4> --target-fps 30 --output <out.mp4>  # 更顺�
 - `duck`：AI 声画同出模式混轨不可分 → 报甲方决策；视频无声轨且没传 `--bgm-source` → exit 1
 - `denoise`：ffmpeg 不带 afftdn/arnndn → exit 1；`--method arnndn` 没传 `--rnn-model` → exit 1
 - `interp`：源 fps ≥ 目标 fps → 自动跳过拷贝；ffmpeg 不带 minterpolate → exit 1；mci 出鬼影 → 退 blend
+
+## deck-compose：deck-talk 三模式
+
+`--mode footage --presenter 已剪口播.mp4`：从视频提取唯一音轨；`--mode avatar --avatar-job presenter.liveportrait.json`：校验任务与音视频哈希，使用原驱动音频；`--mode audio --audio 录音.wav`：无小窗。三者均必填 `--base 底画面.mp4 --output 新成片.mp4`，可调 `--corner`、`--size`、`--subtitle-safe`。底画面可为幻灯、B-roll 或混合画面，时长需与音频一致（容差 0.12 秒），禁止替换/拉伸口播。另存 `.deck-talk.json` 音频来源记录。

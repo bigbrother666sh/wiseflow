@@ -1,6 +1,6 @@
 ---
 name: awk-tts
-description: 多供应商旁白 TTS——火山豆包语音合成 2.0（seed-tts-2.0）+ 阿里云百炼（qwen-audio-3.0-tts），凭据在哪家走哪家（火山 → 百炼业务空间 → 百炼 agent plan）。生成 MP3/PCM/WAV/OPUS 旁白，可选字级时间戳，合成后自动 ASR 自检。
+description: 声音复刻、音色设计和多供应商配音；支持绑定音色档案。多供应商旁白 TTS——火山豆包语音合成 2.0（seed-tts-2.0）+ 阿里云百炼（qwen-audio-3.0-tts），凭据在哪家走哪家（火山 → 百炼业务空间 → 百炼 agent plan）。生成 MP3/PCM/WAV/OPUS 旁白，可选字级时间戳，合成后自动 ASR 自检。
 metadata:
   openclaw:
     emoji: 🔊
@@ -161,3 +161,38 @@ ASR 凭据全部未配置时静默跳过自检。
 | `VOLC_ASR_APP_ID` + `VOLC_ASR_ACCESS_KEY` / `VOLC_ASR_APP_KEY` | ASR 自检火山凭据 |
 | `VOLC_ASR_RESOURCE_ID` | Optional ASR 资源 ID override，默认 `volc.bigasr.auc_turbo` |
 | `BAILIAN_ASR_MODEL` | Optional 百炼 ASR 自检模型 override，默认 `qwen-audio-3.0-asr-flash` |
+
+## 声音复刻与音色设计
+
+使用同一默认凭据顺序：**火山 → 百炼业务空间 → 百炼 Agent Plan**。可用 `--platform volc|workspace|agent-plan` 指定；凭据选路后不因错误静默跨供应商创建另一个音色。Agent Plan 的 customization 权限由套餐决定，返回不支持时使用已开通的业务空间，不宣称所有套餐都支持创建音色。
+
+音色必须保存为 `voice.json` 并在后续 TTS 传 `--voice-profile`：档案绑定供应商、业务空间/APP、模型和音色，不再按环境重选供应商，也不沿通用模型链切换。常规 TTS 不传档案时仍保持原候选链。
+
+### 创建与试听
+
+```bash
+# 默认按凭据选路；火山必须指定已购的空闲 S_ 槽位
+awk-tts voice-design --speaker-id S_EXAMPLE --description "成年男性，中音温暖自然，普通话清晰，适合知识讲解" --preview-text "大家好，今天我们用三张图，讲清楚一个复杂的问题。" --out-dir /absolute/voices/design
+awk-tts voice-clone --speaker-id S_EXAMPLE --audio /absolute/authorized-sample.wav --out-dir /absolute/voices/clone
+
+# 显式在百炼业务空间创建；无需火山槽位
+awk-tts voice-design --platform workspace --name narrator --description "温暖自然的成年男性，语速适中，日常聊天感" --preview-text "大家好，今天我们用三张图，讲清楚一个复杂的问题。" --out-dir /absolute/voices/bailian-design
+awk-tts voice-clone --platform workspace --name narrator --audio /absolute/authorized-sample.wav --out-dir /absolute/voices/bailian-clone
+
+# 查询已创建音色；失败/超时后先查，不盲目重复创建
+awk-tts voice-status --profile /absolute/voices/clone/voice.json --wait 60
+awk-tts voice-list --platform workspace --prefix narrator
+
+# 用绑定音色合成，自动保持供应商和模型一致
+awk-tts --voice-profile /absolute/voices/clone/voice.json --text-file /absolute/voiceover.md --output /absolute/narration.wav --format wav --enable-subtitle
+```
+
+- 火山复刻/设计使用现有 `VOLC_TTS_APP_ID` + `VOLC_TTS_ACCESS_KEY` 或 `VOLC_TTS_APP_KEY`，不是 `AWK_GEN_KEY`。旧鉴权在音色接口用 `X-Api-App-Key`，在合成接口用 `X-Api-App-Id`。`--speaker-id` 也可由 `VOLC_TTS_SPEAKER_ID` 配置。使用确认可覆盖的音色槽位；工具不购买槽位、不自动启用后付费自定义 ID。
+- 火山文本设计描述最多200字，试听文本最多300字；当前 CLI 提供文本设计。设计/复刻通过后用 `seed-icl-2.0` 合成，新版训练返回的 model_type=5 会保存在档案并在合成时使用。
+- 百炼使用 `voice-enrollment`，默认绑定 `qwen-audio-3.0-tts-plus`，可用 `--target-model qwen-audio-3.0-tts-flash`。`--name` 1–10位英文字母/数字；描述1–500字符，试听文本15–200字符。
+- 复刻 CLI 接收10–20秒、<10MB的 WAV/MP3/M4A 清晰单人音频，样本使用本人或有授权的声音；提供文件或 HTTP(S) URL 均可。火山直接传 Base64；百炼使用模型绑定的临时上传。URL 会先下载校验，确保上传的是已核验样本。
+- `voice-design` 保存试听文件，`voice-clone` 保存音色档案；火山返回试听 URL 时立即下载。只有远端状态可用才将档案标为 OK；创建状态不确定时保留记录，先查询，勿自动重复消耗创建/训练次数。
+- 试听确认清晰度、音色、语气后再用于全稿。复刻声与设计声均是合成声音，不能承诺等同真人原录音或保证通过平台检测。deck-talk 已有用户原录音时优先原声，不主动替换。
+- 输出文件已存在即停止，换目录创建新音色；不会覆盖现有档案。程序不修改 `~/.openclaw/.env`。
+
+接口：[百炼设计](https://help.aliyun.com/zh/model-studio/voice-design-api-references)、[百炼复刻](https://help.aliyun.com/zh/model-studio/voice-clone-design-http-api)、[火山设计](https://docs.volcengine.com/docs/DoubaoVoice/SoundDesignAPI?lang=zh)、[火山复刻](https://docs.volcengine.com/docs/DoubaoVoice/tone-training-http?lang=zh)。

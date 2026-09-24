@@ -21,7 +21,7 @@ metadata:
 | 平台 | 环境变量 | 视频模型 | 音乐模型 |
 |------|---------|---------|---------|
 | 阿里云百炼（优先） | 业务空间：`WORKSPACE_ID` + `MODELSTUDIO_API_KEY`（或 `DASHSCOPE_API_KEY`）；agent plan：`AWK_API_KEY` | `happyhorse-1.1-i2v`、`happyhorse-1.1-t2v`、`happyhorse-1.1-r2v` | — |
-| 火山引擎方舟 | `AWK_GEN_KEY` | `doubao-seedance-2-0-fast-260128`、`doubao-seedance-2-0-260128`、`doubao-seedance-2-0-mini-260615` | — |
+| 火山引擎方舟 | `AWK_GEN_KEY` | `doubao-seedance-2-5-260628`、`doubao-seedance-2-0-fast-260128` | — |
 | MiniMax Hailuo | `MINIMAX_API_KEY` | `MiniMax-H3` | `music-3.0` |
 
 - 三个平台的上述视频模型**均支持声画同出**（t2v / i2v / r2v 三种模式）。
@@ -71,7 +71,13 @@ Agent 读到此报错后的处理流程：
 
 ### 火山候选链
 
-- 候选链优先级：Fast → Normal → Mini；1080P 自动跳过 Fast（Fast 仅 720p）。
+- 仅支持 **Seedance 2.5 → Seedance 2.0 fast**；指定 `--model` 也只能选这两个模型 ID。
+- 分辨率使用 `480P` / `720P`（默认）；2.5 时长 4–30 秒，fast 为 4–15 秒，均可传 `-1` 自动时长。超过 15 秒或参考素材超过 fast 上限时，候选链只保留 2.5，不缩短时长或丢弃素材来回退。
+- `--ref-image` / `--ref-video` / `--ref-audio` 可重复传入；2.5 上限分别为 30/10/10，fast 为 9/3/3；仅音频输入只走 2.5。图片支持 URL、本地文件、data URI、`asset://`；音视频支持公网 URL 或 `asset://`。
+- 首帧/首尾帧和全模态参考互斥；尾帧必须配首帧。2.5 首帧/首尾帧自动传 `ratio=adaptive`，输出跟随首帧比例，应提前准备目标比例的首帧图。
+- 2.5 视频编辑使用 `--ref-video`，并显式设置 `--ratio adaptive --duration -1`；视频延长使用 `--ratio adaptive`。在 prompt 明确说明编辑/延长意图，模型据此识别任务，不要把普通参考生成与编辑混淆。
+- 火山不接受直接上传含真人人脸的参考图/视频；需使用平台支持的模型原始产物、预置虚拟人像或已授权素材，见[官方说明](https://ark.volcengine.com/region:cn-beijing/docs/ark/seedance-2-0#5c67c9a1)。
+- 模型与任务差异参见[模型发布公告](https://docs.volcengine.com/docs/ark/model-release-announcement?lang=zh)、[2.5 提示词与任务指南](https://docs.volcengine.com/docs/ark/seedance-2-5-prompt-guide?lang=zh)。
 - ⚠️ **火山视频生成只认 `AWK_GEN_KEY`，不回退 `ARK_API_KEY`**：`ARK_API_KEY` 是火山主模型（doubao 对话）的 key，用户可能只想用火山主模型而不用火山生成视频；若回退会误触发火山视频生成。想用火山生成视频必须单独配 `AWK_GEN_KEY`。
 
 ### MiniMax Hailuo 候选链
@@ -106,13 +112,13 @@ Agent 读到此报错后的处理流程：
 
 | 模式 | 触发条件 | 百炼 happyhorse-1.1 上限 | 火山 doubao-seedance 上限 | MiniMax Hailuo 上限 |
 |------|---------|---------|---------|---------|
-| t2v（文生视频） | 无 `--image`/`--ref-image`/`--ref-video` | 3–15s | 2–15s | 4–15s |
-| i2v（图生视频） | `--image`（首帧） | 3–15s | 2–15s | 4–15s |
-| r2v（参考生视频） | `--ref-image`（用户提供参考图） | 3–15s | 2–15s | 4–15s |
+| t2v（文生视频） | 无 `--image`/`--ref-image`/`--ref-video` | 3–15s | 2.5：4–30s；fast：4–15s | 4–15s |
+| i2v（图生视频） | `--image`（首帧） | 3–15s | 2.5：4–30s；fast：4–15s | 4–15s |
+| r2v（参考生视频） | `--ref-image`（用户提供参考图） | 3–15s | 2.5：4–30s；fast：4–15s | 4–15s |
 
 **脚本规划规则**（调用方约定，本脚本不强制）：
-- 每个片段时长 **不得超过 15 秒**
-- 超过上限的内容**必须在脚本中拆成多个片段**
+- 常规工作流每个片段时长 **不得超过 15 秒**；明确使用 Seedance 2.5 长镜头时可到 30 秒
+- 超过所选模型上限的内容**必须在脚本中拆成多个片段**
 
 ### 转场片段规范（i2v 首尾帧插值）
 
@@ -171,13 +177,13 @@ aigc-video-gen music \
 | `--prompt` | required | 声画同出描述（中文，happyhorse / Seedance / Hailuo 对中文响应好）——旁白文案 + BGM 风格 + 环境音效 |
 | `--duration` | 5 | 视频时长（秒），上限见模式表 |
 | `--ratio` | `9:16` | 画面比例 |
-| `--resolution` | `720P` | 分辨率：`720P` / `1080P`（火山 Fast 仅 720P） |
+| `--resolution` | `720P` | 分辨率：百炼 `720P` / `1080P`；火山 `480P` / `720P` |
 | `--image` | — | 首帧图像路径（i2v 模式） |
 | `--last-frame` | — | 尾帧图像路径（i2v 首尾帧插值） |
 | `--prev-segment` | — | 上一段视频本地路径：脚本自动抽取其末帧作为本段首帧（人物故事首尾帧对齐，与 `--image` 互斥） |
 | `--ref-image` | — | 用户参考图路径（r2v 模式） |
 | `--ref-video` | — | 参考视频路径（如有） |
-| `--ref-audio` | — | 参考音频 URL（多模态参考，须同时有 `--ref-image` 或 `--ref-video`；仅 MiniMax H3 支持） |
+| `--ref-audio` | — | 参考音频 URL；火山 / MiniMax 支持，仅 Seedance 2.5 允许单独音频，其他须同时有参考图或视频 |
 | `--no-audio` | off | 关闭声画同出（默认开启）；col-broll 拼贴动画等要抽无声交付时用 |
 | `--platform` | auto | 覆盖平台自动检测：`volcengine` / `dashscope` / `minimax`；不指定则按 env 自动判 |
 | `--model` | auto | 显式指定模型 ID（关闭候选链 fallback）；不指定则按模式走首选 + 候选链 |
@@ -203,7 +209,7 @@ aigc-video-gen music \
 |----------|-------------|
 | `WORKSPACE_ID` + `MODELSTUDIO_API_KEY` / `DASHSCOPE_API_KEY` | 百炼业务空间（优先模式） |
 | `AWK_API_KEY` | 百炼 agent plan key（token-plan 端点；无业务空间凭据时启用） |
-| `AWK_GEN_KEY` | 火山方舟视频生成专用 key（不可与 `ARK_API_KEY` 混用） |
+| `AWK_GEN_KEY` | 火山方舟生图/视频共用的普通 API key（非 Coding/Token Plan）（不可与 `ARK_API_KEY` 混用） |
 | `MINIMAX_API_KEY` | MiniMax API key（Hailuo-H3 视频生成 + 背景音乐生成共用） |
 | `WORKSPACE_ID` | 可选，百炼专属端点加速 |
 

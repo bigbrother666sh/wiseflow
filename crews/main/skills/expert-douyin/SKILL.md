@@ -16,6 +16,7 @@ metadata:
 |------|----------|-------------|
 | 内容 DNA 管理 | Style DNA | 建 / 更新内容 DNA（样本、偏好、局部借鉴、对标融合）：先判作品类型，再决定样本落到哪个 DNA |
 | 内容生产 | Content Production | 做一条 / 做几条抖音内容；main 直接做已有素材轻加工，视频全案只产出Brief并委托content-producer |
+| 原生界面卡片 | Native UI Cards | 群聊误发式单图、问答式连续讨论流三图的制作与抖音图文发布 |
 | 起号与定位 | Account Setup | 新号起号、定位梳理、内容支柱搭建、老号接手与诊断 |
 | 账号对标 | Account Benchmark | 对标账号 / 对标视频分析，并与默认或指定 DNA 逐项比较 |
 | 改片与调整 | Editing | 改文案、重剪、换封面、调结构、换风格 |
@@ -43,6 +44,8 @@ metadata:
 | `douyin-video-publish` | 成片 → 抖音创作者中心发布（浏览器自动化） | `douyin-video-publish` |
 
 跨领域通用技能：`viral-chaser`（抖音 / B站 / 小红书视频下载拆解，DNA 采样与仿写参考的取数主力）、`smart-search`（跨平台搜索，选题调研优先走社交平台，不用通用搜索引擎）、`content-calibrator`（DNA 表现评估）、`published-track`（发布记录与指标库）、`login-manager`（抖音登录态维护）。
+
+原生界面卡片出图使用 main crew 共享技能 `native-ui-card`，具体选题、审核、发布与记录按 `workflows/native-ui-cards.md`。
 
 素材加工相关技能：`video-edit`（素材加工拼接）、`talking-head-cut`（口播轻剪辑）、`ui-demo`（产品操作录屏）、`video-review`（成片质检闸门，仅用于 main 自做轻加工成品的自检；CP 成片质检在 CP 流程内完成）、`awk-img-gen`（封面图）、`pexels-footage` / `pixabay-footage`（免版权素材）。
 

@@ -32,15 +32,15 @@ xiaobei 由Wiseflow (原AI首席情报官）作者 bigbrother666sh 开发。
 
 ---
 
-## 🚀 **V5.7.1~5.7.2 更新**
+## 🚀 **V5.7.2~5.7.3 更新**
 
 - 小红书、抖音、视频号 DNA系统升级到2.0架构，Let's do this like an expert！
-- content producer 升级为专家系统，现在除了AIGC大片外，还可以复刻众多短视频平台流行的“套路”，更易获得平台推荐流量：
-  > 效果展示，xiaobei的视频号：https://openclaw-for-business.com/xiaobei-wxchannel.jpg
-- xiaobei 可直接指挥content producer，用户可选择将brief出具、节点验收等委托xiaobei
-- 新增抖音平台图文音乐内容发布能力，支持多图上传、选择推荐配乐与发布链接回收。
+- content producer 升级为专家系统，现在除了AIGC大片外，还可以复刻众多短视频平台流行的“套路”，更易获得平台推荐流量;
+- content producer 新增 `deck-talk` 幻灯讲解 workflow，支持实拍口播、数字人讲解和纯音频配 B-roll 三种模式，按 Brief 编排逐页或逐段内容、动效与音轨;
+- xiaobei 可直接指挥content producer，用户可选择将brief出具、节点验收等委托xiaobei;
+- 新增抖音平台图文音乐内容发布能力，支持多图上传、选择推荐配乐与发布链接回收;
+- 小红书和抖音新增原生界面卡片内容生产形态：内置“群聊误发式单图”创意、“问答式连续讨论流三图”创意；
 - AIGC 端点支持阿里云百炼 Agent Plan：现在无需去多个平台开通不同账号，最简只用初始安装时的百炼账号就可获得全部能力。
-- 修复一键安装脚本openclaw-weixin不会自动升级的问题
 
 详见 [CHANGELOG.md](CHANGELOG.md)
 

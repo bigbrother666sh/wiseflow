@@ -1,16 +1,23 @@
-# Unreleased
+# v5.7.3(2026-09-30)
 
 - deck-render、通用视觉片段、片尾和字幕按系统选择默认中文字体：Windows 使用自带微软雅黑且安装器不再下载 Noto；Linux/macOS 保留 Noto Sans CJK SC。旧 Python 动效兼容入口也可读取 Windows 字体文件。
 - `expert-video` 的新视觉片段统一走 `video-producer visual-render`（HyperFrames/GSAP）；片尾改用该渲染器，拼贴 B-roll 改为独立纸片与可控时间轴，并把可选 i2v 批调收进 `video-producer`，删除独立 `collage-broll` 工具。旧 JSON 动效项目暂保留兼容入口。
 - 安装/更新与 Docker 构建预装 deck-render 的 FFmpeg、锁定 HyperFrames/Playwright Chromium 和 Noto Sans CJK SC；运行时从包内浏览器路径启动渲染。
-- deck-talk 支持实拍口播、LivePortrait 数字人、仅音频+B-roll 三模式；新增 expert-video 内部 liveportrait 与 deck-compose，同源音轨、任务续查及哈希校验。
 - awk-tts 新增声音复刻/音色设计、音色状态查询与绑定档案；默认沿火山 → 百炼业务空间 → Agent Plan 选路，火山支持新版单 key 和旧版双头鉴权。
-
 - 火山视频仅支持 Seedance 2.5 → 2.0 fast，按时长和参考素材数量筛选候选链，补齐参考音频、首尾帧互斥与 2.5 adaptive 比例适配。
 - `awk-img-gen` 恢复火山：AWK_GEN_KEY → 百炼业务空间 → AWK_API_KEY；Seedream 5.0 lite → 4.5，支持显式平台、火山尺寸校验及 PNG 输出。
-- 新增 `deck-talk` 幻灯讲解 workflow：逐页脚本、自检、同源音频翻页和 HTML 动效验收；CP 与 main 三平台 Brief/爆款拆解路由接入，通用阶段脚本识别并避免误走分镜/幻灯风险闸门。
+
+### Content Producer 新增 Deck Talk workflow
+
+- 新增 `deck-talk` 幻灯讲解 workflow：支持实拍口播、LivePortrait 数字人和仅音频+B-roll 三模式；按 Brief 写逐页/逐段脚本并自检，使用同源音频翻页，验收 HTML 动效与成片。CP 与 main 三平台 Brief/爆款拆解路由接入，通用阶段脚本识别并避免误走分镜/幻灯风险闸门。
+- 新增 expert-video 内部 `liveportrait` 与 `deck-compose`，支持同源音轨、任务续查及哈希校验。
 - 新增 `deck-render` 本地渲染 wrapper，锁定 HyperFrames 0.8.50 / GSAP 3.14.2，支持中文脚手架、检查、静帧联系表、MP4 与规格校验；复用安装器的嵌套工具依赖与 wrapper 扫描。
 - 新增 `video-producer pip-compose`，支持四角小窗、圆角描边、字幕安全区、唯一音轨、无小窗旁白、干跑和时长守卫；数字人生成由 expert-video 内部 LivePortrait 工具提供。
+
+### 小红书与抖音新增原生界面卡片
+
+- 新增 `native-ui-card` 内容生产形态：群聊误发式单图、问答式连续讨论流三图。技能将已定稿内容渲染为 3:4 图片和作品文件，检查头像加载与版面溢出；示例和默认身份不限定选题或品牌。
+- 小红书、抖音专家包分别接入选题、卡片编排、出图审核、图文发布与记录流程。选题和表达由对应图文 DNA 决定，反差或反常识角度仅在 DNA 适合时采用；业务知识用于核实涉及的事实与边界。
 
 # v5.7.2 (2026-09-20)
 

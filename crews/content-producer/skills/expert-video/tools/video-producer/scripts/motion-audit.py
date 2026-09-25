@@ -155,7 +155,7 @@ def main() -> None:
     audit_path.write_text(json.dumps(stub, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[done] 抽 {frame_count} 帧到 {frames_dir}")
     print(f"[done] motion-audit.json 模板已落：{audit_path}")
-    print(f"[next] agent 看抽帧填 motion_led → verdict → pass 跑 make-cover（Stage 14a）")
+    print(f"[next] agent 看抽帧填 motion_led → verdict → pass 跑 make-cover（Stage 14）")
 
 
 if __name__ == "__main__":

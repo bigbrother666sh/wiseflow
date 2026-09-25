@@ -44,7 +44,7 @@ Stage 3–10 调 `video-producer` 同名阶段命令，生成并填写纸拼贴�
 | 13a | 公共 `video-review` 必跑；无声版的 `audio_absent` warning 是预期，有声版缺音轨则失败 |
 | 13b | `motion-audit` 逐层核验 Stage 9 的组装承诺，单条默认落 `review/collage-motion-audit.json`，批量条目各自指定审核路径；整体淡入不能通过 |
 | 13c | `normalize` 必调用：有声片归一至 -14 LUFS；明确无声时传 `--silent-ok`，核验无音轨并记录不适用 |
-| 14a–15 | 按 Brief 制作含主文案的封面；交成片、封面、`final-deliver.md` 的绝对路径 |
+| 14–15 | 按 Brief 制作含主文案的封面；交成片、封面、`final-deliver.md` 的绝对路径 |
 
 ## 隐喻清单（Stage 1–2）
 
@@ -155,7 +155,7 @@ video-producer normalize <project>/video-item-01.mp4 \
   --output <project>/video-item-01_normalized.mp4 --silent-ok
 ```
 
-有声片即使传 `--silent-ok` 也照常归一；无声片经 ffprobe 确认没有音轨后，归一化命令原样输出并写 `.normalization.json` 记录不适用。Stage 13b 的审核须逐层填证据并给出 verdict；Stage 14a 按 Brief 制封面。批量条目分别执行 Stage 12–15，审核文件与交付说明要按条目对应，不能用一条结果代替全批。
+有声片即使传 `--silent-ok` 也照常归一；无声片经 ffprobe 确认没有音轨后，归一化命令原样输出并写 `.normalization.json` 记录不适用。Stage 13b 的审核须逐层填证据并给出 verdict；Stage 14 按 Brief 制封面。批量条目分别执行 Stage 12–15，审核文件与交付说明要按条目对应，不能用一条结果代替全批。
 
 ## 交付
 

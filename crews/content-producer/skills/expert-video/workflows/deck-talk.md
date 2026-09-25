@@ -51,7 +51,7 @@ Stage 3–10 仍逐阶段执行 `video-producer` 同名命令，生成对应脚�
 | 13a | 公共 video-review，verdict=pass 才可交付 |
 | 13b | 调 `motion-audit` 按 Stage 9 承诺，对幻灯段做 HTML 动效验收、对 B-roll 段核验真实画面动作与口播对应，落 `review/deck-motion-audit.json`；不用通用 motion_led 的素材占比口径 |
 | 13c | normalize 必跑，-14 LUFS；最终交付文件取归一化后的版本 |
-| 14a–15 | 按 Brief 制作含主文案的封面；交成片、封面、final-deliver.md 的绝对路径 |
+| 14–15 | 按 Brief 制作含主文案的封面；交成片、封面、final-deliver.md 的绝对路径 |
 
 ## 设计与声画对齐
 

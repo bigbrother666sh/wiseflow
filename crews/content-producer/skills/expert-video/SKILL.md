@@ -104,7 +104,7 @@ output_videos/<topic-en-slug>/      # <project-dir>
 ├── artifacts/                  # (12) 按镜顺序的最终段 01_*.mp4 … NN_*.mp4
 ├── video.mp4                   # (12) 成片
 ├── review/                     # verdict.json(13a) / frames/ / motion-audit.json(13b)
-├── cover.jpg                   # (14a)
+├── cover.jpg                   # (14)
 └── final-deliver.md            # (15)
 ```
 
@@ -142,7 +142,7 @@ Stage 12 assemble           按序拼接成片（原子工具箱，见下节，�
 Stage 13a video-review      公共 video-review 技术自检（强制闸门，verdict=pass 才继续）
 Stage 13b motion-audit      motion_led 抽查（兑付 delivery-promise）
 Stage 13c normalize         响度归一化到 -14 LUFS（**必跑**：`video-producer normalize`）
-Stage 14a make-cover        封面（awk-img-gen，必含封面主文案）
+Stage 14 make-cover        封面（awk-img-gen，必含封面主文案）
 Stage 15 交付              回报成片 + 封面 + final-deliver.md 的绝对路径与关键参数
 ```
 
@@ -210,7 +210,7 @@ Stage 15 交付              回报成片 + 封面 + final-deliver.md 的绝对�
 
 HTML 视觉片段与 deck-talk 共用 Node ≥22、Playwright Chromium headless shell、系统适配的中文字体（Windows 微软雅黑；Linux/macOS Noto Sans CJK SC）和锁定 HyperFrames/GSAP/Playwright；安装和更新脚本预装。`visual-render`、`deck-render` 与 `deck-compose` 本地执行不需 API Key；LivePortrait 需要百炼业务空间凭据，TTS/ASR 仍使用下列凭据。数字人调用包内 `liveportrait` 工具。
 
-跨领域公共技能：`aigc-video-gen`（视频片段生成 / i2v 首尾帧插值，Stage 7/10；输出路径须落在 `output_videos/` 下，调用时 workdir 是 Content Producer workspace 根）、`awk-img-gen`（静帧、角色三视图、封面，Stage 5/10/14a）、`awk-tts`（旁白 TTS，带字级时间戳，Stage 11B；多供应商路由 火山→百炼，`--enable-subtitle` 两家都出字级时间戳）、`bgm-library`（ccMixter 免版税 + 自动 TASL 署名，商用安全，Stage 11C 优先）、`pexels-footage` / `pixabay-footage`（免版税素材与 BGM 搜索）、`video-review`（成片技术自检闸门，Stage 13a）、`video-edit subtitles`（main crew 暴露的烧字幕原子；不可用时向 Brief owner 报工具缺口，不手写 ffmpeg）。
+跨领域公共技能：`aigc-video-gen`（视频片段生成 / i2v 首尾帧插值，Stage 7/10；输出路径须落在 `output_videos/` 下，调用时 workdir 是 Content Producer workspace 根）、`awk-img-gen`（静帧、角色三视图、封面，Stage 5/10/14）、`awk-tts`（旁白 TTS，带字级时间戳，Stage 11B；多供应商路由 火山→百炼，`--enable-subtitle` 两家都出字级时间戳）、`bgm-library`（ccMixter 免版税 + 自动 TASL 署名，商用安全，Stage 11C 优先）、`pexels-footage` / `pixabay-footage`（免版税素材与 BGM 搜索）、`video-review`（成片技术自检闸门，Stage 13a）、`video-edit subtitles`（main crew 暴露的烧字幕原子；不可用时向 Brief owner 报工具缺口，不手写 ffmpeg）。
 
 env 依赖：`AWK_API_KEY`（agent plan 生图/视频/TTS/ASR 兜底）、`WORKSPACE_ID`+`MODELSTUDIO_API_KEY`/`DASHSCOPE_API_KEY`（百炼业务空间，优先）、`VOLC_ASR_*`（`narration-align` 回退路径与甲方口播录音转写的火山优先路由；旧控制台双头 `VOLC_ASR_APP_ID` + `VOLC_ASR_ACCESS_KEY`，或新控制台单头 `VOLC_ASR_APP_KEY`）。ASR/TTS 凭据任一组在即可路由；全缺时子命令 exit 2，补齐属 IT engineer 职责，不要静默降级。Python 依赖 `requests`、`Pillow` 仍由仓根 `requirements.txt` 统一安装（Pillow 还用于小窗遮罩、联系表和旧 JSON 动效）；新 HTML 片段不新增 pip 包。机器资源约束读本 workspace `MEMORY.md` 或 Brief；HyperFrames 渲染可用 `--workers 1` 控制低内存机器负载。
 

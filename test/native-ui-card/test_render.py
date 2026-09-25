@@ -33,14 +33,18 @@ class CardRenderTest(unittest.TestCase):
                 self.assertEqual(image.size, (2160, 2880))
             self.assertIn("test licensed asset", (out / "assets-manifest.json").read_text())
             self.assertNotIn("file:///home/", (out / "page-01.html").read_text())
+            self.assertNotIn("情景演绎", (out / "page-01.html").read_text())
 
             qa = json.loads((SKILL / "examples/qa.json").read_text())
+            qa["qa"]["stats"] = {"关注": "286", "回答": "19", "浏览": "1.3万"}
             result, out = self.render(qa, root, "qa")
             self.assertEqual(result.returncode, 0, result.stderr)
             for page in ("page-01", "page-02", "page-03"):
                 with Image.open(out / f"{page}.png") as image:
                     self.assertEqual(image.size, (2160, 2880))
             self.assertIn("sub-reply", (out / "page-02.html").read_text())
+            self.assertIn("关注 <b>286</b>", (out / "page-01.html").read_text())
+            self.assertNotIn("情景演绎", "".join((out / f"page-0{page}.html").read_text() for page in (1, 2, 3)))
 
     def test_overflow_stops_before_image(self):
         with tempfile.TemporaryDirectory() as scratch:

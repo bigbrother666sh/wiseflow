@@ -103,7 +103,7 @@ def group_html(spec, avatars):
         raise ValueError("群聊需要至少 2 条日常铺垫和 3 条围观回复")
     css = (ASSETS / "group.css").read_text()
     out = head(spec["title"], css)
-    out += f'<div class="chat-nav"><div class="back">‹</div><div class="group-info"><div class="group-name">{esc(required(data,"name"))}</div><div class="group-sub">{esc(required(data,"members"))}人 · 情景演绎</div></div><div class="more">⋯</div></div><div class="stream" data-flow>'
+    out += f'<div class="chat-nav"><div class="back">‹</div><div class="group-info"><div class="group-name">{esc(required(data,"name"))}</div><div class="group-sub">{esc(required(data,"members"))}人</div></div><div class="more">⋯</div></div><div class="stream" data-flow>'
 
     def message(item, me=False):
         nick = required(item, "nick")
@@ -146,7 +146,7 @@ def qa_html(spec, avatars, page):
         out += f'<div class="question"><div class="q-title">{esc(question)}</div>'
         tags = data.get("tags", [])
         out += '<div class="q-tags">' + ''.join(f'<span class="q-tag">#{esc(str(tag).lstrip("#"))}</span>' for tag in tags) + '</div>'
-        stats = data.get("verified_stats", {})
+        stats = data.get("stats", {})
         if stats:
             out += '<div class="q-meta">' + ''.join(f'<span>{esc(label)} <b>{esc(stats[label])}</b></span>' for label in ("关注", "回答", "浏览") if label in stats) + '</div>'
         out += '</div>'
@@ -161,14 +161,14 @@ def qa_html(spec, avatars, page):
             raise ValueError("问答图 2 至少需要一条楼中楼回复")
         if not pages[1][-1].get("highlight"):
             raise ValueError("问答图 3 的最后一条跟帖需要高亮收束金句")
-        out += '<div class="comment-title">主回答下的讨论 · 情景演绎</div><div class="comments" data-flow>'
+        out += '<div class="comment-title">主回答下的讨论</div><div class="comments" data-flow>'
         out += ''.join(comment(item, avatars) for item in pages[page - 2])
         out += '</div>'
     footer = data.get("footer", {})
     caption = footer.get("caption", data.get("question", ""))
     author = footer.get("author", "自媒体观察")
     avatar = avatars.add(footer.get("avatar", "avatar-20.jpg"))
-    out += f'<div class="bottom-bar"><div class="video-cap">{esc(caption)} <span class="tag">· 情景演绎</span></div><div class="action-row"><div class="author"><img class="a-avatar" src="{esc(avatar)}"><span class="a-name">{esc(author)}</span><span class="follow">+关注</span></div></div></div>'
+    out += f'<div class="bottom-bar"><div class="video-cap">{esc(caption)}</div><div class="action-row"><div class="author"><img class="a-avatar" src="{esc(avatar)}"><span class="a-name">{esc(author)}</span><span class="follow">+关注</span></div></div></div>'
     return out + CHECK
 
 

@@ -5,12 +5,15 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / 'crews/content-producer/skills/expert-video/tools'
 DECK = TOOLS / 'deck-render/deck-render.sh'
 VIDEO = TOOLS / 'video-producer/video-producer.sh'
+sys.path.insert(0, str(TOOLS / 'deck-render/scripts'))
+from font_policy import font_family
 
 
 def run(cmd, log):
@@ -48,7 +51,7 @@ def main():
     step('no-presenter', [VIDEO, 'pip-compose', '--base', out/'slides.mp4', '--audio', out/'narration.wav', '--output', out/'no-presenter.mp4'])
     srt = out/'subtitles.srt'
     srt.write_text('1\n00:00:00,000 --> 00:01:00,000\n开发验收：测试小窗与测试音，不是真人口播\n', encoding='utf-8')
-    step('subtitles', [VIDEO, 'burn-srt', out/'composed.mp4', srt, '--output', out/'subtitled.mp4', '--force-style', 'FontName=Noto Sans CJK SC,FontSize=22,Alignment=2,MarginV=20'])
+    step('subtitles', [VIDEO, 'burn-srt', out/'composed.mp4', srt, '--output', out/'subtitled.mp4', '--force-style', f'FontName={font_family()},FontSize=22,Alignment=2,MarginV=20'])
     step('normalize', [VIDEO, 'normalize', out/'subtitled.mp4', '--output', out/'video.mp4'])
     step('review', [ROOT/'skills/video-review/video-review.sh', out/'video.mp4', '--target-duration', '60', '--target-resolution', '1920x1080', '--output', out/'review/verdict.json'])
     step('decode', ['ffmpeg', '-v', 'error', '-i', out/'video.mp4', '-f', 'null', '-'])

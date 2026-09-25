@@ -24,9 +24,23 @@ def load(name, path):
 deck = load('deck', TOOLS / 'deck-render/scripts/deck-render.py')
 pip = load('pip_compose', TOOLS / 'video-producer/scripts/pip-compose.py')
 liveportrait = load('liveportrait', TOOLS / 'liveportrait/scripts/liveportrait.py')
+from font_policy import font_available, font_css, font_family
 
 
 class DeckTests(unittest.TestCase):
+    def test_platform_font_policy(self):
+        self.assertEqual(font_family('linux'), 'Noto Sans CJK SC')
+        self.assertEqual(font_family('win32'), 'Microsoft YaHei')
+        self.assertIn('Noto Sans CJK SC Bold', font_css('linux'))
+        self.assertIn('Microsoft YaHei Light', font_css('win32'))
+        with tempfile.TemporaryDirectory() as tmp:
+            fonts = Path(tmp) / 'Fonts'
+            fonts.mkdir()
+            self.assertFalse(font_available('win32', Path(tmp)))
+            for name in ('msyhl.ttc', 'msyh.ttc', 'msyhbd.ttc'):
+                (fonts / name).touch()
+            self.assertTrue(font_available('win32', Path(tmp)))
+
     @unittest.skipUnless(os.environ.get('DECK_RENDER_BROWSER_TEST') == '1', 'opt-in Chrome test')
     def test_dark_image_page_in_browser(self):
         from PIL import Image
@@ -45,7 +59,7 @@ class DeckTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             self.assertTrue((tmp/'preview/contact-sheet.jpg').is_file())
 
-    def test_workflow_scripts_and_stage_guards(self):
+    def test_workflow_scripts_keep_baseline_stages(self):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
             (project/'brief.md').write_text('- workflow：deck-talk\n')
@@ -60,12 +74,73 @@ class DeckTests(unittest.TestCase):
             evaluation = json.loads((project/'script/self-eval.json').read_text())
             self.assertEqual(evaluation['workflow'], 'deck-talk')
             self.assertIn('page_timing', [x['key'] for x in evaluation['dims']])
-            for command in ('storyboard-build', 'shot-decompose', 'character-register', 'slot-plan', 'asset-resolve', 'slideshow-risk', 'delivery-promise-lock', 'render-shot'):
+            stages = (
+                ('storyboard-build', 'storyboard/storyboard.json'),
+                ('shot-decompose', 'storyboard/shot_decompose.json'),
+                ('character-register', 'characters/registry.json'),
+                ('slot-plan', 'slots/slot-plan.json'),
+                ('asset-resolve', 'slots/asset-resolve.json'),
+                ('slideshow-risk', 'slots/slideshow-risk.json'),
+                ('delivery-promise-lock', 'slots/delivery-promise.json'),
+                ('render-shot', 'render/deck-render-plan.json'),
+            )
+            for number, (command, artifact) in enumerate(stages, start=3):
                 result = subprocess.run([str(wrapper), command, str(project)], text=True, capture_output=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('[skip] deck-talk', result.stdout)
-            self.assertFalse((project/'slots').exists())
-            self.assertFalse((project/'storyboard').exists())
+                self.assertIn(f'[done] Stage {number} deck-talk', result.stdout)
+                payload = json.loads((project/artifact).read_text())
+                self.assertEqual(payload['stage'], number)
+                self.assertEqual(payload['workflow'], 'deck-talk')
+            self.assertEqual(json.loads((project/'characters/registry.json').read_text())['presenter_source'], None)
+            result = subprocess.run([str(wrapper), 'mix-audio', str(project)], text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            audio_plan = json.loads((project/'audio/deck-audio-plan.json').read_text())
+            self.assertEqual(audio_plan['stage'], 11)
+            self.assertFalse((project/'audio/subtitles.srt').exists())
+
+            subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+                            'color=c=blue:s=320x180:r=12:d=1', '-c:v', 'libx264',
+                            '-threads', '1', str(project/'video.mp4')], check=True)
+            result = subprocess.run([str(wrapper), 'motion-audit', str(project)], text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            audit = json.loads((project/'review/deck-motion-audit.json').read_text())
+            self.assertEqual(audit['workflow'], 'deck-talk')
+            self.assertNotIn('motion_led', audit)
+
+    def test_removed_narration_workflow_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            (project/'brief.md').write_text('- workflow：narration-video\n')
+            result = subprocess.run([str(TOOLS/'video-producer/video-producer.sh'), 'script-write', str(project)],
+                                    text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('narration-video 已移除', result.stderr + result.stdout)
+            self.assertFalse((project/'script/script.md').exists())
+
+    def test_untyped_fullscreen_voiceover_keeps_locked_script(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            (project/'brief.md').write_text('- form：人物全屏口播\n')
+            original = '甲方口播逐字保留。\n'
+            (project/'voiceover.md').write_text(original)
+            wrapper = TOOLS/'video-producer/video-producer.sh'
+            for command in ('script-write', 'script-self-eval'):
+                result = subprocess.run([str(wrapper), command, str(project)], text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((project/'script/script.md').read_text(), original)
+            evaluation = json.loads((project/'script/self-eval.json').read_text())
+            self.assertIsNone(evaluation['workflow'])
+            self.assertIn('verbatim', [item['key'] for item in evaluation['dims']])
+
+    def test_deck_stage_requires_previous_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            (project/'brief.md').write_text('- workflow：deck-talk\n')
+            result = subprocess.run([str(TOOLS/'video-producer/video-producer.sh'), 'shot-decompose', str(project)],
+                                    text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Stage 4 前置缺失', result.stderr + result.stdout)
+            self.assertFalse((project/'storyboard/shot_decompose.json').exists())
 
     def test_audio_broll_brief_gets_segment_script(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -81,6 +156,12 @@ class DeckTests(unittest.TestCase):
             self.assertIn('presenter_source: audio', script)
             self.assertIn('audio: /tmp/user-voice.wav', script)
             self.assertIn('素材来源', script)
+            result = subprocess.run([str(TOOLS/'video-producer/video-producer.sh'), 'script-self-eval', str(project)],
+                                    text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            evaluation = json.loads((project/'script/self-eval.json').read_text())
+            self.assertIn('segment_timing', [item['key'] for item in evaluation['dims']])
+            self.assertNotIn('page_timing', [item['key'] for item in evaluation['dims']])
 
     def test_invalid_chart_data_and_duration(self):
         for value in (float('nan'), float('inf'), -1, 0):

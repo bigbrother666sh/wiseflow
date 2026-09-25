@@ -16,6 +16,8 @@ import tempfile
 
 SCRIPTS = Path(__file__).resolve().parent
 DECK_TOOL = SCRIPTS.parents[1] / 'deck-render'
+sys.path.insert(0, str(DECK_TOOL / 'scripts'))
+from font_policy import font_family
 
 
 def run(command):
@@ -51,7 +53,7 @@ def main():
         print(f'[checkpoint] 片尾已存在：{output}；修改后用 --force')
         return
 
-    config = {'bg': '#000000', 'text': '#ffffff', 'font': 'Noto Sans CJK SC', 'size': 48, 'fadein': .5}
+    config = {'bg': '#000000', 'text': '#ffffff', 'font': font_family(), 'size': 48, 'fadein': .5}
     if args.color:
         color_file = args.color if args.color.is_absolute() else project / args.color
         config.update(json.loads(color_file.read_text(encoding='utf-8')))
@@ -103,7 +105,7 @@ window.__timelines=window.__timelines||{{}};window.__timelines.main=tl;</script>
         candidate.replace(output)
     print(json.dumps({'output': str(output), 'composition': str(composition),
                       'width': args.width, 'height': height, 'fps': args.fps,
-                      'duration': args.duration}, ensure_ascii=False))
+                      'duration': args.duration, 'font': config['font']}, ensure_ascii=False))
 
 
 if __name__ == '__main__':

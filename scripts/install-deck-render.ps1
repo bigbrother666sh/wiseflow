@@ -34,30 +34,12 @@ foreach ($bin in @('ffmpeg', 'ffprobe')) {
     if (-not (Get-Command $bin -ErrorAction SilentlyContinue)) { throw "deck-render needs $bin; reopen the terminal after winget install" }
 }
 
-# Install the four weights used by the @font-face declarations for the current user.
-$fontDir = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
-New-Item -ItemType Directory -Force -Path $fontDir | Out-Null
-$fontRegistry = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
-New-Item -Path $fontRegistry -Force | Out-Null
-$fontBase = if ($env:XIAOBEI_NOTO_FONT_BASE_URL) { $env:XIAOBEI_NOTO_FONT_BASE_URL.TrimEnd('/') } else {
-    'https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004/Sans/OTF/SimplifiedChinese'
-}
-foreach ($weight in @('Light', 'Regular', 'Medium', 'Bold')) {
-    $name = "NotoSansCJKsc-$weight.otf"
-    $dest = Join-Path $fontDir $name
-    if (-not (Test-Path $dest)) {
-        Write-Host "Installing Noto Sans CJK SC $weight..."
-        $partial = "$dest.part"
-        try {
-            Invoke-WebRequest -Uri "$fontBase/$name" -OutFile $partial -UseBasicParsing
-            if ((Get-Item $partial).Length -lt 1000000) { throw "font download too small: $name" }
-            Move-Item -Force $partial $dest
-        } finally {
-            Remove-Item -Force $partial -ErrorAction SilentlyContinue
-        }
+# Windows uses the bundled Microsoft YaHei family; no Noto download is needed.
+foreach ($name in @('msyhl.ttc', 'msyh.ttc', 'msyhbd.ttc')) {
+    $fontFile = Join-Path $env:WINDIR "Fonts\$name"
+    if (-not (Test-Path $fontFile)) {
+        throw "deck-render needs Microsoft YaHei ($name); install the Windows Simplified Chinese font feature"
     }
-    New-ItemProperty -Path $fontRegistry -Name "Noto Sans CJK SC $weight (OpenType)" `
-        -Value $dest -PropertyType String -Force | Out-Null
 }
 
 $oldPath = $env:PATH
@@ -79,7 +61,7 @@ try {
             if ($LASTEXITCODE -ne 0) { throw 'deck-render npm install failed' }
         } finally { Pop-Location }
     }
-    if ($SkipBrowser) { Write-Host 'deck-render packages/fonts ready; browser skipped by request'; return }
+    if ($SkipBrowser) { Write-Host 'deck-render packages/Microsoft YaHei ready; browser skipped by request'; return }
 
     $browser = $null
     if (Test-Path $marker) {
@@ -109,7 +91,7 @@ try {
     }
     & $browser --version | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Chromium headless shell cannot start: $browser" }
-    Write-Host 'deck-render ready: HyperFrames 0.8.50, Playwright Chromium, Noto Sans CJK SC'
+    Write-Host 'deck-render ready: HyperFrames 0.8.50, Playwright Chromium, Microsoft YaHei'
 } finally {
     $env:PATH = $oldPath
 }

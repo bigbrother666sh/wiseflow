@@ -56,7 +56,7 @@ metadata:
 | 层 | 是什么 | 怎么用 |
 |----|--------|--------|
 | **通用制作流程**（本文下方） | 我做**任何**视频制作工作都必须遵循的准则：Stage 0→15 阶段链、GATE A / GATE B 两闸门、返工与耗时上限、决策审计链、工作区与交付约定 | 永远适用，不因视频类型而跳过或替换 |
-| **workflow**（`workflows/*.md`） | 两类——**intake 类**（`story-develop`：没有 Brief 或 Brief 不清晰时与甲方探讨收敛 Brief，**不是 `Brief.workflow` 取值**）；**type 类**（`narration-video` / `collage-broll` / `reversal-ad` / `deck-talk`：**指导从 Brief 生产该类型的 script，含这一步之后的自检与 GATE A 质检标准**；并附该类型的制作与验收约定，GATE A 批准后按通用流程执行时适用） | type 类：Brief 指定 `workflow` 时必读必用，按它生产 script、按它自检；intake 类：Brief 缺失或创意不足以直接写剧本时触发 |
+| **workflow**（`workflows/*.md`） | 两类——**intake 类**（`story-develop`：没有 Brief 或 Brief 不清晰时与甲方探讨收敛 Brief，**不是 `Brief.workflow` 取值**）；**type 类**（`collage-broll` / `reversal-ad` / `deck-talk`：**指导从 Brief 生产该类型的 script，含这一步之后的自检与 GATE A 质检标准**；并附该类型的制作与验收约定，GATE A 批准后按通用流程执行时适用） | type 类：Brief 指定 `workflow` 时必读必用，按它生产 script、按它自检；intake 类：Brief 缺失或创意不足以直接写剧本时触发 |
 | **工具说明**（`tools/<工具>/SKILL.md`） | 每个子命令的入参、产物路径、退出码与旁路条件 | 调用前查；本文不重复参数细节 |
 
 > 通用制作流程**不是**与类型 workflow 并列的一条路，也**不是**"Brief 没指定类型时的 fallback"。它是我做任何视频都必走的全程流程；类型 workflow 只负责其中 **Stage 1–2（Brief→script→自检）** 这一段的类型化指导，并附该类型的制作约定——不接管、不裁掉流程本身。
@@ -68,13 +68,12 @@ metadata:
 | 视频类型 / 入口信号 | workflow | Brief `workflow` 值 | 它指导什么 |
 |--------------------|----------|---------------------|--------------|
 | 影视解说 / 剧情解说 + 突然反转插入品宣（"万万没想到"式） | Reversal Ad | `reversal-ad` | 三段结构占比、反转点落在 55%–76%、四种反转手法、反转幅度与接入丝滑度两轴（含二次反转 CTA）、素材三模式 sourcing（Blender 片库 / 用户直供三查 / AIGC）、意象桥与钩连句、植入段约束 |
-| PPT / 幻灯大画面 + 口播小窗，或用户音频+B-roll 讲解 | Deck Talk | `deck-talk` | 逐页或逐段脚本、音频同源翻页、HTML 动画/B-roll 与小窗合成；footage/avatar/audio 三模式，数字人用包内 LivePortrait；阶段裁剪与动效验收见 workflow |
-| 口播 / 旁白类（口播：真人出镜、数字人、真人录音；旁白：TTS 配音解说；不以设计驱动幻灯为大画面） | Narration Video | `narration-video` | 口播稿落稿锁定不重写、旁白稿由我写 GATE A 交审、按字级时间戳配画面、声音规范与验收清单 |
-| "把这句口播做成拼贴 B-roll""纸拼贴动画""半调拼贴" | Collage B-roll | `collage-broll` | 隐喻清单即 script（GATE A 检）→ 独立纸片素材与 HTML 预览（GATE B 检 contact sheet）→ `video-producer visual-render` 确定性组装；阶段裁剪表见 workflow |
+| PPT / 幻灯大画面 + 口播小窗，或用户音频+B-roll 讲解 | Deck Talk | `deck-talk` | 逐页或逐段脚本、音频同源翻页、HTML 动画/B-roll 与小窗合成；footage/avatar/audio 三模式，数字人用包内 LivePortrait；阶段产物与动效验收见 workflow |
+| "把这句口播做成拼贴 B-roll""纸拼贴动画""半调拼贴" | Collage B-roll | `collage-broll` | 隐喻清单即 script；按通用阶段链完成分镜、纸片素材、GATE A/B、HyperFrames 渲染与逐层验收，具体产物见 workflow |
 
-- Brief 指定了 `workflow`：**先读对应文档，按它生产 script 并按它自检**（GATE A 质检标准同此），不得替换成自创流程；其制作与验收约定（阶段裁剪、素材 sourcing 等）在该类型视频上生效。
+- Brief 指定了 `workflow`：**先读对应文档，按它生产 script 并按它自检**（GATE A 质检标准同此），不得替换成自创流程；其制作与验收约定（阶段产物、素材 sourcing 等）在该类型视频上生效，不能跳过基线阶段。
 - Brief 未指定 `workflow`：仍走通用制作流程，叙事 / 动效 / 蒙太奇的处理手法由我据创意自定并记 `decisions.json`；Brief 创意不足以直接写剧本时，先走 `story-develop` intake workflow 与甲方收敛 Brief，再进 Stage 1 `script-write`。
-- 已有素材只要剪辑、修整、拼接、配音、烧字幕：仍走通用制作流程，中间阶段按实际裁剪，重心落在 Stage 12 工具箱（只做几何级修整；语义级高光剪辑归甲方 main）。
+- 已有素材只要剪辑、修整、拼接、配音、烧字幕：仍走通用制作流程，各阶段记录与任务相符的处理结果，重心落在 Stage 12 工具箱（只做几何级修整；语义级高光剪辑归甲方 main）。
 
 > `story-develop` 是 **intake 类 workflow**（Stage 0 创意澄清，**不是 `Brief.workflow` 取值**），与上表 type 类 workflow 正交：甲方没给 Brief 或 Brief 创意不足以直接写剧本时走它收敛出 Brief，再按通用制作流程 + 对应 type workflow 执行。详见 `workflows/story-develop.md`。
 
@@ -148,7 +147,7 @@ Stage 15 交付              回报成片 + 封面 + final-deliver.md 的绝对�
 ```
 
 - **产物文件存在性即 checkpoint**：子命令先查产物文件是否存在，存在则 load 不重生成（允许手改 JSON 后续跑）；要改哪段就重跑对应子命令，未改的不会重生成。
-- 类型 workflow 附带的制作约定（阶段裁剪、素材 sourcing、验收清单）在该类型视频上生效；**闸门位置与"停下发甲方"的纪律不变**。甲方已在 Brief 中代理批准某道闸门时，把批准范围落 `gates/` 后继续。
+- 类型 workflow 附带的制作约定（阶段产物、素材 sourcing、验收清单）在该类型视频上生效；**不能裁掉基线阶段，闸门位置与"停下发甲方"的纪律不变**。甲方已在 Brief 中代理批准某道闸门时，把批准范围落 `gates/` 后继续。
 - 可选工具 `reference-concepts`：甲方给了参考视频拆解报告时，据报告出 2–3 个差异化概念落 `reference/concepts.md`。
 
 ## 闸门与护栏
@@ -209,7 +208,7 @@ Stage 15 交付              回报成片 + 封面 + final-deliver.md 的绝对�
 | `video-producer visual-render` | 通用 HTML/GSAP 片段的 scaffold、检查、预览与 HyperFrames 渲染；纸拼贴与产品动效共用 | `video-producer visual-render scaffold / check / preview / render` |
 | `deck-render` | Stage 10 第三条渲染路径：中文 HTML 幻灯、逐页动画、静帧联系表、确定性 MP4；随后用 video-producer pip-compose 合小窗/旁白 | `deck-render check-setup / scaffold / check / preview / render`；参数见工具说明 |
 
-HTML 视觉片段与 deck-talk 共用 Node ≥22、Playwright Chromium headless shell、Noto Sans CJK SC 和锁定 HyperFrames/GSAP/Playwright；安装和更新脚本预装。`visual-render`、`deck-render` 与 `deck-compose` 本地执行不需 API Key；LivePortrait 需要百炼业务空间凭据，TTS/ASR 仍使用下列凭据。数字人调用包内 `liveportrait` 工具。
+HTML 视觉片段与 deck-talk 共用 Node ≥22、Playwright Chromium headless shell、系统适配的中文字体（Windows 微软雅黑；Linux/macOS Noto Sans CJK SC）和锁定 HyperFrames/GSAP/Playwright；安装和更新脚本预装。`visual-render`、`deck-render` 与 `deck-compose` 本地执行不需 API Key；LivePortrait 需要百炼业务空间凭据，TTS/ASR 仍使用下列凭据。数字人调用包内 `liveportrait` 工具。
 
 跨领域公共技能：`aigc-video-gen`（视频片段生成 / i2v 首尾帧插值，Stage 7/10；输出路径须落在 `output_videos/` 下，调用时 workdir 是 Content Producer workspace 根）、`awk-img-gen`（静帧、角色三视图、封面，Stage 5/10/14a）、`awk-tts`（旁白 TTS，带字级时间戳，Stage 11B；多供应商路由 火山→百炼，`--enable-subtitle` 两家都出字级时间戳）、`bgm-library`（ccMixter 免版税 + 自动 TASL 署名，商用安全，Stage 11C 优先）、`pexels-footage` / `pixabay-footage`（免版税素材与 BGM 搜索）、`video-review`（成片技术自检闸门，Stage 13a）、`video-edit subtitles`（main crew 暴露的烧字幕原子；不可用时向 Brief owner 报工具缺口，不手写 ffmpeg）。
 

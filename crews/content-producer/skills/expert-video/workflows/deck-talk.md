@@ -1,6 +1,6 @@
 # Deck Talk — 幻灯讲解口播视频
 
-type 类 workflow；`Brief.workflow=deck-talk`。通用 Stage 0→15、GATE A/B、返工上限与交付约定仍适用。下表定义本类型的阶段产物，替代不适用的通用动作，不替代甲方闸门。
+type 类 workflow；`Brief.workflow=deck-talk`。本文指导 Stage 1–2 的逐页/段脚本、自检与 GATE A 质检，并约定后续制作、验收方式。通用 Stage 0→15、GATE A/B、返工上限与交付约定全程适用；每个阶段都要有对应动作与产物，不能以类型 workflow 为由跳过阶段。
 
 ## 类型与输入契约
 
@@ -27,26 +27,31 @@ type 类 workflow；`Brief.workflow=deck-talk`。通用 Stage 0→15、GATE A/B�
 
 **avatar 使用包内 `tools/liveportrait/SKILL.md`**：先准备唯一最终人声音轨，再生成人物口型；不另建公共 avatar-gen 技能。若要复刻声音或设计音色，先读公共 awk-tts，保存音色档案、试听确认后再合成长音频。优先沿用用户原声。
 
-## 阶段裁剪表
+## 基线阶段的 Deck Talk 产物
+
+Stage 3–10 仍逐阶段执行 `video-producer` 同名命令，生成对应脚手架并填写实质内容；`deck-render`、`liveportrait` 等负责实际渲染。通用命令的影视镜头字段不适用时，填写本类型的逐页/段构图、动作、音频对应与授权，不虚构机位或角色三视图。空模板不算阶段完成。
 
 | Stage | 本类型动作与产物 |
 |---|---|
 | 0 | 核对输入契约、素材存在性、同源口播、小窗来源；未定分支先澄清 |
 | 1 | script-write 生成 `script/deck-script.md` 模板，填每页单命题、版式、图表数据、素材槽、对应口播原文段与小窗方案 |
-| 2 | script-self-eval 出幻灯自检模板，逐维评估密度、来源、遮挡、句边界翻页、3–30 秒驻留；不改锁定口播 |
-| 3–5 | 不建机位/首尾帧/角色三视图；人物素材身份与授权登记 `script/decisions.json` |
-| GATE A | 呈交逐页脚本摘要、音频与小窗方案；按通用闸门等待批准 |
-| 6–7 | 入库图表/图片/真人素材；产出唯一 `audio/narration.mp3`，narration-align 得时间戳；将句边界换算为每页 duration，落 `script/deck-spec.json` |
-| 8 | 不运行通用 slideshow-risk 六维评分；按 visual_source 写 `review/deck-motion-plan.json`：幻灯列元素/图表动作；B-roll 列来源、入出点、画面动作与对应口播段，不把实拍素材伪装为 HTML 动效 |
-| 9 | 写 `slots/delivery-promise.json`：workflow=deck-talk、visual_source、animation_mode（html_scene / broll / mixed）、逐页或逐段承诺及证据计划；不套用 motion_led 的 motion_ratio≥0.70，不调用会误判本类型的通用锁定脚本 |
+| 2 | script-self-eval 按 slides/mixed 或 broll 分别生成逐页/段自检模板，评估密度、来源、遮挡、句边界与真实动作；不改锁定口播 |
+| 3 | `storyboard-build` 把逐页/段脚本拆为镜头表，记录命题、构图、口播句段、人物位置与预计时长；落 `storyboard/storyboard.json` |
+| 4 | `shot-decompose` 记录每镜进入/离开时的视觉状态、真实动作、渲染方式与口播对应；落 `storyboard/shot_decompose.json` |
+| 5 | `character-register` 登记 footage/avatar 的身份、授权、同源音轨和小窗位置；audio 模式明确“无人物”；若画面另含跨镜生成角色，再登记特征与参考图。落 `characters/registry.json` |
+| GATE A | 呈交脚本、逐页/段分镜、画面状态、人物/声音方案；按通用闸门等待批准 |
+| 6 | `slot-plan` 按镜规划图表、图片、B-roll 与口播对应，落 `slots/slot-plan.json`；给出每页/段的可核验素材槽 |
+| 7 | `asset-resolve` 入库并 probe 图表/图片/真人素材，记录来源授权、弃选项；合成声音先落实音色与试听。原声或已批准生成的唯一口播音轨可先对齐时间戳，落 `script/deck-spec.json`，Stage 11 再核定最终声画对齐 |
+| 8 | `slideshow-risk` 仍做合成前审核，落 `slots/slideshow-risk.json`；按可读性、句边界节奏、素材覆盖、真实动作、来源授权评估。幻灯元素动画与 B-roll 画面动作分别验收，不套通用动镜头占比阈值；fail 必返工 |
+| 9 | `delivery-promise-lock` 逐页/段锁定时长、人物模式、音频来源、素材和真实动效，落 `slots/delivery-promise.json`；Stage 13b 按该承诺核验 |
 | GATE B | slides/mixed 的幻灯段执行 scaffold + check + preview；交逐页/逐段联系表、真人小窗取帧/位置方案、素材来源、成本估算。avatar 必须先交 5–10 秒样片再批准全量；audio 模式交声音与 B-roll 取帧，不索要露脸视频 |
-| 10 | slides 用 deck-render render；broll/mixed 用 clip-trim + assemble 按确定时长合成底画面。footage 沿用 main 已剪视频；avatar 用 liveportrait generate / resume 生成，保持同源时间轴从 0 开始 |
-| 11 | 配音/对齐已前移；确认用于口型与字幕的唯一干声不含 BGM，保持长度 |
+| 10 | `render-shot` 建立 `render/deck-render-plan.json`，再依计划实际渲染：slides 用 deck-render；broll/mixed 用 clip-trim + assemble 合成底画面；footage 沿用 main 已剪视频，avatar 用 liveportrait generate / resume。计划文件不代表渲染完成 |
+| 11 | `mix-audio` 建立 `audio/deck-audio-plan.json`，核对最终唯一干声、字幕时间戳和底画面时长；需要时在本阶段完成配音/对齐，不改变锁定原声；干声不含 BGM，空计划不算完成 |
 | 12 | deck-compose 按 footage/avatar/audio 合成 → burn-srt；需要 BGM 时在小窗合成后 ducking 混入，再做后续审片；有片头尾再 assemble，使用 hard 拼接，字幕与音频随主片一起平移 |
 | 13a | 公共 video-review，verdict=pass 才可交付 |
-| 13b | 按 visual_source 对幻灯段做 HTML 动效验收、对 B-roll 段核验真实画面动作与口播对应，落 review/deck-motion-audit.json；不用通用 motion-audit 对 motion_led 的素材占比口径 |
+| 13b | 调 `motion-audit` 按 Stage 9 承诺，对幻灯段做 HTML 动效验收、对 B-roll 段核验真实画面动作与口播对应，落 `review/deck-motion-audit.json`；不用通用 motion_led 的素材占比口径 |
 | 13c | normalize 必跑，-14 LUFS；最终交付文件取归一化后的版本 |
-| 14a–15 | 封面按 Brief；交成片、封面（如需）、final-deliver.md 的绝对路径 |
+| 14a–15 | 按 Brief 制作含主文案的封面；交成片、封面、final-deliver.md 的绝对路径 |
 
 ## 设计与声画对齐
 
@@ -58,7 +63,7 @@ type 类 workflow；`Brief.workflow=deck-talk`。通用 Stage 0→15、GATE A/B�
 
 ## GATE A / B
 
-GATE A 看脚本：逐页命题与对应原文、图表来源、小窗来源、版式、预估节奏。GATE B 看素材：逐页 PNG 联系表、小窗裁切/位置与口型预检、声音方案、API 成本及已批准范围。两个闸门分别呈交后停下等 Brief owner；已有代理批准则记录到 gates 后在范围内继续。
+GATE A 看脚本及 Stage 3–5 产物：逐页命题与对应原文、分镜、画面状态、图表来源、小窗与人物授权、预估节奏。GATE B 看 Stage 6–9 的素材与承诺：逐页 PNG 联系表、小窗裁切/位置与口型预检、声音方案、API 成本及已批准范围。两个闸门分别呈交后停下等 Brief owner；已有代理批准则记录到 gates 后在范围内继续。
 
 人工 review 不可由 check 的退出码替代。GATE B 后改图表数据、稿件、素材来源或小窗方案需重新确认受影响范围；只调圆角/位置等实现细节按原批准范围修正。
 
@@ -100,11 +105,13 @@ B-roll 使用 `clip-trim` 切段、`assemble --manifest` 按序拼接，时间�
 output_videos/<topic>/
   brief.md / voiceover.md
   script/deck-script.md / deck-spec.json / decisions.json
+  storyboard/storyboard.json / shot_decompose.json
+  characters/registry.json
   gates/gate-a.md / gate-b.md
   raw_materials/                    # 来源与授权
   audio/narration.mp3 / subtitles.srt / 时间戳
   composition/index.html / compositions/ / assets/
-  slots/delivery-promise.json
+  slots/slot-plan.json / asset-resolve.json / slideshow-risk.json / delivery-promise.json
   render/slides.mp4 / presenter.mp4
   review/slides-v1/ / deck-motion-plan.json / deck-motion-audit.json / verdict.json
   video.mp4 / cover.jpg / final-deliver.md
@@ -114,7 +121,7 @@ output_videos/<topic>/
 
 ## 不适用
 
-- 人物全屏、不采用本工作流三模式排布：narration-video。
+- 人物全屏、不采用本工作流三模式排布：走 expert-video 通用制作流程，Brief 不指定类型 workflow。
 - 纸拼贴视觉隐喻 B-roll：collage-broll。
 - 可导航 PPT/deck、实时交互数字人：不属于本 workflow。
 - 不承诺用数字人/声音复刻规避平台检测；真实录音与合成声音按实际来源登记。

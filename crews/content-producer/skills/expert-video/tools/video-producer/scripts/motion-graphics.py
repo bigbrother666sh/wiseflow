@@ -17,7 +17,7 @@ spec.json 结构（路径相对 spec 文件或绝对；颜色可写调色板名 
   {
     "duration": 5.2,                    // 必填（或 CLI --duration 覆盖）
     "fps": 25, "width": 1920, "height": 1080,
-    "font_dir": null,                   // 可选：Noto Sans SC 字体目录覆盖
+    "font_dir": null,                   // 可选：中文字体目录覆盖；Windows 可用系统微软雅黑
     "background": {"type": "dark_grid"}                       // 暗色科技底（默认）
                   | {"type": "gradient", "top": [r,g,b], "bottom": [r,g,b], "grid": false}
                   | {"type": "image", "path": "...", "fit": "fill"|"contain", "dim": 0.42, "blur": 3}

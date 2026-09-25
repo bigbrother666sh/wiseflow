@@ -1,4 +1,10 @@
+> 2026-09-25 流程更新：旧 narration-video 已删除；deck-talk 继续完整执行通用 Stage 0→15，Stage 3–10 改用同名命令生成逐页/段产物，Stage 11 与 13b 也使用类型化脚手架，不再跳过。下文的“阶段裁剪表”和 narration-video 边界仅作原计划记录，现行执行契约见 `crews/content-producer/skills/expert-video/workflows/deck-talk.md`。
+
 > 2026-09-23 实施更新：采用百炼 LivePortrait，作为 expert-video 内部工具，不创建公共 avatar-gen。deck-talk 提供 footage / avatar / audio 三模式，audio 支持直接 B-roll+原录音；最新执行契约见 `crews/content-producer/skills/expert-video/workflows/deck-talk.md`。awk-tts 的复刻/设计默认凭据顺序为火山→百炼业务空间→Agent Plan，音色档案锁定创建供应商及模型。下文保留最初方案供追溯，供应商与公共技能规划以本更新为准。
+
+> 2026-09-25 进度核对：当前批准范围的工具与三模式 workflow 均已实现；原 Phase 0.2 即梦、0.3 HeyGen、1.3 公共 avatar-gen 被 LivePortrait 内部工具方案取代，不再是待实现项。Phase 4 的真实口播/数字人完整交付仍未验收，Windows 安装与字体渲染也缺少实机验证；火山自定义音色仍待有可用槽位后验收。§2–8 与 §9 旧勾选保留原计划记录，不能据此推断当前仍要开发即梦/HeyGen。
+
+> 2026-09-25 字体策略更新：Noto Sans CJK SC 用于改善 Linux/macOS 的中文渲染；Windows 默认使用系统微软雅黑，不再下载 Noto。字体选择与 HTML 字重声明、片尾、字幕默认值保持一致；Windows 实机渲染尚待验证。下文 2026-09-20 的 Noto 字体实测记录只针对 Linux。
 
 # deck-talk Workflow 调研与开发计划
 
@@ -300,6 +306,8 @@ pip-compose（slides.mp4 + presenter.mp4，音轨=narration.mp3 单一来源）�
 **MEDIUM-HIGH**：Phase 0 spike 0.5–1 天 ｜ Phase 1 工具 2.5–4 天 ｜ Phase 2 文档 1 天 ｜ Phase 3 同步 0.5 天 ｜ Phase 4 验证 0.5–1 天 → **合计约 5–7 个工作日**（不含即梦 AK/SK 开通等待）。
 
 ## 9. 落地进度
+
+**当前口径（2026-09-25）**：`deck-render`、`pip-compose`、`deck-compose`、包内 `liveportrait`、三模式 workflow、安装/update/Docker 接入及 awk-tts 声音复刻/音色设计均已落地。百炼数字人和音色样片已有单项实测；60 秒幻灯+测试图小窗的工程样片通过技术审片。仍需用真实口播素材按 Brief→两闸门→成片→人工口型/声音验收跑完整链路，并在 Windows 实机核验字体安装、浏览器与渲染。下列复选框反映原方案在 2026-09-21 的状态，不是新方案的待办清单。
 
 - [x] Phase 0.1 HF 本机 spike（2026-09-20 通过：30s 1080p 机内 36.7s；中文与图表动画字节级确定；check 闸门全绿含 WCAG 37/37；实测记录见 §3.6）
 - [ ] Phase 0.2 即梦 OmniHuman spike（**等用户开通智能视觉 AK/SK**）

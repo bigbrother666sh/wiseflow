@@ -4,7 +4,7 @@
 > 状态：调研期历史文档（未进入开发），**不作为当前实现依据**
 > 2026-09-23 注：`collage-broll` 独立 tool 已移除，当前拼贴制作走 `expert-video/workflows/collage-broll.md`，画面组装与可选 i2v 均由 `video-producer` 调度。本文下方保留当时的规划与迁移记录，当前操作以 skill/workflow 为准。
 >
-> 2026-09-10 注：本文提到的 `video-producer` / `collage-broll` / `manim-explainer` / `design-full` 四个技能已整合为 `crews/content-producer/skills/expert-video`（含 `video-producer` / `collage-broll` 两个 tool 与 reversal-ad / narration-video / collage-broll 三个 workflow）与 `expert-design`（含 `design-full` tool 与 web-page / app-ui / brand-visual 三个 workflow），`manim-explainer` 已删除；main 与 content-producer 的分工与 Brief 交接契约以 `docs/expert-pack-dna-architecture.md` 4.7 / 4.9 节为准。
+> 2026-09-25 注：当前 `expert-video` 的类型 workflow 为 reversal-ad / collage-broll / deck-talk；旧 narration-video 已移除。本文其余内容是历史重规划记录，现行路由以 `crews/content-producer/skills/expert-video/SKILL.md` 为准。
 > 用途：本文件用于**沉淀调研结果**与**规划出发点**，最终据此生成开发计划。开发计划不在本文件撰写，等调研结束另起一份。
 
 ---

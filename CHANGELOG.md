@@ -1,5 +1,6 @@
 # Unreleased
 
+- deck-render、通用视觉片段、片尾和字幕按系统选择默认中文字体：Windows 使用自带微软雅黑且安装器不再下载 Noto；Linux/macOS 保留 Noto Sans CJK SC。旧 Python 动效兼容入口也可读取 Windows 字体文件。
 - `expert-video` 的新视觉片段统一走 `video-producer visual-render`（HyperFrames/GSAP）；片尾改用该渲染器，拼贴 B-roll 改为独立纸片与可控时间轴，并把可选 i2v 批调收进 `video-producer`，删除独立 `collage-broll` 工具。旧 JSON 动效项目暂保留兼容入口。
 - 安装/更新与 Docker 构建预装 deck-render 的 FFmpeg、锁定 HyperFrames/Playwright Chromium 和 Noto Sans CJK SC；运行时从包内浏览器路径启动渲染。
 - deck-talk 支持实拍口播、LivePortrait 数字人、仅音频+B-roll 三模式；新增 expert-video 内部 liveportrait 与 deck-compose，同源音轨、任务续查及哈希校验。

@@ -12,9 +12,11 @@ import sys
 import tempfile
 import time
 from html.parser import HTMLParser
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from font_policy import font_available, font_css, font_family
 
 TOOL = Path(__file__).resolve().parents[1]
-FONT = 'Noto Sans CJK SC'
+FONT = font_family()
 
 
 def browser_binary():
@@ -26,20 +28,6 @@ def browser_binary():
         return None
     path = (TOOL / relative).resolve()
     return path if path.is_file() and path.is_relative_to(TOOL) else None
-
-
-def font_available():
-    if shutil.which('fc-list') and FONT in run(['fc-list', ':lang=zh', 'family']):
-        return True
-    if sys.platform == 'darwin':
-        return any((root / 'NotoSansCJKsc-Regular.otf').is_file() for root in
-                   (Path.home() / 'Library/Fonts', Path('/Library/Fonts')))
-    if os.name == 'nt':
-        local = os.environ.get('LOCALAPPDATA')
-        windir = os.environ.get('WINDIR', 'C:/Windows')
-        return any((root / 'NotoSansCJKsc-Regular.otf').is_file() for root in
-                   ([Path(local) / 'Microsoft/Windows/Fonts'] if local else []) + [Path(windir) / 'Fonts'])
-    return False
 
 
 def run(cmd, cwd=None):
@@ -122,11 +110,6 @@ def validate_spec(spec):
             if not image.is_absolute() or not image.is_file() or not scene.get('source'):
                 raise ValueError('image 需要存在的绝对路径和 source 来源/授权')
     return spec
-
-
-def font_css():
-    return '\n'.join(f'@font-face {{ font-family: "{FONT}"; src: local("{name}"); font-weight: {weight}; }}'
-                     for weight, name in [(300, FONT + ' Light'), (400, FONT), (500, FONT + ' Medium'), (700, FONT + ' Bold')])
 
 
 def scaffold(spec_path, project):
@@ -325,7 +308,8 @@ def main():
         if any(video[k] != expected[k] for k in ('width', 'height')) or abs(float(Fraction(video['r_frame_rate'])) - expected['fps']) > .01 or abs(float(probe['format']['duration']) - expected['duration']) > .12:
             raise RuntimeError('渲染尺寸/帧率/时长与 composition 不一致')
         dest.replace(output)
-    report = {'output': str(output), **expected, 'render_wall_seconds': round(time.monotonic()-start, 3), 'hyperframes': '0.8.50'}
+    report = {'output': str(output), **expected, 'font': FONT,
+              'render_wall_seconds': round(time.monotonic()-start, 3), 'hyperframes': '0.8.50'}
     output.with_suffix('.render.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))
 

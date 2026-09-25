@@ -11,7 +11,7 @@ metadata:
 
 # LivePortrait
 
-仅作 expert-video 包内工具，按 deck-talk / narration-video 的 Brief 与闸门调用。使用百炼业务空间 `WORKSPACE_ID` + `MODELSTUDIO_API_KEY`（或 `DASHSCOPE_API_KEY`），不使用 Agent Plan。
+仅作 expert-video 包内工具，按 deck-talk 的 Brief 与闸门调用。使用百炼业务空间 `WORKSPACE_ID` + `MODELSTUDIO_API_KEY`（或 `DASHSCOPE_API_KEY`），不使用 `AWK_API_KEY`。
 
 先确定声音，再生成人物视频：用户录音优先；明确要求合成声音时用 awk-tts 的音色档案。肖像及声音须来自本人或有使用授权。合成声音仍是合成声音，不标为真人原录音。
 

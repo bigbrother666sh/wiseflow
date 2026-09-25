@@ -415,7 +415,7 @@ crews/<crew>/skills/expert-<platform>/tools/<platform>-style-profiler/
 3. **子模块不是独立 DNA**：口播文案子模块（`narration-script`，参考微信的起承转合）只在口播类作品启用，用于指导 main 写同类型视频的口播文案；账号运营子模块（`account-bio`、`content-mix-cadence`）只在样本来自对标账号批量提取时填写，**只写进 DNA 文档、不进 template**。
 4. **视频 DNA 不含创作细节**：不写脚本结构、逐句台词、镜头表、转场与编码参数。视频类 template = **Brief.md 正文模板 + 口播文案模板（可选）**；图文类 template = 图文写作模板。
 
-`video-form`（视频内容形态：口播 / 实拍拼接 / 影视解说+反转植入 / 纯 AIGC 动画 / 创意转场 / 录屏 / 图文卡片）必须聚合成明确的**制作指向**，且只能写真实存在的资源名：Content Producer `expert-video` 的某个 workflow（Reversal Ad / Narration Video / Collage B-roll；不属这三类就写「不指定类型 workflow」，由 CP 按通用制作流程据创意自定手法），或 main 的素材加工技能（`video-edit` / `talking-head-cut` / `ui-demo`）。Brief 的 `workflow` 字段据此填写。
+`video-form`（视频内容形态：口播 / 实拍拼接 / 影视解说+反转植入 / 纯 AIGC 动画 / 创意转场 / 录屏 / 图文卡片）必须聚合成明确的**制作指向**，且只能写真实存在的资源名：Content Producer `expert-video` 的某个 workflow（Reversal Ad / Deck Talk / Collage B-roll；不属这三类就写「不指定类型 workflow」，由 CP 按通用制作流程据创意自定手法），或 main 的素材加工技能（`video-edit` / `talking-head-cut` / `ui-demo`）。Brief 的 `workflow` 字段据此填写。
 
 采样侧配套：`viral-chaser` 的输出必须够喂这套框架——视频 meta（时长、宽高与横竖屏、发布时间、作者与简介、话题标签、互动数据）、覆盖全片的关键帧（含 25%/50%/63%/75%/90% 比例点，反转点通常在 55%-76%）、按时间占比的结构拆解与反转点位置、内容形态判定与制作指向，以及可直接喂 profiler 的 DNA 样本文字稿格式。
 
@@ -464,7 +464,7 @@ crews/content-producer/
                            # + 通用制作流程（阶段链 Stage 0→14，两闸门）+ 护栏 + 禁止事项
       workflows/           # workflow = 通用制作流程在某一类型视频上的细化（不替代基准）
         reversal-ad.md         「万万没想到」式：影视 / 剧情解说 + 突然反转植入品宣
-        narration-video.md     口播类：甲方交付口播文案或真人录音，做声画实现
+        deck-talk.md           口播讲解：实拍/数字人小窗或纯音频 + 幻灯/B-roll
         collage-broll.md       纸拼贴 B-roll：隐喻 → 静帧 → i2v 三道闸门
       tools/
         video-producer/    # 原子能力（29 个子命令，含 5 个后期处理）+ wrapper，PATH 名不变

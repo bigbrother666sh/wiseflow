@@ -12,6 +12,8 @@ import subprocess
 import sys
 
 DECK_TOOL = Path(__file__).resolve().parents[2] / 'deck-render'
+sys.path.insert(0, str(DECK_TOOL / 'scripts'))
+from font_policy import font_css, font_family
 
 
 def positive_int(raw):
@@ -40,10 +42,11 @@ def scaffold(project, width, height, fps, duration, background):
         raise ValueError('目标目录非空；scaffold 不覆盖已有画面')
     (project / 'assets').mkdir(parents=True, exist_ok=True)
     shutil.copy2(gsap, project / 'assets/gsap.min.js')
+    family = font_family()
     (project / 'index.html').write_text(f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <script src="assets/gsap.min.js"></script><style>
-@font-face {{ font-family:'Noto Sans CJK SC'; src:local('Noto Sans CJK SC'); }}
-* {{ box-sizing:border-box; }} html,body {{ margin:0; width:{width}px; height:{height}px; overflow:hidden; background:{background}; font-family:'Noto Sans CJK SC',sans-serif; }}
+{font_css()}
+* {{ box-sizing:border-box; }} html,body {{ margin:0; width:{width}px; height:{height}px; overflow:hidden; background:{background}; font-family:'{family}',sans-serif; }}
 #stage {{ position:relative; width:{width}px; height:{height}px; overflow:hidden; background:{background}; }}
 /* 在 stage 内放独立素材层，用绝对坐标和 GSAP 时间轴定义逐件入场。 */
 </style></head><body>
@@ -82,7 +85,8 @@ def main():
     if args.command == 'scaffold':
         project = args.project.resolve()
         scaffold(project, args.width, args.height, args.fps, args.duration, args.background)
-        print(json.dumps({'project': str(project), 'duration': args.duration, 'width': args.width, 'height': args.height, 'fps': args.fps}))
+        print(json.dumps({'project': str(project), 'duration': args.duration, 'width': args.width,
+                          'height': args.height, 'fps': args.fps, 'font': font_family()}))
         return
     if not (args.project / 'index.html').is_file():
         raise ValueError('缺少 composition/index.html')

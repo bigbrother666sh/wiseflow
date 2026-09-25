@@ -1,6 +1,6 @@
 # deck-talk 验证
 
-前置：项目安装器已装 `tools/deck-render/package.json` 里的锁定 Node 依赖；本机有 Node ≥22、Chrome、ffmpeg/ffprobe、Pillow、Noto Sans CJK SC。测试不修改 OpenClaw 运行态，不调用 TTS/ASR/数字人 API。
+前置：项目安装器已装 `tools/deck-render/package.json` 里的锁定 Node 依赖；本机有 Node ≥22、Chrome、ffmpeg/ffprobe、Pillow，以及中文字体（Linux/macOS 用 Noto Sans CJK SC，Windows 用系统微软雅黑）。测试不修改 OpenClaw 运行态，不调用 TTS/ASR/数字人 API。
 
 ```bash
 python3 -m unittest discover -s test/deck-talk -p 'test_*.py' -v

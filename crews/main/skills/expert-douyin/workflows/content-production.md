@@ -82,7 +82,7 @@ DNA template 是 main agent 的生产输入模板：
 | 项目 | 规则 |
 | --- | --- |
 | 作品形态与制作路线 | 图文或视频（直接组装 / 轻剪辑、委托 CP），判断依据见 Step 0 |
-| workflow | 视频全案已确定形态时写 CP `expert-video` 支持的 workflow（reversal-ad / narration-video / collage-broll / deck-talk）；未确定则省略（省略 = CP 按其通用制作流程做） |
+| workflow | 视频全案已确定形态时写 CP `expert-video` 支持的 workflow（reversal-ad / collage-broll / deck-talk）；未确定则省略（省略 = CP 按其通用制作流程做） |
 | 主题 / 方向 | 用户给了明确主题时不得另起炉灶，仅按 DNA template 细化选题和钩子 |
 | 素材 | 用户提供的视频片段、图片、录音、文案必须优先使用 |
 | 目标观众 | 未指定时按 `business_knowledge.md` 和 DNA 受众关系推导 |
@@ -213,7 +213,7 @@ DNA 约束的是选题与观看理由、标题与封面写法、内容创意原�
 
 - 视频名 / slug：
 - platform：douyin
-- workflow：reversal-ad / narration-video / collage-broll / deck-talk（视频形态未确定时省略本字段；省略 = CP 按其通用制作流程做，叙事 / 动效 / 蒙太奇手法由 CP 据创意自定）
+- workflow：reversal-ad / collage-broll / deck-talk（视频形态未确定时省略本字段；省略 = CP 按其通用制作流程做，叙事 / 动效 / 蒙太奇手法由 CP 据创意自定）
 - deck-talk 专属（仅该类型填写）：在 Brief 中逐项写 `- presenter_source：footage/avatar/audio`（兼容 none）、`- visual_source：slides/broll/mixed`、`- audio_origin：recorded/cloned/designed/stock-tts`、`- presenter：绝对路径`（需小窗时）、`- audio：绝对路径`（avatar/audio 模式）。实拍先用 talking-head-cut 剪好再交 CP；数字人交肖像+音频或音色档案；纯音频模式交音频，CP 配 B-roll。记录授权。
 - 选题与观看理由：
 - 核心传达：

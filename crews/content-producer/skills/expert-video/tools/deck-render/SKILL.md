@@ -25,7 +25,7 @@ deck-render preview /absolute/project/composition --output /absolute/project/rev
 deck-render render /absolute/project/composition --output /absolute/project/render/slides.mp4 --workers 2 --quality delivery
 ```
 
-- `check-setup` 检查 Node ≥22、ffmpeg/ffprobe、锁定 npm 依赖、Playwright Chromium headless shell、Noto Sans CJK SC，并运行 HF doctor。doctor 中 Whisper/Kokoro/MusicGen 属可选；本工具不用它们。
+- `check-setup` 检查 Node ≥22、ffmpeg/ffprobe、锁定 npm 依赖、Playwright Chromium headless shell 和当前系统默认中文字体（Windows 微软雅黑；Linux/macOS Noto Sans CJK SC），并运行 HF doctor。doctor 中 Whisper/Kokoro/MusicGen 属可选；本工具不用它们。
 - `scaffold` 只写空目录。产物是根 `index.html`、每页一个 `compositions/scene-NN.html`、本地 GSAP 与图片副本、`deck-spec.json`。先按时间戳确定时长，再生成；之后直接编辑 HTML，不用 scaffold 覆盖设计。
 - `check` 顺序执行 HF lint 和 check（runtime/layout/contrast）。错误阻断；警告必须人工查看，不能把退出码 0 当作视觉验收通过。
 - `preview` 先 check，再 snapshot，落 PNG 与 `contact-sheet.jpg`，**不是常驻 HTTP 服务**。默认按 spec 每页中点取图；手改 HTML 时序后必须同步 spec 或传 `--at 2,12,24`。输出目录必须为空，改版用新目录。
@@ -64,4 +64,4 @@ deck-render render /absolute/project/composition --output /absolute/project/rend
 - ❌ 用 `/slideshow` 或 `present` 做可导航 deck 后直接 render；此路径可能只输出第一页。
 - `preview` 产物必须人工检查遮挡、中文、图表、翻页，GATE B 批准后再 render；工具 check 不代替内容审片与甲方闸门。
 
-依赖在本目录 package.json 精确锁定 hyperframes 0.8.50、gsap 3.14.2、playwright-core 1.61.1。安装/更新通过 `scripts/install-deck-render.sh`（Windows 为同名 `.ps1`）装 npm 包、Chromium headless shell 与中文字体；容器构建时预装进镜像。不要运行 npx 临时下载或自动 upgrade。渲染 CLI 参考：[HyperFrames rendering](https://github.com/heygen-com/hyperframes/blob/main/docs/guides/rendering.mdx)，具体参数以本包锁定版本为准。
+依赖在本目录 package.json 精确锁定 hyperframes 0.8.50、gsap 3.14.2、playwright-core 1.61.1。安装/更新通过 `scripts/install-deck-render.sh`（Windows 为同名 `.ps1`）装 npm 包与 Chromium headless shell；Linux/macOS 安装 Noto，Windows 使用系统微软雅黑；容器构建时预装进镜像。不要运行 npx 临时下载或自动 upgrade。渲染 CLI 参考：[HyperFrames rendering](https://github.com/heygen-com/hyperframes/blob/main/docs/guides/rendering.mdx)，具体参数以本包锁定版本为准。

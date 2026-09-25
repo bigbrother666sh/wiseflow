@@ -53,7 +53,8 @@ deck-talk 测试用本地临时媒体核验三模式合成与唯一音轨；浏�
 
 ```bash
 python3 -m unittest discover -s test/video-producer -p 'test_*.py'
+python3 -m unittest discover -s test/collage-broll -p 'test_*.py'
 VIDEO_PRODUCER_BROWSER_TEST=1 python3 -m unittest discover -s test/video-producer -p 'test_*.py'
 ```
 
-默认测试脚手架、可选 i2v 批量调度及无损去音轨；显式启用浏览器测试时，用本地三层纸片样例检查预览时间轴与 HyperFrames 成片，不调用生成 API。
+默认测试脚手架、可选 i2v 批量调度及无损去音轨；collage-broll 测试逐阶段产物、单段无声成片、动效审核入口与无声归一化记录。显式启用浏览器测试时，用本地三层纸片样例检查预览时间轴与 HyperFrames 成片，不调用生成 API。

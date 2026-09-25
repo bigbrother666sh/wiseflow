@@ -316,7 +316,9 @@ def build_payload(args: argparse.Namespace, text: str) -> dict:
         additions["context_texts"] = [args.context_text]
     # 克隆音色需 model_type=4
     if args.voice.startswith("S_"):
-        additions["model_type"] = 4
+        model_type = getattr(args, "voice_model_type", 4)
+        if model_type is not None:
+            additions["model_type"] = model_type
     if additions:
         payload["req_params"]["additions"] = json.dumps(additions, ensure_ascii=False)
 
@@ -636,6 +638,8 @@ def main() -> None:
     parser.add_argument("fragment_dir", nargs="?", default=None, help="Fragment directory containing tts_requirement.md")
     parser.add_argument("--text", default=None, help="Text to synthesize")
     parser.add_argument("--text-file", default=None, dest="text_file", help="UTF-8 text file")
+    parser.add_argument("--voice-profile", type=Path, help="声音复刻/设计保存的 voice.json；锁定供应商、音色与模型")
+    parser.add_argument("--platform", choices=["auto", "volc", "workspace", "agent-plan"], default="auto", help="显式选择 volc / workspace / agent-plan；默认自动选路")
     parser.add_argument("--voice", default=None, help="音色 ID（火山系如 zh_female_shuangkuaisisi_uranus_bigtts；百炼系如 longanhuan_v3.6）")
     parser.add_argument(
         "--model", default=None,
@@ -658,7 +662,25 @@ def main() -> None:
     parser.add_argument("--enable-subtitle", action="store_true", dest="enable_subtitle", help="产出字级时间戳 .subtitle.json（火山：单向流式原生返回；百炼：SSE 流式 + word_timestamp_enabled）")
     args = parser.parse_args()
 
-    provider = resolve_tts_provider()
+    if args.voice_profile or args.platform != "auto":
+        import voice_customization
+        try:
+            if args.voice_profile:
+                provider, profile = voice_customization.load_profile(args.voice_profile)
+                expected_platform = 'volc' if provider == 'volc' else provider[3]
+                if args.platform not in ('auto', expected_platform):
+                    die("--platform 与音色档案供应商冲突")
+                if (args.voice and args.voice != profile['voice_id']) or (args.model and args.model != profile['target_model']):
+                    die("--voice / --model 与音色档案冲突")
+                args.voice, args.model = profile['voice_id'], profile['target_model']
+                if provider == 'volc':
+                    args.voice_model_type = profile.get('model_type')
+            else:
+                provider = voice_customization.route(args.platform)
+        except (ValueError, OSError) as exc:
+            die(str(exc))
+    else:
+        provider = resolve_tts_provider()
     provider_name = provider if provider == "volc" else "bailian"
 
     text, tts_settings = read_text_source(args)

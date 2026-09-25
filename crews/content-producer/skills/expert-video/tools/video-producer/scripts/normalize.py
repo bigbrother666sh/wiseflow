@@ -155,6 +155,8 @@ def main() -> None:
                         help=f"真实峰上限 dB，默认 {DEFAULT_TRUE_PEAK_DB}")
     parser.add_argument("--lra", type=float, default=DEFAULT_LRA,
                         help=f"loudness range 目标，默认 {DEFAULT_LRA}")
+    parser.add_argument("--silent-ok", action="store_true",
+                        help="明确批准无声交付时核验无音轨、原样输出并记录不适用；有音轨仍正常归一化")
     args = parser.parse_args()
 
     video_path = Path(args.video).resolve()
@@ -166,7 +168,32 @@ def main() -> None:
     else:
         stem = video_path.stem
         out_path = video_path.with_name(f"{stem}_normalized.mp4")
+    if out_path == video_path:
+        die("输出不能覆盖输入")
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if args.silent_ok:
+        try:
+            probe = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)],
+                capture_output=True, text=True,
+            )
+        except FileNotFoundError:
+            die("ffprobe 未在 PATH，不能核验无声交付")
+        if probe.returncode != 0:
+            die("无声音轨核验失败，不能按无声交付放行")
+        streams = set(probe.stdout.splitlines())
+        if "video" not in streams:
+            die("输入没有可识别的视频流")
+        if "audio" not in streams:
+            shutil.copy2(video_path, out_path)
+            record = {"stage": "13c", "status": "not_applicable", "reason": "verified_silent_video",
+                      "input": str(video_path), "output": str(out_path)}
+            out_path.with_suffix(".normalization.json").write_text(
+                json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            print(json.dumps(record, ensure_ascii=False))
+            return
 
     print(f"[info] input: {video_path}")
     print(f"[info] target: {args.target_lufs} LUFS / {args.true_peak} dB true peak / LRA {args.lra}")

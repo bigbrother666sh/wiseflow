@@ -241,7 +241,8 @@ Read: <platform>/ref/<slug>/references/frames/frame_01_3s.jpg
 | 观测到的形态 | 制作指向 |
 |-------------|----------|
 | 影视解说 / 剧情解说 + 反转植入（「万万没想到」式） | Content Producer `expert-video` → Reversal Ad workflow |
-| 口播类（真人口播出镜，或旁白 + 画面） | Content Producer `expert-video` → Narration Video workflow |
+| PPT / 幻灯或 B-roll 大画面 + 实拍/数字人口播小窗，或用户音频+B-roll | Content Producer `expert-video` → Deck Talk workflow |
+| 人物全屏口播或其他自由镜头声画制作 | Content Producer `expert-video` → 不指定类型 workflow，走通用制作流程 |
 | 一句文稿转视觉隐喻的纸拼贴动画 | Content Producer `expert-video` → Collage B-roll workflow |
 | 纯 AIGC 动画 / 剧情短片 / 蒙太奇（需从零出脚本分镜） | Content Producer `expert-video` → **不指定类型 workflow**（CP 按其通用制作流程做，据创意自定叙事 / 动效 / 蒙太奇手法） |
 | 已有素材简单拼接、加旁白、烧字幕 | main `video-edit` |

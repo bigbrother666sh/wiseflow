@@ -16,6 +16,7 @@ metadata:
 |------|----------|-------------|
 | 内容 DNA 管理 | Style DNA | 建 / 更新内容 DNA（样本、偏好、局部借鉴、对标融合）：先判作品类型，再决定样本落到哪个 DNA |
 | 内容生产 | Content Production | 做一条 / 做几条小红书内容；图文由 main 直接生产，视频全案只产出Brief并委托content-producer |
+| 原生界面卡片 | Native UI Cards | 群聊误发式单图、问答式连续讨论流三图的制作与小红书发布 |
 | 起号与定位 | Account Setup | 新号起号、定位梳理、内容支柱搭建、老号接手与诊断 |
 | 账号对标 | Account Benchmark | 对标账号 / 对标笔记分析（关键词提取 + 低粉爆款搜索），并与默认或指定 DNA 逐项比较 |
 | 改稿与调整 | Editing | 改标题、改正文、换封面、换标签、换风格 |
@@ -43,6 +44,8 @@ metadata:
 | `xhs-engagement` | 创作者后台互动数抓取，写入 published-track 的 pub_xhs 表 | `xhs-engagement` |
 
 跨领域通用技能：`viral-chaser`（小红书**视频**笔记下载拆解；图文笔记一律走 `xhs-content-ops`）、`smart-search`（跨平台搜索，选题调研优先走社交平台，不用通用搜索引擎）、`content-calibrator`（DNA 表现评估）、`published-track`（发布记录与指标库）、`login-manager`（`xhs-browse` 消费者域登录态维护）、`council`（多路径决策辅助）。小红书评论区获客 / 截流等 BD 场景走 `expert-bd` 专家包（评论互动工具 `xhs-interact` 在那里）。
+
+原生界面卡片出图使用 main crew 共享技能 `native-ui-card`，具体选题、审核、发布与记录按 `workflows/native-ui-cards.md`。
 
 ## 风格与 DNA
 

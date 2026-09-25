@@ -787,6 +787,13 @@ function Main {
     Install-Deps
     Install-PythonDeps
     Install-AwadaPlugin
+    Write-Stage "Installing deck-render runtime"
+    $deckArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $Root 'scripts\install-deck-render.ps1'), '-Root', $Root)
+    if ($script:SkipBrowser) { $deckArgs += '-SkipBrowser' }
+    & powershell.exe @deckArgs
+    if ($LASTEXITCODE -ne 0) { throw "deck-render runtime install failed" }
+    $env:PATH = @($env:PATH, [Environment]::GetEnvironmentVariable('Path', 'User'),
+        [Environment]::GetEnvironmentVariable('Path', 'Machine')) -join ';'
     Install-CamoufoxCli
     Install-WeixinPlugin
 

@@ -106,8 +106,10 @@ jobs:
             "$REPO/patches/camoufox-cli/" "$STAGE/camoufox-cli/"
 
           # 4. xiaobei 模板与脚本
-          cp -a "$REPO/crews" "$STAGE/crews"
-          cp -a "$REPO/skills" "$STAGE/skills"
+          # npm 包和 Playwright 浏览器在目标机器安装，不能从 CI 缓存带入 tarball。
+          rsync -a --exclude='node_modules' --exclude='package-lock.json' --exclude='.browsers' \
+            --exclude='.deck-render-browser' "$REPO/crews/" "$STAGE/crews/"
+          rsync -a --exclude='node_modules' "$REPO/skills/" "$STAGE/skills/"
           cp -a "$REPO/config-templates" "$STAGE/config-templates"
           cp -a "$REPO/scripts" "$STAGE/scripts"
           # awada 本地插件（TS，jiti 加载；ship 源码 + lockfile，排除 node_modules，

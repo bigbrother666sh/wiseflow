@@ -50,8 +50,8 @@ class CardRenderTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as scratch:
             root = Path(scratch)
             group = json.loads((SKILL / "examples/group.json").read_text())
-            group["group"]["point"] = "内容要筛选客户。" * 160
-            group["group"]["highlight"] = "内容要筛选客户。"
+            group["group"]["point"] = "先给常看的书留一个顺手的位置。" * 160
+            group["group"]["highlight"] = "先给常看的书留一个顺手的位置。"
             result, out = self.render(group, root, "overflow")
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("版面溢出", result.stderr)

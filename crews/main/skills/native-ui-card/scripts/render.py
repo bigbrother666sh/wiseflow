@@ -55,9 +55,7 @@ class Avatars:
         value = value or "avatar-01.jpg"
         if value in self.saved:
             return self.saved[value]
-        if value == "xiaobei-avatar.jpg":
-            source = ASSETS / value
-        elif re.fullmatch(r"avatar-\d{2}\.jpg", value):
+        if re.fullmatch(r"avatar-\d{2}\.jpg", value):
             source = ASSETS / "avatars" / "square" / value
         else:
             source = Path(value)
@@ -108,14 +106,14 @@ def group_html(spec, avatars):
     def message(item, me=False):
         nick = required(item, "nick")
         body = emphasized(required(item, "text"), item.get("highlight", ""))
-        avatar = avatars.add(item.get("avatar", "xiaobei-avatar.jpg" if me else None))
+        avatar = avatars.add(item.get("avatar", "avatar-29.jpg" if me else None))
         return f'<div class="msg{" me" if me else ""}"><img class="avatar" src="{esc(avatar)}"><div class="body"><div class="nick">{esc(nick)}</div><div class="bubble">{body}</div></div></div>'
 
     out += f'<div class="time">{esc(data.get("time_before", "昨天 21:40"))}</div>'
     out += "".join(message(item) for item in before)
     out += f'<div class="time">{esc(data.get("time_point", "今天 09:58"))}</div>'
-    out += message({"nick": data.get("self_name", "小贝"), "text": required(data, "point"), "highlight": required(data, "highlight"), "avatar": data.get("self_avatar", "xiaobei-avatar.jpg")}, True)
-    out += message({"nick": data.get("self_name", "小贝"), "text": required(data, "apology"), "avatar": data.get("self_avatar", "xiaobei-avatar.jpg")}, True)
+    out += message({"nick": data.get("self_name", "我"), "text": required(data, "point"), "highlight": required(data, "highlight"), "avatar": data.get("self_avatar", "avatar-29.jpg")}, True)
+    out += message({"nick": data.get("self_name", "我"), "text": required(data, "apology"), "avatar": data.get("self_avatar", "avatar-29.jpg")}, True)
     out += f'<div class="time">{esc(data.get("time_after", "刚刚"))}</div>'
     out += "".join(message(item) for item in after)
     return out + '</div><div class="input-bar"><div class="input-ph">发消息</div><div class="mic">🎤</div></div>' + CHECK
@@ -151,7 +149,7 @@ def qa_html(spec, avatars, page):
             out += '<div class="q-meta">' + ''.join(f'<span>{esc(label)} <b>{esc(stats[label])}</b></span>' for label in ("关注", "回答", "浏览") if label in stats) + '</div>'
         out += '</div>'
         answerer = data["answerer"]
-        out += f'<div class="answerer"><img class="a-avatar" src="{esc(avatars.add(answerer.get("avatar","xiaobei-avatar.jpg")))}"><div class="a-info"><div class="a-name">{esc(required(answerer,"nick"))} <span class="a-badge">主回答</span></div></div><div class="a-follow">+ 关注</div></div>'
+        out += f'<div class="answerer"><img class="a-avatar" src="{esc(avatars.add(answerer.get("avatar","avatar-29.jpg")))}"><div class="a-info"><div class="a-name">{esc(required(answerer,"nick"))} <span class="a-badge">主回答</span></div></div><div class="a-follow">+ 关注</div></div>'
         out += f'<div class="comments" data-flow><div class="c answer-only"><div class="body"><div class="text">{emphasized(required(data,"answer"),required(data,"answer_highlight"))}</div></div></div></div>'
     else:
         pages = data.get("pages", [])
@@ -166,8 +164,8 @@ def qa_html(spec, avatars, page):
         out += '</div>'
     footer = data.get("footer", {})
     caption = footer.get("caption", data.get("question", ""))
-    author = footer.get("author", "自媒体观察")
-    avatar = avatars.add(footer.get("avatar", "avatar-20.jpg"))
+    author = footer.get("author", required(data["answerer"], "nick"))
+    avatar = avatars.add(footer.get("avatar", data["answerer"].get("avatar", "avatar-29.jpg")))
     out += f'<div class="bottom-bar"><div class="video-cap">{esc(caption)}</div><div class="action-row"><div class="author"><img class="a-avatar" src="{esc(avatar)}"><span class="a-name">{esc(author)}</span><span class="follow">+关注</span></div></div></div>'
     return out + CHECK
 
@@ -225,23 +223,9 @@ def camoufox_render(session, html_file, png):
 
 
 def find_chrome():
-    configured = os.environ.get("XIAOBEI_CHROME_BIN")
-    if configured:
-        binary = Path(configured).expanduser().resolve()
-        if not binary.is_file() or not os.access(binary, os.X_OK):
-            raise ValueError(f"XIAOBEI_CHROME_BIN 不可执行: {binary}")
-        return str(binary)
     system = shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser")
     if system:
         return system
-    tool = ROOT.parents[3] / "crews" / "content-producer" / "skills" / "expert-video" / "tools" / "deck-render"
-    marker = tool / ".deck-render-browser"
-    if marker.is_file():
-        parts = marker.read_text().strip().split("\t", 1)
-        if len(parts) == 2:
-            binary = (tool / parts[1]).resolve()
-            if binary.is_file() and os.access(binary, os.X_OK):
-                return str(binary)
     if shutil.which("camoufox-cli"):
         return None
     raise RuntimeError("缺少 Chrome/Chromium 和 camoufox-cli；请安装浏览器")

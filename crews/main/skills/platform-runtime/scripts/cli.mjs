@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { schemaFor, validateArgs, xTextPreview } from './metadata.mjs';
 import { videoTransportPolicy } from './weibo-video.mjs';
 import { completePublication, matchWeiboVideo, creatorRecordId } from './publication.mjs';
+import { xPublicationFailure } from './x-publication.mjs';
 import { canonical, platforms, stateHome, emit, PlatformError, runBackend, networkProxy, requireWriteSession, activeAccount, credential, atomicJson, reportError, packageRoot } from './backend.mjs';
 
 export function take(args, flag, fallback) {
@@ -257,10 +258,27 @@ export async function publish(platform, input) {
     let receipt;
     try { receipt = JSON.parse(await readFile(receiptPath, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (receipt && receipt.account !== alias) throw new PlatformError('ACCOUNT_MISMATCH', '作品目录已绑定其他发布账号，请核对结果文件');
-    if (receipt && !receipt.result) throw new PlatformError('PUBLISH_UNKNOWN', '已有未结案提交，先在本人作品或原平台核查，禁止自动重发');
+    if (receipt && !receipt.result) {
+      const failed = platform === 'x' && receipt.state === 'failed' && receipt.submission_attempted === false;
+      throw new PlatformError(failed ? receipt.error : 'PUBLISH_UNKNOWN',
+        failed ? '本目录上次操作在帖子提交前失败；保留收据，先处理账号或上传问题，不自动重试'
+          : '已有未结案提交，先在本人作品或原平台核查，禁止自动重发', 1, receipt.diagnostic,
+        platform === 'x' ? { stage: receipt.stage || 'unknown', submission_attempted: failed ? false : true,
+          ...(receipt.failure_reason ? { failure_reason: receipt.failure_reason } : {}), receipt: receiptPath } : undefined);
+    }
     if (!receipt) {
       await requireWriteSession(platform, alias);
-      const me = await status(platform, ['--account', alias]);
+      let me;
+      try { me = await status(platform, ['--account', alias]); }
+      catch (error) {
+        if (platform === 'x' && error instanceof PlatformError) {
+          const failure = xPublicationFailure({ ...error.diagnostic, code: error.code, detail: { ...error.diagnostic?.detail,
+            publication: { stage: 'preparing', submission_attempted: false } } });
+          throw new PlatformError(failure.error, error.message, error.exitCode, error.diagnostic,
+            { stage: 'authentication', submission_attempted: false, failure_reason: failure.failure_reason });
+        }
+        throw error;
+      }
       const now = new Date();
       const publishDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
       receipt = { platform, account: alias, user: me.data.user, state: 'submitting', publish_date: publishDate, submitted_at: now.toISOString() };
@@ -277,10 +295,22 @@ export async function publish(platform, input) {
           if (complete.state !== 'published') throw new PlatformError('PUBLISH_UNKNOWN', '提交没有返回完整作品 ID，且没有平台接受提交的证据，请在原平台核查');
           receipt = complete;
         }
+        if (platform === 'x') receipt = { ...receipt, stage: 'published', submission_attempted: true };
         await atomicJson(receiptPath, receipt);
       } catch (error) {
         const message = error instanceof PlatformError ? error.message : '本地处理失败，请检查依赖和输入';
         const diagnostic = error instanceof PlatformError ? error.diagnostic : undefined;
+        if (platform === 'x') {
+          const failure = xPublicationFailure(diagnostic);
+          const messagePrefix = failure.submission_attempted
+            ? '已尝试帖子提交，结果未知；保留收据，核查本人作品，禁止重发。'
+            : failure.error === 'ACCOUNT_SUSPENDED' ? '账号已暂停，操作停止于帖子提交前，尚未提交帖子。'
+            : '操作在帖子提交前失败，尚未提交帖子。';
+          await atomicJson(receiptPath, { ...receipt, ...failure, error_message: message, ...(diagnostic ? { diagnostic } : {}) });
+          throw new PlatformError(failure.error, messagePrefix + message, error.exitCode || 1, diagnostic,
+            { stage: failure.stage, submission_attempted: failure.submission_attempted,
+              failure_reason: failure.failure_reason, receipt: receiptPath });
+        }
         await atomicJson(receiptPath, { ...receipt, state: 'unknown', error: error.code || 'ERROR', error_message: message, ...(diagnostic ? { diagnostic } : {}) });
         throw new PlatformError('PUBLISH_UNKNOWN', `发布结果未知，结果文件已保存；核查本人作品或原平台，禁止重发。${message}`, 1, diagnostic);
       }

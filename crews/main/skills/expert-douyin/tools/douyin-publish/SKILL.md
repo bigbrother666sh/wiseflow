@@ -16,7 +16,7 @@ douyin-publish check
 
 `login` 打开有头创作者中心，请用户完成扫码或页面验证；返回 `awaiting_user_login` 不代表已经登录。用户完成后用 `check` 验证创作者接口，检查会关闭浏览器进程并保留 profile。未登录返回 exit 2；验证码、风控和接口异常停止处理，不无限重试。
 
-`check` 返回 `PUBLISH_PENDING` 是已有视频提交未结案，不是登录失效或取数故障；先用 `douyin-publish video resume` 只读核查原任务，不重新扫码、重传或清状态。核查确认原作品后工具自动结案，后续发布才可继续。
+`check` 返回 `PUBLISH_PENDING` 是已有视频提交未结案，不是登录失效或取数故障；先用 `douyin-publish video resume` 只读核查原任务，不重新扫码、重传或清状态。核查确认原作品后工具自动结案，后续发布才可继续。用户提供已发布作品链接或明确授权取消本地任务时，按 [视频操作说明](references/video.md) 使用 `video close`，不要手改收据。
 
 ## 视频与图文
 

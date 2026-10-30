@@ -8,6 +8,7 @@ import { isVideoPublish, videoTransportPolicy, videoRequestPolicy } from './weib
 import { publicationObserver, publicationResult } from './publication.mjs';
 import { qrObserver } from './kuaishou-qr.mjs';
 import { processIdentity } from './login-job.mjs';
+import { xPublicationObserver } from './x-publication.mjs';
 
 const [platform, ...args] = process.argv.slice(2);
 const root = packageRoot();
@@ -54,10 +55,13 @@ if (platform === 'weibo' && isVideoPublish(args)) {
 }
 const publishing = args[0] === 'item' && args[1] === 'publish' && ['weibo', 'kuaishou'].includes(platform);
 const observer = publishing ? publicationObserver(platform, parseJson) : undefined;
+const xPublication = platform === 'x' && ['item', 'article'].includes(args[0]) && args[1] === 'publish'
+  ? xPublicationObserver() : undefined;
 const qr = platform === 'kuaishou' && process.env.PLATFORM_API_LOGIN_JOB && args[0] === 'auth' && args[1] === 'login'
   ? qrObserver(process.env.CATBUS_HOME, parseJson, CatbusError) : undefined;
 const converters = platform === 'weibo' && publishing ? await import(pathToFileURL(join(root, 'dist/platforms/weibo/web/sign.js'))) : {};
 const requests = instrumentRequests(HttpClient, { platform, identity, requestPolicy: qr?.policy || requestPolicy,
+  observeRequest: xPublication?.request,
   observeResponse: qr?.response || observer?.response });
 const outputResult = Output.prototype.result;
 Output.prototype.result = function (data, options) {
@@ -73,9 +77,10 @@ Output.prototype.fail = function (error) {
     return this.result(null);
   }
   const request = requests.last();
-  if (!request) return fail.call(this, error);
+  if (!request && !xPublication) return fail.call(this, error);
   const detail = error.detail && typeof error.detail === 'object' && !Array.isArray(error.detail) ? error.detail : {};
-  return fail.call(this, new CatbusError(error.code, error.message, { hint: error.hint, detail: { ...detail, request } }));
+  return fail.call(this, new CatbusError(error.code, error.message, { hint: error.hint,
+    detail: { ...detail, ...(request ? { request } : {}), ...(xPublication ? { publication: { ...xPublication.state } } : {}) } }));
 };
 const { run } = await import(pathToFileURL(join(root, 'dist/cli/dispatch.js')));
 const code = await run([platform, ...args]);

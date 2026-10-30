@@ -77,6 +77,11 @@ export function safeDiagnostic(error, { redact, saved } = {}) {
       }
       if (Object.keys(safe).length) detail.request = safe;
     }
+    const publication = error.detail.publication;
+    if (publication && ['preparing', 'media_upload', 'media_metadata', 'post_submit', 'post_response'].includes(publication.stage)
+        && typeof publication.submission_attempted === 'boolean') {
+      detail.publication = { stage: publication.stage, submission_attempted: publication.submission_attempted };
+    }
     if (Object.keys(detail).length) diagnostic.detail = detail;
   }
   return diagnostic;
@@ -120,7 +125,7 @@ function describeRequest(platform, input, client) {
   return diagnostic;
 }
 
-export function instrumentRequests(HttpClient, { platform, identity, requestPolicy, observeResponse } = {}) {
+export function instrumentRequests(HttpClient, { platform, identity, requestPolicy, observeRequest, observeResponse } = {}) {
   const original = HttpClient.prototype.request;
   let last;
   HttpClient.prototype.request = async function (input) {
@@ -139,6 +144,7 @@ export function instrumentRequests(HttpClient, { platform, identity, requestPoli
         const revised = describeRequest(platform, input, this);
         if (current && revised) Object.assign(current, revised);
       }
+      if (observeRequest) observeRequest(input);
       attempted = true;
       const response = await original.call(this, input);
       if (observeResponse) await observeResponse(input, response);

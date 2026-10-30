@@ -60,7 +60,28 @@ exit 2 表示需要恢复登录；exit 3 / `unconfirmed` 表示结果未确认�
 
 仅人工核实管理页没有本次作品、确认原提交未发布后，使用 `edit-draft --confirm-unpublished` 结案并续编。工具会先查询本次作品，若已经发布则返回确认的链接；短信验证仍在时不清除任务。不要把超时当作“确认未发布”。
 
-`get-link/resume` 只核查保存的本次提交：不依赖页面跳转，查询本次提交时间范围内的分页作品；按 baseline ID 排除、提交时间、完整标题/正文筛选，已有账号标识时还核对作者。平台将空行转换为空格+换行时可匹配，但保留行内空格、文字、标点及宽度，不用删除全部空白的比较。没有提交记录、列表未遍历完整、无匹配或多个候选时都不拿旧作品冒充成功。
+`get-link/resume` 只核查保存的本次提交：不依赖页面跳转，遍历本人作品分页后按 baseline ID 排除、提交时间、完整标题/正文筛选，已有账号标识时还核对作者。列表可能置顶或非时间排序，不能因遇到旧作品就结束扫描。平台将空行转换为空格+换行时可匹配，但保留行内空格、文字、标点及宽度，不用删除全部空白的比较。没有提交记录、列表未遍历完整、无匹配或多个候选时都不拿旧作品冒充成功；达到扫描上限仍保留未结案任务。
+
+### 用户链接核验与本地结案
+
+用户确认已发布并提供分享链接时，将确认原文写入 UTF-8 文件，再用同一条命令预览；已有明确结案授权时加 `--confirm`：
+
+```bash
+douyin-publish video close --outcome published --url "https://v.douyin.com/分享码/" --confirmation @/绝对路径/user-confirmation.txt
+douyin-publish video close --outcome published --url "https://v.douyin.com/分享码/" --confirmation @/绝对路径/user-confirmation.txt --confirm
+```
+
+支持官方 HTTPS 分享链接或完整 `/video/作品ID` 链接。脚本解析完整 ID，在本人作品分页中找到该 ID 后，核对提交时间、baseline、完整文案及已有作者标识再结案；用户明确的链接可消除同名候选歧义，但不能绕过作品身份核验。链接或账号不符、作品未找到或达到扫描上限时保留原任务，不盲信链接或重发。
+
+仅用户明确授权解除本地阻塞时使用：
+
+```bash
+douyin-publish video close --outcome cancelled --confirmation @/绝对路径/user-confirmation.txt --confirm
+```
+
+`cancelled` 只取消本地任务、释放阻塞，不删除或撤回线上作品，也不证明原提交未发布；仍须核实原作品后再决定后续操作。缺少 `--confirm` 仅预览，不访问浏览器或改变状态。
+
+两种结案均在发布排他锁内备份原始收据，记录确认原文、核验依据和状态变化，返回 `audit` 目录。审计保存在状态文件旁的 `douyin-video.audit/`，含 `before.json`、`after.json`、`prepared.json` 和成功应用后的 `applied.json`；后续任务不会覆盖这些文件。已有 `edit-draft --confirm-unpublished` 续编也保留原收据及确认依据。
 
 提交后播放器或表单卸载、页面未跳转不证明发布失败。`reconciliation` 给出核查时间、扫描数量和是否匹配；未确认时及时回报父任务/用户，禁止再次点击发布。用户确认已发布后最终结论据此更新，取链仍只读核查原任务。仅 `state:published` 且有完整 ID 和 `/video/` URL 时正式入库。状态保存在 `~/.camoufox-cli/publications/douyin-video.json`，不保存登录凭据；不要手工删除未结案状态以重发。
 

@@ -40,6 +40,13 @@ def video_commands(parent):
                        help='仅人工确认原提交未发布后结案并续编草稿')
     draft.set_defaults(func=lambda a: video.cmd_edit_draft(
         session=a.session, confirm_unpublished=a.confirm_unpublished))
+    close = commands.add_parser('close', help='按用户确认结案本地任务；不撤回或删除线上作品')
+    close.add_argument('--outcome', required=True, choices=('published', 'cancelled'))
+    close.add_argument('--url', help='已发布作品的官方分享链接或完整视频链接')
+    close.add_argument('--confirmation', required=True, help='用户确认原文或 @UTF-8确认文件')
+    close.add_argument('--confirm', action='store_true')
+    close.set_defaults(func=lambda a: video.cmd_close(
+        outcome=a.outcome, url=a.url, confirmation=a.confirmation, confirm=a.confirm))
     upload = commands.add_parser('upload')
     upload.add_argument('--video', required=True)
     upload.add_argument('--session', default=SESSION, choices=[SESSION])
@@ -157,6 +164,8 @@ def main(argv=None):
             video.validate_content(args.title, args.caption)
         else:
             note.validate(title=args.title, caption=args.caption)
+    if hasattr(args, 'confirmation'):
+        args.confirmation = read_publish_text(args.confirmation)
     if hasattr(args, 'images'):
         args.images = [str(Path(path).expanduser().resolve()) for path in args.images]
         note.validate(images=args.images, title=getattr(args, 'title', '上传'))

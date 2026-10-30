@@ -12,7 +12,9 @@ export const platforms = JSON.parse(await readFile(join(runtimeDir, 'platforms.j
 export const stateHome = resolve(process.env.PLATFORM_API_HOME || join(process.env.OPENCLAW_HOME || join(homedir(), '.openclaw'), 'logins/platform-api'));
 export const emit = value => process.stdout.write(JSON.stringify(value) + '\n');
 export class PlatformError extends Error {
-  constructor(code, message, exitCode = 1, diagnostic) { super(message); this.code = code; this.exitCode = exitCode; this.diagnostic = diagnostic; }
+  constructor(code, message, exitCode = 1, diagnostic, publication) {
+    super(message); this.code = code; this.exitCode = exitCode; this.diagnostic = diagnostic; this.publication = publication;
+  }
 }
 export function canonical(value) {
   const platform = value === 'twitter' ? 'x' : value;
@@ -146,6 +148,8 @@ export async function requireWriteSession(platform, account) {
   if (missing.length) throw new PlatformError('WRITE_SESSION_REQUIRED', 'TikTok 写操作缺少同次浏览器会话材料：' + missing.join(', '), 2);
 }
 export function reportError(error) {
-  emit({ ok: false, error: error.code || 'ERROR', message: error instanceof PlatformError ? error.message : '本地处理失败，请检查输入文件、依赖和状态目录', ...(error instanceof PlatformError && error.diagnostic ? { diagnostic: error.diagnostic } : {}) });
+  emit({ ok: false, error: error.code || 'ERROR', message: error instanceof PlatformError ? error.message : '本地处理失败，请检查输入文件、依赖和状态目录',
+    ...(error instanceof PlatformError && error.diagnostic ? { diagnostic: error.diagnostic } : {}),
+    ...(error instanceof PlatformError && error.publication ? error.publication : {}) });
   process.exitCode = error.exitCode || 1;
 }

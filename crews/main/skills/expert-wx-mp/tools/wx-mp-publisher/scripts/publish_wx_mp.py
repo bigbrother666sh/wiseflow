@@ -466,6 +466,16 @@ def validate_for_publish(md_text: str) -> None:
 
 # ── 主流程 ───────────────────────────────────────────────────────────────────
 
+def draft_result(data: dict, alias: str) -> dict:
+    media_id = data.get('media_id')
+    if not isinstance(media_id, str) or not media_id.strip():
+        raise ValueError('relay 未返回草稿 media_id，不能确认已入草稿箱；先核查后台，勿盲重推')
+    return {'ok': True, 'status': 'draft_created', 'draft_created': True, 'published': False,
+            'account': alias, 'media_id': media_id,
+            **({'article_url': data['article_url']} if data.get('article_url') else {}),
+            'next_step': '在公众号后台草稿箱核对正文、图片与官网 CTA，再正式发布'}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="推送 Markdown 到微信公众号草稿箱（经 relay）")
     parser.add_argument("markdown_file", help="Markdown 文件路径")
@@ -531,12 +541,14 @@ def main() -> None:
         die(f"发布失败: {err}")
 
     data = payload.get("data") or {}
+    result = draft_result(data, alias)
     print("✓ 草稿已推送")
     if data.get("media_id"):
         print(f"  media_id: {data['media_id']}")
     if data.get("article_url"):
         print(f"  article_url: {data['article_url']}")
     print("  下一步：在公众号后台「草稿箱」中预览并正式发布。")
+    print(json.dumps(result, ensure_ascii=False))
 
 
 if __name__ == "__main__":

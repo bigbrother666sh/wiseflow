@@ -102,18 +102,26 @@ only_fans_can_comment: false # 可选，是否仅粉丝可评论（默认 false�
 
 ### 小绿书（图片消息）
 
-纯图片轮播形式，不含正文 HTML。在 frontmatter 中指定 `image_list`（最多 20 张，首张为封面）：
+图片轮播消息跳过 HTML 排版，**保留 Markdown 正文文字并以图片消息的 `content` 提交**；不是只传图片或忽略全部正文。正文中的官网 CTA 也须完整保留。在 frontmatter 中指定 `image_list`（最多 20 张，首张为封面）：
 
-```yaml
+```markdown
 ---
-title: 文章标题
+title: 新版更新说明
+description: 本次更新摘要
 image_list:
   - 1.jpg
   - 2.jpg
 ---
+
+这一版本基础设施大升级，具体变化见配图。
+
+了解产品与使用方式，请访问官网：https://example.com
 ```
 
-有 `image_list` 时 relay 自动走图片消息接口，忽略主题参数。
+将示例官网替换为用户确认的真实地址。`description` 会以 `> 本次更新摘要` 和空行作为引用前缀加入正文，随后接原正文及官网 CTA；它不会覆盖正文，不要把它当成独立于 `content` 的替代字段。图片消息不依赖主题进行 HTML 排版；传入的主题仍须通过 relay 参数校验。
+
+✅ 将说明文字与官网 CTA 写在 frontmatter 后的正文，`image_list` 列出轮播图片。
+❌ 因为图片消息“不含 HTML”就删掉正文，或只将整篇文案放入 `description`。
 
 ### 本地图片准备规则
 
@@ -135,6 +143,7 @@ Agent 不需要手动上传图片；脚本会自动收集并上传上述本地�
 1. **等待脚本完整返回后**再判定结果，**禁止**在脚本输出前自行判断是否发布成功
 2. 发布前先确认目标账号凭据存在；缺失则按 `REFERENCE.md` 引导用户获取并写入
 3. 多账号场景：用户未明示账号时用 `default`；用户口头说「发到技术号」等 alias 含义时传 `--account`
+4. `status:draft_created`、`draft_created:true`、`published:false` 和 `media_id` 只确认已入草稿箱。向用户报告“草稿已推送，待后台核对并正式发布”；没有正式发布证据时，不报告“已发布”，不录入为已发布作品。
 
 ---
 
@@ -156,7 +165,7 @@ Agent 不需要手动上传图片；脚本会自动收集并上传上述本地�
 
 ## Notes
 
-- 发布成功后输出草稿 `media_id`，可在公众号后台「草稿箱」找到对应草稿
+- 推送成功后末行输出 JSON 回执（`status:draft_created`、`published:false`、`media_id`），可在公众号后台「草稿箱」找到对应草稿；`article_url` 即使存在也不证明已正式发布
 - 本 skill 只负责推送草稿，**正式发布仍需在公众号后台手动操作**
 - relay 已内置 `@wenyan-md/core` 渲染，client 不再需要装 `wenyan-cli`
 - 仅支持文本 + 图片（无视频）

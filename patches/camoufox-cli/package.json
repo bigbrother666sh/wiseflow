@@ -28,7 +28,7 @@
   "wiseflowFork": true,
   "wiseflowForkBaseline": "0.7.3",
   "dependencies": {
-    "camoufox-js": "0.11.2",
+    "camoufox-js": "0.11.5",
     "pdf-lib": "^1.17.1",
     "playwright-core": "1.52.0"
   },

@@ -7,6 +7,40 @@ _skill_wrappers_sourced() {
   type expose_skill_wrappers &>/dev/null
 }
 
+# Shared by standalone setup and tarball installation; preserve custom skills.
+sync_global_skills() {
+  local project_root="$1" openclaw_home="$2"
+  local source_skills="$project_root/skills" target_skills="$openclaw_home/skills"
+  local same_root=false
+  if [ -d "$source_skills" ] && [ -d "$target_skills" ] &&
+      [ "$(cd "$source_skills" && pwd -P)" = "$(cd "$target_skills" && pwd -P)" ]; then
+    same_root=true
+  fi
+  if [ -L "$target_skills" ] && [ "$same_root" != true ]; then
+    echo "❌ Global skills directory links outside this installation: $target_skills" >&2
+    return 1
+  fi
+  # A whole-directory symlink already publishes the source. Never delete through it.
+  if [ "$same_root" != true ]; then
+    sync_crew_skills "$project_root" "$openclaw_home"
+  fi
+  mkdir -p "$openclaw_home"
+  local skill_dir="" skill_name="" names=""
+  for skill_dir in "$source_skills"/*/; do
+    [ -f "${skill_dir}SKILL.md" ] || continue
+    skill_name="$(basename "$skill_dir")"
+    case "$skill_name" in _*) continue ;; esac
+    names="$names"$'\n'"$skill_name"
+  done
+  printf '%s\n' "$names" | awk 'NF && !seen[$0]++' | sort > "$openclaw_home/GLOBAL_SHARED_SKILLS"
+  if ! _skill_wrappers_sourced; then
+    source "$(dirname "${BASH_SOURCE[0]}")/skill-wrappers.sh"
+  fi
+  expose_skill_wrappers "$source_skills"
+  ensure_openclaw_bin_in_path
+  echo "  ✅ Global skills and shared catalog synchronized"
+}
+
 copy_crew_template_contents() {
   local source_dir="$1"
   local dest_dir="$2"
@@ -72,7 +106,7 @@ sync_crew_skills() {
     fi
   done
 
-  [ "$synced" -gt 0 ] && echo "  ✅ synced $synced crew skill(s) → $(basename "$dest_ws")"
+  [ "$synced" -gt 0 ] && echo "  ✅ synced $synced skill(s) → $(basename "$dest_ws")"
 
   # 清理悬挂软链：技能在仓里改名 / 收纳进专家包后（如 video-producer → expert-video/tools/video-producer），
   # dest_skills 下的旧软链会指向不存在的仓路径。只删「软链且目标不存在」的条目，

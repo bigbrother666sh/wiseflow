@@ -11,7 +11,7 @@
 | `update.sh` | 已 git clone 开发用户的升级 | macOS + Linux | — | — | ✅ | — | ✅ |
 | `apply-addons.sh` | 本地测试 addon 改动 | macOS + Linux | — | ✅ | ✅ | — | ✅ |
 | `dev.sh` | 开发模式（前台 gateway） | macOS + Linux | — | ✅ | — | — | — |
-| `setup-crew.sh` | 仅同步 crew markdown | 跨平台（bash） | — | — | — | — | — |
+| `setup-crew.sh` | 同步工作区、公共/专属技能与配置 | 跨平台（bash） | — | — | — | — | — |
 
 ---
 
@@ -57,6 +57,10 @@ sudo apt install -y curl ca-certificates
 ```
 
 ### 安装命令
+
+公共技能部署到 `~/.openclaw/skills/`，crew 专属技能部署到各自的 `workspace-<id>/skills/`。`setup-crew.sh` 先部署公共技能并生成 `GLOBAL_SHARED_SKILLS`，再计算各 crew 的技能名单；internal crew 按拒绝清单继承，external crew 仍只使用明确声明的技能。Bash 安装与升级都会执行该同步，失败时停止安装，不继续启动 Gateway。
+
+单独同步工作区和技能可运行 `bash "$HOME/xiaobei/scripts/setup-crew.sh"`。脚本优先使用程序目录中的 portable Node，并使用已安装的自管 Python，不要求另装系统 Node。默认保留已有用户正文和自定义技能；`--force` 仅用于明确需要覆盖模板文件的操作。
 
 ```bash
 # macOS / Linux（GitHub 线路）

@@ -12,6 +12,17 @@ ADDONS_DIR="$PROJECT_ROOT/addons"
 OPENCLAW_HOME="${OPENCLAW_HOME:-$HOME/.openclaw}"
 CONFIG_PATH="${OPENCLAW_CONFIG_PATH:-$OPENCLAW_HOME/openclaw.json}"
 FORCE=false
+# Tarballs carry Node; standalone setup must not depend on the caller's PATH.
+if [ -x "$PROJECT_ROOT/tools/node/bin/node" ]; then
+  export PATH="$PROJECT_ROOT/tools/node/bin:$PATH"
+elif [ -f "$PROJECT_ROOT/tools/node/node.exe" ]; then
+  export PATH="$PROJECT_ROOT/tools/node:$PATH"
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "❌ Node.js missing; rerun the xiaobei installer to restore tools/node" >&2
+  exit 1
+fi
+export OPENCLAW_BIN_DIR="${OPENCLAW_BIN_DIR:-$OPENCLAW_HOME/bin}"
 source "$SCRIPT_DIR/lib/python-runtime.sh"
 xiaobei_use_python_runtime "$PROJECT_ROOT"
 
@@ -255,17 +266,10 @@ if [ ! -d "$CREWS_DIR" ]; then
   exit 1
 fi
 
-# 检查是否应通过 apply-addons.sh 调用（确保 global skills 已安装到 openclaw/skills/）
-CALLED_FROM_APPLY_ADDONS="${CALLED_FROM_APPLY_ADDONS:-false}"
-if [ "$CALLED_FROM_APPLY_ADDONS" != "true" ] && [ -d "$ADDONS_DIR" ]; then
-  addon_count="$(find "$ADDONS_DIR" -mindepth 2 -maxdepth 2 -name addon.json 2>/dev/null | wc -l)"
-  if [ "$addon_count" -gt 0 ]; then
-    echo "⚠️  检测到 $addon_count 个 addon，建议通过 apply-addons.sh 运行以确保 addon global skills 正确安装"
-    echo "   直接运行 setup-crew.sh 可能导致 addon 提供的 global skills 未被纳入 crew 技能配置"
-  fi
-fi
-
 echo "📦 Setting up Agent System (crews)..."
+
+# Publish common skills before calculating any crew's explicit skill allowlist.
+sync_global_skills "$PROJECT_ROOT" "$OPENCLAW_HOME"
 
 # ─── 1. 部署所有 Crew workspace（扫 crews/ 顶层，幂等） ──────────
 # D8 扁平化后不再经 crew_templates/hrbp_templates 中转，直接把 crews/<id>/ 同步到

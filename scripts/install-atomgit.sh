@@ -1126,6 +1126,14 @@ bind_weixin_channel() {
     ui_warn "多次扫码未完成绑定。可后续手动跑：$claw channels login --channel openclaw-weixin"
 }
 
+setup_crew_templates() {
+    if [[ "${FORCE_RUNTIME:-false}" == "true" ]]; then set -- --force; else set --; fi
+    ui_stage "Setting up crew templates and global skills"
+    run_required_step "Synchronizing crew and global skills" \
+        env OPENCLAW_HOME="$OPENCLAW_HOME" XIAOBEI_BIN_DIR="$WISEFLOW_ROOT/bin" \
+        bash "$WISEFLOW_ROOT/scripts/setup-crew.sh" "$@"
+}
+
 main() {
     parse_args "$@"
     # 兼容既有 tarball：其资源安装器已支持此变量，统一默认到主程序缓存目录。
@@ -1161,9 +1169,9 @@ main() {
         ui_warn "检测到已有安装（$OPENCLAW_HOME/openclaw.json）→ 走更新路线，保留运行数据（传 --force 可强覆盖）"
     fi
 
-    # 步数总数按路线动态设：首装 12 步（含 config/crew/gateway），更新 11 步（自愈 config + 刷 program+restart）。
+    # 两条路线均同步 crew 和公共技能；更新仍保留已有用户正文。
     if [[ "$is_update" == "true" ]]; then
-        INSTALL_STAGE_TOTAL=11
+        INSTALL_STAGE_TOTAL=12
     else
         INSTALL_STAGE_TOTAL=12
     fi
@@ -1227,6 +1235,7 @@ main() {
         local finalize_args=(--root "$WISEFLOW_ROOT" --config "$OPENCLAW_HOME/openclaw.json" --skip-crew)
         [[ "$is_update" == "true" && "$SKIP_SERVICE" != "true" ]] && finalize_args+=(--stop-gateway)
         run_required_step "Finalizing pinned OpenClaw configuration" "$WISEFLOW_ROOT/$PORTABLE_NODE" "$WISEFLOW_ROOT/scripts/finalize-openclaw-upgrade.mjs" "${finalize_args[@]}"
+        setup_crew_templates
         if [[ "$SKIP_SERVICE" == "true" ]]; then
             ui_stage "Refreshing runtime environment"
         else
@@ -1245,16 +1254,7 @@ main() {
         [[ "$is_update" == "true" && "$SKIP_SERVICE" != "true" ]] && finalize_args+=(--stop-gateway)
         run_required_step "Finalizing pinned OpenClaw configuration" "$WISEFLOW_ROOT/$PORTABLE_NODE" "$WISEFLOW_ROOT/scripts/finalize-openclaw-upgrade.mjs" "${finalize_args[@]}"
 
-        ui_stage "Setting up crew templates"
-        if [[ -f "$WISEFLOW_ROOT/scripts/setup-crew.sh" ]]; then
-            local crew_force=""
-            [[ "$FORCE_RUNTIME" == "true" ]] && crew_force="--force"
-            OPENCLAW_HOME="$OPENCLAW_HOME" XIAOBEI_BIN_DIR="$WISEFLOW_ROOT/bin" \
-                bash "$WISEFLOW_ROOT/scripts/setup-crew.sh" $crew_force \
-                || ui_warn "setup-crew.sh 非零退出（可后续手动 --force 修复）"
-        else
-            ui_warn "setup-crew.sh 不在 tarball 内，跳过"
-        fi
+        setup_crew_templates
 
         # 交互收 AWK_API_KEY + 装 gateway daemon（不走 onboard，小白友好）
         ui_stage "Configuring API key and gateway"
@@ -1439,6 +1439,14 @@ load_env_vars_for_cli() {
     if [ -n "$_awk" ]; then export AWK_API_KEY="$_awk"; fi
 }
 
+# Installer-owned systemd files must not inherit a group-writable login umask.
+write_systemd_env_dropin() (
+    umask 077
+    local dropin_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/openclaw-gateway.service.d"
+    mkdir -p "$dropin_dir"
+    printf '[Service]\nEnvironmentFile=-%s\n' "$1" > "${dropin_dir}/10-env-file.conf"
+)
+
 # Linux：确保 30-wait-display.conf drop-in 存在（幂等）。
 # 背景：gateway 随 default.target 开机即启，早于桌面会话把 DISPLAY 登记进 user manager
 # 环境（systemd 不回填已运行服务）-> 重启机器后到下次 gateway 重启之间，整个 gateway
@@ -1446,7 +1454,8 @@ load_env_vars_for_cli() {
 # 无法启动。drop-in 让 gateway 启动前等 DISPLAY 出现：有桌面几秒内等到（检查本身毫秒级），
 # 无桌面 30s 超时放行（行为与不加一致）。openclaw 升级重写主 unit 不清 drop-in。
 # WSL2 场景不走此 drop-in（WSLg 恒定提供 :0，由使用方直接注 DISPLAY 进 daemon.env）。
-ensure_systemd_wait_display_dropin() {
+ensure_systemd_wait_display_dropin() (
+    umask 077
     [ "$(uname -s)" = "Linux" ] || return 0
     command -v systemctl >/dev/null 2>&1 || return 0
     systemctl --user show-environment >/dev/null 2>&1 || return 0
@@ -1459,7 +1468,7 @@ ensure_systemd_wait_display_dropin() {
 ExecStartPre=/bin/sh -c 'i=0; while [ "$i" -lt 30 ]; do systemctl --user show-environment | grep -q "^DISPLAY=" && exit 0; sleep 1; i=$((i+1)); done; exit 0'
 DROPIN_EOF
     ui_success "systemd wait-display drop-in ensured (${dropin_dir}/30-wait-display.conf)"
-}
+)
 
 # 停掉运行中的 gateway（更新路线开头调，避免 pnpm 重写 node_modules 时文件句柄竞争卡死）。
 # 平台分支：Linux systemctl --user stop；Darwin openclaw gateway stop。无 service / 未运行则静默。
@@ -1635,10 +1644,7 @@ install_gateway_and_env() {
     if [ "$(uname -s)" = "Linux" ]; then
         # systemd drop-in 引用 daemon.env（必须在 daemon install 之前）
         if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
-            local svc="openclaw-gateway"
-            local dropin_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${svc}.service.d"
-            mkdir -p "$dropin_dir"
-            printf '[Service]\nEnvironmentFile=-%s\n' "$systemd_env" > "${dropin_dir}/10-env-file.conf"
+            write_systemd_env_dropin "$systemd_env"
             ensure_systemd_wait_display_dropin
             ui_success "systemd drop-in created (will reload after daemon install)"
         fi

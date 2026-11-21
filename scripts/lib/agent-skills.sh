@@ -6,7 +6,7 @@
 #
 #   inherit 模式（对内 Crew，crew-type: internal）：
 #   - 基线：list_default_global_skill_names 指定的上游内置技能
-#   - 自动追加：apply-addons.sh 写入 GLOBAL_SHARED_SKILLS 的 addon/项目全局技能
+#   - 自动追加：setup-crew.sh / apply-addons.sh 写入 GLOBAL_SHARED_SKILLS 的项目全局技能
 #   - 可通过 BUILTIN_SKILLS（或显式参数）在此之上追加 Agent 专属技能
 #     （如 it-engineer 的 github / gh-issues / coding-agent）
 #   - 可通过 DENIED_SKILLS（或显式参数）从最终列表中排除技能
@@ -223,7 +223,7 @@ console.log(JSON.stringify(Array.from(new Set(lines))));
   local default_builtins=""
   default_builtins="$(list_default_global_skill_names)"
 
-  # ② addon / 项目安装的全局技能（apply-addons.sh 写入 GLOBAL_SHARED_SKILLS 文件）
+  # ② 项目安装的全局技能（setup-crew.sh / apply-addons.sh 写入 GLOBAL_SHARED_SKILLS 文件）
   local addon_global_skills=""
   local global_shared_file="$openclaw_home/GLOBAL_SHARED_SKILLS"
   if [ -f "$global_shared_file" ]; then

@@ -78,6 +78,7 @@ expose_skill_wrappers() {
   [ "$pruned" -gt 0 ] && echo "  🧹 pruned $pruned dangling wrapper symlink(s) in ~/.openclaw/bin"
 
   [ "$exposed" -gt 0 ] && echo "  ✅ exposed $exposed wrapper(s) → ~/.openclaw/bin (from $(basename "$skills_root"))"
+  return 0
 }
 
 # 把 ~/.openclaw/bin 加进 shell rc 的 PATH（幂等）

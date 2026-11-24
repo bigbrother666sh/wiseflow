@@ -165,6 +165,9 @@ jobs:
           # openclaw-weixin 插件 pin（install.sh 据此装插件，国内 npmmirror）
           [ -f "$REPO/openclaw-weixin.version.json" ] && cp "$REPO/openclaw-weixin.version.json" "$STAGE/" || true
 
+          # Remove build-only workspace entries before shipping the runtime.
+          node "$STAGE/scripts/openclaw-plugins.mjs" trim-distribution "$STAGE/openclaw"
+
           # 5. 体积 breakdown（诊断）
           (
             set +e +o pipefail

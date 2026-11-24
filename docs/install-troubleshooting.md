@@ -39,7 +39,8 @@ WSL 使用 WSL 内的 Linux 入口，不把 Windows 原生安装与 WSL 路径�
 | `openclaw: command not found` | 当前安装的 CLI 未在终端 PATH | 使用上方平台入口；源码部署使用已构建的 dist/index.js，不为查日志额外安装可能版本不匹配的全局 CLI |
 | onboard 报 `Non-interactive setup requires explicit risk acknowledgement` | 在 CI/无 TTY 跑 onboard 没加 `--accept-risk` | 加 `--non-interactive --accept-risk`，且补全所有 `--auth-choice` / `--custom-api-key` 等必填 flag |
 | onboard `--skip-channels` 后 channel 段仍问 | openclaw 版本低于本仓 `openclaw.version` 锁的 commit | `cd ~/xiaobei && ./scripts/update.sh` 重 checkout + build |
-| `pnpm install` 报 `ERR_PNPM_OUTDATED_LOCKFILE` | lockfile 与 package.json 不同步（仓里有未提交改动） | `pnpm install --no-frozen-lockfile`（install.sh 已走此路） |
+| 预构建安装报 `ERR_PNPM_OUTDATED_LOCKFILE`，指向 `extensions/browser`，或提示缺少 `packages/speech-core` importer | 程序目录中的旧工作区残留，与新锁文件冲突 | 按下方“预构建升级的依赖冲突”备份程序目录后重跑安装；保留 `--frozen-lockfile` |
+| 安装技能依赖时 `ui-demo` 报私有 `playwright-core` 依赖 | 已删除的旧 `package.json` 残留；当前 `ui-demo` 不再有该文件 | 按下方步骤备份整个程序目录后重装，不补装私有 Playwright |
 | `pnpm build` 报 `tsc: error TS2307: Cannot find module '...'` | patch 未应用或应用不完整 | `cd ~/xiaobei && bash scripts/apply-addons.sh --force` 重跑 patches |
 | gateway 启动报 `EADDRINUSE 0.0.0.0:18789` | 端口被占（旧 gateway 没退干净） | `lsof -i :18789` 找进程，`kill -9 <pid>`；或改 `~/xiaobei/openclaw/package.json` 的 gateway 默认端口 |
 | gateway 启动报 `OPENCLAW_GATEWAY_TOKEN missing` | 首次启动未生成 token | `cd ~/xiaobei/openclaw && pnpm openclaw gateway install --force` 重装会生成；或手动设 env |
@@ -49,6 +50,43 @@ WSL 使用 WSL 内的 Linux 入口，不把 Windows 原生安装与 WSL 路径�
 | agent 报 `escaped skill path` warning | skill 软链 target 未在 `skills.load.allowSymlinkTargets` | `cd ~/xiaobei && bash scripts/apply-addons.sh` 重跑（setup-crew.sh 会注入） |
 
 ## 分段排障
+
+### 更新安装脚本与复用旧 tarball
+
+远程安装入口和安装包内的脚本分别更新。通过 `curl .../master/scripts/install.sh | bash` 或 `irm .../master/scripts/install.ps1 | iex` 获取并执行新版入口时，入口中的系统依赖准备、下载、解压替换等逻辑可直接配合原有 5.8.2 tarball 使用，不要求更新产品版本号或重建引擎。
+
+解压后执行的 `scripts/python-runtime.mjs`、`scripts/install-browser.mjs`、`scripts/install-skill-deps.mjs`、`scripts/setup-crew.sh` 和 `crews/main/skills/platform-runtime/scripts/install-runtime.mjs` 等文件来自 tarball。当前入口不会自动从仓库同步这些文件；只更新 Git 仓库不能让旧包获得相应修复，手动覆盖的文件也可能在下次解压时被旧包覆盖。直接运行本机已有的安装入口同样不会自动更新它自己。
+
+若要保持 tarball 完全不变，同时应用包内脚本修复，需要另行提供并验证解压后的修复文件同步流程。仅保持版本号不变、允许重建安装包时，可用 Build Dist Tarball 的 `tag=v5.8.2` 和 `source_ref=<包含修复的提交>` 维护重建；工作流修改只影响新构建，不改变现有 release 文件或用户下载缓存。普通安装入口指向的正式仓库及 AtomGit 镜像也需要同步对应入口变更，开发仓推送不会自动替代这些地址的内容。
+
+### 预构建升级的依赖冲突
+
+若报错出现 `extensions/browser` 的依赖差异、锁文件缺少 `importers["packages/speech-core"]`，或 `ui-demo` 声明私有 `playwright-core`，通常是覆盖解压留下了旧版程序文件。已删除的引擎包和技能依赖声明仍会被安装器发现。当前 `ui-demo` 没有 `package.json`。Ubuntu、macOS 和 Windows 的重复安装都可能遇到。
+
+新版安装器会先移开程序目录中的 `bin`、`openclaw`、`browser`、`crews`、`skills`、`awada`、`scripts` 和 `config-templates`，再解压新程序；解压和必要文件校验失败时恢复这些目录，成功后删除临时旧副本。`tools` 中的自管 Python 和浏览器下载缓存 `browser/.browsers` 保留。Git 源码 checkout 或上述目录的链接会阻止替换，请改用独立的 `XIAOBEI_HOME`。运行包还会移除仅编译需要的插件工作区条目。
+
+使用旧安装器的 Windows 用户可先在 PowerShell 备份整个程序目录，成功后重跑原安装命令。这样可以同时隔离引擎和技能中的残留。无需删除用户 home 下的 `.openclaw` 或重新下载安装包：
+
+```powershell
+$xiaobeiDir = if ($env:XIAOBEI_HOME) { $env:XIAOBEI_HOME } else { Join-Path $env:USERPROFILE 'xiaobei' }
+Move-Item -LiteralPath $xiaobeiDir -Destination ($xiaobeiDir + '-backup-' + [Guid]::NewGuid().ToString('N')) -ErrorAction Stop -PassThru
+```
+
+此命令将整个程序目录移到同级备份，备份会保留；不改写用户 home 下 `.openclaw` 中的配置、账号、会话和工作区。若将 `OPENCLAW_HOME` 自定义在程序目录内，先把它迁出并更新该变量，再进行此操作。只清理插件或引擎无法清除 crew 技能中的残留。不要使用 `--no-frozen-lockfile`、重新生成锁文件或允许技能私装 Playwright 来绕过问题。自定义了安装路径但未保留 `XIAOBEI_HOME` 时，请将第一行改为实际程序目录。
+
+### platform-runtime 安装失败
+
+`Skill dependency install failed: ...platform-runtime` 是汇总提示。保留其前面的 npm 或 `Prepared platform runtime cannot load on this machine` 错误，按实际异常修复。不要仅根据汇总提示重复清空程序目录。
+
+需要单独复现并取得完整错误时，在 PowerShell 只重跑该组件的安装器：
+
+```powershell
+$xiaobeiDir = if ($env:XIAOBEI_HOME) { $env:XIAOBEI_HOME } else { Join-Path $env:USERPROFILE 'xiaobei' }
+$env:PATH = (Join-Path $xiaobeiDir 'tools\node') + ';' + $env:PATH
+& "$xiaobeiDir\tools\node\node.exe" "$xiaobeiDir\crews\main\skills\platform-runtime\scripts\install-runtime.mjs" --npm-cli "$xiaobeiDir\tools\node\node_modules\npm\bin\npm-cli.js" --registry https://registry.npmmirror.com
+```
+
+若原始错误为 `ERR_UNSUPPORTED_ESM_URL_SCHEME` / `Received protocol 'c:'`，检查运行包安装自检是否把 Windows 绝对路径直接传给了 ESM `import()`。平台入口和 `require.resolve('wreq-js')` 的结果均需先用 `pathToFileURL()` 转换。保留包完整性、范围与依赖校验，不跳过自检。安装成功后的 `--check` 失败时，共享技能安装器应显示原始异常，并保留未更新的成功标记。
 
 ### 1. Node / pnpm / git 未就绪
 

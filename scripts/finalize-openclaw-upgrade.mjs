@@ -28,8 +28,8 @@ export function finalizeOpenClawUpgrade({ root, config, skipCrew = false, stopGa
   // Native stop is idempotent when no service is loaded. Let the service owner
   // release the old state worker before the new Doctor performs maintenance.
   if (stopGateway) step(process.execPath, [path.join(dist, "index.js"), "daemon", "stop", "--force"]);
-  // Portable installers extract over the previous engine. Drop its obsolete
-  // plugin directories before restoring dependency links and running Doctor.
+  // Reapply the distribution profile before restoring runtime dependency links.
+  // This also cleans engines installed by older overlay-based installers.
   const engine = path.dirname(dist);
   if (fs.existsSync(path.join(engine, ".xiaobei-plugins.json")) && !fs.existsSync(path.join(engine, ".git"))) {
     step(process.execPath, [path.join(root, "scripts/openclaw-plugins.mjs"), "trim-distribution"]);

@@ -473,6 +473,83 @@ tarball_url() {
     echo "$XIAOBEI_ATOMGIT_MIRROR/releases/download/$XIAOBEI_TAG/$asset"
 }
 
+# Replace shipped program trees as a unit so removed skill manifests, workspaces
+# and compiled files cannot survive. Keep tools and runtime data in place.
+extract_clean_program() {
+    local archive="$1"
+    local managed=(bin openclaw browser crews skills awada scripts config-templates)
+    local directory
+    if [[ -e "$WISEFLOW_ROOT/.git" || -e "$WISEFLOW_ROOT/openclaw/.git" ]]; then
+        ui_error "Refusing to replace a source checkout: $WISEFLOW_ROOT; choose another XIAOBEI_HOME"
+        return 1
+    fi
+    for directory in "${managed[@]}"; do
+        if [[ -L "$WISEFLOW_ROOT/$directory" ]]; then
+            ui_error "Refusing to replace a linked program directory: $WISEFLOW_ROOT/$directory"
+            return 1
+        fi
+    done
+    local backup
+    backup="$(mktemp -d "$WISEFLOW_ROOT/.xiaobei-program-backup.XXXXXX")" || return 1
+    local moved=()
+    for directory in "${managed[@]}"; do
+        if [[ -e "$WISEFLOW_ROOT/$directory" ]]; then
+            if ! mv "$WISEFLOW_ROOT/$directory" "$backup/$directory"; then
+                local previous
+                for previous in "${moved[@]}"; do
+                    if ! mv "$backup/$previous" "$WISEFLOW_ROOT/$previous"; then
+                        ui_error "Program preparation failed; previous files retained at $backup"
+                        return 1
+                    fi
+                done
+                rmdir "$backup"
+                return 1
+            fi
+            moved+=("$directory")
+        fi
+    done
+    local extract_ok=1
+    if [[ "$TAR_EXT" == "tar.zst" ]]; then
+        tar --zstd -xf "$archive" -C "$WISEFLOW_ROOT" || extract_ok=0
+    else
+        tar -xzf "$archive" -C "$WISEFLOW_ROOT" || extract_ok=0
+    fi
+    local required
+    for required in openclaw.mjs package.json pnpm-lock.yaml pnpm-workspace.yaml; do
+        [[ -f "$WISEFLOW_ROOT/openclaw/$required" ]] || extract_ok=0
+    done
+    [[ -x "$WISEFLOW_ROOT/$PORTABLE_NODE" && -f "$WISEFLOW_ROOT/$PORTABLE_PNPM" ]] || extract_ok=0
+    if [[ "$extract_ok" -eq 1 ]]; then
+        # This is a download cache, not source. Reuse Chromium without keeping
+        # obsolete files from any of the program trees.
+        if [[ -d "$backup/browser/.browsers" && -d "$WISEFLOW_ROOT/browser" && ! -e "$WISEFLOW_ROOT/browser/.browsers" ]]; then
+            if ! mv "$backup/browser/.browsers" "$WISEFLOW_ROOT/browser/.browsers"; then
+                ui_warn "Program extracted; browser cache retained at $backup/browser/.browsers"
+                return 0
+            fi
+        fi
+        if ! rm -rf "$backup"; then
+            ui_warn "Program extracted; previous program cleanup incomplete: $backup"
+        fi
+        return 0
+    fi
+    for directory in "${managed[@]}"; do
+        if ! rm -rf "$WISEFLOW_ROOT/$directory"; then
+            ui_error "Cannot remove partial program files; previous files retained at $backup"
+            return 1
+        fi
+    done
+    for directory in "${moved[@]}"; do
+        if ! mv "$backup/$directory" "$WISEFLOW_ROOT/$directory"; then
+            ui_error "Extraction failed; previous program files retained at $backup"
+            return 1
+        fi
+    done
+    rmdir "$backup"
+    ui_error "Tarball extraction or validation failed; previous program directories restored"
+    return 1
+}
+
 download_and_extract_tarball() {
     local url; url="$(tarball_url)"
     local asset="xiaobei-${XIAOBEI_TAG}-${PLAT}.${TAR_EXT}"
@@ -510,22 +587,14 @@ download_and_extract_tarball() {
 
     mkdir -p "$WISEFLOW_ROOT"
     ui_info "Extracting to $WISEFLOW_ROOT ..."
-    local extract_ok=1
-    if [[ "$TAR_EXT" == "tar.zst" ]]; then
-        tar --zstd -xf "$tmp" -C "$WISEFLOW_ROOT" || extract_ok=0
-    else
-        tar -xzf "$tmp" -C "$WISEFLOW_ROOT" || extract_ok=0
-    fi
-    if [[ "$extract_ok" -ne 1 ]]; then
+    if ! extract_clean_program "$tmp"; then
         # 解压失败：缓存可能损坏/半下，删了重下一次再试（用户自带的 XIAOBEI_TARBALL 不删）
         if [[ -z "${XIAOBEI_TARBALL:-}" && -f "$cached" ]]; then
             ui_warn "解压失败，删损坏缓存重下..."
             rm -f "$cached"
-            download_file "$url" "$cached"
-            if [[ "$TAR_EXT" == "tar.zst" ]]; then
-                tar --zstd -xf "$cached" -C "$WISEFLOW_ROOT"
-            else
-                tar -xzf "$cached" -C "$WISEFLOW_ROOT"
+            if ! download_file "$url" "$cached" || ! extract_clean_program "$cached"; then
+                ui_error "Tarball retry failed; installation has not resumed"
+                return 1
             fi
         else
             ui_error "解压失败：$tmp"
@@ -547,6 +616,11 @@ pnpm_install_prod() {
     local pnpm="$WISEFLOW_ROOT/$PORTABLE_PNPM"
     local node_bin_dir; node_bin_dir="$(dirname "$node")"
     ui_info "pnpm install --prod --frozen-lockfile（拉依赖 + native prebuilt，~30s-2min）"
+    # Prepare the runtime workspace before pnpm, including for older tarballs.
+    if [[ -f "$openclaw_dir/.xiaobei-plugins.json" && ! -e "$openclaw_dir/.git" ]]; then
+        run_required_step "Prepare bundled engine plugins" \
+            "$node" "$WISEFLOW_ROOT/scripts/openclaw-plugins.mjs" trim-distribution "$openclaw_dir"
+    fi
     # 把 portable node bin 前置到 PATH：esbuild/protobufjs/tlon-skill 等 postinstall
     # 跑 sh -c "node ..."，PATH 里没 node 就 command not found。本脚本卖点是无预装 Node，
     # 小白机无系统 node，必须显式前置 portable node，否则 postinstall 全挂。

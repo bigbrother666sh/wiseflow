@@ -6,7 +6,7 @@ import { gunzipSync } from 'node:zlib';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve, basename, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { homedir } from 'node:os';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -140,10 +140,20 @@ async function validate(directory, marker, archivePath) {
   probeRuntime(directory);
 }
 
-function probeRuntime(directory) {
+export function probeRuntime(directory) {
   // Also catches missing transitive/native modules when a matching installer
   // hash would otherwise skip a damaged installation. This makes no requests.
-  const probe = profile.platforms.map(id => `await import(${JSON.stringify(join(directory, profile.package, 'dist/platforms', id, 'web/commands.js'))});`).join('\n') + `\nconst require = (await import('node:module')).createRequire(${JSON.stringify(join(directory, profile.package, 'package.json'))}); if(!(await require('qrcode').toDataURL('runtime-install-check')).startsWith('data:image/png;')) throw new Error('QR encoder unavailable'); const {createTransport}=await import(require.resolve('wreq-js')); const transport=await createTransport({browser:'chrome_131'}); await transport.close();`;
+  const packageDir = join(directory, profile.package);
+  const probe = [
+    `import {createRequire} from 'node:module';`,
+    `import {pathToFileURL} from 'node:url';`,
+    ...profile.platforms.map(id => `await import(${JSON.stringify(pathToFileURL(join(packageDir, 'dist/platforms', id, 'web/commands.js')).href)});`),
+    `const require = createRequire(${JSON.stringify(pathToFileURL(join(packageDir, 'package.json')).href)});`,
+    `if (!(await require('qrcode').toDataURL('runtime-install-check')).startsWith('data:image/png;')) throw new Error('QR encoder unavailable');`,
+    `const {createTransport} = await import(pathToFileURL(require.resolve('wreq-js')).href);`,
+    `const transport = await createTransport({browser:'chrome_131'});`,
+    `await transport.close();`,
+  ].join('\n');
   const contract = JSON.parse(readFileSync(join(directory, profile.package, 'runtime-contract.json'), 'utf8'));
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { cwd: dirname(directory), env: { ...process.env, [contract.stateEnvironment]: join(dirname(directory), '.runtime/probe-state') }, encoding: 'utf8', timeout: 60000 });
   if (result.error || result.status !== 0) throw new Error('Prepared platform runtime cannot load on this machine: ' + (result.error?.message || result.stderr));

@@ -66,13 +66,23 @@ function main(argv) {
   const currentHash = digest.digest("hex");
   const stamp = path.join(path.resolve(opts["state-dir"]), ".skill-pkg-hash");
   const storedHash = fs.existsSync(stamp) ? fs.readFileSync(stamp, "utf8").trim() : "";
-  const missing = skill => {
-    if (skill.dependencies.some(
+  const missing = (skill, report = false) => {
+    const absent = skill.dependencies.filter(
       name => !fs.existsSync(path.join(skill.dir, "node_modules", name, "package.json"))
-    )) return true;
+    );
+    if (absent.length) {
+      if (report) console.error(`Skill dependencies missing after installation (${path.relative(root, skill.dir)}): ${absent.join(", ")}`);
+      return true;
+    }
     if (!skill.script) return false;
-    const result = spawnSync(process.execPath, [skill.script, "--check"], { cwd: skill.dir, stdio: "ignore" });
-    return !!result.error || result.status !== 0;
+    const result = spawnSync(process.execPath, [skill.script, "--check"], { cwd: skill.dir, stdio: "pipe", encoding: "utf8" });
+    const failed = !!result.error || result.status !== 0;
+    if (failed && report) {
+      console.error(`Skill dependency validation failed (${path.relative(root, skill.dir)}): ${result.error?.message || (result.signal ? `signal ${result.signal}` : `exit ${result.status}`)}`);
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+    }
+    return failed;
   };
   const pending = skills.filter(skill => currentHash !== storedHash || missing(skill));
   if (!pending.length) {
@@ -93,7 +103,7 @@ function main(argv) {
       // Deck rendering needs no CUDA EP from HyperFrames' ONNX dependency.
       env: { ...process.env, ONNXRUNTIME_NODE_INSTALL_CUDA: "skip" },
     });
-    if (result.error || result.status !== 0 || missing(skill)) {
+    if (result.error || result.status !== 0 || missing(skill, true)) {
       failures.push(skill.dir);
       console.error(`Skill dependency install failed: ${skill.dir}${result.error ? ` (${result.error.message})` : ""}`);
     }

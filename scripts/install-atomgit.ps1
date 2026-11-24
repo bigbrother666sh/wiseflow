@@ -176,8 +176,79 @@ function Extract-Tarball([string]$tarball) {
     }
     New-Item -ItemType Directory -Force -Path $Root | Out-Null
     Write-Host "  extracting to $Root"
-    & tar -xzf $tarball -C $Root
-    if ($LASTEXITCODE -ne 0) { throw "tar extraction failed (exit $LASTEXITCODE)" }
+    # Replace shipped trees together; stale skill manifests are as harmful as
+    # stale engine workspaces. Preserve tools and user runtime data.
+    $managedDirectories = @('bin', 'openclaw', 'browser', 'crews', 'skills', 'awada', 'scripts', 'config-templates')
+    if ((Test-Path (Join-Path $Root '.git')) -or (Test-Path (Join-Path $Root 'openclaw\.git'))) {
+        throw "Refusing to replace a source checkout: $Root; choose another XIAOBEI_HOME"
+    }
+    foreach ($directory in $managedDirectories) {
+        $item = Get-Item -LiteralPath (Join-Path $Root $directory) -Force -ErrorAction SilentlyContinue
+        if ($item -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw "Refusing to replace a linked program directory: $($item.FullName)"
+        }
+    }
+    $backup = Join-Path $Root (".xiaobei-program-backup-" + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $backup | Out-Null
+    $moved = @()
+    try {
+        foreach ($directory in $managedDirectories) {
+            $source = Join-Path $Root $directory
+            if (Test-Path $source) {
+                Move-Item -LiteralPath $source -Destination (Join-Path $backup $directory)
+                $moved += $directory
+            }
+        }
+    } catch {
+        $preparationFailure = $_
+        try {
+            foreach ($directory in $moved) {
+                Move-Item -LiteralPath (Join-Path $backup $directory) -Destination (Join-Path $Root $directory)
+            }
+            Remove-Item -LiteralPath $backup -Force
+        } catch {
+            throw "Program preparation failed; previous program files retained at $backup. $($_.Exception.Message)"
+        }
+        throw $preparationFailure
+    }
+    try {
+        & tar -xzf $tarball -C $Root
+        if ($LASTEXITCODE -ne 0) { throw "tar extraction failed (exit $LASTEXITCODE)" }
+        foreach ($required in @('openclaw\openclaw.mjs', 'openclaw\package.json',
+            'openclaw\pnpm-lock.yaml', 'openclaw\pnpm-workspace.yaml',
+            'tools\node\node.exe', 'tools\pnpm\bin\pnpm.mjs')) {
+            if (-not (Test-Path (Join-Path $Root $required) -PathType Leaf)) {
+                throw "tarball is missing a required file: $required"
+            }
+        }
+    } catch {
+        $extractionFailure = $_
+        try {
+            foreach ($directory in $managedDirectories) {
+                $partial = Join-Path $Root $directory
+                if (Test-Path $partial) { Remove-Item -LiteralPath $partial -Recurse -Force }
+            }
+            foreach ($directory in $moved) {
+                Move-Item -LiteralPath (Join-Path $backup $directory) -Destination (Join-Path $Root $directory)
+            }
+            Remove-Item -LiteralPath $backup -Force
+        } catch {
+            throw "Extraction failed and program directories could not be restored; previous files retained at $backup. $($_.Exception.Message)"
+        }
+        throw $extractionFailure
+    }
+    $previousBrowserCache = Join-Path $backup 'browser\.browsers'
+    $browserDirectory = Join-Path $Root 'browser'
+    $browserCache = Join-Path $browserDirectory '.browsers'
+    if ((Test-Path $previousBrowserCache) -and (Test-Path $browserDirectory) -and -not (Test-Path $browserCache)) {
+        try { Move-Item -LiteralPath $previousBrowserCache -Destination $browserCache }
+        catch {
+            Write-Warning "Program extracted; browser cache retained at $previousBrowserCache"
+            return
+        }
+    }
+    try { Remove-Item -LiteralPath $backup -Recurse -Force }
+    catch { Write-Warning "Program extracted; previous program files retained at $backup" }
 }
 
 # --- 4. pnpm install --prod ---
@@ -185,6 +256,12 @@ function Install-Deps {
     Write-Stage "Installing dependencies (pnpm install --prod)"
     $openclawDir = Join-Path $Root "openclaw"
     if (-not (Test-Path $NodeExe)) { throw "portable node not found: $NodeExe" }
+    # Enforce the runtime plugin profile before frozen dependency validation.
+    if ((Test-Path (Join-Path $openclawDir ".xiaobei-plugins.json")) -and
+        -not (Test-Path (Join-Path $openclawDir ".git"))) {
+        & $NodeExe (Join-Path $Root "scripts\openclaw-plugins.mjs") trim-distribution $openclawDir
+        if ($LASTEXITCODE -ne 0) { throw "bundled engine plugin preparation failed (exit $LASTEXITCODE)" }
+    }
     Push-Location $openclawDir
     try {
         # postinstall subprocesses (esbuild/protobufjs etc.) look up node via PATH; the target

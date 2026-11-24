@@ -46,7 +46,7 @@ export function applyBundledPluginDefaults(config, template) {
   return changed;
 }
 
-function prepareWorkspace(engineDir, profile) {
+function prepareWorkspace(engineDir, profile, { runtime = false } = {}) {
   const workspaceFile = path.join(engineDir, "pnpm-workspace.yaml");
   const workspace = fs.readFileSync(workspaceFile, "utf8");
   const extensions = /^  - extensions\/[^\r\n]+(?:\r?\n  - extensions\/[^\r\n]+)*/m;
@@ -54,7 +54,8 @@ function prepareWorkspace(engineDir, profile) {
     throw new Error("OpenClaw workspace no longer declares extensions in its package list");
   }
   const workspacePackages = [];
-  for (const id of [...profile.selected, ...profile.buildPrerequisites].sort()) {
+  const directories = runtime ? [...profile.selected] : [...profile.selected, ...profile.buildPrerequisites];
+  for (const id of directories.sort()) {
     const directory = path.join(engineDir, "extensions", id);
     const hasPackage = fs.existsSync(path.join(directory, "package.json"));
     const hasManifest = fs.existsSync(path.join(directory, "openclaw.plugin.json"));
@@ -96,6 +97,9 @@ function trimDistribution(engineDir, profile) {
       fs.rmSync(path.join(directory, id), { force: true, recursive: true });
     }
   }
+  // Build-only workspaces must not reactivate an older plugin left by extraction.
+  // Keep the upstream lockfile intact; runtime installs use only shipped projects.
+  prepareWorkspace(engineDir, profile, { runtime: true });
 }
 
 if (import.meta.main) {

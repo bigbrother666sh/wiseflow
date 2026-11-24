@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
@@ -56,6 +57,8 @@ def main() -> None:
                         help="帧宽 px（默认 640，保持比例）")
     parser.add_argument("--output-dir", default=None,
                         help="帧输出目录（默认 <input 同目录>/frames）")
+    parser.add_argument("--at", type=float, action="append",
+                        help="按指定秒数精确抽帧，可重复；指定后忽略 --interval")
     args = parser.parse_args()
 
     if not os.path.isfile(args.input):
@@ -67,6 +70,27 @@ def main() -> None:
             die(f"{b} 未安装", 3)
 
     duration = probe_duration(args.input)
+    if args.at is not None:
+        if len(args.at) > args.max_frames or any(not math.isfinite(t) or not 0 <= t < duration for t in args.at):
+            die("--at 必须落在视频时长内，数量不能超过 --max-frames")
+        out_dir = args.output_dir or os.path.join(os.path.dirname(os.path.abspath(args.input)), "frames")
+        os.makedirs(out_dir, exist_ok=True)
+        frames = []
+        for index, timestamp in enumerate(args.at):
+            path = os.path.join(out_dir, f"frame_{index:04d}_{timestamp:.3f}s.jpg")
+            result = subprocess.run(
+                ["ffmpeg", "-y", "-i", args.input, "-ss", str(timestamp),
+                 "-vf", f"scale={args.width}:-2", "-frames:v", "1", "-q:v", "4", path],
+                capture_output=True,
+            )
+            if result.returncode or not os.path.isfile(path) or os.path.getsize(path) == 0:
+                die("指定时间抽帧失败: " + (result.stderr or b"").decode("utf-8", "replace")[-500:])
+            frames.append({"file": path, "t": timestamp})
+        report = {"ok": True, "source": args.input, "duration": duration, "count": len(frames), "frames": frames}
+        with open(os.path.join(out_dir, "index.json"), "w", encoding="utf-8") as output:
+            json.dump(report, output, ensure_ascii=False, indent=2)
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return
     interval = args.interval
     if duration / interval > args.max_frames:
         interval = round(duration / args.max_frames, 1)

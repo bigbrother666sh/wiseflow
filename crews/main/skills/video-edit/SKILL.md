@@ -169,14 +169,25 @@ video-edit audio-mix input.mp4 --narration speech.mp3 --bgm music.mp3 --normaliz
 3. 单纯 BGM 用公共 `bgm-library`：`bgm-library pick "<英文风格标签>" --output <project-dir>/audio/`，试听选段后传给 `--bgm`。无匹配时换标签、预设或候选曲；用户自带曲目也可直接使用。
 4. 混音前核对声音与画面时长；音轨短时补静音，超出画面0.1秒以上直接报错。先调整声音或画面，不用 `-t` 截掉末句。
 
-## 能力四：字幕烧录（subtitles）
+## 能力四：字幕生成、试渲与烧录（caption-ass / subtitles）
+
+中文 TTS 旁白优先用字级时间码生成 ASS；先确认声音从视频 0 秒起对齐，剪辑或变速后须重新对齐。按需读取 [字幕排版与验收](references/captions.md)。
 
 ```bash
-video-edit subtitles input.mp4 subs.srt --output out.mp4
+video-edit caption-ass input.mp4 audio/voiceover.subtitle.json \
+    --text-file narration.txt --output subtitles.ass --preview-dir review/captions
 ```
 
-- 接受 `.srt`（统一样式：白字黑描边，`--font-size` / `--margin-v` / `--position bottom|top` 可调）或 `.ass`（自带样式）
-- 字幕文件来源：用户提供；用户只给文案没给时间轴时，由 agent 按片段时长手写 SRT（时间轴与画面/旁白对齐后再烧）
+脚本遍历全部 `sentences[].words`，校验口播稿与字词一致，按原稿标点分句，生成不重叠的百分秒时间轴、显式换行和与画布同尺寸的 ASS；自动试渲首末句、最短/最长句等最多 10 帧。检查返回的图片后再烧录：
+
+```bash
+video-edit subtitles input.mp4 subtitles.ass --output out.mp4
+```
+
+- 用户已有 `.srt` / `.ass` 可直接烧录；只有文案时，先取得实际旁白时间码，不按总时长均分伪造对齐。
+- `.srt` 的 `--font-size` / `--margin-v` 使用转换后 ASS 的脚本单位，不能直接传成片像素；需要精确字号、底框和避让区域时生成 ASS。`.ass` 自带样式，忽略上述样式参数。
+- 单点调整可用 `video-edit subtitles input.mp4 subtitles.ass --preview-at 2.5 --output review/caption.png` 只试渲一帧。
+- 烧录后抽帧复核字幕，另跑 `video-review` 技术检查；技术 pass 不能证明字幕没有裁切、遮挡或错句。保留 ASS 与同名 JSON，便于重渲。
 - 视频会重编码，音频不动
 
 ## 能力五：画面精彩集锦（frames + apply-cut）
@@ -317,6 +328,7 @@ verdict=pass 才交付；fail 按 critical 项修复后重审；warn 向用户�
 | `video-edit assemble` | artifacts/ 按数字前缀拼成成片 | 0 成功 / 非 0 失败 |
 | `video-edit audio-mix` | 加旁白/BGM 混音 | 0 成功 / 1 参数错 / 3 ffmpeg 不存在 |
 | `video-edit subtitles` | 烧录 SRT/ASS 字幕 | 0 成功 / 1 参数错 / 3 ffmpeg 不存在 |
+| `video-edit caption-ass` | TTS 字级时间码生成 ASS + 可选自动试渲 | 0 成功 / 非 0 失败 |
 | `video-edit frames` | 按间隔抽帧（画面分析用） | 0 成功 / 1 参数错 / 3 ffmpeg 不存在 |
 | `video-edit apply-cut` | 按 cut_plan.json 剪拼 | 0 成功 / 1 参数错 / 3 ffmpeg 不存在 |
 | `video-edit preview` | 压 ≤16MB 聊天预览 | 0 成功 / 非 0 失败 |

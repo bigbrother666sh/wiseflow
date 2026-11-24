@@ -17,6 +17,7 @@ case "$cmd" in
   audio-mix) exec python3 "$SCRIPT_DIR/scripts/audio_mix.py" "$@" ;;
   audio-report) exec python3 "$SCRIPT_DIR/scripts/audio_report.py" "$@" ;;
   subtitles) exec python3 "$SCRIPT_DIR/scripts/burn_subtitles.py" "$@" ;;
+  caption-ass) exec python3 "$SCRIPT_DIR/scripts/caption_ass.py" "$@" ;;
   frames)    exec python3 "$SCRIPT_DIR/scripts/sample_frames.py" "$@" ;;
   apply-cut) exec python3 "$SCRIPT_DIR/scripts/apply_cut.py" "$@" ;;
   preview)   exec python3 "$SCRIPT_DIR/scripts/compress_preview.py" "$@" ;;
@@ -31,6 +32,7 @@ case "$cmd" in
   audio-mix  给视频加旁白/背景音乐（混音）
   audio-report  按需只读测量响度、电平和 BGM 节奏
   subtitles  烧录 SRT/ASS 字幕
+  caption-ass  从 TTS 字级时间戳和口播稿生成有画布尺寸的 ASS 字幕
   frames     按间隔抽帧（画面分析用）
   apply-cut  按 cut_plan.json 剪拼
   preview    压缩出 ≤16MB 预览（仅聊天确认用）
